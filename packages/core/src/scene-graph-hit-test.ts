@@ -9,8 +9,20 @@ const CONTAINER_TYPES = new Set<NodeType>([
   'SECTION',
   'COMPONENT',
   'COMPONENT_SET',
-  'INSTANCE'
+  'INSTANCE',
+  'TABLE_CELL',
+  'TABLE_NODE'
 ])
+
+const ALLOWED_ONLY_CHILD_TYPES_BY_PARENT = new Map<NodeType, ReadonlySet<NodeType>>([
+  // ✅ TABLE_NODE 只能直接包含 TABLE_CELL（如果你还想允许别的，往 Set 里加）
+  ['TABLE_NODE', new Set<NodeType>(['TABLE_CELL'])]
+])
+const DISALLOWED_PARENT_TYPES_BY_CHILD = new Map<NodeType, ReadonlySet<NodeType>>([
+  // TABLE_CELL 禁止放在这些 parent 下（你需要把所有非 TABLE_NODE 的容器都列出来）
+  ['TABLE_CELL', new Set<NodeType>(['TABLE_CELL'])]
+])
+
 const OPAQUE_CONTAINER_TYPES = new Set<NodeType>(['COMPONENT', 'INSTANCE'])
 
 function hasVisibleFillOrStroke(node: SceneNode): boolean {
@@ -98,6 +110,15 @@ function hitTestChildren(
     const ay = offsetY + child.y
 
     if (CONTAINER_TYPES.has(child.type)) {
+      const allowChild = ALLOWED_ONLY_CHILD_TYPES_BY_PARENT.get(child.type)
+      const disallowParent = DISALLOWED_PARENT_TYPES_BY_CHILD.get(child.type)
+      if (allowChild) {
+        console.log('=====allowChild=====', allowChild)
+      }
+      // if (allowChild && !allowChild.has(child.type)) {
+      //   continue
+      // }
+      //
       if (OPAQUE_CONTAINER_TYPES.has(child.type) && !deep) {
         const hit = hitTestOpaqueContainer(graph, px, py, child, childId, ax, ay, deep)
         if (hit) return hit
@@ -105,6 +126,13 @@ function hitTestChildren(
       }
 
       const hit = hitTestTransparentContainer(graph, px, py, child, childId, ax, ay, deep)
+      // if (hit) {
+      //   console.log('=====parent=====', parent, child, hit)
+      // }
+
+      // if (disallowParent && disallowParent.has(parent.type)) {
+      //   continue
+      // }
       if (hit) return hit
       continue
     }

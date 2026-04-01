@@ -99,6 +99,8 @@ export type NodeType =
   | 'INSTANCE'
   | 'CONNECTOR'
   | 'SHAPE_WITH_TEXT'
+  | 'TABLE_NODE'
+  | 'TABLE_CELL'
 
 export type FillType =
   | 'SOLID'

@@ -10,7 +10,13 @@ import {
   FLASH_ATTACK_MS,
   FLASH_HOLD_MS,
   FLASH_RELEASE_MS,
-  FLASH_OVERSHOOT
+  FLASH_OVERSHOOT,
+  LABEL_OFFSET_Y,
+  SIZE_PILL_PADDING_X,
+  SIZE_PILL_HEIGHT,
+  SIZE_PILL_PADDING_Y,
+  SIZE_PILL_RADIUS,
+  SIZE_PILL_TEXT_OFFSET_Y
 } from '../constants'
 import { rotatedCorners } from '../geometry'
 import { drawNodeHighlightRect } from './highlight-rect'
@@ -117,13 +123,24 @@ export function drawSelection(
     if (nodeEditId === id) return
     const node = graph.getNode(id)
     if (!node) return
+    if (node.type === 'TABLE_CELL') {
+      return
+    }
 
+    const rotation =
+      overlays.rotationPreview?.nodeId === id ? overlays.rotationPreview.angle : node.rotation
+    if (node.type === 'TABLE_NODE') {
+      r.drawSelectionLabels(canvas, graph, selectedIds)
+
+      drawTableNodeSelection(canvas, node, rotation, graph, r)
+
+      r.drawSelectionLabels(canvas, graph, selectedIds)
+      return
+    }
     const useComponentColor = r.isComponentType(node.type)
     r.selectionPaint.setColor(useComponentColor ? r.compColor() : r.selColor())
     r.selectionPaint.setStrokeWidth(1)
 
-    const rotation =
-      overlays.rotationPreview?.nodeId === id ? overlays.rotationPreview.angle : node.rotation
     r.drawNodeSelection(canvas, node, rotation, graph)
     r.drawSelectionLabels(canvas, graph, selectedIds, overlays)
 
@@ -202,6 +219,239 @@ export function drawNodeSelection(
     r.drawHandle(canvas, x1, my)
     r.drawHandle(canvas, x2, my)
   })
+}
+
+export function drawTableNodeSelection(
+  canvas: Canvas,
+  node: SceneNode,
+  rotation: number,
+  graph: SceneGraph,
+  r: SkiaRenderer
+): void {
+  void graph
+  void rotation
+
+  const cols = (node as any).gridTemplateColumns as { sizing: 'FR'; value: number }[] | undefined
+  const rows = (node as any).gridTemplateRows as { sizing: 'FR'; value: number }[] | undefined
+  if (!cols?.length || !rows?.length) return
+
+  const ck = r?.ck
+  if (!ck) return
+
+  const snap1px = (v: number) => Math.round(v) + 0.5
+
+  // 网格线/边框 paint（浅灰）
+  const borderPaint = new ck.Paint()
+  borderPaint.setStyle(ck.PaintStyle.Stroke)
+  borderPaint.setStrokeWidth(1)
+  borderPaint.setColor(ck.Color4f(0.8, 0.8, 0.8, 1))
+  borderPaint.setAntiAlias(true)
+  borderPaint.setStrokeCap(ck.StrokeCap.Butt)
+  borderPaint.setStrokeJoin(ck.StrokeJoin.Miter)
+
+  // 操作器条带背景
+  const barPaint = new ck.Paint()
+  barPaint.setStyle(ck.PaintStyle.Fill)
+  barPaint.setColor(ck.Color4f(0.95, 0.95, 0.95, 1))
+  barPaint.setAntiAlias(true)
+
+  // 操作器点（实心）
+  const dotPaint = new ck.Paint()
+  dotPaint.setStyle(ck.PaintStyle.Fill)
+  dotPaint.setColor(ck.Color4f(0.8, 0.8, 0.8, 1))
+  dotPaint.setAntiAlias(true)
+
+  // 操作器 “点之间的棒”
+  const opBarPaint = new ck.Paint()
+  opBarPaint.setStyle(ck.PaintStyle.Fill)
+  opBarPaint.setColor(ck.Color4f(0.85, 0.85, 0.85, 1))
+  opBarPaint.setAntiAlias(true)
+  const zoom = r.zoom
+
+  withNodeBounds(r, canvas, node, rotation, graph, (x1, y1, x2, y2) => {
+    // selection 外框（保留你原来的）
+    canvas.drawRect(ck.LTRBRect(x1, y1, x2, y2), r.selectionPaint)
+
+    const w = x2 - x1
+    const h = y2 - y1
+
+    const colSum = cols.reduce((s, t) => s + (t.value ?? 0), 0)
+    const rowSum = rows.reduce((s, t) => s + (t.value ?? 0), 0)
+    if (colSum <= 0 || rowSum <= 0) return
+
+    // 计算内部竖/横分割线坐标
+    const vxsInner: number[] = []
+    {
+      let accX = x1
+      for (let i = 0; i < cols.length - 1; i++) {
+        accX += w * (cols[i].value / colSum)
+        vxsInner.push(snap1px(accX))
+      }
+    }
+
+    const hysInner: number[] = []
+    {
+      let accY = y1
+      for (let i = 0; i < rows.length - 1; i++) {
+        accY += h * (rows[i].value / rowSum)
+        hysInner.push(snap1px(accY))
+      }
+    }
+
+    // handle 点：补上边界，避免最左/最上缺点（也会有最右/最下）
+    const vxsHandle = [snap1px(x1), ...vxsInner, snap1px(x2)]
+    const hysHandle = [snap1px(y1), ...hysInner, snap1px(y2)]
+
+    // 画内部网格线
+    const yTop = snap1px(y1)
+    const yBot = snap1px(y2)
+    const xLeft = snap1px(x1)
+    const xRight = snap1px(x2)
+
+    for (const sx of vxsInner) canvas.drawLine(sx, yTop, sx, yBot, borderPaint)
+    for (const sy of hysInner) canvas.drawLine(xLeft, sy, xRight, sy, borderPaint)
+
+    // ===== Figma-like 操作器 =====
+    const barThickness = 8 * zoom // 顶部/左侧条带厚度
+    const barGap = 4 * zoom // 条带离表格的距离
+
+    const handleRadius = 2 * zoom // 点半径
+
+    const barOffset = 8 * zoom // 网格线与操作器之间的距离
+    const circleOffset = 4 * zoom // 点中心与网格线之间的距离
+
+    const linkThickness = 3 * zoom // 点之间“棒”厚度
+    const gapAroundDot = 0 // 棒避开点的间距（避免棒穿过中间点）
+
+    // 顶部条带（用于列操作）
+    const headerTop = y1 - barGap - barThickness
+    const headerBot = y1 - barGap
+    const headerCy = (headerTop + headerBot) / 2
+
+    // canvas.drawRect(ck.LTRBRect(x1, headerTop, x2, headerBot), barPaint)
+    // canvas.drawRect(ck.LTRBRect(x1, headerTop, x2, headerBot), borderPaint)
+
+    // 左侧条带（用于行操作）
+    const sideLeft = x1 - barGap - barThickness
+    const sideRight = x1 - barGap
+    const sideCx = (sideLeft + sideRight) / 2
+    //
+    // canvas.drawRect(ck.LTRBRect(sideLeft, y1, sideRight, y2), barPaint)
+    // canvas.drawRect(ck.LTRBRect(sideLeft, y1, sideRight, y2), borderPaint)
+
+    // 顶部：画 点-棒-点-棒...（棒只画在相邻点之间，并避开点本身）
+    for (const sx of vxsHandle) {
+      canvas.drawCircle(sx, headerCy - circleOffset, handleRadius, dotPaint)
+    }
+    for (let i = 0; i < vxsHandle.length - 1; i++) {
+      const a = vxsHandle[i]
+      const b = vxsHandle[i + 1]
+      const left = a + gapAroundDot
+      const right = b - gapAroundDot
+      if (right <= left) continue
+      canvas.drawRect(
+        ck.LTRBRect(left, headerCy + barOffset, right, headerCy + linkThickness / 2),
+        opBarPaint
+      )
+    }
+
+    // 左侧：画 点-棒-点-棒...
+    for (const sy of hysHandle) {
+      canvas.drawCircle(sideCx - circleOffset, sy, handleRadius, dotPaint)
+    }
+    for (let i = 0; i < hysHandle.length - 1; i++) {
+      const a = hysHandle[i]
+      const b = hysHandle[i + 1]
+      const top = a + gapAroundDot
+      const bottom = b - gapAroundDot
+      if (bottom <= top) continue
+      canvas.drawRect(
+        ck.LTRBRect(sideCx + barOffset, top, sideCx + linkThickness / 2, bottom),
+        opBarPaint
+      )
+    }
+
+    // 可选：右上/左下 “+ 添加” 按钮占位（先用圆点表示）
+    // const addR = 5
+    // canvas.drawCircle(x2 + barGap + addR, headerCy, addR, dotPaint) // add column
+    // canvas.drawCircle(sideCx, y2 + barGap + addR, addR, dotPaint)   // add row
+  })
+}
+
+export function drawSelectionLabels(
+  r: SkiaRenderer,
+  canvas: Canvas,
+  graph: SceneGraph,
+  selectedIds: Set<string>
+): void {
+  if (!r.labelFont || !r.sizeFont) return
+
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  const nodes: SceneNode[] = []
+
+  for (const id of selectedIds) {
+    const node = graph.getNode(id)
+    if (!node) continue
+    nodes.push(node)
+    const abs = graph.getAbsolutePosition(id)
+    minX = Math.min(minX, abs.x)
+    minY = Math.min(minY, abs.y)
+    maxX = Math.max(maxX, abs.x + node.width)
+    maxY = Math.max(maxY, abs.y + node.height)
+  }
+
+  if (nodes.length === 0) return
+
+  const sx1 = minX * r.zoom + r.panX
+  const sy1 = minY * r.zoom + r.panY
+  const sx2 = maxX * r.zoom + r.panX
+  const sy2 = maxY * r.zoom + r.panY
+  const smx = (sx1 + sx2) / 2
+
+  if (nodes.length === 1) {
+    const node = nodes[0]
+    const parentNode = node.parentId ? graph.getNode(node.parentId) : null
+    const isTopLevel = !parentNode || parentNode.type === 'CANVAS' || parentNode.type === 'SECTION'
+    if (node.type === 'FRAME' && isTopLevel) {
+      r.auxFill.setColor(r.selColor())
+      canvas.drawText(node.name, sx1, sy1 - LABEL_OFFSET_Y, r.auxFill, r.labelFont)
+    }
+  }
+
+  const w = Math.round(maxX - minX)
+  const h = Math.round(maxY - minY)
+  const sizeText = `${w} × ${h}`
+  const glyphIds = r.sizeFont.getGlyphIDs(sizeText)
+  const widths = r.sizeFont.getGlyphWidths(glyphIds)
+  let textWidth = 0
+  for (const w of widths) textWidth += w
+  const pillW = textWidth + SIZE_PILL_PADDING_X * 2
+  const pillH = SIZE_PILL_HEIGHT
+  const pillX = smx - pillW / 2
+  const pillY = sy2 + SIZE_PILL_PADDING_Y
+
+  const allComponents = nodes.length > 0 && nodes.every((n) => r.isComponentType(n.type))
+  const pillColor = allComponents ? r.compColor() : r.selColor()
+
+  r.auxFill.setColor(pillColor)
+  const rrect = r.ck.RRectXY(
+    r.ck.LTRBRect(pillX, pillY, pillX + pillW, pillY + pillH),
+    SIZE_PILL_RADIUS,
+    SIZE_PILL_RADIUS
+  )
+  canvas.drawRRect(rrect, r.auxFill)
+
+  r.auxFill.setColor(r.ck.WHITE)
+  canvas.drawText(
+    sizeText,
+    pillX + SIZE_PILL_PADDING_X,
+    pillY + SIZE_PILL_TEXT_OFFSET_Y,
+    r.auxFill,
+    r.sizeFont
+  )
 }
 
 export function drawParentFrameOutlines(
@@ -310,8 +560,6 @@ export function getRotatedCorners(r: SkiaRenderer, n: SceneNode, abs: Vector): V
   const hh = (n.height / 2) * r.zoom
   return rotatedCorners(cx, cy, hw, hh, n.rotation)
 }
-
-export { drawSelectionLabels } from './selection-labels'
 
 export function drawHandle(r: SkiaRenderer, canvas: Canvas, x: number, y: number): void {
   r.auxFill.setColor(r.ck.WHITE)

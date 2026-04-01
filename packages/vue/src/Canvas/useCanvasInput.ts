@@ -462,6 +462,10 @@ export function useCanvasInput(
 
     const nodeId = editor.createShape(nodeType, cx, cy, 0, 0)
     editor.select([nodeId])
+    if (nodeType === 'TABLE_NODE') {
+      editor.setTool('SELECT')
+      return
+    }
 
     drag.value = { type: 'draw', startX: cx, startY: cy, nodeId }
   }
@@ -540,6 +544,10 @@ export function useCanvasInput(
       return
     }
     if (d.type === 'resize') {
+      const node = editor.graph.getNode(d.nodeId)
+      if (node?.type === 'TABLE_NODE') {
+        return
+      }
       applyResize(d, cx, cy, e.shiftKey, editor)
       return
     }

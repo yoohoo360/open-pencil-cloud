@@ -18,6 +18,7 @@ export type Tool =
   | 'TEXT'
   | 'PEN'
   | 'HAND'
+  | 'TABLE'
 
 export interface EditorToolDef {
   key: Tool
@@ -33,7 +34,7 @@ export const EDITOR_TOOLS: EditorToolDef[] = [
     key: 'RECTANGLE',
     label: 'Rectangle',
     shortcut: 'R',
-    flyout: ['RECTANGLE', 'LINE', 'ELLIPSE', 'POLYGON', 'STAR']
+    flyout: ['RECTANGLE', 'LINE', 'ELLIPSE', 'POLYGON', 'STAR', 'TABLE']
   },
   { key: 'PEN', label: 'Pen', shortcut: 'P' },
   { key: 'TEXT', label: 'Text', shortcut: 'T' },

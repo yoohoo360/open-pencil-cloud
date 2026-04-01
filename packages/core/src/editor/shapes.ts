@@ -104,8 +104,55 @@ export function createShapeActions(ctx: EditorContext) {
       overrides.pointCount = 5
       overrides.starInnerRadius = 0.38
     }
+    if (type === 'TABLE_NODE') {
+      overrides.width = 200
+      overrides.height = 100
+      overrides.name = 'Table'
+      overrides.layoutMode = 'GRID'
+      overrides.gridTemplateColumns = [
+        {
+          sizing: 'FR',
+          value: 1
+        },
+        {
+          sizing: 'FR',
+          value: 1
+        }
+      ]
+
+      overrides.gridTemplateRows = [
+        {
+          sizing: 'FR',
+          value: 1
+        },
+        {
+          sizing: 'FR',
+          value: 1
+        }
+      ]
+    }
     const node = ctx.graph.createNode(type, pid, overrides)
     const id = node.id
+    if (type === 'TABLE_NODE') {
+      // 创建4个FRAME作为单元格
+      const cellWidth = overrides?.width / 2
+      const cellHeight = overrides?.height / 2
+
+      for (let i = 0; i < 4; i++) {
+        ctx.graph.createNode('TABLE_CELL', id, {
+          x: (i % 2) * cellWidth,
+          y: Math.floor(i / 2) * cellHeight,
+          name: i < 2 ? 'Head' : 'Cell',
+          width: cellWidth,
+          height: cellHeight,
+          layoutMode: 'HORIZONTAL',
+
+          fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 }, opacity: 0, visible: true }]
+        })
+      }
+      // ctx.graph.updateNode(id, { width: overrides.width + 10, height: overrides.height + 10 })
+    }
+
     const snapshot = { ...node }
     ctx.undo.push({
       label: `Create ${type.toLowerCase()}`,
