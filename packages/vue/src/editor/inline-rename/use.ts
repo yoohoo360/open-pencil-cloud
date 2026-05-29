@@ -5,6 +5,7 @@ import { blurTarget } from '#vue/shared/dom-events'
 
 export interface InlineRenameState<T extends string> {
   editingId: Ref<T | null>
+  editingValue: Ref<string | null>
   start: (id: T, currentName: string) => void
   focusInput: (input: HTMLInputElement | null) => Promise<void>
   commit: (id: T, eventOrInput: Event | HTMLInputElement) => void
@@ -16,11 +17,15 @@ export function useInlineRename<T extends string>(
   onCommit: (id: T, newName: string) => void
 ): InlineRenameState<T> {
   const editingId: Ref<T | null> = ref(null)
+  const editingValue: Ref<string | null> = ref(null)
   const inputRef: Ref<HTMLInputElement | null> = ref(null)
   let originalName = ''
+
   let cleanupOutsideClick: (() => void) | undefined
 
   function start(id: T, currentName: string) {
+    editingValue.value = currentName
+
     editingId.value = id
     originalName = currentName
   }
@@ -50,6 +55,7 @@ export function useInlineRename<T extends string>(
     if (value && value !== originalName) {
       onCommit(id, value)
     }
+    editingValue.value = null
     editingId.value = null
     inputRef.value = null
     cleanupOutsideClick?.()
@@ -57,8 +63,10 @@ export function useInlineRename<T extends string>(
   }
 
   function cancel() {
+    editingValue.value = null
     editingId.value = null
     inputRef.value = null
+
     cleanupOutsideClick?.()
     cleanupOutsideClick = undefined
   }
@@ -74,5 +82,13 @@ export function useInlineRename<T extends string>(
     }
   }
 
-  return { editingId, start, focusInput, commit, cancel, onKeydown }
+  return {
+    editingValue: editingValue,
+    editingId,
+    start,
+    focusInput,
+    commit,
+    cancel,
+    onKeydown
+  }
 }
