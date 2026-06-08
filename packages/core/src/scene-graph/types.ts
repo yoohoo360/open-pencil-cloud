@@ -145,6 +145,7 @@ export interface Fill {
   imageScaleMode?: ImageScaleMode
   imageTransform?: GradientTransform
   sourceNodeId?: string
+  scale?: number
   spacing?: number
   patternSpacing?: Vector
   patternTileType?: PatternTileType
@@ -187,6 +188,8 @@ export type TextAutoResize = 'NONE' | 'HEIGHT' | 'WIDTH_AND_HEIGHT' | 'TRUNCATE'
 export type TextAlignVertical = 'TOP' | 'CENTER' | 'BOTTOM'
 export type TextCase = 'ORIGINAL' | 'UPPER' | 'LOWER' | 'TITLE'
 export type TextDecoration = 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH'
+export type TextDecorationStyle = 'SOLID' | 'DOTTED' | 'WAVY'
+export type LeadingTrim = 'NONE' | 'CAP_HEIGHT'
 export type TextDirection = 'AUTO' | 'LTR' | 'RTL'
 export type LayoutDirection = 'AUTO' | 'LTR' | 'RTL'
 
@@ -204,6 +207,11 @@ export interface CharacterStyleOverride {
   fontWeight?: number
   italic?: boolean
   textDecoration?: TextDecoration
+  textDecorationStyle?: TextDecorationStyle
+  textDecorationThickness?: number | null
+  textDecorationFills?: Fill[]
+  textDecorationSkipInk?: boolean
+  textUnderlineOffset?: number | null
   fontSize?: number
   fontFamily?: string
   letterSpacing?: number
@@ -250,6 +258,13 @@ export interface PluginDataEntry {
   pluginId: string
   key: string
   value: string
+}
+
+export type ExportFormatId = 'png' | 'jpg' | 'webp' | 'svg' | 'pdf'
+
+export interface ExportSetting {
+  scale: number
+  format: ExportFormatId
 }
 
 export interface PluginRelaunchDataEntry {
@@ -350,6 +365,12 @@ export interface SceneNode {
   textAutoResize: TextAutoResize
   textCase: TextCase
   textDecoration: TextDecoration
+  textDecorationStyle: TextDecorationStyle
+  textDecorationThickness: number | null
+  textDecorationFills: Fill[]
+  textDecorationSkipInk: boolean
+  textUnderlineOffset: number | null
+  leadingTrim: LeadingTrim
   lineHeight: number | null
   letterSpacing: number
   maxLines: number | null
@@ -405,6 +426,7 @@ export interface SceneNode {
 
   isMask: boolean
   maskType: MaskType
+  maskIsOutline: boolean
 
   gridTemplateColumns: GridTrack[]
   gridTemplateRows: GridTrack[]
@@ -440,6 +462,7 @@ export interface SceneNode {
   variantPropSpecs: VariantPropSpec[]
 
   boundVariables: Record<string, string>
+  exportSettings: ExportSetting[]
 
   pluginData: PluginDataEntry[]
   pluginRelaunchData: PluginRelaunchDataEntry[]

@@ -6,6 +6,7 @@ import type { Color, GUID, Matrix, Vector } from '#core/types'
 
 import { stringToGuid } from './guid'
 import {
+  applyExportSettingsPluginData,
   mergePluginData,
   NODE_TYPE_PLUGIN_KEY,
   serializePluginRelaunchData,
@@ -366,7 +367,11 @@ function applyRawFigmaNodeFields(
       continue
     }
     if (key === 'derivedTextData' && node.source.id) {
-      nc[key] = materialized[key]
+      nc.derivedTextData = materialized.derivedTextData
+      continue
+    }
+    if (key === 'textDecorationFillPaints' && node.source.id) {
+      nc.textDecorationFillPaints = materialized.textDecorationFillPaints
       continue
     }
     // Skip any key already set on nc — explicit serialization takes priority
@@ -534,6 +539,28 @@ function hasRawVectorPayload(node: SceneNode): boolean {
   return 'vectorData' in node.source.fig.rawNodeFields
 }
 
+const SUPPORTED_NORMALIZED_EFFECT_TYPES = new Set([
+  'DROP_SHADOW',
+  'INNER_SHADOW',
+  'LAYER_BLUR',
+  'BACKGROUND_BLUR',
+  'FOREGROUND_BLUR'
+])
+
+function hasRawUnsupportedEffects(node: SceneNode): boolean {
+  const effects = node.source.fig.rawNodeFields.effects
+  return (
+    Array.isArray(effects) &&
+    effects.some(
+      (effect) =>
+        effect &&
+        typeof effect === 'object' &&
+        'type' in effect &&
+        !SUPPORTED_NORMALIZED_EFFECT_TYPES.has(String(effect.type))
+    )
+  )
+}
+
 function nodeForGeometryExport(node: SceneNode): SceneNode {
   if (!hasRawGeometryPayload(node) && !hasRawVectorPayload(node)) return node
   return {
@@ -570,7 +597,7 @@ function applyNodeVisualProps(
 
   context.serializeCornerRadii(node, nc)
 
-  if (node.effects.length > 0) {
+  if (node.effects.length > 0 && !hasRawUnsupportedEffects(node)) {
     nc.effects = node.effects.map((effect) => ({
       type: effect.type === 'LAYER_BLUR' ? 'FOREGROUND_BLUR' : effect.type,
       color: context.safeColor(effect.color),
@@ -639,6 +666,9 @@ export function sceneNodeToKiwiWithContext(
     size: exportNodeSize(node),
     transform: exportNodeTransform(context, node)
   }
+  if (node.type === 'GROUP') {
+    nc.resizeToFit = true
+  }
   // Only set strokeWeight/strokeAlign when the node has strokes in the scene
   // model. For imported nodes without strokes but with raw strokeWeight data
   // (e.g. text nodes, instance children with scaled strokes), the raw value
@@ -662,6 +692,7 @@ export function sceneNodeToKiwiWithContext(
   context.serializeVariableBindings(node, nc, context.graph, context.varIdToGuid)
   applyRawFigmaNodeFields(context, node, nc)
 
+  applyExportSettingsPluginData(node)
   const pluginData = mergePluginData(node.pluginData)
   if (pluginData.length > 0) nc.pluginData = pluginData
   if (node.pluginRelaunchData.length > 0) {

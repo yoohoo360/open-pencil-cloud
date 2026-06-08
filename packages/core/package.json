@@ -1,6 +1,6 @@
 {
   "name": "@open-pencil/core",
-  "version": "0.12.2",
+  "version": "0.13.2",
   "license": "MIT",
   "type": "module",
   "imports": {
@@ -112,6 +112,11 @@
       "types": "./dist/kiwi/index.d.ts",
       "default": "./dist/kiwi/index.js",
       "import": "./dist/kiwi/index.js"
+    },
+    "./clipboard": {
+      "types": "./dist/clipboard.d.ts",
+      "default": "./dist/clipboard.js",
+      "import": "./dist/clipboard.js"
     },
     "./constants": {
       "types": "./dist/constants.d.ts",
