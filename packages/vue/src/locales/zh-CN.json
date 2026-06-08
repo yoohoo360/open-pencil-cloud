@@ -193,6 +193,8 @@
     "strokeDash": "虚线描边",
     "add": "添加",
     "variants": "变体",
+    "addVariant": "添加变体",
+    "removeVariant": "移除变体",
     "gapAuto": "自动间距",
     "horizontalGap": "水平间距",
     "verticalGap": "垂直间距",

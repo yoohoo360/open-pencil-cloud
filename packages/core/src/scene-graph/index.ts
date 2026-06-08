@@ -350,15 +350,8 @@ export class SceneGraph {
   updateNodePreview(id: string, changes: Partial<SceneNode>): void {
     updateNodePreview(this, id, changes)
   }
-  updateNode(id: string, changes: Partial<SceneNode>): void {
-    if (this.previewMutationDepth > 0) {
-      this.updateNodePreview(id, changes)
-      return
-    }
 
-    const node = this.nodes.get(id)
-    if (!node) return
-
+  private updateNodeComponent(id: string, node: SceneNode, changes: Partial<SceneNode>) {
     // Only clear absPosCache when layout-affecting properties change.
     // Fills, strokes, effects, plugin data changes do NOT affect absolute position.
     const affectsLayout = Object.keys(changes).some((k) => SceneGraph.LAYOUT_AFFECTING_KEYS.has(k))
@@ -378,6 +371,26 @@ export class SceneGraph {
         set.add(id)
       }
     }
+
+    if (node.type === 'COMPONENT' && 'name' in changes && changes.name !== node.name) {
+      const parent = node.parentId ? this.nodes.get(node.parentId) : undefined
+      node.componentPropertyValues = generatePropertyValues(
+        changes?.name || '',
+        parent && parent.type === 'COMPONENT_SET' ? parent.componentPropertyDefinitions : []
+      )
+    }
+  }
+  updateNode(id: string, changes: Partial<SceneNode>): void {
+    if (this.previewMutationDepth > 0) {
+      this.updateNodePreview(id, changes)
+      return
+    }
+
+    const node = this.nodes.get(id)
+    if (!node) return
+
+    this.updateNodeComponent(id, node, changes)
+
     if (node.type === 'TEXT') {
       const textChanged = Object.keys(changes).some((k) => TEXT_PICTURE_KEYS.has(k))
       if (node.textPicture && textChanged) node.textPicture = null

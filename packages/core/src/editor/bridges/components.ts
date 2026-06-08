@@ -32,6 +32,7 @@ export function createComponentBridge(
     getComponentSetPropertyDefs: components.getComponentSetPropertyDefs,
     addPropertyDefinition: components.addPropertyDefinition,
     removePropertyDefinition: components.removePropertyDefinition,
+    updateVariantOptions: components.updateVariantOptions,
     renamePropertyDefinition: components.renamePropertyDefinition,
     collectVariantOptions: components.collectVariantOptions,
     findVariantByValues: components.findVariantByValues,

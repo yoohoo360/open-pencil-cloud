@@ -193,6 +193,8 @@
     "strokeDash": "Obrys przerywany",
     "add": "Dodaj",
     "variants": "Warianty",
+    "addVariant": "Dodaj wariant",
+    "removeVariant": "Usuń wariant",
     "gapAuto": "Automatyczny odstep",
     "horizontalGap": "Odstep poziomy",
     "verticalGap": "Odstep pionowy",

@@ -193,6 +193,8 @@
     "strokeDash": "Tratto tratteggiato",
     "add": "Aggiungi",
     "variants": "Varianti",
+    "addVariant": "Aggiungi variante",
+    "removeVariant": "Rimuovi variante",
     "gapAuto": "Spaziatura auto",
     "horizontalGap": "Spaziatura orizzontale",
     "verticalGap": "Spaziatura verticale",

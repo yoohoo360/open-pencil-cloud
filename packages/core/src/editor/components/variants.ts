@@ -224,6 +224,48 @@ export function createVariantActions(ctx: EditorContext) {
     return [...byKey.values()].filter((entry) => entry.componentIds.length > 1)
   }
 
+  function updateVariantOptions(componentSetId: string, properId: string, newOptions: string[]) {
+    const node = ctx.graph.getNode(componentSetId)
+    if (node?.type !== 'COMPONENT_SET') return
+    const def = node.componentPropertyDefinitions.find((d) => d.id === properId)
+    if (!def || def.type !== 'VARIANT') return
+
+    const prevOptions = def.variantOptions ?? []
+
+    const updateOptions = (options: string[]) => {
+      // Update property definitions
+      ctx.graph.updateNode(componentSetId, {
+        componentPropertyDefinitions: node.componentPropertyDefinitions.map((d) =>
+          d.id === def.id ? { ...d, variantOptions: options } : d
+        )
+      })
+      // Update child componentPropertyValues
+      for (const childId of node.childIds) {
+        const child = ctx.graph.getNode(childId)
+        if (child?.type !== 'COMPONENT') continue
+        const value = child.componentPropertyValues[def.name]
+        if (value && !newOptions.includes(value)) {
+          const newValues = omit(child.componentPropertyValues, [def.name])
+          ctx.graph.updateNode(childId, { componentPropertyValues: newValues })
+        }
+      }
+    }
+
+    updateOptions(newOptions)
+    ctx.undo.push({
+      label: 'Update variant options',
+      forward: () => {
+        updateOptions(newOptions)
+        ctx.requestRender()
+      },
+      inverse: () => {
+        updateOptions(prevOptions)
+        ctx.requestRender()
+      }
+    })
+    ctx.requestRender()
+  }
+
   function switchInstanceVariant(instanceId: string, propertyName: string, newValue: string) {
     const instance = ctx.graph.getNode(instanceId)
     if (instance?.type !== 'INSTANCE' || !instance.componentId) return
@@ -263,10 +305,57 @@ export function createVariantActions(ctx: EditorContext) {
     renamePropertyDefinition,
     parseVariantName,
     buildVariantName,
+    updateVariantOptions,
     collectVariantOptions,
     findVariantByValues,
     getDefaultVariantForComponentSet,
     getComponentSetVariantConflicts,
     switchInstanceVariant
   }
+}
+export function generateVariantName(name: string = ''): {
+  name: string
+  value: string
+}[] {
+  const hasSlash = name.includes('/')
+  const hasKeyValue =
+    /(?:^|[,/]\s*)[^=,/]+=[^=,/]+(?:\s*[,/]|$)|^[^=,/]+=[^=,/]+(?:\s*,\s*[^=,/]+=[^=,/]+)*$/.test(
+      name
+    )
+  if (hasSlash && hasKeyValue) return []
+
+  if (hasKeyValue) {
+    return name.split(',').map((part) => {
+      const [name, value] = part.trim().split('=')
+      return {
+        name,
+        value
+      }
+    })
+  }
+  return hasSlash
+    ? name.split('/').map((it, idx) => {
+        const val = it.trim()
+        let type: ComponentPropertyType = 'VARIANT'
+        if (val === 'true' || val === 'false') {
+          type = 'BOOLEAN'
+        }
+        return {
+          name: `Variant${idx + 1}`,
+          type: type,
+          value: val
+        }
+      })
+    : []
+}
+export function generatePropertyValues(name: string, defs: ComponentPropertyDefinition[]) {
+  const nameList = generateVariantName(name)
+  const result: Record<string, string> = {}
+  defs.forEach((def) => {
+    const match = nameList.find((n) => n.name === def.name)
+    if (match) {
+      result[def.name] = match.value
+    }
+  })
+  return result
 }

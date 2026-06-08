@@ -193,6 +193,8 @@
     "strokeDash": "Trait en pointillés",
     "add": "Ajouter",
     "variants": "Variantes",
+    "addVariant": "Ajouter une variante",
+    "removeVariant": "Supprimer la variante",
     "gapAuto": "Espacement auto",
     "horizontalGap": "Espacement horizontal",
     "verticalGap": "Espacement vertical",

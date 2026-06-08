@@ -171,6 +171,8 @@ export const panelMessages = i18n('panels', {
   typography: 'Typography',
   variables: 'Variables',
   variants: 'Variants',
+  addVariant: 'add variant',
+  removeVariant: 'remove variant',
   constraints: 'Constraints',
 
   addFill: 'Add fill',
