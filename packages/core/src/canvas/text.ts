@@ -8,12 +8,12 @@ import type {
 } from 'canvaskit-wasm'
 import { uniq } from 'es-toolkit/array'
 
+import { getConfig } from '@open-pencil/config'
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import { getCanvasKit } from '#core/canvaskit'
 import { resolveRGBAForPreview } from '#core/color/management'
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '#core/constants'
 import { textNeededFallbackScripts } from '#core/text/coverage'
 import { resolveNodeTextDirection } from '#core/text/direction'
 import { fontManager, weightToStyle } from '#core/text/fonts'
@@ -54,7 +54,7 @@ function hasRequiredFallbackFonts(node: SceneNode): boolean {
 }
 
 export function isNodeFontLoaded(_r: TextRenderer, node: SceneNode): boolean {
-  const baseFamily = node.fontFamily || DEFAULT_FONT_FAMILY
+  const baseFamily = node.fontFamily || getConfig().DEFAULT_FONT_FAMILY
   if (!fontManager.isStyleLoaded(baseFamily, weightToStyle(node.fontWeight, node.italic))) {
     return false
   }
@@ -140,7 +140,7 @@ function resolveParagraphFontFamilies(
   if (cached) return cached
 
   const families = [renderPrimary]
-  if (primary !== DEFAULT_FONT_FAMILY) families.push(DEFAULT_FONT_FAMILY)
+  if (primary !== getConfig().DEFAULT_FONT_FAMILY) families.push(getConfig().DEFAULT_FONT_FAMILY)
   families.push(...arabicFallbacks, ...cjkFallbacks)
 
   const resolved = uniq(families)
@@ -259,7 +259,7 @@ function pushStyleRun(
     new ck.TextStyle({
       color: styleRunColor(ck, style, baseColor),
       fontFamilies: fontFamilies(
-        style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY),
+        style.fontFamily ?? (node.fontFamily || getConfig().DEFAULT_FONT_FAMILY),
         style.fontWeight ?? node.fontWeight,
         style.italic ?? node.italic
       ),
@@ -320,7 +320,7 @@ export function buildParagraph(
 ): Paragraph {
   const ck = r.ck
   const baseColor = color ?? ck.BLACK
-  const baseFontSize = node.fontSize || DEFAULT_FONT_SIZE
+  const baseFontSize = node.fontSize || getConfig().DEFAULT_FONT_SIZE
   const cjkFallbacks = fontManager.getCJKFallbackFamilies()
   const arabicFallbacks = fontManager.getArabicFallbackFamilies()
   const textDirection = resolveNodeTextDirection(node)
@@ -343,7 +343,7 @@ export function buildParagraph(
     textStyle: {
       color: baseColor,
       fontFamilies: fontFamilies(
-        node.fontFamily || DEFAULT_FONT_FAMILY,
+        node.fontFamily || getConfig().DEFAULT_FONT_FAMILY,
         node.fontWeight,
         node.italic
       ),
@@ -361,7 +361,8 @@ export function buildParagraph(
       decorationColor: textDecorationColor(ck, node.textDecorationFills, baseColor),
       heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
       halfLeading
-    }
+    },
+    heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined
   })
 
   if (!r.fontProvider) throw new Error('Font provider not initialized')

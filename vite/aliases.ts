@@ -41,6 +41,11 @@ export function createOpenPencilAliases(rootDir: string) {
     { find: '@open-pencil/vue', replacement: resolve(rootDir, 'packages/vue/src') },
     { find: /^@open-pencil\/core$/, replacement: resolve(rootDir, 'packages/core/src/index.ts') },
     { find: '@open-pencil/core', replacement: resolve(rootDir, 'packages/core/src') },
+    { find: '@open-pencil/config', replacement: resolve(rootDir, 'packages/config/src') },
+    {
+      find: /^@open-pencil\/config$/,
+      replacement: resolve(rootDir, 'packages/config/src/index.ts')
+    },
     {
       find: 'opentype.js',
       replacement: resolve(rootDir, 'node_modules/opentype.js/dist/opentype.module.js')
