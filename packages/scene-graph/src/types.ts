@@ -471,6 +471,7 @@ export interface SceneNode {
 
   internalOnly: boolean
 
+  remote?: boolean
   flipX: boolean
   flipY: boolean
 
