@@ -49,3 +49,6 @@ export {
   parseVarint,
   FIG_WIRE_MAGIC
 } from '@open-pencil/kiwi/fig'
+
+export { deserializeSceneGraph, serializeSceneGraph } from './fig/parse/transfer'
+export type { SerializedSceneGraph } from './fig/parse/transfer'

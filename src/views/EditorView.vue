@@ -28,21 +28,90 @@ import SafariBanner from '@/components/SafariBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import Tip from '@/components/ui/Tip.vue'
 import Toolbar from '@/components/Toolbar/Toolbar.vue'
-
+import { readCacheText, writeCacheText } from '@/app/cache'
+import {
+  deserializeSceneGraph,
+  readFigFile,
+  SerializedSceneGraph,
+  serializeSceneGraph
+} from '@open-pencil/core/kiwi'
 const route = useRoute()
 const params = useUrlSearchParams('history')
 const showChrome = !('no-chrome' in params)
 
+const localStorageKey = `demo-test-store-data`
 const createdInitialTab = tabCount() === 0
 const firstTab = createdInitialTab ? createTab() : (activeTab.value ?? createTab())
 const store = useEditorStore()
 const { dialogs } = useI18n()
 const { isMobile } = useViewportKind()
 
-if (createdInitialTab && route.meta.demo && !('test' in params)) {
+if (route.meta.demo && !('test' in params)) {
   createDemoShapes(firstTab.store)
 }
+if (route.meta.demo && 'test' in params && process.env.NODE_ENV === 'development') {
+  readCacheText(params?.test ? localStorageKey + '__' + params?.test : localStorageKey).then(
+    (text) => {
+      const json = JSON.parse(text ?? '{}') as SerializedSceneGraph
+      if (json && Object.keys(json).length > 0) {
+        const g = deserializeSceneGraph(json)
+        firstTab.store.replaceGraph(g)
+        const pages = g.getPages(true)
+        if (pages?.length) {
+          firstTab.store.switchPage(pages[0]?.id)
+        }
 
+        store.requestRepaint()
+      }
+    }
+  )
+}
+
+useEventListener(window, 'keydown', (e: KeyboardEvent) => {
+  const isSave = e.shiftKey && e.ctrlKey && e.code === 'KeyS'
+  const isPrint = e.shiftKey && e.ctrlKey && e.code === 'KeyP'
+
+  if (isSave) {
+    const json = serializeSceneGraph(store.graph)
+    writeCacheText(
+      params?.test ? localStorageKey + '__' + params?.test : localStorageKey,
+      JSON.stringify(json)
+    ).catch((e) => console.error('[Cache]', e))
+    return false
+  } else if (isPrint) {
+    const nodes = store.getSelectedNodes()
+    if (nodes?.length) {
+      console.debug('selected nodes json:', ...nodes)
+    } else {
+      console.debug('graph json:', serializeSceneGraph(store.graph))
+    }
+    return false
+  }
+  const isSaveC = e.shiftKey && e.ctrlKey && e.code === 'KeyD'
+  if (isSaveC) {
+    const openXX = async () => {
+      const [handle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Design file',
+            accept: {
+              'application/octet-stream': ['.fig'],
+              'application/json': ['.pen'],
+              'text/plain': ['.pen']
+            }
+          }
+        ]
+      })
+      const file = await handle.getFile()
+      const f = await readFigFile(file, { populate: 'first-page' }).catch((e) => {
+        console.error('==[Read File]', e)
+        return null
+      })
+      store.graph.addLib('pu-web-lib.open.cn', f)
+    }
+    openXX()
+  }
+})
 useHead({ title: route.meta.demo ? 'Demo' : undefined })
 useKeyboard()
 useMenu()
