@@ -26,7 +26,14 @@ const componentSetId = computed(() => {
 const variantOptions = computed(() => {
   const csId = componentSetId.value
   if (!csId) return new Map<string, Set<string>>()
-  return editor.collectVariantOptions(csId)
+  const compSet = editor.graph.getNode(csId)
+  if (compSet?.remote) {
+    const remoteKey = compSet.id.split(':')[0]
+    const remoteGraph = editor.graph.getLib(remoteKey)?.graph
+    return editor.collectVariantOptions(csId, remoteGraph)
+  } else {
+    return editor.collectVariantOptions(csId)
+  }
 })
 
 const currentValues = computed(() => {
