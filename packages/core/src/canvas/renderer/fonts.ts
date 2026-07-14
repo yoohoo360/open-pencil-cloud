@@ -1,10 +1,9 @@
+import { getConfig } from '@open-pencil/config'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import {
   COMPONENT_LABEL_FONT_SIZE,
-  DEFAULT_FONT_FAMILY,
-  DEFAULT_FONT_SIZE,
   LABEL_FONT_SIZE,
   SECTION_TITLE_FONT_SIZE,
   SIZE_FONT_SIZE
@@ -25,10 +24,10 @@ export async function loadFonts(
 
   fontManager.attachProvider(r.ck, r.fontProvider)
 
-  const fontData = await fontManager.loadFont(DEFAULT_FONT_FAMILY, 'Regular')
+  const fontData = await fontManager.loadFont(getConfig().DEFAULT_FONT_FAMILY, 'Regular')
   if (r.isDestroyed()) return
   if (fontData) {
-    r.fontProvider.registerFont(fontData, DEFAULT_FONT_FAMILY)
+    r.fontProvider.registerFont(fontData, getConfig().DEFAULT_FONT_FAMILY)
     const typeface = r.ck.Typeface.MakeFreeTypeFaceFromData(fontData)
     if (typeface) {
       r.textFont?.delete()
@@ -36,7 +35,7 @@ export async function loadFonts(
       r.sizeFont?.delete()
       r.sectionTitleFont?.delete()
       r.componentLabelFont?.delete()
-      r.textFont = new r.ck.Font(typeface, DEFAULT_FONT_SIZE)
+      r.textFont = new r.ck.Font(typeface, getConfig().DEFAULT_FONT_SIZE)
       r.labelFont = new r.ck.Font(typeface, LABEL_FONT_SIZE)
       r.sizeFont = new r.ck.Font(typeface, SIZE_FONT_SIZE)
       r.sectionTitleFont = new r.ck.Font(typeface, SECTION_TITLE_FONT_SIZE)

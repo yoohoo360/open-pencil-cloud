@@ -17,7 +17,9 @@
     "paths": {
       "#core/*": ["./src/*"],
       "@open-pencil/core": ["./src/index.ts"],
-      "@open-pencil/core/*": ["./src/*"]
+      "@open-pencil/core/*": ["./src/*"],
+      "@open-pencil/config": ["../config/src/index.ts"],
+      "@open-pencil/config/*": ["../config/src/*"]
     }
   },
   "include": ["src"]

@@ -1,6 +1,8 @@
 import { browser, localeFrom } from '@nanostores/i18n'
 import { atom } from 'nanostores'
 
+import { updateLocaleConfig } from '@open-pencil/config'
+
 export const AVAILABLE_LOCALES = ['en', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'ru', 'zh-CN'] as const
 export type Locale = (typeof AVAILABLE_LOCALES)[number]
 export type TranslatedLocale = Exclude<Locale, 'en'>
@@ -55,9 +57,11 @@ function getLocalStorage(): Storage | null {
 export function setLocale(code: Locale) {
   localeSetting.set(code)
   getLocalStorage()?.setItem(LOCALE_STORAGE_KEY, code)
+  updateLocaleConfig(code)
 }
 
 const saved = getLocalStorage()?.getItem(LOCALE_STORAGE_KEY) as Locale | null | undefined
 if (saved && AVAILABLE_LOCALES.includes(saved)) {
+  updateLocaleConfig(saved)
   localeSetting.set(saved)
 }
