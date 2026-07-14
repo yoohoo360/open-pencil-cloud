@@ -6,6 +6,7 @@ import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { DROP_HIGHLIGHT_ALPHA, DROP_HIGHLIGHT_STROKE, SECTION_CORNER_RADIUS } from '#core/constants'
+import { fontManager } from '#core/text'
 import { vectorNetworkToCenterlinePath } from '#core/vector'
 
 import { figmaBlendModeToSkia, needsIsolatedBlendLayer } from './blend'
@@ -609,7 +610,7 @@ function drawOutlinedText(r: SkiaRenderer, canvas: Canvas, node: SceneNode): boo
 const CJK_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/u
 
 function shouldRenderCJKAsOutline(node: SceneNode): boolean {
-  return CJK_TEXT_PATTERN.test(node.text)
+  return CJK_TEXT_PATTERN.test(node.text) && !fontManager.isLoaded(node.fontFamily)
 }
 
 function drawGradientText(
@@ -674,6 +675,7 @@ export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fil
   }
   if (
     (shouldRenderTextAsOutline(fill) || shouldRenderCJKAsOutline(node)) &&
+    !fontManager.isLoaded(node.fontFamily) &&
     drawOutlinedText(r, canvas, node)
   ) {
     canvas.restore()
