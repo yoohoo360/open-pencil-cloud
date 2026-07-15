@@ -84,7 +84,7 @@ export function createDefaultNode(
     strokeGeometry: [],
     arcData: null,
     textAlignVertical: 'TOP',
-    textAutoResize: 'NONE',
+    textAutoResize: type === 'TEXT' ? 'WIDTH_AND_HEIGHT' : null,
     textCase: 'ORIGINAL',
     textDecoration: 'NONE',
     textDecorationStyle: 'SOLID',
