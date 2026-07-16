@@ -9,7 +9,7 @@ import {
   DialogTitle
 } from 'reka-ui'
 
-import type { SceneNode } from '@open-pencil/scene-graph'
+import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import { useI18n } from '@open-pencil/vue'
 
 import { nodeIcon } from '@/app/editor/icons'
@@ -45,8 +45,8 @@ const insertButton = useButtonUI({ tone: 'ghost', size: 'iconSm' })
 const primaryButton = useButtonUI({ tone: 'accent', size: 'md' })
 const dialog = useDialogUI({ content: 'flex w-[720px] max-w-[92vw] flex-col overflow-hidden' })
 
-function componentSetVariantInfo(componentSetId: string) {
-  return [...editor.collectVariantOptions(componentSetId)].map(([name, values]) => ({
+function componentSetVariantInfo(componentSetId: string, graph: SceneGraph) {
+  return [...editor.collectVariantOptions(componentSetId, graph)].map(([name, values]) => ({
     name,
     values: [...values].sort((a, b) => a.localeCompare(b))
   }))
@@ -57,20 +57,46 @@ const graphNodes = computed(() => ({
   nodes: [...editor.graph.nodes.values()]
 }))
 
+const getGraphByNode = (node: SceneNode) => {
+  let graph = editor.graph
+  if (node?.sourceLibraryKey) {
+    graph = editor.graph.getLib(node.sourceLibraryKey)?.graph ?? graph
+  }
+  return graph
+}
+
 const assets = computed<LocalAsset[]>(() => {
-  return graphNodes.value.nodes
+  const imports = editor.graph.getRemoteImports()
+  const firstPartyImports = [...imports.values()][0]
+  const nodes = firstPartyImports?.graph
+    ? [
+        ...firstPartyImports.graph.nodes.values().map((node) => {
+          return {
+            ...node,
+            sourceLibraryKey: firstPartyImports?.key
+          }
+        })
+      ]
+    : graphNodes?.value?.nodes
+
+  return nodes
     .filter((node) => node.type === 'COMPONENT' || node.type === 'COMPONENT_SET')
     .filter((node) => {
       if (node.type === 'COMPONENT_SET') return true
-      const parent = node.parentId ? editor.graph.getNode(node.parentId) : null
+
+      const graph = getGraphByNode(node)
+      const parent = node.parentId ? graph.getNode(node.parentId) : null
       return parent?.type !== 'COMPONENT_SET'
     })
     .map((node) => {
+      const graph = getGraphByNode(node)
       const defaultVariant =
-        node.type === 'COMPONENT_SET' ? editor.getDefaultVariantForComponentSet(node.id) : node
+        node.type === 'COMPONENT_SET'
+          ? editor.getDefaultVariantForComponentSet(node.id, graph)
+          : node
       const conflicts =
         node.type === 'COMPONENT_SET' ? editor.getComponentSetVariantConflicts(node.id) : []
-      const variants = node.type === 'COMPONENT_SET' ? componentSetVariantInfo(node.id) : []
+      const variants = node.type === 'COMPONENT_SET' ? componentSetVariantInfo(node.id, graph) : []
       return {
         id: node.id,
         name: node.name,
@@ -157,11 +183,22 @@ function insertionPoint(component: SceneNode, parentId: string) {
 
 function insertAsset(asset: LocalAsset) {
   if (!asset.componentId) return
-  const component = editor.graph.getNode(asset.componentId)
+  let graph = editor.graph
+  if (asset.sourceLibraryKey) {
+    graph = editor.graph.getLib(asset.sourceLibraryKey)?.graph ?? graph
+  }
+
+  const component = graph.getNode(asset.componentId)
   if (!component) return
   const parentId = editor.state.enteredContainerId ?? editor.state.currentPageId
   const point = insertionPoint(component, parentId)
-  editor.createInstanceFromComponent(asset.componentId, point.x, point.y, parentId)
+  editor.createInstanceFromComponent(
+    asset.componentId,
+    point.x,
+    point.y,
+    parentId,
+    asset?.sourceLibraryKey
+  )
   editor.requestRender()
 }
 
