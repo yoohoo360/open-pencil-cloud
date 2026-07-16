@@ -1,6 +1,6 @@
-import type { Editor, EditorToolDef, Tool } from '@open-pencil/core/editor'
-
 import { createContext } from '../context/createContext'
+
+import type { Editor, EditorToolDef, Tool } from '@open-pencil/core/editor'
 
 export interface ToolbarContext {
   editor: Editor

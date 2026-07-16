@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-
 import { MIXED, useNodeProps, type MixedValue } from '../controls/useNodeProps'
+
+import type { ReactNode } from 'react'
 
 export interface PositionControlsRootSlotProps {
   active: boolean

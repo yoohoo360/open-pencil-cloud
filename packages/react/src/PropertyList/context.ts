@@ -1,7 +1,7 @@
+import { createContext } from '../context/createContext'
+
 import type { SceneNode } from '@open-pencil/core'
 import type { Editor } from '@open-pencil/core/editor'
-
-import { createContext } from '../context/createContext'
 
 type ArrayPropKey = 'fills' | 'strokes' | 'effects'
 

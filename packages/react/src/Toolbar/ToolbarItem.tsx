@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react'
-
 import { useToolbar } from './context'
 
 import type { Tool } from '@open-pencil/core/editor'
+import type { ReactNode } from 'react'
 
 export interface ToolbarItemSlotProps {
   active: boolean

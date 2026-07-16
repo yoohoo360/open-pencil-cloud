@@ -1,7 +1,7 @@
+import { createContext } from '../context/createContext'
+
 import type { SceneNode } from '@open-pencil/core'
 import type { RefObject } from 'react'
-
-import { createContext } from '../context/createContext'
 
 export interface CanvasContext {
   canvasRef: RefObject<HTMLCanvasElement | null>

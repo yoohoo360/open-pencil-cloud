@@ -1,5 +1,4 @@
-import { useEditor } from '../context/editorContext'
-import { useEditorVersion } from '../context/editorContext'
+import { useEditor, useEditorVersion } from '../context/editorContext'
 import { useSceneComputed } from '../internal/useSceneComputed'
 
 /**

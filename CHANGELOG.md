@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- Add `@open-pencil/react` headless React SDK with canvas, toolbar, layer tree, page list, property controls, scrub input, and color/fill/font/gradient picker primitives (parallel to `@open-pencil/vue`)
+
 ## 0.11.2 — 2026-03-30
 
 ### Fixes

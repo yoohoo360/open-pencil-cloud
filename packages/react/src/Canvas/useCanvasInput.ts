@@ -26,14 +26,9 @@ import {
 } from '../shared/input/select'
 import { TOOL_TO_NODE } from '../shared/input/types'
 
+import type { DragMarquee, DragPan, DragRotate, DragState } from '../shared/input/types'
 import type { SceneNode, Vector, VectorSegment } from '@open-pencil/core'
 import type { Editor } from '@open-pencil/core/editor'
-import type {
-  DragMarquee,
-  DragPan,
-  DragRotate,
-  DragState
-} from '../shared/input/types'
 
 type NodeEditState = {
   segments: VectorSegment[]

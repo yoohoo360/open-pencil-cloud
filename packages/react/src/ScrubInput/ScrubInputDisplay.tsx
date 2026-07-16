@@ -1,6 +1,6 @@
-import type { HTMLAttributes, ReactNode } from 'react'
-
 import { useScrubInput } from './context'
+
+import type { HTMLAttributes, ReactNode } from 'react'
 
 export interface ScrubInputDisplaySlotProps {
   value: string

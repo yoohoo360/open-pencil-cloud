@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react'
-
 import { usePageList } from './usePageList'
 
 import type { SceneNode } from '@open-pencil/core'
+import type { ReactNode } from 'react'
 
 export interface PageListRootSlotProps {
   pages: SceneNode[]

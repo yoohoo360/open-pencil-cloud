@@ -1,9 +1,8 @@
-import type { ReactNode } from 'react'
-
 import { useAppearance } from '../controls/useAppearance'
-import { MIXED, type MixedValue } from '../controls/useNodeProps'
 
+import type { MixedValue } from '../controls/useNodeProps'
 import type { SceneNode } from '@open-pencil/core'
+import type { ReactNode } from 'react'
 
 export interface AppearanceControlsRootSlotProps {
   node: SceneNode | null
@@ -44,6 +43,5 @@ export function AppearanceControlsRoot({ children }: AppearanceControlsRootProps
     updateCornerProp: ctx.updateCornerProp,
     commitCornerProp: ctx.commitCornerProp
   }
-  void MIXED
   return <>{typeof children === 'function' ? children(slot) : children}</>
 }

@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react'
-
 import { useTypography, type UseTypographyOptions } from '../controls/useTypography'
 
 import type { SceneNode } from '@open-pencil/core'
+import type { ReactNode } from 'react'
 
 export interface TypographyControlsRootSlotProps {
   node: SceneNode | null

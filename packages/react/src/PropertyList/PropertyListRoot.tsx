@@ -1,11 +1,10 @@
-import type { ReactNode } from 'react'
-
 import { useEditor } from '../context/editorContext'
 import { useNodeProps } from '../controls/useNodeProps'
 import { useSceneComputed } from '../internal/useSceneComputed'
 import { PropertyListProvider } from './context'
 
 import type { Fill, Stroke, Effect, SceneNode } from '@open-pencil/core'
+import type { ReactNode } from 'react'
 
 type ArrayPropKey = 'fills' | 'strokes' | 'effects'
 type ArrayItemType = Fill | Stroke | Effect

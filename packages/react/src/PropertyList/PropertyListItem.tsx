@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-
 import { usePropertyList } from './context'
+
+import type { ReactNode } from 'react'
 
 export interface PropertyListItemSlotProps {
   index: number

@@ -14,7 +14,12 @@ export interface CanvasRootProps extends UseCanvasOptions {
   children?: ReactNode | ((state: CanvasRootSlotProps) => ReactNode)
 }
 
-export function CanvasRoot({ children, showRulers, preserveDrawingBuffer, onReady }: CanvasRootProps) {
+export function CanvasRoot({
+  children,
+  showRulers,
+  preserveDrawingBuffer,
+  onReady
+}: CanvasRootProps) {
   const editor = useEditor()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [ready, setReady] = useState(false)

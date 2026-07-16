@@ -1,19 +1,17 @@
-import { useCallback, type InputHTMLAttributes } from 'react'
-
 import { useScrubInput } from './context'
+
+import type { InputHTMLAttributes } from 'react'
 
 export type ScrubInputFieldProps = InputHTMLAttributes<HTMLInputElement>
 
 export function ScrubInputField(props: ScrubInputFieldProps) {
   const ctx = useScrubInput()
-  if (!ctx.editing) return null
 
-  const setRef = useCallback(
-    (el: HTMLInputElement | null) => {
-      ;(ctx.inputRef as { current: HTMLInputElement | null }).current = el
-    },
-    [ctx.inputRef]
-  )
+  function setRef(el: HTMLInputElement | null) {
+    ;(ctx.inputRef as { current: HTMLInputElement | null }).current = el
+  }
+
+  if (!ctx.editing) return null
 
   return (
     <input

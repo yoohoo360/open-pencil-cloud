@@ -1,8 +1,5 @@
-import type { ReactNode } from 'react'
-
 import { useLayout } from '../controls/useLayout'
 
-import type { Editor } from '@open-pencil/core/editor'
 import type {
   SceneNode,
   LayoutSizing,
@@ -10,6 +7,8 @@ import type {
   LayoutCounterAlign,
   GridTrack
 } from '@open-pencil/core'
+import type { Editor } from '@open-pencil/core/editor'
+import type { ReactNode } from 'react'
 
 export interface LayoutControlsRootSlotProps {
   editor: Editor

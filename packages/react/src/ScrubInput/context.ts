@@ -1,6 +1,6 @@
-import type { RefObject } from 'react'
-
 import { createContext } from '../context/createContext'
+
+import type { RefObject } from 'react'
 
 export interface ScrubInputContext {
   modelValue: number | symbol

@@ -1,6 +1,6 @@
-import type { Editor } from '@open-pencil/core/editor'
-
 import { createContext } from '../context/createContext'
+
+import type { Editor } from '@open-pencil/core/editor'
 
 export interface LayerNode {
   id: string
