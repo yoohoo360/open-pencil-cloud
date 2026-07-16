@@ -23,6 +23,8 @@ function generateTabId(): string {
 const tabsRef = shallowRef<Tab[]>([])
 const activeTabId = shallowRef('')
 
+export { activeTabId }
+
 export const activeTab = computed(() => tabsRef.value.find((t) => t.id === activeTabId.value))
 
 export const allTabs = computed(() =>

@@ -1,13 +1,14 @@
 import { resolve } from 'path'
 
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import Icons from 'unplugin-icons/vite'
 import IconsResolver from 'unplugin-icons/resolver'
 import Components from 'unplugin-vue-components/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
+// @ts-expect-error veaury ships CJS entry without types for this path
+import veauryVitePlugins from 'veaury/vite/index.js'
 
 import { automationPlugin } from './src/automation/vite-plugin'
 
@@ -19,6 +20,7 @@ export default defineConfig(async () => ({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@open-pencil/vue': resolve(__dirname, 'packages/vue/src'),
+      '@open-pencil/react': resolve(__dirname, 'packages/react/src'),
       '@open-pencil/core': resolve(__dirname, 'packages/core/src'),
       // vue-stream-markdown eagerly loads mermaid/beautiful-mermaid as optional peer deps.
       // Alias to empty shims to avoid runtime errors and reduce bundle size.
@@ -56,7 +58,15 @@ export default defineConfig(async () => ({
     Icons({ compiler: 'vue3' }),
     Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
     automationPlugin(),
-    vue(),
+    // Vue root + React islands: .vue uses Vue; packages/react + src/**/*.tsx use React JSX
+    veauryVitePlugins({
+      type: 'custom',
+      vueJsxInclude: [
+        /vue&type=script&lang\.[tj]sx$/i,
+        /vue&type=script&setup=true&lang\.[tj]sx$/i,
+        /[/\\]vue_app[/\\][\w\W]+\.[tj]sx$/
+      ]
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: false },

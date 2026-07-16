@@ -4,7 +4,7 @@ import { useHead } from '@unhead/vue'
 import { TooltipProvider } from 'reka-ui'
 
 import { provideEditor } from '@open-pencil/vue'
-import AppToast from '@/components/AppToast.vue'
+import ReactEditorHost from '@/components/ReactEditorHost.vue'
 import { useEditorStore } from '@/stores/editor'
 import { toast } from '@/utils/toast'
 
@@ -21,6 +21,7 @@ onMounted(() => {
 <template>
   <TooltipProvider :delay-duration="400">
     <RouterView />
-    <AppToast />
+    <!-- React islands: toast + EditorProvider bridge (Vue AppToast removed) -->
+    <ReactEditorHost />
   </TooltipProvider>
 </template>

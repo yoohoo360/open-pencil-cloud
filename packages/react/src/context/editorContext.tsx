@@ -26,7 +26,15 @@ EditorContext.displayName = 'OpenPencilEditor'
  * Wrap an editor so React can subscribe to render/scene revisions.
  * Patches requestRender/requestRepaint to notify listeners.
  */
+const STORE_FLAG = Symbol.for('open-pencil.react.editorStore')
+
+type EditorWithStoreFlag = Editor & { [STORE_FLAG]?: EditorStore }
+
 export function createEditorStore(editor: Editor): EditorStore {
+  const tagged = editor as EditorWithStoreFlag
+  const existing = tagged[STORE_FLAG]
+  if (existing) return existing
+
   const listeners = new Set<Listener>()
   let version = editor.state.sceneVersion + editor.state.renderVersion * 1_000_000_000
 
@@ -47,7 +55,7 @@ export function createEditorStore(editor: Editor): EditorStore {
     notify()
   }
 
-  return {
+  const store: EditorStore = {
     editor,
     subscribe: (listener) => {
       listeners.add(listener)
@@ -58,6 +66,8 @@ export function createEditorStore(editor: Editor): EditorStore {
     getVersion: () => version,
     notify
   }
+  tagged[STORE_FLAG] = store
+  return store
 }
 
 /**

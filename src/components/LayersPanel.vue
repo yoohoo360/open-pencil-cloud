@@ -38,7 +38,7 @@ const { panels } = useI18n()
         >
           {{ panels.layers }}
         </header>
-        <LayerTree data-test-id="layers-tree" />
+        <LayerTree />
       </SplitterPanel>
     </SplitterGroup>
   </aside>

@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -19,11 +19,13 @@
       "@/*": ["./src/*"],
       "@open-pencil/vue": ["./packages/vue/src/index.ts"],
       "@open-pencil/vue/*": ["./packages/vue/src/*"],
+      "@open-pencil/react": ["./packages/react/src/index.ts"],
+      "@open-pencil/react/*": ["./packages/react/src/*"],
       "@open-pencil/core": ["./packages/core/src/index.ts"],
       "@open-pencil/core/*": ["./packages/core/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "packages/react/src/**/*.ts", "packages/react/src/**/*.tsx"],
   "exclude": ["src/kiwi/index.ts", "src/kiwi/client.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

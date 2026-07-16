@@ -19,6 +19,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
     colorScheme: 'dark',
+    testIdAttribute: 'data-test-id',
     launchOptions: {
       args: ['--enable-unsafe-swiftshader']
     }
