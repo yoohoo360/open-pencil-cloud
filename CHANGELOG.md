@@ -4,6 +4,7 @@
 
 ### Features
 
+- Migrate AppMenu, MobileHud, and MobileDrawer to React islands
 - Migrate EditorCanvas, CanvasMenu, CollabPanel, and DesignPanel to React islands (veaury wrappers; canvas uses CanvasRoot/useCanvasInput)
 - Migrate properties panel, design panel, variables dialog, code panel, and color/fill/stroke/font/gradient pickers to React islands under `src/react_app/` (veaury thin Vue wrappers)
 - React root cutover scaffolding — app entry is `src/main.tsx` with `react-router` routes (`/`, `/demo`, `/share/:roomId`), Radix `TooltipProvider`, and `EditorBridge` / `@open-pencil/react` context; remaining Vue editor panels mount via veaury `applyVueInReact` until migrated
