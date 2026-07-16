@@ -1,3 +1,8 @@
+import {
+  resolveNodeFillColor,
+  resolveNodeStrokeColor,
+  type ResolvedRenderColor
+} from '../color-management'
 /* eslint-disable max-lines -- SkiaRenderer class; text, pen-overlay, fills, scene already extracted */
 import {
   SELECTION_COLOR,
@@ -30,7 +35,6 @@ import {
 } from '../constants'
 import { computeAbsoluteBounds } from '../geometry'
 import { RenderProfiler } from '../profiler'
-import { resolveNodeFillColor, resolveNodeStrokeColor, type ResolvedRenderColor } from '../color-management'
 import { drawAiOverlays as drawAiOverlaysFn } from './ai-overlays'
 import {
   getCachedDropShadow as getCachedDropShadowFn,

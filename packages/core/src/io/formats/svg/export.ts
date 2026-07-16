@@ -1,6 +1,7 @@
 import { getDefaultRenderColorSpace } from '@open-pencil/core/color-management'
 import { computeContentBounds } from '@open-pencil/core/io/formats/raster'
 
+import { resolveNodeTextDirection } from '../../../direction'
 import {
   nextDefId,
   formatColor,
@@ -19,7 +20,6 @@ import {
   roundedRectPath,
   arcPath
 } from './paths'
-import { resolveNodeTextDirection } from '../../../direction'
 
 export { geometryBlobToSVGPath, vectorNetworkToSVGPaths } from './paths'
 
@@ -174,7 +174,10 @@ function isLogicalTextEnd(node: SceneNode, direction: 'LTR' | 'RTL'): boolean {
   )
 }
 
-function textAnchorForNode(node: SceneNode, direction: 'LTR' | 'RTL'): 'middle' | 'end' | undefined {
+function textAnchorForNode(
+  node: SceneNode,
+  direction: 'LTR' | 'RTL'
+): 'middle' | 'end' | undefined {
   if (node.textAlignHorizontal === 'CENTER') return 'middle'
   if (isLogicalTextEnd(node, direction)) return 'end'
   return undefined

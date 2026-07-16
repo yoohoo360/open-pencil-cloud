@@ -8,12 +8,12 @@ import Tip from '@/components/ui/Tip.vue'
 import { uiButton } from '@/components/ui/button'
 import { uiInput } from '@/components/ui/input'
 import { useAIChat } from '@/composables/use-chat'
-import { useI18n } from '@open-pencil/vue'
+import { useChatDialogs } from '@/composables/use-chat-dialogs'
 
 import { ACP_AGENTS } from '@open-pencil/core'
 
 const { providerID, providerDef, modelID, customModelID } = useAIChat()
-const { dialogs } = useI18n()
+const dialogs = useChatDialogs()
 
 const { status } = defineProps<{
   status: 'ready' | 'submitted' | 'streaming' | 'error'

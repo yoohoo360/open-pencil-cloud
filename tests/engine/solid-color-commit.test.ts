@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { applySolidFillColor, applySolidStrokeColor } from '@open-pencil/vue'
+import { applySolidFillColor, applySolidStrokeColor } from '@open-pencil/react'
 
 import type { Fill, Stroke } from '@open-pencil/core'
 

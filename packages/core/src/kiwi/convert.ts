@@ -620,8 +620,9 @@ function convertTextProps(
     styleRuns: importStyleRuns(nc),
     textTruncation: (nc.textTruncation as string) === 'ENDING' ? 'ENDING' : 'DISABLED',
     textDirection:
-      (getOpenPencilPluginValue(nc, TEXT_DIRECTION_PLUGIN_KEY) as SceneNode['textDirection'] | null) ||
-      'AUTO'
+      (getOpenPencilPluginValue(nc, TEXT_DIRECTION_PLUGIN_KEY) as
+        | SceneNode['textDirection']
+        | null) || 'AUTO'
   }
 }
 
@@ -680,8 +681,7 @@ function convertLayoutProps(
     layoutDirection:
       (getOpenPencilPluginValue(nc, LAYOUT_DIRECTION_PLUGIN_KEY) as
         | SceneNode['layoutDirection']
-        | null) ||
-      'AUTO'
+        | null) || 'AUTO'
   }
 }
 

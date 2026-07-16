@@ -1,6 +1,6 @@
 # OpenPencil
 
-React + Vue 3 (veaury cutover) + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
+React + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
 
 **Roadmap:** `plan.md` — phases, tech stack, CLI architecture, test strategy, keyboard shortcuts.
 
@@ -12,10 +12,9 @@ Bun workspace packages:
 - `packages/cli` — `@open-pencil/cli`: headless CLI for .fig inspection, export, linting. Uses `citty` + `agentfmt`.
 - `packages/docs` — `@open-pencil/docs`: VitePress documentation site. Run with `cd packages/docs && bun run dev`.
 - `packages/mcp` — `@open-pencil/mcp`: MCP server for AI coding tools. Stdio + HTTP (Hono). Reuses `createServer()` factory with all core tools.
-- `packages/vue` — `@open-pencil/vue`: headless Vue 3 SDK (Reka UI-style) for building custom OpenPencil-powered editor shells and embedded editing surfaces. Renderless components and composables.
-- `packages/react` — `@open-pencil/react`: headless React SDK (parallel to `@open-pencil/vue`) with `EditorProvider` / hooks and renderless primitives. The app shell is migrating onto this package.
+- `packages/react` — `@open-pencil/react`: headless React SDK with `EditorProvider` / hooks and renderless primitives. The app is the primary consumer.
 
-The root app (`src/`) is the Tauri/Vite desktop editor. Entry is React (`src/main.tsx` → `src/react_app/`), with remaining Vue panels mounted via veaury `applyVueInReact` during the cutover. Its `src/engine/` files are thin re-export shims from `@open-pencil/core`. `src/composables/use-canvas.ts` re-exports from `@open-pencil/vue` until the React canvas path fully replaces it.
+The root app (`src/`) is the Tauri/Vite desktop editor. Entry is React (`src/main.tsx` → `src/react_app/`). A few leftover Chat SFCs still mount via veaury `applyVueInReact` (they use `vue` + `@ai-sdk/vue`; the editor store still uses Vue `shallowReactive`). Its `src/engine/` files are thin re-export shims from `@open-pencil/core`.
 
 ### Core subpath exports
 
@@ -63,12 +62,12 @@ Each module exports a factory: `createXxxActions(ctx: EditorContext) => { ... }`
 `create.ts` assembles context + all modules, spreads into a flat return object.
 `Editor` type = `ReturnType<typeof createEditor>`.
 
-The app store (`src/stores/editor.ts`) is a thin Vue wrapper: creates `shallowReactive` state, calls `createEditor()`, adds Vue-specific concerns (computed refs, file I/O, autosave, export, image placement, mobile clipboard).
+The app store (`src/stores/editor.ts`) wraps `createEditor()` with app concerns (file I/O, autosave, export, image placement, mobile clipboard). State still uses Vue `shallowReactive` until a later pass removes the `vue` dependency.
 
 ## Commands
 
 - `bun run check` — type-aware lint + typecheck via oxlint + tsgo (run before committing)
-- `bun run check:vue` — vue-tsc type-check for .vue files (has pre-existing errors, fix progressively)
+- `bun run check:react` — type-check for `@open-pencil/react`
 - `bun run test:dupes` — jscpd copy-paste detection across all TS sources
 - `bun run format` — oxfmt with import sorting
 - `bun test ./tests/engine` — unit tests
@@ -98,14 +97,14 @@ The app store (`src/stores/editor.ts`) is a thin Vue wrapper: creates `shallowRe
 5. The `build.yml` workflow triggers on `v*` tags and:
    - Builds Tauri binaries for macOS (arm64 + x64), Windows (x64 + arm64), Linux (x64)
    - Creates a draft GitHub Release with all platform binaries
-   - Publishes `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/vue` to npm with provenance
+   - Publishes `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/react` to npm with provenance
 6. Go to GitHub Releases → edit the draft → paste changelog section → publish
 
 ### CI workflows
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `build.yml` | `v*` tag push or manual | Build Tauri desktop apps (5 targets), create GitHub Release, publish `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/vue` |
+| `build.yml` | `v*` tag push or manual | Build Tauri desktop apps (5 targets), create GitHub Release, publish `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/react` |
 | `homebrew.yml` | Release published | Update `open-pencil/homebrew-tap` cask with new version + SHA256 hashes |
 | `app.yml` | Push to `master` (non-docs) | Build web app, deploy to Cloudflare Pages (`app.openpencil.dev`) |
 | `docs.yml` | Push to `master` (`packages/docs/**`) | Build VitePress docs, deploy to Cloudflare Pages (`openpencil.dev`) |

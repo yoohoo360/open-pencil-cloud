@@ -62,6 +62,33 @@ const pexelsApiKey = useLocalStorage(`${STORAGE_PREFIX}pexels-api-key`, '')
 const unsplashAccessKey = useLocalStorage(`${STORAGE_PREFIX}unsplash-access-key`, '')
 const activeTab = ref<'design' | 'code' | 'ai'>('design')
 
+type AIPropertiesTab = 'design' | 'code' | 'ai'
+type TabListener = () => void
+const aiTabListeners = new Set<TabListener>()
+
+function emitAITab() {
+  for (const listener of aiTabListeners) listener()
+}
+
+export function subscribeAIPropertiesTab(listener: TabListener): () => void {
+  aiTabListeners.add(listener)
+  return () => {
+    aiTabListeners.delete(listener)
+  }
+}
+
+export function getAIPropertiesTab(): AIPropertiesTab {
+  return activeTab.value
+}
+
+export function setAIPropertiesTab(tab: AIPropertiesTab) {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+  emitAITab()
+}
+
+watch(activeTab, emitAITab)
+
 const providerDef = computed(
   () => AI_PROVIDERS.find((p) => p.id === providerID.value) ?? AI_PROVIDERS[0]
 )

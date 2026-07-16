@@ -19,7 +19,6 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@open-pencil/vue': resolve(__dirname, 'packages/vue/src'),
       '@open-pencil/react': resolve(__dirname, 'packages/react/src'),
       '@open-pencil/core': resolve(__dirname, 'packages/core/src'),
       // vue-stream-markdown eagerly loads mermaid/beautiful-mermaid as optional peer deps.

@@ -2,10 +2,13 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { Code, Sparkles } from 'lucide-react'
 import { useSyncExternalStore, type ComponentType } from 'react'
 import { applyVueInReact } from 'veaury'
-import { watch } from 'vue'
 
 import ChatPanelVue from '@/components/ChatPanel.vue'
-import { useAIChat } from '@/composables/use-chat'
+import {
+  getAIPropertiesTab,
+  setAIPropertiesTab,
+  subscribeAIPropertiesTab
+} from '@/composables/use-chat'
 import { CodePanel } from '@/react_app/panels/CodePanel'
 import { DesignPanel } from '@/react_app/properties/DesignPanel'
 import { EditorBridge } from '@/react_app/shell/EditorBridge'
@@ -18,25 +21,13 @@ type PropertiesTab = 'design' | 'code' | 'ai'
 
 const ChatPanel = applyVueInReact(ChatPanelVue) as ComponentType
 
-function subscribePropertiesTab(onStoreChange: () => void) {
-  const { activeTab } = useAIChat()
-  return watch(activeTab, onStoreChange, { flush: 'sync' })
-}
-
-function getPropertiesTab(): PropertiesTab {
-  return useAIChat().activeTab.value
-}
-
 function PropertiesPanelInner() {
   const { panels } = useI18n()
   const activeTab = useSyncExternalStore(
-    subscribePropertiesTab,
-    getPropertiesTab,
+    subscribeAIPropertiesTab,
+    getAIPropertiesTab,
     () => 'design' as PropertiesTab
   )
-  const setActiveTab = (tab: PropertiesTab) => {
-    useAIChat().activeTab.value = tab
-  }
 
   return (
     <aside
@@ -46,7 +37,7 @@ function PropertiesPanelInner() {
     >
       <Tabs.Root
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as PropertiesTab)}
+        onValueChange={(v) => setAIPropertiesTab(v as PropertiesTab)}
         className="flex min-h-0 flex-1 flex-col"
       >
         <Tabs.List className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">

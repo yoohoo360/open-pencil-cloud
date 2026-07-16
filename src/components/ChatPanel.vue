@@ -10,7 +10,7 @@ import ChatInput from '@/components/chat/ChatInput.vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ProviderSetup from '@/components/chat/ProviderSetup.vue'
 import { useAIChat } from '@/composables/use-chat'
-import { useI18n } from '@open-pencil/vue'
+import { useChatDialogs } from '@/composables/use-chat-dialogs'
 
 import type { Chat } from '@ai-sdk/vue'
 import type { UIMessage } from 'ai'
@@ -18,7 +18,7 @@ import type { UIMessage } from 'ai'
 const IS_DEV = import.meta.env.DEV
 
 const { isConfigured, ensureChat, resetChat } = useAIChat()
-const { dialogs } = useI18n()
+const dialogs = useChatDialogs()
 
 const chat = ref<Chat<UIMessage> | null>(null)
 

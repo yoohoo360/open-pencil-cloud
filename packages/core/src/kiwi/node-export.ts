@@ -53,7 +53,11 @@ function createStrokePaints(context: SceneNodeToKiwiContext, node: SceneNode): P
   }))
 }
 
-function applyNodeVisualProps(context: SceneNodeToKiwiContext, node: SceneNode, nc: KiwiNodeChange): void {
+function applyNodeVisualProps(
+  context: SceneNodeToKiwiContext,
+  node: SceneNode,
+  nc: KiwiNodeChange
+): void {
   if (node.independentStrokeWeights) {
     nc.borderStrokeWeightsIndependent = true
     nc.borderTopWeight = node.borderTopWeight

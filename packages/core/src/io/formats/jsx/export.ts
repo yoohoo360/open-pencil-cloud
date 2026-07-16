@@ -1,7 +1,6 @@
 /* eslint-disable max-lines -- JSX export formats share helpers and node walking logic */
 import { colorToHex8, colorToCSSCompact } from '@open-pencil/core/color'
 import { DEFAULT_FONT_FAMILY } from '@open-pencil/core/constants'
-import { resolveNodeTextDirection } from '../../../direction'
 import {
   pxToSpacing,
   colorToTwClass,
@@ -10,6 +9,8 @@ import {
   borderRadiusToTw,
   opacityToTw
 } from '@open-pencil/core/render/tailwind'
+
+import { resolveNodeTextDirection } from '../../../direction'
 
 import type {
   SceneGraph,

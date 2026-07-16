@@ -1,6 +1,14 @@
 import { useLocalStorage } from '@vueuse/core'
 import { joinRoom as joinTrysteroRoom } from 'trystero/mqtt'
-import { ref, watch, onUnmounted, computed, type InjectionKey, inject } from 'vue'
+import {
+  ref,
+  watch,
+  onUnmounted,
+  computed,
+  getCurrentInstance,
+  type InjectionKey,
+  inject
+} from 'vue'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -512,9 +520,12 @@ export function useCollab(store: EditorStore) {
     store.requestRender()
   }
 
-  onUnmounted(() => {
-    disconnect()
-  })
+  // Vue lifecycle when mounted in a Vue setup; React callers use disconnect() in useEffect cleanup.
+  if (getCurrentInstance()) {
+    onUnmounted(() => {
+      disconnect()
+    })
+  }
 
   return {
     state,

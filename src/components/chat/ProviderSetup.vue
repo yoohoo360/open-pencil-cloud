@@ -5,10 +5,10 @@ import ProviderSelectField from '@/components/chat/ProviderSelectField.vue'
 import { uiInput } from '@/components/ui/input'
 import { useAIChat } from '@/composables/use-chat'
 import { ACP_AGENTS } from '@open-pencil/core'
-import { useI18n } from '@open-pencil/vue'
+import { useChatDialogs } from '@/composables/use-chat-dialogs'
 
 const { providerID, providerDef, setAPIKey, customBaseURL, customModelID } = useAIChat()
-const { dialogs } = useI18n()
+const dialogs = useChatDialogs()
 
 const isACP = computed(() => providerID.value.startsWith('acp:'))
 const acpAgent = computed(() => {

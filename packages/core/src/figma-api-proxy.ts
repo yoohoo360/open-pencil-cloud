@@ -3,6 +3,7 @@ import { copyFills, copyStrokes, copyEffects } from './copy'
 import { FONT_WEIGHT_NAMES } from './fonts'
 import { getFillOkHCL, getStrokeOkHCL, setNodeFillOkHCL, setNodeStrokeOkHCL } from './okhcl'
 
+import type { OkHCLColor, OkHCLPayload } from './okhcl'
 /* eslint-disable max-lines -- Figma Plugin API proxy; FigmaAPI already in separate file */
 import type {
   SceneGraph,
@@ -14,7 +15,6 @@ import type {
   LayoutMode
 } from './scene-graph'
 import type { Rect } from './types'
-import type { OkHCLColor, OkHCLPayload } from './okhcl'
 
 const MIXED = Symbol('mixed')
 
@@ -961,9 +961,11 @@ export class FigmaNodeProxy {
   // --- Plugin data ---
 
   getPluginData(key: string): string {
-    return this._raw().pluginData.find(
-      (entry) => entry.pluginId === OPEN_PENCIL_PLUGIN_DATA_NAMESPACE && entry.key === key
-    )?.value ?? ''
+    return (
+      this._raw().pluginData.find(
+        (entry) => entry.pluginId === OPEN_PENCIL_PLUGIN_DATA_NAMESPACE && entry.key === key
+      )?.value ?? ''
+    )
   }
 
   setPluginData(key: string, value: string): void {
@@ -978,15 +980,17 @@ export class FigmaNodeProxy {
   }
 
   getPluginDataKeys(): string[] {
-    return this._raw().pluginData
-      .filter((entry) => entry.pluginId === OPEN_PENCIL_PLUGIN_DATA_NAMESPACE)
+    return this._raw()
+      .pluginData.filter((entry) => entry.pluginId === OPEN_PENCIL_PLUGIN_DATA_NAMESPACE)
       .map((entry) => entry.key)
   }
 
   getSharedPluginData(namespace: string, key: string): string {
-    return this._raw().sharedPluginData.find(
-      (entry) => entry.namespace === namespace && entry.key === key
-    )?.value ?? ''
+    return (
+      this._raw().sharedPluginData.find(
+        (entry) => entry.namespace === namespace && entry.key === key
+      )?.value ?? ''
+    )
   }
 
   setSharedPluginData(namespace: string, key: string, value: string): void {
@@ -1001,8 +1005,8 @@ export class FigmaNodeProxy {
   }
 
   getSharedPluginDataKeys(namespace: string): string[] {
-    return this._raw().sharedPluginData
-      .filter((entry) => entry.namespace === namespace)
+    return this._raw()
+      .sharedPluginData.filter((entry) => entry.namespace === namespace)
       .map((entry) => entry.key)
   }
 
@@ -1019,7 +1023,10 @@ export class FigmaNodeProxy {
   }
 
   setStrokeOkHCL(color: OkHCLColor, index = 0): void {
-    this[INTERNAL_GRAPH].updateNode(this[INTERNAL_ID], setNodeStrokeOkHCL(this._raw(), index, color))
+    this[INTERNAL_GRAPH].updateNode(
+      this[INTERNAL_ID],
+      setNodeStrokeOkHCL(this._raw(), index, color)
+    )
   }
 
   // --- Serialization ---

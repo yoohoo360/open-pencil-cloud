@@ -1,8 +1,7 @@
-import { shallowRef, computed, triggerRef } from 'vue'
-
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core'
 
 import { createEditorStore, setActiveEditorStore } from './editor'
+import { notifyEditorUI } from './editor-notify'
 
 import type { EditorStore } from './editor'
 import type { SceneGraph } from '@open-pencil/core'
@@ -10,6 +9,12 @@ import type { SceneGraph } from '@open-pencil/core'
 export interface Tab {
   id: string
   store: EditorStore
+}
+
+export interface TabSummary {
+  id: string
+  name: string
+  isActive: boolean
 }
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
@@ -20,23 +25,67 @@ function generateTabId(): string {
   return `tab-${nextTabId++}`
 }
 
-const tabsRef = shallowRef<Tab[]>([])
-const activeTabId = shallowRef('')
+type Listener = () => void
+const listeners = new Set<Listener>()
 
-export { activeTabId }
+function emit() {
+  notifyEditorUI()
+  for (const listener of listeners) listener()
+}
 
-export const activeTab = computed(() => tabsRef.value.find((t) => t.id === activeTabId.value))
+export function subscribeTabs(listener: Listener): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
 
-export const allTabs = computed(() =>
-  tabsRef.value.map((t) => ({
+let tabs: Tab[] = []
+let activeTabIdValue = ''
+
+export function getActiveTabId(): string {
+  return activeTabIdValue
+}
+
+/** @deprecated Use getActiveTabId() — kept for Vue shim compatibility during migration. */
+export const activeTabId = {
+  get value() {
+    return activeTabIdValue
+  },
+  set value(id: string) {
+    activeTabIdValue = id
+    emit()
+  }
+}
+
+export function getActiveTab(): Tab | undefined {
+  return tabs.find((t) => t.id === activeTabIdValue)
+}
+
+/** @deprecated Use getActiveTab() — Vue computed-shaped shim. */
+export const activeTab = {
+  get value() {
+    return getActiveTab()
+  }
+}
+
+export function getAllTabSummaries(): TabSummary[] {
+  return tabs.map((t) => ({
     id: t.id,
     name: t.store.state.documentName,
-    isActive: t.id === activeTabId.value
+    isActive: t.id === activeTabIdValue
   }))
-)
+}
+
+/** @deprecated Use getAllTabSummaries() — Vue computed-shaped shim. */
+export const allTabs = {
+  get value() {
+    return getAllTabSummaries()
+  }
+}
 
 export function getActiveStore(): EditorStore {
-  const tab = tabsRef.value.find((t) => t.id === activeTabId.value)
+  const tab = getActiveTab()
   if (!tab) throw new Error('No active tab')
   return tab.store
 }
@@ -44,39 +93,41 @@ export function getActiveStore(): EditorStore {
 export function createTab(store?: EditorStore, initialGraph?: SceneGraph): Tab {
   const s = store ?? createEditorStore(initialGraph)
   const tab: Tab = { id: generateTabId(), store: s }
-  tabsRef.value = [...tabsRef.value, tab]
+  tabs = [...tabs, tab]
   activateTab(tab)
   return tab
 }
 
 function activateTab(tab: Tab) {
-  activeTabId.value = tab.id
+  activeTabIdValue = tab.id
   setActiveEditorStore(tab.store)
-  triggerRef(tabsRef)
   window.__OPEN_PENCIL_STORE__ = tab.store
+  emit()
 }
 
 export function switchTab(tabId: string) {
-  const tab = tabsRef.value.find((t) => t.id === tabId)
+  const tab = tabs.find((t) => t.id === tabId)
   if (!tab) return
   activateTab(tab)
 }
 
 export function closeTab(tabId: string) {
-  const idx = tabsRef.value.findIndex((t) => t.id === tabId)
+  const idx = tabs.findIndex((t) => t.id === tabId)
   if (idx === -1) return
 
-  const wasActive = activeTabId.value === tabId
-  tabsRef.value = tabsRef.value.filter((t) => t.id !== tabId)
+  const wasActive = activeTabIdValue === tabId
+  tabs = tabs.filter((t) => t.id !== tabId)
 
-  if (tabsRef.value.length === 0) {
+  if (tabs.length === 0) {
     createTab()
     return
   }
 
   if (wasActive) {
-    const newIdx = Math.min(idx, tabsRef.value.length - 1)
-    activateTab(tabsRef.value[newIdx])
+    const newIdx = Math.min(idx, tabs.length - 1)
+    activateTab(tabs[newIdx])
+  } else {
+    emit()
   }
 }
 
@@ -85,7 +136,7 @@ export async function openFileInNewTab(
   _handle?: FileSystemFileHandle,
   _path?: string
 ): Promise<void> {
-  const current = activeTab.value
+  const current = getActiveTab()
   const isUntouched =
     current?.store.state.documentName === 'Untitled' && !current.store.undo.canUndo
   const bytes = new Uint8Array(await file.arrayBuffer())
@@ -96,13 +147,14 @@ export async function openFileInNewTab(
   })
   const documentName = file.name.replace(/\.[^.]+$/i, '')
 
-  if (isUntouched) {
+  if (isUntouched && current) {
     current.store.replaceGraph(imported)
     current.store.undo.clear()
     current.store.state.documentName = documentName
     current.store.state.selectedIds = new Set()
     const pageId = current.store.graph.getPages()[0]?.id ?? current.store.graph.rootId
     await current.store.switchPage(pageId)
+    emit()
   } else {
     const store = createEditorStore(imported)
     createTab(store)
@@ -115,7 +167,7 @@ export async function openFileInNewTab(
 }
 
 export function tabCount(): number {
-  return tabsRef.value.length
+  return tabs.length
 }
 
 export function useTabsStore() {

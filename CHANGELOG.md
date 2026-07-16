@@ -4,12 +4,17 @@
 
 ### Features
 
+- Phase 3 React cutover — pure React `EditorView` (no `VueEditorShell` / `applyVueInReact` for chrome); remove `@open-pencil/vue` package; app depends on `@open-pencil/react` only for SDK
 - Migrate AppMenu, MobileHud, and MobileDrawer to React islands
-- Migrate EditorCanvas, CanvasMenu, CollabPanel, and DesignPanel to React islands (veaury wrappers; canvas uses CanvasRoot/useCanvasInput)
-- Migrate properties panel, design panel, variables dialog, code panel, and color/fill/stroke/font/gradient pickers to React islands under `src/react_app/` (veaury thin Vue wrappers)
-- React root cutover scaffolding — app entry is `src/main.tsx` with `react-router` routes (`/`, `/demo`, `/share/:roomId`), Radix `TooltipProvider`, and `EditorBridge` / `@open-pencil/react` context; remaining Vue editor panels mount via veaury `applyVueInReact` until migrated
-- Migrate editor chrome panels to React islands (Safari banner, zoom menu, toolbar, tab bar, pages panel, layer tree) via veaury, backed by `@open-pencil/react`
-- Add `@open-pencil/react` headless React SDK with canvas, toolbar, layer tree, page list, property controls, scrub input, and color/fill/font/gradient picker primitives (parallel to `@open-pencil/vue`)
+- Migrate EditorCanvas, CanvasMenu, CollabPanel, and DesignPanel to React islands (canvas uses CanvasRoot/useCanvasInput)
+- Migrate properties panel, design panel, variables dialog, code panel, and color/fill/stroke/font/gradient pickers to React under `src/react_app/`
+- React root — app entry is `src/main.tsx` with `react-router` routes (`/`, `/demo`, `/share/:roomId`), Radix `TooltipProvider`, and `EditorBridge` / `@open-pencil/react` context
+- Migrate editor chrome panels to React (Safari banner, zoom menu, toolbar, tab bar, pages panel, layer tree), backed by `@open-pencil/react`
+- Add `@open-pencil/react` headless React SDK with canvas, toolbar, layer tree, page list, property controls, scrub input, and color/fill/font/gradient picker primitives
+
+### Notes
+
+- `vue` remains a dependency for leftover Chat SFCs (via veaury) and `src/stores/editor.ts` (`shallowReactive` / Vue refs). `@ai-sdk/vue` remains for the Chat transport class until Chat is ported to `@ai-sdk/react`.
 
 ## 0.11.2 — 2026-03-30
 

@@ -8,7 +8,8 @@ const pickerSlider = tv({
     track: 'relative flex h-3 flex-1 items-center rounded-md',
     gradient: 'absolute inset-0 rounded-md',
     range: 'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none opacity-0',
-    thumb: 'pointer-events-none absolute top-1/2 size-3.5 -translate-y-1/2 rounded-full border-2 border-white shadow-sm',
+    thumb:
+      'pointer-events-none absolute top-1/2 size-3.5 -translate-y-1/2 rounded-full border-2 border-white shadow-sm',
     input: 'w-14 rounded border border-border bg-input px-1 py-0.5 text-right text-xs text-surface'
   },
   variants: {
@@ -25,12 +26,11 @@ const pickerSlider = tv({
   }
 })
 
-export type PickerSliderUi = Partial<Record<'root' | 'label' | 'track' | 'gradient' | 'range' | 'thumb' | 'input', string>>
+export type PickerSliderUi = Partial<
+  Record<'root' | 'label' | 'track' | 'gradient' | 'range' | 'thumb' | 'input', string>
+>
 
-export function usePickerSliderUI(options?: {
-  checkerboard?: boolean
-  ui?: PickerSliderUi
-}) {
+export function usePickerSliderUI(options?: { checkerboard?: boolean; ui?: PickerSliderUi }) {
   const slots = pickerSlider({ checkerboard: options?.checkerboard })
   return {
     root: twMerge(slots.root(), options?.ui?.root),

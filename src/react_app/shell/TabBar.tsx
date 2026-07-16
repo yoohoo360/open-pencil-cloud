@@ -1,36 +1,26 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { File, Plus, X } from 'lucide-react'
-import { useMemo, useSyncExternalStore } from 'react'
-import { watch } from 'vue'
+import { useSyncExternalStore } from 'react'
 
 import { Tip, TipProvider } from '@/react_app/ui/Tip'
 import {
-  activeTabId as activeTabIdRef,
-  allTabs,
   closeTab,
   createTab,
+  getActiveTabId,
+  getAllTabSummaries,
+  subscribeTabs,
   switchTab
 } from '@/stores/tabs'
 
-function subscribeTabs(onStoreChange: () => void): () => void {
-  const stopTabs = watch(allTabs, onStoreChange, { flush: 'sync' })
-  const stopActive = watch(activeTabIdRef, onStoreChange, { flush: 'sync' })
-  return () => {
-    stopTabs()
-    stopActive()
-  }
-}
-
 function getTabsSnapshot() {
   return {
-    tabs: allTabs.value,
-    activeTabId: activeTabIdRef.value
+    tabs: getAllTabSummaries(),
+    activeTabId: getActiveTabId()
   }
 }
 
 /**
- * Document tab strip. Reads the Vue tabs store via useSyncExternalStore.
- * Only renders when more than one tab is open (matches Vue TabBar).
+ * Document tab strip. Only renders when more than one tab is open.
  */
 export function TabBar() {
   const { tabs, activeTabId } = useSyncExternalStore(subscribeTabs, getTabsSnapshot, () => ({
@@ -38,14 +28,12 @@ export function TabBar() {
     activeTabId: ''
   }))
 
-  const model = useMemo(() => activeTabId, [activeTabId])
-
   if (tabs.length <= 1) return null
 
   return (
     <TipProvider>
       <Tabs.Root
-        value={model}
+        value={activeTabId}
         onValueChange={(id) => switchTab(id)}
         activationMode="automatic"
         className="scrollbar-none flex h-9 shrink-0 items-end overflow-x-auto border-b border-border bg-[#1e1e1e]"

@@ -1,5 +1,6 @@
-import type { SkiaRenderer } from './renderer'
 import { resolveNodeTextDirection } from './direction'
+
+import type { SkiaRenderer } from './renderer'
 import type { SceneNode } from './scene-graph'
 import type { Rect } from './types'
 import type { CanvasKit, Paragraph } from 'canvaskit-wasm'
@@ -258,8 +259,7 @@ export class TextEditor {
     if (lineNum < 0) return
     const metrics = s.paragraph.getLineMetricsAt(lineNum)
     if (!metrics) return
-    s.cursor =
-      s.textDirection === 'RTL' ? metrics.endExcludingWhitespaces : metrics.startIndex
+    s.cursor = s.textDirection === 'RTL' ? metrics.endExcludingWhitespaces : metrics.startIndex
   }
 
   moveToLineEnd(extend = false): void {
@@ -270,8 +270,7 @@ export class TextEditor {
     if (lineNum < 0) return
     const metrics = s.paragraph.getLineMetricsAt(lineNum)
     if (!metrics) return
-    s.cursor =
-      s.textDirection === 'RTL' ? metrics.startIndex : metrics.endExcludingWhitespaces
+    s.cursor = s.textDirection === 'RTL' ? metrics.startIndex : metrics.endExcludingWhitespaces
   }
 
   moveWordLeft(extend = false): void {

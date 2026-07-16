@@ -111,7 +111,11 @@ export function parseOkHCLPayload(value: string): OkHCLPayload | null {
   }
 }
 
-function createOkHCLPayload(kind: 'fill' | 'stroke', index: number, color: OkHCLColor): OkHCLPayload {
+function createOkHCLPayload(
+  kind: 'fill' | 'stroke',
+  index: number,
+  color: OkHCLColor
+): OkHCLPayload {
   return {
     version: 1,
     kind,
@@ -120,7 +124,11 @@ function createOkHCLPayload(kind: 'fill' | 'stroke', index: number, color: OkHCL
   }
 }
 
-function filterOkHCLPayloads(entries: string[], kind?: 'fill' | 'stroke', index?: number): string[] {
+function filterOkHCLPayloads(
+  entries: string[],
+  kind?: 'fill' | 'stroke',
+  index?: number
+): string[] {
   return entries.filter((entry) => {
     const payload = parseOkHCLPayload(entry)
     if (!payload) return true
@@ -129,7 +137,11 @@ function filterOkHCLPayloads(entries: string[], kind?: 'fill' | 'stroke', index?
   })
 }
 
-export function setNodeFillOkHCL(node: SceneNode, index: number, color: OkHCLColor): Partial<SceneNode> {
+export function setNodeFillOkHCL(
+  node: SceneNode,
+  index: number,
+  color: OkHCLColor
+): Partial<SceneNode> {
   const fills = node.fills.map(copyFill)
   if (index < 0 || index >= fills.length) throw new Error(`Fill ${index} not found`)
   const fill = fills[index]
@@ -140,7 +152,11 @@ export function setNodeFillOkHCL(node: SceneNode, index: number, color: OkHCLCol
     opacity: rgba.a
   }
 
-  const payloads = filterOkHCLPayloads(node.pluginData.map((entry) => entry.value), 'fill', index)
+  const payloads = filterOkHCLPayloads(
+    node.pluginData.map((entry) => entry.value),
+    'fill',
+    index
+  )
   payloads.push(serializeOkHCLPayload(createOkHCLPayload('fill', index, color)))
 
   return {
@@ -149,7 +165,11 @@ export function setNodeFillOkHCL(node: SceneNode, index: number, color: OkHCLCol
   }
 }
 
-export function setNodeStrokeOkHCL(node: SceneNode, index: number, color: OkHCLColor): Partial<SceneNode> {
+export function setNodeStrokeOkHCL(
+  node: SceneNode,
+  index: number,
+  color: OkHCLColor
+): Partial<SceneNode> {
   const strokes = node.strokes.map(copyStroke)
   if (index < 0 || index >= strokes.length) throw new Error(`Stroke ${index} not found`)
   const stroke = strokes[index]
@@ -160,7 +180,11 @@ export function setNodeStrokeOkHCL(node: SceneNode, index: number, color: OkHCLC
     opacity: rgba.a
   }
 
-  const payloads = filterOkHCLPayloads(node.pluginData.map((entry) => entry.value), 'stroke', index)
+  const payloads = filterOkHCLPayloads(
+    node.pluginData.map((entry) => entry.value),
+    'stroke',
+    index
+  )
   payloads.push(serializeOkHCLPayload(createOkHCLPayload('stroke', index, color)))
 
   return {
@@ -170,16 +194,32 @@ export function setNodeStrokeOkHCL(node: SceneNode, index: number, color: OkHCLC
 }
 
 export function clearNodeFillOkHCL(node: SceneNode, index: number): Partial<SceneNode> {
-  const okhclValues = filterOkHCLPayloads(node.pluginData.map((entry) => entry.value), 'fill', index)
+  const okhclValues = filterOkHCLPayloads(
+    node.pluginData.map((entry) => entry.value),
+    'fill',
+    index
+  )
   return {
-    pluginData: okhclValues.map((value) => ({ pluginId: 'open-pencil', key: OKHCL_PLUGIN_KEY, value }))
+    pluginData: okhclValues.map((value) => ({
+      pluginId: 'open-pencil',
+      key: OKHCL_PLUGIN_KEY,
+      value
+    }))
   }
 }
 
 export function clearNodeStrokeOkHCL(node: SceneNode, index: number): Partial<SceneNode> {
-  const okhclValues = filterOkHCLPayloads(node.pluginData.map((entry) => entry.value), 'stroke', index)
+  const okhclValues = filterOkHCLPayloads(
+    node.pluginData.map((entry) => entry.value),
+    'stroke',
+    index
+  )
   return {
-    pluginData: okhclValues.map((value) => ({ pluginId: 'open-pencil', key: OKHCL_PLUGIN_KEY, value }))
+    pluginData: okhclValues.map((value) => ({
+      pluginId: 'open-pencil',
+      key: OKHCL_PLUGIN_KEY,
+      value
+    }))
   }
 }
 
@@ -191,9 +231,17 @@ export function getNodeOkHCLPayloads(node: SceneNode): OkHCLPayload[] {
 }
 
 export function getFillOkHCL(node: SceneNode, index: number): OkHCLPayload | null {
-  return getNodeOkHCLPayloads(node).find((payload) => payload.kind === 'fill' && payload.index === index) ?? null
+  return (
+    getNodeOkHCLPayloads(node).find(
+      (payload) => payload.kind === 'fill' && payload.index === index
+    ) ?? null
+  )
 }
 
 export function getStrokeOkHCL(node: SceneNode, index: number): OkHCLPayload | null {
-  return getNodeOkHCLPayloads(node).find((payload) => payload.kind === 'stroke' && payload.index === index) ?? null
+  return (
+    getNodeOkHCLPayloads(node).find(
+      (payload) => payload.kind === 'stroke' && payload.index === index
+    ) ?? null
+  )
 }

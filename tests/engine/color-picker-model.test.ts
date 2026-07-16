@@ -9,7 +9,7 @@ import {
   updateHSLChannel,
   updateHue,
   updateRGBChannel
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 import type { Color } from '@open-pencil/core'
 

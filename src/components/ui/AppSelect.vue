@@ -22,7 +22,12 @@ interface SelectUi {
   indicator?: string
 }
 
-const { options, placeholder, ui, testId = 'app-select-trigger' } = defineProps<{
+const {
+  options,
+  placeholder,
+  ui,
+  testId = 'app-select-trigger'
+} = defineProps<{
   options: { value: T; label: string }[]
   placeholder?: string
   ui?: SelectUi

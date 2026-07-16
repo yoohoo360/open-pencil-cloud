@@ -1,6 +1,6 @@
 # OpenPencil
 
-Open-source design editor. Opens `.fig` and `.pen` design files, includes built-in AI, and ships as a programmable toolkit with a headless Vue SDK for building custom editors.
+Open-source design editor. Opens `.fig` and `.pen` design files, includes built-in AI, and ships as a programmable toolkit with a headless React SDK for building custom editors.
 
 > **Status:** Active development. Not ready for production use.
 >
@@ -25,7 +25,7 @@ Or download from the [releases page](https://github.com/open-pencil/open-pencil/
 - **Opens `.fig` and `.pen` files** — read and write native Figma files, open Pencil documents, copy & paste nodes between apps
 - **AI builds designs** — describe what you want in chat, 90+ tools create and modify nodes. Connect OpenRouter, Anthropic, OpenAI, Google AI, Z.ai, MiniMax, or compatible endpoints
 - **Fully programmable** — headless CLI, Figma Plugin API via `eval`, MCP server for AI agents
-- **Vue SDK for custom editors** — headless components and composables for embedding OpenPencil into other apps or building workflow-specific editing surfaces. [Read the SDK docs →](https://openpencil.dev/programmable/sdk/)
+- **React SDK for custom editors** — headless components and hooks for embedding OpenPencil into other apps or building workflow-specific editing surfaces. [Read the SDK docs →](https://openpencil.dev/programmable/sdk/)
 - **Real-time collaboration** — P2P via WebRTC, no server, no account. Cursors, presence, follow mode
 - **Auto layout & CSS Grid** — flex and grid layout via Yoga WASM, with gap, padding, alignment, track sizing
 - **Tailwind CSS export** — export any selection as HTML with Tailwind v4 utility classes
@@ -253,11 +253,11 @@ bun run tauri dev  # Desktop app (requires Rust)
 ```
 packages/
   core/           @open-pencil/core — engine (scene graph, renderer, layout, file formats, tools)
-  vue/            @open-pencil/vue — headless Vue SDK
+  react/          @open-pencil/react — headless React SDK
   cli/            @open-pencil/cli — headless CLI
   mcp/            @open-pencil/mcp — MCP server (stdio + HTTP)
   docs/           Documentation site (openpencil.dev)
-src/              Vue app (components, composables, stores)
+src/              React app (react_app/, stores, leftover Chat Vue SFCs)
 desktop/          Tauri v2 (Rust + config)
 tests/            E2E (188 tests) + unit (764 tests)
 ```
@@ -268,7 +268,7 @@ tests/            E2E (188 tests) + unit (764 tests)
 |-------|------|
 | Rendering | Skia (CanvasKit WASM) |
 | Layout | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
-| UI | Vue 3, Reka UI, Tailwind CSS 4 |
+| UI | React 19, Radix UI, Tailwind CSS 4 |
 | File format | Kiwi binary + Zstd + ZIP |
 | Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT) |
 | Desktop | Tauri v2 |
