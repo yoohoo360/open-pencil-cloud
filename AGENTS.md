@@ -1,21 +1,21 @@
 # OpenPencil
 
-Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
+React + Vue 3 (veaury cutover) + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
 
 **Roadmap:** `plan.md` — phases, tech stack, CLI architecture, test strategy, keyboard shortcuts.
 
 ## Monorepo
 
-Bun workspace with three packages:
+Bun workspace packages:
 
 - `packages/core` — `@open-pencil/core`: scene graph, renderer, layout, codec, kiwi, clipboard, vector, snap, undo. Zero DOM deps, runs headless in Bun.
 - `packages/cli` — `@open-pencil/cli`: headless CLI for .fig inspection, export, linting. Uses `citty` + `agentfmt`.
 - `packages/docs` — `@open-pencil/docs`: VitePress documentation site. Run with `cd packages/docs && bun run dev`.
 - `packages/mcp` — `@open-pencil/mcp`: MCP server for AI coding tools. Stdio + HTTP (Hono). Reuses `createServer()` factory with all core tools.
+- `packages/vue` — `@open-pencil/vue`: headless Vue 3 SDK (Reka UI-style) for building custom OpenPencil-powered editor shells and embedded editing surfaces. Renderless components and composables.
+- `packages/react` — `@open-pencil/react`: headless React SDK (parallel to `@open-pencil/vue`) with `EditorProvider` / hooks and renderless primitives. The app shell is migrating onto this package.
 
-- `packages/vue` — `@open-pencil/vue`: headless Vue 3 SDK (Reka UI-style) for building custom OpenPencil-powered editor shells and embedded editing surfaces. Renderless components and composables. The app is one consumer of the SDK.
-
-The root app (`src/`) is the Tauri/Vite desktop editor. Its `src/engine/` files are thin re-export shims from `@open-pencil/core`. `src/composables/use-canvas.ts` re-exports from `@open-pencil/vue`.
+The root app (`src/`) is the Tauri/Vite desktop editor. Entry is React (`src/main.tsx` → `src/react_app/`), with remaining Vue panels mounted via veaury `applyVueInReact` during the cutover. Its `src/engine/` files are thin re-export shims from `@open-pencil/core`. `src/composables/use-canvas.ts` re-exports from `@open-pencil/vue` until the React canvas path fully replaces it.
 
 ### Core subpath exports
 

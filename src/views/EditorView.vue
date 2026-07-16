@@ -30,7 +30,8 @@ const route = useRoute()
 const params = useUrlSearchParams('history')
 const showChrome = !('no-chrome' in params)
 
-const firstTab = createTab()
+// Reuse the React-created tab when running under the React root; create one if absent.
+const firstTab = activeTab.value ?? createTab()
 const store = useEditorStore()
 const { isMobile } = useViewportKind()
 

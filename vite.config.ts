@@ -58,14 +58,10 @@ export default defineConfig(async () => ({
     Icons({ compiler: 'vue3' }),
     Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
     automationPlugin(),
-    // Vue root + React islands: .vue uses Vue; packages/react + src/**/*.tsx use React JSX
+    // React root + Vue-in-React (and nested React islands inside Vue): prefer React JSX.
+    // Keep Vue SFCs via @vitejs/plugin-vue; vue_app/**/*.tsx still uses Vue JSX if needed.
     veauryVitePlugins({
-      type: 'custom',
-      vueJsxInclude: [
-        /vue&type=script&lang\.[tj]sx$/i,
-        /vue&type=script&setup=true&lang\.[tj]sx$/i,
-        /[/\\]vue_app[/\\][\w\W]+\.[tj]sx$/
-      ]
+      type: 'react'
     }),
     VitePWA({
       registerType: 'autoUpdate',
