@@ -3,6 +3,7 @@ import { shallowReactive, shallowRef, computed, watch, triggerRef } from 'vue'
 
 import { IS_TAURI } from '@/constants'
 import { loadFont } from '@/engine/fonts'
+import { notifyEditorUI } from '@/stores/editor-notify'
 import { toast } from '@/utils/toast'
 import {
   breakAtVertex,
@@ -231,6 +232,9 @@ export function createEditorStore(initialGraph?: SceneGraph) {
       editor.penCommit(false)
     }
     state.activeTool = tool
+    // Notify React islands / dual-UI subscribers (does not always go through requestRender)
+    editor.requestRepaint()
+    notifyEditorUI()
   }
 
   // ─── Pen resume (vector editor) ────────────────────────────────
