@@ -3,16 +3,15 @@ import { Check, Copy, Share2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { DEFAULT_COLLAB_STATE } from '@/composables/use-collab'
+import { usePopoverUI } from '@/react_app/ui/popover'
+import { Tip, TipProvider } from '@/react_app/ui/Tip'
+import { initials } from '@/utils/text'
+import { toast } from '@/utils/toast'
 import { colorToCSS } from '@open-pencil/core'
 import { useI18n } from '@open-pencil/react'
 
-import { usePopoverUI } from '@/react_app/ui/popover'
-import { Tip, TipProvider } from '@/react_app/ui/Tip'
-import { toast } from '@/utils/toast'
-import { initials } from '@/utils/text'
-
 import type { CollabReturn, CollabState, RemotePeer } from '@/composables/use-collab'
-import { DEFAULT_COLLAB_STATE } from '@/composables/use-collab'
 
 export function CollabPanel({ collab }: { collab: CollabReturn | null }) {
   const navigate = useNavigate()
@@ -132,11 +131,7 @@ export function CollabPanel({ collab }: { collab: CollabReturn | null }) {
               }`}
             >
               <Share2 className="size-3.5" />
-              {state.connected
-                ? dialogs.connected
-                : isJoining
-                  ? dialogs.joinRoom
-                  : dialogs.share}
+              {state.connected ? dialogs.connected : isJoining ? dialogs.joinRoom : dialogs.share}
             </button>
           </Popover.Trigger>
 

@@ -136,9 +136,7 @@ export function ExportSection() {
       const data = await editorStore.renderExportImage(ids, scale, 'PNG')
       if (cancelled) return
       if (data) {
-        createdUrl = URL.createObjectURL(
-          new Blob([new Uint8Array(data)], { type: 'image/png' })
-        )
+        createdUrl = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'image/png' }))
         setPreviewUrl(createdUrl)
       }
     }
