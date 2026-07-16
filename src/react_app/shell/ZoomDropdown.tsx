@@ -20,7 +20,7 @@ type AppChromeState = {
   showRemoteCursors: boolean
 }
 
-function ZoomDropdownInner() {
+export function ZoomDropdownInner() {
   const editor = useEditor()
   useEditorVersion()
   const { getCommand } = useEditorCommands()

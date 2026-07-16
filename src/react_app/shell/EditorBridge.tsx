@@ -1,12 +1,11 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
 
+import { subscribeEditorUI } from '@/stores/editor-notify'
 import {
   EditorProvider,
   createEditorStore,
   type EditorStore as ReactEditorStore
 } from '@open-pencil/react'
-
-import { subscribeEditorUI } from '@/stores/editor-notify'
 
 import type { Editor } from '@open-pencil/core/editor'
 
