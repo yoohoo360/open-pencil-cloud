@@ -4,6 +4,7 @@
 
 ### Features
 
+- SDK docs index/getting-started point at `@open-pencil/react` (remaining API pages may still show Vue examples)
 - Phase 3 React cutover — pure React `EditorView` (no `VueEditorShell` / `applyVueInReact` for chrome); remove `@open-pencil/vue` package; app depends on `@open-pencil/react` only for SDK
 - Migrate AppMenu, MobileHud, and MobileDrawer to React islands
 - Migrate EditorCanvas, CanvasMenu, CollabPanel, and DesignPanel to React islands (canvas uses CanvasRoot/useCanvasInput)
