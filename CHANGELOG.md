@@ -4,6 +4,7 @@
 
 ### Features
 
+- Migrate properties panel, design panel, variables dialog, code panel, and color/fill/stroke/font/gradient pickers to React islands under `src/react_app/` (veaury thin Vue wrappers)
 - React root cutover scaffolding — app entry is `src/main.tsx` with `react-router` routes (`/`, `/demo`, `/share/:roomId`), Radix `TooltipProvider`, and `EditorBridge` / `@open-pencil/react` context; remaining Vue editor panels mount via veaury `applyVueInReact` until migrated
 - Migrate editor chrome panels to React islands (Safari banner, zoom menu, toolbar, tab bar, pages panel, layer tree) via veaury, backed by `@open-pencil/react`
 - Add `@open-pencil/react` headless React SDK with canvas, toolbar, layer tree, page list, property controls, scrub input, and color/fill/font/gradient picker primitives (parallel to `@open-pencil/vue`)
