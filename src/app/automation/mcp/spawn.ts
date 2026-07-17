@@ -1,6 +1,8 @@
-import { promiseTimeout } from '@vueuse/core'
-
 import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
+
+function promiseTimeout(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => { setTimeout(resolve, ms) })
+}
 import { randomHex } from '@open-pencil/core/random'
 
 import { decodeTauriStderr } from '@/app/shell/ui'

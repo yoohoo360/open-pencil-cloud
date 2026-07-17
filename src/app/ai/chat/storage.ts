@@ -1,12 +1,6 @@
 import { atom, computed } from 'nanostores'
 
-import {
-  AI_PROVIDERS,
-  DEFAULT_AI_MODEL,
-  DEFAULT_AI_PROVIDER,
-  IS_BROWSER,
-  IS_TAURI
-} from '@open-pencil/core/constants'
+import { AI_PROVIDERS, DEFAULT_AI_MODEL, DEFAULT_AI_PROVIDER, IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
 import type { AIProviderID } from '@open-pencil/core/constants'
 import { setPexelsApiKey, setUnsplashAccessKey } from '@open-pencil/core/tools'
 

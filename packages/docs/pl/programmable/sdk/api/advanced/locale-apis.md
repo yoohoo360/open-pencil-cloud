@@ -1,6 +1,6 @@
 ---
 title: API języka
-description: Niskopoziomowe store'y języka i metadane eksportowane przez @open-pencil/vue.
+description: Niskopoziomowe store'y języka i metadane eksportowane przez @open-pencil/react.
 ---
 
 # API języka
@@ -24,7 +24,7 @@ import {
   setLocale,
   AVAILABLE_LOCALES,
   LOCALE_LABELS,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 ```
 
 ## Uwagi

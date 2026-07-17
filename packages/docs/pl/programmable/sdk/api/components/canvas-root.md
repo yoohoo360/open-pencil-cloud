@@ -5,7 +5,7 @@ description: Bezstanowy prymityw kanvasu dla powierzchni renderowania OpenPencil
 
 # CanvasRoot
 
-`CanvasRoot` to strukturalny prymityw kanvasu w `@open-pencil/vue`.
+`CanvasRoot` to strukturalny prymityw kanvasu w `@open-pencil/react`.
 
 Użyj go, gdy chcesz strukturę kanvasu i kontekst dostarczane przez SDK, ale layout i stylowanie należące do aplikacji.
 

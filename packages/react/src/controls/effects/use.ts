@@ -1,13 +1,7 @@
 import { ref } from '#react/internal/reactive'
 import type { Effect } from '@open-pencil/scene-graph'
 
-import {
-  getEffectOptions,
-  createDefaultEffect,
-  createEffectControlActions,
-  createEffectEditActions,
-  isShadow
-} from '#react/controls/effects/helpers'
+import { getEffectOptions, createDefaultEffect, createEffectControlActions, createEffectEditActions, isShadow } from '#react/controls/effects/helpers'
 import { useEditor } from '#react/editor/context'
 
 /**

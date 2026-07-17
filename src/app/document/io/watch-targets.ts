@@ -1,5 +1,3 @@
-import { useIntervalFn } from '@vueuse/core'
-
 const RECENT_WRITE_MS = 1000
 const BROWSER_POLL_MS = 2000
 const TAURI_WATCH_DELAY_MS = 500
@@ -30,14 +28,10 @@ export async function watchBrowserFile(
   stopWatchingFile: () => void
 ) {
   let lastModified = (await fileHandle.getFile()).lastModified
-  const { pause, resume } = useIntervalFn(
-    () => {
-      void checkBrowserFileModified(fileHandle)
-    },
-    BROWSER_POLL_MS,
-    { immediate: false }
-  )
-  resume()
+  const intervalId = setInterval(() => {
+    void checkBrowserFileModified(fileHandle)
+  }, BROWSER_POLL_MS)
+  const pause = () => clearInterval(intervalId)
 
   async function checkBrowserFileModified(handle: FileSystemFileHandle) {
     if (getActiveFileHandle() !== handle) {

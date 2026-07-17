@@ -37,7 +37,7 @@ export async function checkForAppUpdate(options: UpdateCheckOptions) {
 export function scheduleStartupUpdateCheck(messages: UpdaterMessages) {
   if (startupCheckStarted || !isTauri()) return
   startupCheckStarted = true
-  void new Promise<void>((resolve) => setTimeout(resolve, STARTUP_UPDATE_CHECK_DELAY_MS)).then(() =>
+  void new Promise<void>((resolve) => { setTimeout(resolve, STARTUP_UPDATE_CHECK_DELAY_MS) }).then(() =>
     checkForAppUpdate({ silent: true, messages })
   )
 }

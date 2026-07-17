@@ -1,11 +1,7 @@
 import { formatShortcut, type Editor, type MenuEntry } from '@open-pencil/react'
 
 import type { createCanvasMenuActions } from '@/app/editor/canvas/menu/actions'
-import {
-  CANVAS_COPY_AS_ACTIONS,
-  CANVAS_COPY_AS_GROUP_TEST_ID,
-  type CanvasContextActionId
-} from '@/app/editor/canvas/menu/registry'
+import { CANVAS_COPY_AS_ACTIONS, CANVAS_COPY_AS_GROUP_TEST_ID, type CanvasContextActionId } from '@/app/editor/canvas/menu/registry'
 
 const STATIC_SELECTION_COMMAND_IDS = new Set(['selection.duplicate', 'selection.delete'])
 
@@ -88,4 +84,15 @@ export function buildCanvasContextMenu(
   const entries = withoutStaticSelectionCommands(baseEntries)
   if (!hasSelection) return entries
   return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels)]
+}
+
+/** React helper — menu entries are recomputed each render from current selection. */
+export function useCanvasContextMenu(
+  baseEntries: MenuEntry[],
+  hasSelection: boolean,
+  editor: Editor,
+  actions: CanvasMenuActions,
+  labels: CanvasCopyLabels
+): MenuEntry[] {
+  return buildCanvasContextMenu(baseEntries, hasSelection, editor, actions, labels)
 }

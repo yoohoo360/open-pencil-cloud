@@ -78,7 +78,7 @@ try {
   nodeEval("await import('@open-pencil/dom-css/browser')", tempDir)
   nodeEval("await import('@open-pencil/dom-css/jsx-runtime')", tempDir)
   nodeEval("await import('@open-pencil/dom-css/jsx-dev-runtime')", tempDir)
-  nodeEval("await import('@open-pencil/vue')", tempDir)
+  nodeEval("await import('@open-pencil/react')", tempDir)
   nodeEval("await import('@open-pencil/mcp')", tempDir)
 
   nodeEval(

@@ -1,23 +1,10 @@
 import { atom } from 'nanostores'
 
-import {
-  DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
-  WEB_FONT_PROVIDER_IDS,
-  fontManager,
-  styleToWeight,
-  textNeededFallbackScripts,
-  type FontFamilyOption,
-  type LocalFontAccessState,
-  type WebFontProviderId
-} from '@open-pencil/core/text'
+import { DEFAULT_WEB_FONT_PROVIDER_SETTINGS, WEB_FONT_PROVIDER_IDS, fontManager, styleToWeight, textNeededFallbackScripts, type FontFamilyOption, type LocalFontAccessState, type WebFontProviderId } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 import { dialogMessages } from '@open-pencil/react'
 
-import {
-  clearDownloadedFontCache as clearTauriDownloadedFontCache,
-  createTauriDownloadedFontCache,
-  downloadedFontCacheSummary as tauriDownloadedFontCacheSummary
-} from '@/app/editor/fonts/cache'
+import { clearDownloadedFontCache as clearTauriDownloadedFontCache, createTauriDownloadedFontCache, downloadedFontCacheSummary as tauriDownloadedFontCacheSummary } from '@/app/editor/fonts/cache'
 import { toast } from '@/app/shell/ui'
 import { isTauri } from '@/app/tauri/env'
 import { tauriFetch } from '@/app/tauri/http'

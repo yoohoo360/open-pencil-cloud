@@ -25,11 +25,12 @@ export function useKeyboard() {
     const onFocusIn = (e: FocusEvent) => {
       inputFocused.current = isInputElement(e.target as Element | null)
     }
+    const onFocusOut = () => { inputFocused.current = false }
     document.addEventListener('focusin', onFocusIn)
-    document.addEventListener('focusout', () => { inputFocused.current = false })
+    document.addEventListener('focusout', onFocusOut)
     return () => {
       document.removeEventListener('focusin', onFocusIn)
-      document.removeEventListener('focusout', () => { inputFocused.current = false })
+      document.removeEventListener('focusout', onFocusOut)
     }
   }, [])
 

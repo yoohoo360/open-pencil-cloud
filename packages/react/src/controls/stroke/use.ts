@@ -1,18 +1,5 @@
 import { ref } from '#react/internal/reactive'
-import {
-  BORDER_SIDES,
-  DEFAULT_STROKE,
-  SIDE_OPTIONS,
-  borderWeight,
-  createStrokeSideActions,
-  currentAlign,
-  currentSides,
-  dashState,
-  setDash,
-  setGap,
-  toggleDash,
-  updateAlign
-} from '#react/controls/stroke/helpers'
+import { BORDER_SIDES, DEFAULT_STROKE, SIDE_OPTIONS, borderWeight, createStrokeSideActions, currentAlign, currentSides, dashState, setDash, setGap, toggleDash, updateAlign } from '#react/controls/stroke/helpers'
 import { useEditor } from '#react/editor/context'
 import { useI18n } from '#react/i18n'
 

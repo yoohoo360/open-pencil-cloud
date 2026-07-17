@@ -8,16 +8,7 @@ import type {
 } from '@open-pencil/core/text'
 import { useI18n } from '@open-pencil/react'
 
-import {
-  clearDownloadedFontCache,
-  downloadedFontCacheSummary,
-  $fontProviderSettings,
-  localFontAccessState,
-  $onlineFontsEnabled,
-  predownloadFallbackFonts,
-  requestLocalFontAccess,
-  type FontProviderSettings
-} from '@/app/editor/fonts'
+import { clearDownloadedFontCache, downloadedFontCacheSummary, $fontProviderSettings, localFontAccessState, $onlineFontsEnabled, predownloadFallbackFonts, requestLocalFontAccess } from '@/app/editor/fonts'
 import type { DownloadedFontCacheSummary } from '@/app/editor/fonts/cache'
 
 type FontCacheSummary = DownloadedFontCacheSummary

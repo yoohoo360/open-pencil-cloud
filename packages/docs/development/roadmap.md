@@ -234,6 +234,6 @@ These are parsed or visible in Figma docs and most likely to cause visible diffe
 | Effects / shadows            | `packages/core/src/canvas/shadows.ts`                                                                          |
 | Text rendering               | `packages/core/src/canvas/text.ts`, `packages/core/src/canvas/text-derived.ts`                                 |
 | Layout engine                | `packages/core/src/layout.ts`, `packages/core/src/layout/**`                                                   |
-| Property panels              | `src/components/properties/**`, `packages/vue/src/controls/**`                                                 |
+| Property panels              | `src/components/properties/**`, `packages/react/src/controls/**`                                                 |
 | CLI                          | `packages/cli/src/index.ts`, `packages/cli/src/commands/**`                                                    |
 | MCP/tools                    | `packages/core/src/tools/**`, `packages/mcp/src/tool/registration.ts`                                          |

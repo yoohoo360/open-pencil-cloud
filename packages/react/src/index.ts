@@ -10,12 +10,20 @@ export type {
 export { createEditor, EDITOR_TOOLS, TOOL_SHORTCUTS } from '@open-pencil/core/editor'
 
 /**
- * Public editor-context API for the Vue SDK.
+ * Public editor-context API for the React SDK.
  *
- * These are the primary entry points for making an editor available to a Vue
- * subtree and reading it back inside composables and headless primitives.
+ * Use {@link EditorProvider} near the top of your editor shell so descendant
+ * hooks and headless primitives can access the editor with {@link useEditor}.
  */
-export { provideEditor, useEditor, EDITOR_KEY } from '#react/editor/context'
+export { EditorProvider, provideEditor, useEditor, EDITOR_KEY } from '#react/editor/context'
+export {
+  useEditorStore,
+  useSceneSnapshot,
+  useRepaintSnapshot,
+  useSceneVersion,
+  useRenderVersion,
+  useSelectedIds
+} from '#react/editor/store/use'
 
 /** Canvas and input integration composables. */
 export { useCanvas } from '#react/canvas/surface/use'

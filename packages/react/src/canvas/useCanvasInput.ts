@@ -4,11 +4,7 @@ import type { ReactiveRef as Ref } from '#react/internal/reactive'
 import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
-import {
-  handleBendHandleMove,
-  handleNodeEditMouseUp,
-  updateNodeEditHover
-} from '#react/canvas/node-edit-input/use'
+import { handleBendHandleMove, handleNodeEditMouseUp, updateNodeEditHover } from '#react/canvas/node-edit-input/use'
 import { handlePenDragMove, updatePenHover } from '#react/canvas/pen-input/use'
 import { createCanvasPointer } from '#react/canvas/pointer/use'
 import { createTextEditInput } from '#react/canvas/text-edit/input'

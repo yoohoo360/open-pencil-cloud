@@ -1,8 +1,4 @@
-import {
-  TYPOGRAPHY_WEIGHTS,
-  createTypographyActions,
-  createTypographyState
-} from '#react/controls/typography/actions'
+import { TYPOGRAPHY_WEIGHTS, createTypographyActions, createTypographyState } from '#react/controls/typography/actions'
 import { useEditor } from '#react/editor/context'
 
 /**

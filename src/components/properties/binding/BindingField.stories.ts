@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/vue3-vite'
+import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
 
-import BindingFieldDemo from './demo/BindingFieldDemo.vue'
+import BindingFieldDemo from './demo/BindingFieldDemo'
 
 const meta = {
   title: 'Design System/Properties/Binding Field',

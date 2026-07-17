@@ -1,14 +1,7 @@
 import type { Editor, Tool } from '@open-pencil/core/editor'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
-import {
-  absoluteVertices,
-  cloneSegments,
-  createResumedPenState,
-  walkChainOrdered,
-  walkChainToEnd,
-  type PenState
-} from '@/app/editor/pen/resume'
+import { absoluteVertices, cloneSegments, createResumedPenState, walkChainOrdered, walkChainToEnd, type PenState } from '@/app/editor/pen/resume'
 
 export function createPenActions(editor: Editor, graph: SceneGraph, state: PenState) {
   function setTool(tool: Tool) {

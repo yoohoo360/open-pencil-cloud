@@ -2,10 +2,7 @@ import type { CanvasKit } from 'canvaskit-wasm'
 import type { ReactiveRef as Ref } from '#react/internal/reactive'
 import type { Editor } from '@open-pencil/core/editor'
 
-import {
-  createCanvasSurfaceManager,
-  useCanvasSurfaceLifecycle
-} from '#react/canvas/surface/lifecycle'
+import { createCanvasSurfaceManager, useCanvasSurfaceLifecycle } from '#react/canvas/surface/lifecycle'
 import { createCanvasHitTests, createRulerVisibility } from '#react/canvas/surface/overlays'
 import type { UseCanvasOptions } from '#react/canvas/surface/types'
 

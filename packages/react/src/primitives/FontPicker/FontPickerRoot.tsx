@@ -1,11 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 
-import {
-  useFontPicker,
-  type FontAccessController,
-  type FontFamilyOption
-} from '#react/primitives/FontPicker/useFontPicker'
+import { useFontPicker, type FontAccessController, type FontFamilyOption } from '#react/primitives/FontPicker/useFontPicker'
 
 import type { FontPickerUI } from '#react/primitives/FontPicker/types'
 

@@ -1,9 +1,5 @@
 import type { Editor } from '@open-pencil/core/editor'
-import {
-  toggleBoldInRange,
-  toggleDecorationInRange,
-  toggleItalicInRange
-} from '@open-pencil/core/text'
+import { toggleBoldInRange, toggleDecorationInRange, toggleItalicInRange } from '@open-pencil/core/text'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 export function createTextFormattingActions(store: Editor) {

@@ -2,10 +2,7 @@ import { ROTATION_SNAP_DEGREES } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
 import { getAbsolutePositionFull } from '@open-pencil/scene-graph/coordinate'
 
-import {
-  hitTestCornerRotationByMatrix,
-  hitTestTopRotationHandleByMatrix
-} from '#react/shared/input/geometry'
+import { hitTestCornerRotationByMatrix, hitTestTopRotationHandleByMatrix } from '#react/shared/input/geometry'
 import type { DragRotate, DragState } from '#react/shared/input/types'
 
 type SetDrag = (drag: DragState) => void

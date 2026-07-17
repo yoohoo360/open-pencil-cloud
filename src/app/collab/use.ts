@@ -2,11 +2,7 @@ import { atom, computed } from 'nanostores'
 
 import { createFollowActions, generateRoomId } from '@/app/collab/awareness'
 import { createLocalAwarenessActions } from '@/app/collab/local-awareness'
-import {
-  createCollabConnectionActions,
-  createCollabRuntime,
-  createInitialCollabState
-} from '@/app/collab/session'
+import { createCollabConnectionActions, createCollabRuntime, createInitialCollabState } from '@/app/collab/session'
 import { DEFAULT_COLLAB_STATE, type CollabState, type RemotePeer } from '@/app/collab/types'
 import { createYjsGraphSync } from '@/app/collab/yjs-sync'
 import type { EditorStore } from '@/app/editor/active-store'

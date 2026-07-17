@@ -1,7 +1,6 @@
 import './app.css'
 
-import { createHead } from '@unhead/react/client'
-import { UnheadProvider } from '@unhead/react/client'
+import { createHead, UnheadProvider } from '@unhead/react/client'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 

@@ -1,12 +1,7 @@
 import type { ReactiveRef as Ref } from '#react/internal/reactive'
 import type { Editor } from '@open-pencil/core/editor'
 
-import {
-  getCanvasNodeEditState,
-  handleBendHandleMove,
-  resolveBendTargetHandle,
-  type CanvasNodeEditMethods
-} from '#react/canvas/node-edit-input/bend'
+import { getCanvasNodeEditState, handleBendHandleMove, resolveBendTargetHandle, type CanvasNodeEditMethods } from '#react/canvas/node-edit-input/bend'
 import { hitTestEditHandle, isEndpoint, NODE_HIT_THRESHOLD } from '#react/shared/input/node-edit'
 import type { DragState } from '#react/shared/input/types'
 

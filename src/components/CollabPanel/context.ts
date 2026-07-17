@@ -17,7 +17,7 @@ export type CollabPanelContext = {
   isJoining: boolean
   copyLink: () => void
   share: () => void
-  join: () => void
+  joinRoom: () => void
   disconnect: () => void
   toggleFollowPeer: (clientId: number) => void
 }

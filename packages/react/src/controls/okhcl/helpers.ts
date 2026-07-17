@@ -1,12 +1,5 @@
 import type { ReactiveRef as Ref } from '#react/internal/reactive'
-import {
-  getFillOkHCL,
-  getStrokeOkHCL,
-  resolveOkHCLForPreview,
-  rgbaToOkHCL,
-  setNodeFillOkHCL,
-  setNodeStrokeOkHCL
-} from '@open-pencil/core/color'
+import { getFillOkHCL, getStrokeOkHCL, resolveOkHCLForPreview, rgbaToOkHCL, setNodeFillOkHCL, setNodeStrokeOkHCL } from '@open-pencil/core/color'
 import type { OkHCLColor } from '@open-pencil/core/color'
 import { BLACK } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'

@@ -1,10 +1,4 @@
-import {
-  MIXED,
-  createNodePropArrayActions,
-  createNodePropScrubActions,
-  createNodePropSelectionState,
-  isNodeArrayMixed
-} from '#react/controls/node-props/helpers'
+import { MIXED, createNodePropArrayActions, createNodePropScrubActions, createNodePropSelectionState, isNodeArrayMixed } from '#react/controls/node-props/helpers'
 import { useEditor } from '#react/editor/context'
 
 /** Sentinel value returned when a property differs across multiple selected nodes. */

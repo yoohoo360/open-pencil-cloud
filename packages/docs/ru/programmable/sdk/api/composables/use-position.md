@@ -25,7 +25,7 @@ description: Чтение и обновление позиции, размера
 ## Использование
 
 ```ts
-import { usePosition } from '@open-pencil/vue'
+import { usePosition } from '@open-pencil/react'
 
 const position = usePosition()
 ```

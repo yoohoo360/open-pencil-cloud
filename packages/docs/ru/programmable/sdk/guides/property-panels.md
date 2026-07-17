@@ -5,7 +5,7 @@ description: Создавайте панели свойств с компоса�
 
 # Панели свойств
 
-Панели свойств в `@open-pencil/vue` намеренно ориентированы на компосаблы.
+Панели свойств в `@open-pencil/react` намеренно ориентированы на компосаблы.
 
 Если панель в основном нуждается в значениях, производных от выделения, и действиях по обновлению — предпочитайте компосаблы.
 Если панели нужна переиспользуемая структура массива/списка — используйте headless-примитив вроде `PropertyListRoot`.
@@ -30,7 +30,7 @@ description: Создавайте панели свойств с компоса�
 
 ```vue
 <script setup lang="ts">
-import { usePosition } from '@open-pencil/vue'
+import { usePosition } from '@open-pencil/react'
 
 const { x, y, width, height, updateProp, commitProp } = usePosition()
 </script>
@@ -49,7 +49,7 @@ const { x, y, width, height, updateProp, commitProp } = usePosition()
 
 ```vue
 <script setup lang="ts">
-import { PropertyListRoot, useFillControls } from '@open-pencil/vue'
+import { PropertyListRoot, useFillControls } from '@open-pencil/react'
 
 const fillControls = useFillControls()
 </script>

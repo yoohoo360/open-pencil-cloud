@@ -1,9 +1,4 @@
-import {
-  getNodeEditState,
-  hitTestEditHandle,
-  hitTestEditVertex,
-  isEndpoint
-} from '#react/shared/input/node-edit/hit-test'
+import { getNodeEditState, hitTestEditHandle, hitTestEditVertex, isEndpoint } from '#react/shared/input/node-edit/hit-test'
 import type { DragEditHandle, DragEditNode, DragState } from '#react/shared/input/types'
 
 export {

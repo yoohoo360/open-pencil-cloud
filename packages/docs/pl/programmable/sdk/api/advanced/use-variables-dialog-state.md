@@ -12,7 +12,7 @@ Użyj go, gdy budujesz niestandardowe okno dialogowe zmiennych zamiast korzysta�
 ## Użycie
 
 ```ts
-import { useVariablesDialogState } from '@open-pencil/vue'
+import { useVariablesDialogState } from '@open-pencil/react'
 
 const variablesDialog = useVariablesDialogState()
 ```

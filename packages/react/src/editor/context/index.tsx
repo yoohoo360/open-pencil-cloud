@@ -1,8 +1,4 @@
-import {
-  createContext,
-  useContext,
-  type ReactNode
-} from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 
 import type { Editor } from '@open-pencil/core/editor'
 

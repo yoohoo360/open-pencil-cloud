@@ -2,12 +2,7 @@ import type { ReactiveRef as Ref } from '#react/internal/reactive'
 import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
-import {
-  canvasToLocalPoint,
-  getPointerCoords,
-  hitTestInEditorScope,
-  isInsideEditorContainerBounds
-} from '#react/shared/input/geometry'
+import { canvasToLocalPoint, getPointerCoords, hitTestInEditorScope, isInsideEditorContainerBounds } from '#react/shared/input/geometry'
 import type { HitTestFns } from '#react/shared/input/select'
 
 export function createCanvasPointer(

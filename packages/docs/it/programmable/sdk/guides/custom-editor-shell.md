@@ -8,7 +8,7 @@ description: Crea la tua shell editor con provideEditor, CanvasRoot, menu, panne
 Una tipica app Vue con OpenPencil ha tre livelli:
 
 1. `@open-pencil/core` crea l'editor
-2. `@open-pencil/vue` lo adatta in composable Vue e primitive headless
+2. `@open-pencil/react` lo adatta in composable Vue e primitive headless
 3. la tua app renderizza la shell, lo stile e la UX specifica del prodotto
 
 ## Perché questo è importante
@@ -41,7 +41,7 @@ import {
   ToolbarRoot,
   PageListRoot,
   LayerTreeRoot,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const editor = createEditor({ width: 1440, height: 900 })
 provideEditor(editor)

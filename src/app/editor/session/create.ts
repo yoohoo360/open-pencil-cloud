@@ -2,17 +2,9 @@ import { createEditor } from '@open-pencil/core/editor'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import {
-  getActiveEditorStore,
-  setActiveEditorStore,
-  useEditorStore
-} from '@/app/editor/active-store'
+import { getActiveEditorStore, setActiveEditorStore, useEditorStore } from '@/app/editor/active-store'
 import { loadFont } from '@/app/editor/fonts'
-import {
-  createEditorComputedRefs,
-  createEditorStoreModules,
-  defineEditorStoreAccessors
-} from '@/app/editor/session/modules'
+import { createEditorComputedRefs, createEditorStoreModules, defineEditorStoreAccessors } from '@/app/editor/session/modules'
 import { createInitialAppEditorState, type AppEditorState } from '@/app/editor/session/types'
 
 export { EDITOR_TOOLS as TOOLS, TOOL_SHORTCUTS } from '@open-pencil/core/editor'

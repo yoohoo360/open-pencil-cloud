@@ -1,8 +1,4 @@
-import {
-  createContext as createReactContext,
-  useContext,
-  type ReactNode
-} from 'react'
+import { createContext as createReactContext, useContext, type ReactNode } from 'react'
 
 /**
  * Reka-style context factory used by headless primitives.

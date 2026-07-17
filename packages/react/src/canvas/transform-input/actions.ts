@@ -2,10 +2,7 @@ import type { Editor } from '@open-pencil/core/editor'
 
 import { handleMarqueeMove as handleMarqueeMoveAction } from '#react/canvas/transform-input/marquee'
 import { handlePanMove as handlePanMoveAction } from '#react/canvas/transform-input/pan'
-import {
-  handleRotateMove as handleRotateMoveAction,
-  tryStartRotation as tryStartRotationAction
-} from '#react/canvas/transform-input/rotation'
+import { handleRotateMove as handleRotateMoveAction, tryStartRotation as tryStartRotationAction } from '#react/canvas/transform-input/rotation'
 import { handleTextSelectMove as handleTextSelectMoveAction } from '#react/canvas/transform-input/text-selection'
 import type { DragMarquee, DragPan, DragRotate, DragState } from '#react/shared/input/types'
 

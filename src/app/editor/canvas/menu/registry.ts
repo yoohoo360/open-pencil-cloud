@@ -1,4 +1,4 @@
-import type { TestId } from '@open-pencil/vue'
+import type { TestId } from '@open-pencil/react'
 
 export type CanvasContextActionId =
   | 'copy-as-text'

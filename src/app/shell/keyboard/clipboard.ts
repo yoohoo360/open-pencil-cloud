@@ -1,10 +1,7 @@
 import { extractImageFilesFromClipboard } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
-import {
-  copySelectionToTauriClipboard,
-  pasteFromTauriClipboard
-} from '@/app/editor/clipboard/system'
+import { copySelectionToTauriClipboard, pasteFromTauriClipboard } from '@/app/editor/clipboard/system'
 import { isEditing } from '@/app/shell/keyboard/focus'
 import { isTauri } from '@/app/tauri/env'
 

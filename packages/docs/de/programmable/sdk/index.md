@@ -5,7 +5,7 @@ description: Erstellen Sie OpenPencil-gestützte Editoren mit headless Vue Compo
 
 # Vue SDK
 
-`@open-pencil/vue` gibt es, damit OpenPencil mehr als eine eigenständige Design-App sein kann.
+`@open-pencil/react` gibt es, damit OpenPencil mehr als eine eigenständige Design-App sein kann.
 
 Das Ziel ist es, OpenPencil zu einem Toolkit zu machen, das Sie in andere Produkte, interne Tools und workflow-spezifische Editoren einbetten können — nicht nur als einzelne Standard-UI.
 
@@ -40,7 +40,7 @@ Das SDK ist die Schicht, die all das ermöglicht.
 
 - **Headless-First**: Logik und Struktur, kein App-Styling
 - **Composable statt Wrapper**: Composables verwenden, wenn keine bedeutungsvolle strukturelle Koordination erforderlich ist
-- **Bewusste öffentliche API**: stabile Exporte aus `packages/vue/src/index.ts`
+- **Bewusste öffentliche API**: stabile Exporte aus `packages/react/src/index.ts`
 - **Framework-bewusst**: Vue-Integration über `@open-pencil/core`
 
 ## Das Paket verstehen

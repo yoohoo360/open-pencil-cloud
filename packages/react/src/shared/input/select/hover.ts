@@ -1,12 +1,7 @@
 import type { Editor } from '@open-pencil/core/editor'
 import { getAbsoluteRotation } from '@open-pencil/scene-graph/coordinate'
 
-import {
-  buildResizeCursor,
-  cornerRotationCursor,
-  getHitHandleByMatrix,
-  hitTestCornerRotationByMatrix
-} from '#react/shared/input/geometry'
+import { buildResizeCursor, cornerRotationCursor, getHitHandleByMatrix, hitTestCornerRotationByMatrix } from '#react/shared/input/geometry'
 import { getNodeEditState } from '#react/shared/input/node-edit'
 import type { HitTestFns } from '#react/shared/input/select'
 

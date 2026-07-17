@@ -17,7 +17,7 @@ Zarządza:
 ## Użycie
 
 ```ts
-import { useExport } from '@open-pencil/vue'
+import { useExport } from '@open-pencil/react'
 
 const exportState = useExport()
 ```

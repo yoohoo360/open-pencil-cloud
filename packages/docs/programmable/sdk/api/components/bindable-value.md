@@ -38,7 +38,7 @@ where possible.
 ## Provider example
 
 ```ts twoslash
-import type { BindingProvider, BindingTarget } from '@open-pencil/vue'
+import type { BindingProvider, BindingTarget } from '@open-pencil/react'
 
 const values = new Map<string, number>([['spacing/md', 16]])
 const bindings = new Map<string, string>()

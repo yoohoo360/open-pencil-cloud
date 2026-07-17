@@ -12,7 +12,7 @@ description: Управление состоянием редактирован�
 ## Использование
 
 ```ts
-import { useVariablesDialogState } from '@open-pencil/vue'
+import { useVariablesDialogState } from '@open-pencil/react'
 
 const variablesDialog = useVariablesDialogState()
 ```

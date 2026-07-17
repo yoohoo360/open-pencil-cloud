@@ -8,7 +8,7 @@ description: Создайте собственную оболочку редак
 Типичное Vue-приложение OpenPencil состоит из трёх слоёв:
 
 1. `@open-pencil/core` создаёт редактор
-2. `@open-pencil/vue` адаптирует его в Vue-компосаблы и headless-примитивы
+2. `@open-pencil/react` адаптирует его в Vue-компосаблы и headless-примитивы
 3. ваше приложение рендерит оболочку, стили и UX продукта
 
 ## Зачем это важно
@@ -41,7 +41,7 @@ import {
   ToolbarRoot,
   PageListRoot,
   LayerTreeRoot,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const editor = createEditor({ width: 1440, height: 900 })
 provideEditor(editor)

@@ -1,7 +1,4 @@
-import {
-  computeAutoLayoutIndicator,
-  computeAutoLayoutIndicatorForFrame
-} from '#react/shared/input/auto-layout'
+import { computeAutoLayoutIndicator, computeAutoLayoutIndicatorForFrame } from '#react/shared/input/auto-layout'
 import { findMoveDropTarget, reparentOutsideNodes } from '#react/shared/input/drop-target'
 export { duplicateAndDrag } from '#react/shared/input/duplicate-drag'
 import { AUTO_LAYOUT_BREAK_THRESHOLD } from '@open-pencil/core/constants'

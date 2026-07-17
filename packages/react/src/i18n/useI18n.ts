@@ -2,15 +2,7 @@ import { useStore } from '@nanostores/react'
 import type { Store, StoreValue } from 'nanostores'
 
 import { locale, setLocale, AVAILABLE_LOCALES, LOCALE_LABELS } from '#react/i18n/locale'
-import {
-  menuMessages,
-  commandMessages,
-  toolMessages,
-  panelMessages,
-  variableTypeMessages,
-  pageMessages,
-  dialogMessages
-} from '#react/i18n/messages'
+import { menuMessages, commandMessages, toolMessages, panelMessages, variableTypeMessages, pageMessages, dialogMessages } from '#react/i18n/messages'
 
 /**
  * Reactive i18n hooks for OpenPencil React components.

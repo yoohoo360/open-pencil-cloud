@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-  clampNumberValue,
-  evaluateNumberExpression,
-  normalizeNumberValue,
-  stepNumberValue
-} from '#react/controls/number-expression'
+import { clampNumberValue, evaluateNumberExpression, normalizeNumberValue, stepNumberValue } from '#react/controls/number-expression'
 import type { NumberExpressionError } from '#react/controls/number-expression'
 import { useOptionalBindableValue } from '#react/primitives/BindableValue/context'
 import { NumberFieldProvider } from '#react/primitives/NumberField/context'
@@ -115,6 +110,8 @@ export function NumberFieldRoot({
 
   const [editing, setEditing] = useState(false)
   const [scrubbing, setScrubbing] = useState(false)
+  /** Local scrub display — updated on rAF so UI stays live without parent re-renders every move. */
+  const [scrubDisplay, setScrubDisplay] = useState<number | null>(null)
   const [draftValue, setDraftValue] = useState('')
   const [invalidReason, setInvalidReason] = useState<NumberExpressionError | null>(null)
 
@@ -129,10 +126,39 @@ export function NumberFieldRoot({
   const stopMoveRef = useRef<(() => void) | undefined>(undefined)
   const stopUpRef = useRef<(() => void) | undefined>(undefined)
   const stopCancelRef = useRef<(() => void) | undefined>(undefined)
+  /** Coalesce scrub onChange to one call per animation frame (drag hot path). */
+  const scrubRafRef = useRef(0)
+  const pendingScrubValueRef = useRef<number | null>(null)
+
+  const flushScrubValue = useCallback(() => {
+    scrubRafRef.current = 0
+    const pending = pendingScrubValueRef.current
+    if (pending == null) return
+    pendingScrubValueRef.current = null
+    setScrubDisplay(pending)
+    if (binding?.actions.applyValue(pending)) return
+    onChange?.(pending)
+  }, [binding, onChange])
+
+  const scheduleScrubValue = useCallback(
+    (value: number) => {
+      workingValueRef.current = value
+      pendingScrubValueRef.current = value
+      if (scrubRafRef.current) return
+      scrubRafRef.current = requestAnimationFrame(flushScrubValue)
+    },
+    [flushScrubValue]
+  )
 
   const isMixed = computeIsMixed(modelValue, binding)
-  const numericValue = resolveNumericValue(modelValue, binding)
-  const displayValue = isMixed ? '' : String(normalizeNumberValue(numericValue))
+  const numericValue =
+    scrubDisplay != null ? scrubDisplay : resolveNumericValue(modelValue, binding)
+  const displayValue =
+    scrubbing && scrubDisplay != null
+      ? String(normalizeNumberValue(scrubDisplay))
+      : isMixed
+        ? ''
+        : String(normalizeNumberValue(resolveNumericValue(modelValue, binding)))
   const disabled = disabledProp
   const bound = binding ? binding.state === 'bound' : boundProp
   const effectiveEditPolicy = resolveEditPolicy(editPolicy, binding)
@@ -161,8 +187,17 @@ export function NumberFieldRoot({
     setInvalidReason(null)
   }
 
-  function updateValue(value: number) {
+  function updateValue(value: number, options?: { coalesce?: boolean }) {
     const normalized = normalizeNumberValue(clampNumberValue(value, min, max))
+    if (options?.coalesce) {
+      scheduleScrubValue(normalized)
+      return
+    }
+    if (scrubRafRef.current) {
+      cancelAnimationFrame(scrubRafRef.current)
+      scrubRafRef.current = 0
+      pendingScrubValueRef.current = null
+    }
     workingValueRef.current = normalized
     if (binding?.actions.applyValue(normalized)) return
     if (modelValue !== normalized) onChange?.(normalized)
@@ -280,7 +315,8 @@ export function NumberFieldRoot({
       }
       if (!hasMoved) return
       accumulated += dx * stepValue * sensitivity
-      updateValue(accumulated)
+      // rAF-coalesce: avoid React parent re-renders on every pointermove
+      updateValue(accumulated, { coalesce: true })
     }
 
     listenerTarget.addEventListener('pointermove', moveHandler as EventListener)
@@ -290,6 +326,18 @@ export function NumberFieldRoot({
     const finish = (cancelled: boolean) => {
       stopScrubListeners()
       setScrubbing(false)
+      // Flush any pending coalesced scrub value before commit/cancel
+      if (scrubRafRef.current) {
+        cancelAnimationFrame(scrubRafRef.current)
+        scrubRafRef.current = 0
+      }
+      const pending = pendingScrubValueRef.current
+      pendingScrubValueRef.current = null
+      if (pending != null && !cancelled) {
+        workingValueRef.current = pending
+        if (!binding?.actions.applyValue(pending)) onChange?.(pending)
+      }
+      setScrubDisplay(null)
       if (cancelled) {
         restoreInteractionValue()
         binding?.actions.cancelMutation()

@@ -1,14 +1,6 @@
-import {
-  attachInstruction,
-  extractInstruction,
-  type ItemMode
-} from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item'
+import { attachInstruction, extractInstruction, type ItemMode } from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
-import {
-  draggable,
-  dropTargetForElements,
-  monitorForElements
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@open-pencil/core/editor'
 

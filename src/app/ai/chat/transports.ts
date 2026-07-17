@@ -1,4 +1,4 @@
-import { useChat } from '@ai-sdk/react'
+import type { useChat } from '@ai-sdk/react'
 import { DirectChatTransport, stepCountIs, ToolLoopAgent } from 'ai'
 import type { ChatTransport, UIMessage } from 'ai'
 import type { ReadableAtom } from 'nanostores'
