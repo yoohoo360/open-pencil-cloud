@@ -1,11 +1,20 @@
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectPortal,
+  Root as SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport
+} from '@radix-ui/react-select'
 import { tv } from 'tailwind-variants'
-import { SelectContent, SelectItem, SelectItemIndicator, SelectItemText, SelectPortal, Root as SelectRoot, SelectTrigger, SelectValue, SelectViewport } from '@radix-ui/react-select'
-
 import IconLucideCheck from '~icons/lucide/check'
 import IconLucideChevronDown from '~icons/lucide/chevron-down'
 
-import type { AppSelectTheme } from '@/theme/app-select'
 import type { ComponentUI } from '@/components/ui/types'
+import type { AppSelectTheme } from '@/theme/app-select'
 import theme from '@/theme/app-select'
 
 export interface AppSelectProps<T extends string | number = string> {
@@ -16,6 +25,8 @@ export interface AppSelectProps<T extends string | number = string> {
   ui?: ComponentUI<AppSelectTheme>
   onChange?: (value: T) => void
   className?: string
+  'aria-label'?: string
+  'data-story-control'?: string
 }
 
 export function AppSelect<T extends string | number = string>({
@@ -25,7 +36,9 @@ export function AppSelect<T extends string | number = string>({
   placeholder,
   ui,
   onChange,
-  className
+  className,
+  'aria-label': ariaLabel,
+  'data-story-control': dataStoryControl
 }: AppSelectProps<T>) {
   const styles = tv(theme)()
 
@@ -40,7 +53,8 @@ export function AppSelect<T extends string | number = string>({
     <SelectRoot value={String(value)} onValueChange={handleChange}>
       <SelectTrigger
         className={styles.trigger({ class: [ui?.trigger, className] })}
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
+        data-story-control={dataStoryControl}
       >
         <SelectValue placeholder={placeholder} className={styles.value({ class: ui?.value })} />
         <IconLucideChevronDown className="ml-1 size-3 shrink-0 text-muted" />

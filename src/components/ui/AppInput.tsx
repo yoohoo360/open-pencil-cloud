@@ -1,10 +1,18 @@
 import { forwardRef } from 'react'
+import type {
+  ChangeEventHandler,
+  FocusEventHandler,
+  InputHTMLAttributes,
+  KeyboardEventHandler
+} from 'react'
 import { tv } from 'tailwind-variants'
-import type { ChangeEventHandler, FocusEventHandler, KeyboardEventHandler } from 'react'
 
 import theme from '@/theme/input'
 
-export interface AppInputProps {
+export interface AppInputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'value' | 'onChange' | 'onFocus' | 'type'
+> {
   value: string | number
   type?: 'text' | 'password' | 'number' | 'search'
   placeholder?: string
@@ -21,6 +29,8 @@ export interface AppInputProps {
   onChange?: ChangeEventHandler<HTMLInputElement>
   onEnter?: KeyboardEventHandler<HTMLInputElement>
   onFocus?: FocusEventHandler<HTMLInputElement>
+  'data-story-control'?: string
+  'data-state'?: string
 }
 
 export const AppInput = forwardRef<HTMLInputElement, AppInputProps>(function AppInput(
@@ -40,18 +50,22 @@ export const AppInput = forwardRef<HTMLInputElement, AppInputProps>(function App
     className,
     onChange,
     onEnter,
-    onFocus
+    onFocus,
+    onKeyDown,
+    ...rest
   },
   ref
 ) {
   const inputClass = tv(theme)({ tone, size, state, class: className })
 
   const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (e) => {
+    onKeyDown?.(e)
     if (e.key === 'Enter') onEnter?.(e)
   }
 
   return (
     <input
+      {...rest}
       ref={ref}
       value={value}
       type={type}

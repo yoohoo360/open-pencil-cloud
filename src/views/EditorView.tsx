@@ -1,24 +1,25 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router'
+import { useStore } from '@nanostores/react'
 import { useHead } from '@unhead/react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels'
+import { useSearchParams } from 'react-router'
+import IconLucideSidebar from '~icons/lucide/sidebar'
 
 import type { Editor } from '@open-pencil/core/editor'
 import { formatShortcut, useI18n, useViewportKind, EditorProvider } from '@open-pencil/react'
-import { useKeyboard } from '@/app/shell/keyboard/use'
-import { loadEditorLayout, saveEditorLayout } from '@/app/shell/layout-storage'
-import { openFileFromPath, useMenu } from '@/app/shell/menu/use'
-import { useCollab } from '@/app/collab/use'
-import { CollabContext } from '@/app/collab/context'
+
 import { connectAutomation } from '@/app/automation/bridge/server'
 import { spawnMCPIfNeeded } from '@/app/automation/mcp/spawn'
-import { isTauri } from '@/app/tauri/env'
-import { appMenuShortcut } from '@/app/shell/menu/shortcut'
+import { CollabContext } from '@/app/collab/context'
+import { useCollab } from '@/app/collab/use'
 import { createDemoShapes } from '@/app/demo/document'
 import { useEditorStore } from '@/app/editor/active-store'
+import { useKeyboard } from '@/app/shell/keyboard/use'
+import { loadEditorLayout, saveEditorLayout } from '@/app/shell/layout-storage'
+import { appMenuShortcut } from '@/app/shell/menu/shortcut'
+import { openFileFromPath, useMenu } from '@/app/shell/menu/use'
 import { createTab, $activeTabId, getActiveStore, tabCount, activeTab } from '@/app/tabs'
-import { useStore } from '@nanostores/react'
-
+import { isTauri } from '@/app/tauri/env'
 import CollabPanel from '@/components/CollabPanel/CollabPanel'
 import EditorCanvas from '@/components/EditorCanvas'
 import LayersPanel from '@/components/LayersPanel'
@@ -27,10 +28,8 @@ import MobileHud from '@/components/MobileHud/MobileHud'
 import PropertiesPanel from '@/components/PropertiesPanel'
 import { SafariBanner } from '@/components/SafariBanner'
 import { TabBar } from '@/components/TabBar'
-import { Tip } from '@/components/ui/Tip'
 import Toolbar from '@/components/Toolbar/Toolbar'
-
-import IconLucideSidebar from '~icons/lucide/sidebar'
+import { Tip } from '@/components/ui/Tip'
 
 interface EditorViewProps {
   isDemo?: boolean
@@ -80,8 +79,18 @@ export function EditorView({ isDemo }: EditorViewProps) {
 
   const initialEditorLayout = useRef(loadEditorLayout()).current
 
-  const handleLayout = useCallback((layout: number[]) => {
-    saveEditorLayout(layout)
+  const handleLayout = useCallback((layout: Record<string, number>) => {
+    if (
+      typeof layout.layers === 'number' &&
+      typeof layout.canvas === 'number' &&
+      typeof layout.properties === 'number'
+    ) {
+      saveEditorLayout({
+        layers: layout.layers,
+        canvas: layout.canvas,
+        properties: layout.properties
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -91,7 +100,10 @@ export function EditorView({ isDemo }: EditorViewProps) {
         mcpCleanupRef.current = mcp?.disconnect ?? null
         const tauri = isTauri()
         if (import.meta.env.DEV || tauri) {
-          automationCleanupRef.current = connectAutomation(getActiveStore, mcp?.authToken ?? null).disconnect
+          automationCleanupRef.current = connectAutomation(
+            getActiveStore,
+            mcp?.authToken ?? null
+          ).disconnect
         }
       } catch (e) {
         console.warn('[MCP]', e)
@@ -111,7 +123,7 @@ export function EditorView({ isDemo }: EditorViewProps) {
       automationCleanupRef.current?.()
       fileAssociationCleanupRef.current?.()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function openPendingAssociatedFiles() {
@@ -135,112 +147,117 @@ export function EditorView({ isDemo }: EditorViewProps) {
 
   return (
     <EditorProvider editor={currentStore as Editor}>
-    <CollabContext.Provider value={collab}>
-      <div data-test-id="editor-root" className="flex h-screen w-screen flex-col">
-        <SafariBanner />
-        <TabBar />
+      <CollabContext.Provider value={collab}>
+        <div data-test-id="editor-root" className="flex h-screen w-screen flex-col">
+          <SafariBanner />
+          <TabBar />
 
-        {/* Desktop layout */}
-        {!isMobile && showChrome && store.state.showUI && (
-          <PanelGroup
-            key={activeTabId}
-            direction="horizontal"
-            className="flex-1 overflow-hidden"
-            onLayout={handleLayout}
-          >
-            <Panel
-              id="layers"
-              defaultSize={initialEditorLayout[0]}
-              minSize={10}
-              maxSize={30}
-              className="flex"
+          {/* Desktop layout */}
+          {!isMobile && showChrome && store.state.showUI && (
+            <PanelGroup
+              key={activeTabId}
+              orientation="horizontal"
+              className="flex-1 overflow-hidden"
+              onLayoutChanged={handleLayout}
             >
-              <LayersPanel />
-            </Panel>
-            <PanelResizeHandle
-              data-test-id="left-splitter-handle"
-              className="group relative z-10 -mx-1 w-2 cursor-col-resize"
-            >
-              <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" />
-            </PanelResizeHandle>
-            <Panel id="canvas" defaultSize={initialEditorLayout[1]} minSize={30} className="flex">
+              <Panel
+                id="layers"
+                defaultSize={`${initialEditorLayout.layers}`}
+                minSize="10"
+                maxSize="30"
+                className="flex"
+              >
+                <LayersPanel />
+              </Panel>
+              <PanelResizeHandle
+                data-test-id="left-splitter-handle"
+                className="group relative z-10 -mx-1 w-2 cursor-col-resize"
+              >
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" />
+              </PanelResizeHandle>
+              <Panel
+                id="canvas"
+                defaultSize={`${initialEditorLayout.canvas}`}
+                minSize="30"
+                className="flex"
+              >
+                <div className="relative flex min-w-0 flex-1">
+                  <EditorCanvas />
+                  <Toolbar />
+                </div>
+              </Panel>
+              <PanelResizeHandle className="group relative z-10 -mx-1 w-2 cursor-col-resize">
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" />
+              </PanelResizeHandle>
+              <Panel
+                id="properties"
+                defaultSize={`${initialEditorLayout.properties}`}
+                minSize="10"
+                maxSize="30"
+                className="flex flex-col"
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
+                  <CollabPanel />
+                </div>
+                <PropertiesPanel />
+              </Panel>
+            </PanelGroup>
+          )}
+
+          {/* Mobile layout */}
+          {isMobile && showChrome && store.state.showUI && (
+            <div key={`mobile-${activeTabId}`} className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1">
                 <EditorCanvas />
+                <MobileHud />
                 <Toolbar />
               </div>
-            </Panel>
-            <PanelResizeHandle className="group relative z-10 -mx-1 w-2 cursor-col-resize">
-              <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" />
-            </PanelResizeHandle>
-            <Panel
-              id="properties"
-              defaultSize={initialEditorLayout[2]}
-              minSize={10}
-              maxSize={30}
-              className="flex flex-col"
-            >
-              <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
-                <CollabPanel />
-              </div>
-              <PropertiesPanel />
-            </Panel>
-          </PanelGroup>
-        )}
-
-        {/* Mobile layout */}
-        {isMobile && showChrome && store.state.showUI && (
-          <div key={`mobile-${activeTabId}`} className="flex flex-1 overflow-hidden">
-            <div className="relative flex min-w-0 flex-1">
-              <EditorCanvas />
-              <MobileHud />
-              <Toolbar />
+              <MobileDrawer />
             </div>
-            <MobileDrawer />
-          </div>
-        )}
+          )}
 
-        {/* Collapsed UI (showUI=false) */}
-        {!store.state.showUI && showChrome && (
-          <div key={`collapsed-${activeTabId}`} className="flex flex-1 overflow-hidden">
-            <div className="relative flex min-w-0 flex-1">
-              <EditorCanvas />
-              {!isMobile && (
-                <div className="absolute top-7 left-7 z-10 flex items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1 shadow-sm">
-                  <img src="/favicon-32.png" className="size-4" alt="OpenPencil" />
-                  <span data-test-id="editor-document-name" className="text-xs text-surface">
-                    {store.state.documentName}
-                  </span>
-                  <Tip
-                    label={dialogs.showUI({
-                      shortcut: formatShortcut(appMenuShortcut('toggle-ui')) ?? ''
-                    })}
-                  >
-                    <button
-                      data-test-id="editor-show-ui"
-                      className="ml-1 flex size-6 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface"
-                      onClick={() => {
-                        store.state.showUI = true
-                      }}
+          {/* Collapsed UI (showUI=false) */}
+          {!store.state.showUI && showChrome && (
+            <div key={`collapsed-${activeTabId}`} className="flex flex-1 overflow-hidden">
+              <div className="relative flex min-w-0 flex-1">
+                <EditorCanvas />
+                {!isMobile && (
+                  <div className="absolute top-7 left-7 z-10 flex items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1 shadow-sm">
+                    <img src="/favicon-32.png" className="size-4" alt="OpenPencil" />
+                    <span data-test-id="editor-document-name" className="text-xs text-surface">
+                      {store.state.documentName}
+                    </span>
+                    <Tip
+                      label={dialogs.showUI({
+                        shortcut: formatShortcut(appMenuShortcut('toggle-ui')) ?? ''
+                      })}
                     >
-                      <IconLucideSidebar className="size-3.5" />
-                    </button>
-                  </Tip>
-                </div>
-              )}
+                      <button
+                        data-test-id="editor-show-ui"
+                        className="ml-1 flex size-6 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface"
+                        onClick={() => {
+                          store.state.showUI = true
+                        }}
+                      >
+                        <IconLucideSidebar className="size-3.5" />
+                      </button>
+                    </Tip>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Bare canvas (no chrome, e.g. ?no-chrome) */}
-        {!showChrome && (
-          <div key={`bare-${activeTabId}`} className="flex flex-1 overflow-hidden">
-            <div className="relative flex min-w-0 flex-1">
-              <EditorCanvas />
+          {/* Bare canvas (no chrome, e.g. ?no-chrome) */}
+          {!showChrome && (
+            <div key={`bare-${activeTabId}`} className="flex flex-1 overflow-hidden">
+              <div className="relative flex min-w-0 flex-1">
+                <EditorCanvas />
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </CollabContext.Provider>
+          )}
+        </div>
+      </CollabContext.Provider>
     </EditorProvider>
   )
 }

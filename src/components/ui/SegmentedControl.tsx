@@ -1,5 +1,5 @@
-import { tv } from 'tailwind-variants'
 import type { ReactNode } from 'react'
+import { tv } from 'tailwind-variants'
 
 import { SegmentedControlItem, SegmentedControlRoot } from '@open-pencil/react'
 
@@ -20,9 +20,11 @@ export interface SegmentedControlProps {
   value: string
   label?: string
   size?: keyof SegmentedControlTheme['variants']['size']
+  className?: string
   ui?: SegmentedControlUI
   onChange?: (value: string) => void
   renderOption?: (props: { option: SegmentedControlOption; selected: boolean }) => ReactNode
+  'data-story-control'?: string
 }
 
 export function SegmentedControl({
@@ -30,9 +32,11 @@ export function SegmentedControl({
   value,
   label,
   size = 'sm',
+  className,
   ui,
   onChange,
-  renderOption
+  renderOption,
+  'data-story-control': dataStoryControl
 }: SegmentedControlProps) {
   const styles = tv(theme)({ size })
 
@@ -42,10 +46,11 @@ export function SegmentedControl({
 
   return (
     <SegmentedControlRoot
-      modelValue={value}
+      value={value}
       aria-label={label}
-      className={styles.root({ class: ui?.root })}
-      onUpdate:modelValue={handleChange}
+      className={styles.root({ class: [className, ui?.root] })}
+      data-story-control={dataStoryControl}
+      onValueChange={handleChange}
     >
       {options.map((option) => (
         <SegmentedControlItem
@@ -56,7 +61,9 @@ export function SegmentedControl({
           className={styles.item({ class: ui?.item })}
         >
           {({ selected }: { selected: boolean }) =>
-            renderOption ? renderOption({ option, selected }) : (
+            renderOption ? (
+              renderOption({ option, selected })
+            ) : (
               <span className="truncate">{option.label}</span>
             )
           }

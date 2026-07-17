@@ -42,14 +42,20 @@ export default function LayersPanel() {
       {activePanel === 'assets' ? (
         <AssetsPanel />
       ) : (
-        <PanelGroup direction="vertical" autoSaveId="layers-layout" className="flex-1 overflow-hidden">
-          <Panel defaultSize={30} minSize={10} maxSize={60} className="flex flex-col overflow-hidden">
+        <PanelGroup orientation="vertical" className="flex-1 overflow-hidden">
+          <Panel
+            id="pages"
+            defaultSize="30"
+            minSize="10"
+            maxSize="60"
+            className="flex flex-col overflow-hidden"
+          >
             <PagesPanel />
           </Panel>
           <PanelResizeHandle className="group relative z-10 -my-1 h-2 cursor-row-resize">
             <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
           </PanelResizeHandle>
-          <Panel defaultSize={70} minSize={20} className="flex flex-col overflow-hidden">
+          <Panel id="layers" defaultSize="70" minSize="20" className="flex flex-col overflow-hidden">
             <header
               data-test-id="layers-header"
               className="shrink-0 px-3 py-2 text-[11px] tracking-wider text-muted uppercase"

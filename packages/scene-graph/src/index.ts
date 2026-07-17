@@ -2,8 +2,6 @@ import { omit } from 'es-toolkit/object'
 import type { Emitter } from 'nanoevents'
 import { createNanoEvents } from 'nanoevents'
 
-import { generatePropertyValues } from '#core/editor/components/variants.ts'
-
 import { getAbsolutePosition } from './coordinate'
 import { cloneNodeProps } from './copy'
 import { bindNodeEvents } from './events'
@@ -27,6 +25,7 @@ import type {
   VariableValue
 } from './types'
 import * as Variables from './variables'
+import { generatePropertyValues } from './variant-name'
 import { normalizeVectorNetwork } from './vector-network'
 
 export * from './images'

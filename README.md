@@ -252,12 +252,12 @@ bun run tauri dev  # Desktop app (requires Rust)
 
 ### Quality gates
 
-| Command | Description |
-|---------|-------------|
-| `bun run check` | Lint + typecheck |
-| `bun run test` | E2E visual regression |
-| `bun run test:unit` | Unit tests |
-| `bun run format` | Code formatting |
+| Command             | Description           |
+| ------------------- | --------------------- |
+| `bun run check`     | Lint + typecheck      |
+| `bun run test`      | E2E visual regression |
+| `bun run test:unit` | Unit tests            |
+| `bun run format`    | Code formatting       |
 
 ### Project structure
 
@@ -269,7 +269,7 @@ packages/
   fig/            @open-pencil/fig — focused .fig package entrypoint
   core/           @open-pencil/core — editor engine, renderer, layout, tools, RPC, document I/O
   dom-css/        @open-pencil/dom-css — HTML/CSS/Tailwind to editable design documents
-  vue/            @open-pencil/vue — headless React SDK
+  react/          @open-pencil/react — headless React SDK
   cli/            @open-pencil/cli — headless CLI
   mcp/            @open-pencil/mcp — MCP server (stdio + HTTP)
   docs/           Documentation site (openpencil.dev)
@@ -280,15 +280,15 @@ tests/            E2E, visual, engine, and integration tests
 
 ### Tech stack
 
-| Layer | Tech |
-|-------|------|
-| Rendering | Skia (CanvasKit WASM) |
-| Layout | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
-| UI | React 19, Radix UI, Tailwind CSS 4 |
-| File format | Kiwi binary + Zstd + ZIP |
-| Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT) |
-| Desktop | Tauri v2 |
-| AI/MCP | Multi-provider (Anthropic, OpenAI, Google AI, OpenRouter), MCP SDK, Hono |
+| Layer         | Tech                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| Rendering     | Skia (CanvasKit WASM)                                                             |
+| Layout        | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
+| UI            | React 19, Radix UI, Tailwind CSS 4                                                |
+| File format   | Kiwi binary + Zstd + ZIP                                                          |
+| Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT)                                                |
+| Desktop       | Tauri v2                                                                          |
+| AI/MCP        | Multi-provider (Anthropic, OpenAI, Google AI, OpenRouter), MCP SDK, Hono          |
 
 ### Desktop builds
 

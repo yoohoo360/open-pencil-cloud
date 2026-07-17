@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, userEvent, within } from 'storybook/test'
-import React, { useState } from 'react'
 import { TooltipProvider } from '@radix-ui/react-tooltip'
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import React, { useState } from 'react'
+import { expect, userEvent, within } from 'storybook/test'
 import EyeIcon from '~icons/lucide/eye'
 import LinkIcon from '~icons/lucide/link'
 import SquareIcon from '~icons/lucide/square'
@@ -10,6 +10,7 @@ import { AppInput } from '@/components/ui/AppInput'
 import { AppSelect } from '@/components/ui/AppSelect'
 import { IconButton } from '@/components/ui/IconButton'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+
 import { PanelFieldGroup } from './PanelFieldGroup'
 import { PanelGrid } from './PanelGrid'
 import { PanelHeader } from './PanelHeader'
@@ -94,7 +95,9 @@ function PanelFoundationDemo() {
           React.createElement(
             PanelRail,
             null,
-            React.createElement(IconButton, { label: 'Constrain proportions', size: 'md' },
+            React.createElement(
+              IconButton,
+              { label: 'Constrain proportions', size: 'md' },
               React.createElement(LinkIcon, { className: 'size-panel-icon' })
             )
           )
@@ -111,11 +114,11 @@ function PanelFoundationDemo() {
             { label: 'Blend mode' },
             React.createElement(AppSelect, {
               value: blendMode[0],
-              onChange: blendMode[1],
+              onChange: (value: string | number) => blendMode[1](String(value)),
               options: blendModes,
               'data-story-control': '',
               'aria-label': 'Blend mode'
-            })
+            } as React.ComponentProps<typeof AppSelect>)
           ),
           React.createElement(
             PanelFieldGroup,
@@ -132,7 +135,9 @@ function PanelFoundationDemo() {
           React.createElement(
             PanelRail,
             null,
-            React.createElement(IconButton, { label: 'Toggle visibility' },
+            React.createElement(
+              IconButton,
+              { label: 'Toggle visibility' },
               React.createElement(EyeIcon, { className: 'size-panel-icon' })
             )
           )
@@ -172,7 +177,7 @@ function PanelFoundationDemo() {
             { label: 'Alignment', className: 'col-span-2' },
             React.createElement(SegmentedControl, {
               value: alignment[0],
-              onChange: alignment[1],
+              onChange: (value: string) => alignment[1](value),
               className: 'w-full',
               options: alignmentOptions,
               label: 'Alignment',

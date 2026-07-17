@@ -1,33 +1,32 @@
-import { useRef } from 'react'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Tabs from '@radix-ui/react-tabs'
 import { flexRender } from '@tanstack/react-table'
+import { useRef } from 'react'
 import type { ComponentType } from 'react'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
+import IconLucideCopy from '~icons/lucide/copy'
+import IconLucideEllipsis from '~icons/lucide/ellipsis'
+import IconLucideFolderPlus from '~icons/lucide/folder-plus'
+import IconHash from '~icons/lucide/hash'
+import IconPalette from '~icons/lucide/palette'
+import IconLucidePencil from '~icons/lucide/pencil'
+import IconLucidePin from '~icons/lucide/pin'
+import IconLucidePlus from '~icons/lucide/plus'
+import IconLucideSearch from '~icons/lucide/search'
+import IconToggleLeft from '~icons/lucide/toggle-left'
+import IconLucideTrash2 from '~icons/lucide/trash-2'
+import IconType from '~icons/lucide/type'
+import IconX from '~icons/lucide/x'
 
 import { variablesAddTestId, useI18n, useVariablesEditor } from '@open-pencil/react'
 import type { VariableType } from '@open-pencil/scene-graph'
 
 import { ColorInput } from '@/components/ColorPicker/ColorInput'
-import { Tip } from '@/components/ui/Tip'
 import { useDialogUI } from '@/components/ui/dialog'
 import { useMenuUI } from '@/components/ui/menu'
-
-import IconHash from '~icons/lucide/hash'
-import IconPalette from '~icons/lucide/palette'
-import IconToggleLeft from '~icons/lucide/toggle-left'
-import IconType from '~icons/lucide/type'
-import IconX from '~icons/lucide/x'
-import IconLucidePlus from '~icons/lucide/plus'
-import IconLucidePencil from '~icons/lucide/pencil'
-import IconLucideTrash2 from '~icons/lucide/trash-2'
-import IconLucideEllipsis from '~icons/lucide/ellipsis'
-import IconLucideSearch from '~icons/lucide/search'
-import IconLucideFolderPlus from '~icons/lucide/folder-plus'
-import IconLucideChevronDown from '~icons/lucide/chevron-down'
-import IconLucideCopy from '~icons/lucide/copy'
-import IconLucidePin from '~icons/lucide/pin'
+import { Tip } from '@/components/ui/Tip'
 
 interface VariablesDialogProps {
   open: boolean
@@ -116,7 +115,9 @@ export function VariablesDialog({ open, onOpenChange }: VariablesDialogProps) {
           ) : (
             <Tabs.Root
               value={ctx.activeCollectionId.value}
-              onValueChange={(id) => { ctx.activeCollectionId.value = id }}
+              onValueChange={(id) => {
+                ctx.activeCollectionId.value = id
+              }}
               className="flex flex-1 flex-col overflow-hidden"
             >
               <div className="flex shrink-0 items-center border-b border-border">
@@ -128,7 +129,7 @@ export function VariablesDialog({ open, onOpenChange }: VariablesDialogProps) {
                         ref={collectionInputRef}
                         className="w-24 rounded border border-accent bg-input px-2 py-0.5 text-xs text-surface outline-none"
                         defaultValue={col.name}
-                        onBlur={(e) => ctx.collectionRename.commit(col.id, e)}
+                        onBlur={(e) => ctx.collectionRename.commit(col.id, e.currentTarget)}
                         onKeyDown={(e) => ctx.collectionRename.onKeydown(e.nativeEvent)}
                         autoFocus
                       />
@@ -236,7 +237,12 @@ export function VariablesDialog({ open, onOpenChange }: VariablesDialogProps) {
                                       ref={modeInputRef}
                                       className="-mx-1 w-full rounded border border-accent bg-input px-1 py-0 text-[11px] font-medium text-surface outline-none"
                                       defaultValue={String(header.column.columnDef.header ?? '')}
-                                      onBlur={(e) => ctx.modeRename.commit(modeId(header.column.id), e)}
+                                      onBlur={(e) =>
+                                        ctx.modeRename.commit(
+                                          modeId(header.column.id),
+                                          e.currentTarget
+                                        )
+                                      }
                                       onKeyDown={(e) => ctx.modeRename.onKeydown(e.nativeEvent)}
                                       autoFocus
                                     />
@@ -298,15 +304,19 @@ export function VariablesDialog({ open, onOpenChange }: VariablesDialogProps) {
                                       </ContextMenu.Portal>
                                     </ContextMenu.Root>
                                   )
-                                ) : (!header.isPlaceholder ? (
+                                ) : !header.isPlaceholder ? (
                                   flexRender(header.column.columnDef.header, header.getContext())
-                                ) : null)}
+                                ) : null}
 
                                 {header.column.getCanResize() && (
                                   <div
                                     className={`absolute top-0 right-0 h-full w-1 cursor-col-resize touch-none select-none ${header.column.getIsResizing() ? 'bg-accent' : 'bg-transparent hover:bg-border'}`}
-                                    onMouseDown={header.getResizeHandler() as React.MouseEventHandler}
-                                    onTouchStart={header.getResizeHandler() as React.TouchEventHandler}
+                                    onMouseDown={
+                                      header.getResizeHandler() as React.MouseEventHandler
+                                    }
+                                    onTouchStart={
+                                      header.getResizeHandler() as React.TouchEventHandler
+                                    }
                                     onDoubleClick={() => header.column.resetSize()}
                                   />
                                 )}
