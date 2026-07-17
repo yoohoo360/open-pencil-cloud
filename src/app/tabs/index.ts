@@ -1,4 +1,4 @@
-import { shallowRef, computed, triggerRef } from 'vue'
+import { atom, computed } from 'nanostores'
 
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import { readFigFile } from '@open-pencil/core/io/formats/fig'
@@ -23,79 +23,82 @@ function generateTabId(): string {
   return `tab-${nextTabId++}`
 }
 
-const tabsRef = shallowRef<Tab[]>([])
-const activeTabId = shallowRef('')
+export const $tabs = atom<Tab[]>([])
+export const $activeTabId = atom<string>('')
 
-export const activeTab = computed(() => tabsRef.value.find((t) => t.id === activeTabId.value))
+export const activeTab = computed($tabs, (tabs) => tabs.find((t) => t.id === $activeTabId.get()))
 
-export const allTabs = computed(() =>
-  tabsRef.value.map((t) => ({
+export const allTabs = computed([$tabs, $activeTabId], (tabs, activeId) =>
+  tabs.map((t) => ({
     id: t.id,
     name: t.store.state.documentName,
-    isActive: t.id === activeTabId.value
+    isActive: t.id === activeId
   }))
 )
 
 export function getActiveStore(): EditorStore {
-  const tab = tabsRef.value.find((t) => t.id === activeTabId.value)
+  const tabs = $tabs.get()
+  const activeId = $activeTabId.get()
+  const tab = tabs.find((t) => t.id === activeId)
   if (!tab) throw new Error('No active tab')
   return tab.store
 }
 
 export function getActiveTabId(): string {
-  return activeTabId.value
+  return $activeTabId.get()
 }
 
 export function getTabById(tabId: string): Tab | undefined {
-  return tabsRef.value.find((tab) => tab.id === tabId)
+  return $tabs.get().find((tab) => tab.id === tabId)
 }
 
 export function getTabForStore(store: EditorStore): Tab | undefined {
-  return tabsRef.value.find((tab) => tab.store === store)
+  return $tabs.get().find((tab) => tab.store === store)
 }
 
 export function getTabsSnapshot(): Tab[] {
-  return [...tabsRef.value]
+  return [...$tabs.get()]
 }
 
 export function createTab(store?: EditorStore, initialGraph?: SceneGraph): Tab {
   const s = store ?? createEditorStore(initialGraph)
   const tab: Tab = { id: generateTabId(), store: s }
-  tabsRef.value = [...tabsRef.value, tab]
+  $tabs.set([...$tabs.get(), tab])
   activateTab(tab)
   return tab
 }
 
 function activateTab(tab: Tab) {
-  activeTabId.value = tab.id
+  $activeTabId.set(tab.id)
   setActiveEditorStore(tab.store)
-  triggerRef(tabsRef)
   setOpenPencilStore(tab.store)
 }
 
 export function switchTab(tabId: string) {
-  const tab = tabsRef.value.find((t) => t.id === tabId)
+  const tab = $tabs.get().find((t) => t.id === tabId)
   if (!tab) return
   activateTab(tab)
 }
 
 export function closeTab(tabId: string) {
-  const idx = tabsRef.value.findIndex((t) => t.id === tabId)
+  const tabs = $tabs.get()
+  const idx = tabs.findIndex((t) => t.id === tabId)
   if (idx === -1) return
 
-  const closingTab = tabsRef.value[idx]
-  const wasActive = activeTabId.value === tabId
-  tabsRef.value = tabsRef.value.filter((t) => t.id !== tabId)
+  const closingTab = tabs[idx]
+  const wasActive = $activeTabId.get() === tabId
+  const newTabs = tabs.filter((t) => t.id !== tabId)
+  $tabs.set(newTabs)
 
-  if (tabsRef.value.length === 0) {
+  if (newTabs.length === 0) {
     createTab()
     closingTab.store.dispose()
     return
   }
 
   if (wasActive) {
-    const newIdx = Math.min(idx, tabsRef.value.length - 1)
-    activateTab(tabsRef.value[newIdx])
+    const newIdx = Math.min(idx, newTabs.length - 1)
+    activateTab(newTabs[newIdx])
   }
 
   closingTab.store.dispose()
@@ -116,7 +119,9 @@ export async function openFileInNewTab(
   handle?: FileSystemFileHandle,
   path?: string
 ): Promise<void> {
-  const current = activeTab.value
+  const tabs = $tabs.get()
+  const activeId = $activeTabId.get()
+  const current = tabs.find((t) => t.id === activeId)
   const isUntouched =
     current?.store.state.documentName === 'Untitled' && !current.store.undo.canUndo
   const store = isUntouched ? current.store : createTab().store
@@ -156,13 +161,15 @@ export async function openFileInNewTab(
 }
 
 export function tabCount(): number {
-  return tabsRef.value.length
+  return $tabs.get().length
 }
 
 export function useTabsStore() {
   return {
-    tabs: allTabs,
-    activeTabId,
+    $tabs,
+    $activeTabId,
+    activeTab,
+    allTabs,
     createTab,
     switchTab,
     closeTab,

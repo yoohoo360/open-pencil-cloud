@@ -1,6 +1,3 @@
-import { promiseTimeout } from '@vueuse/core'
-import type { Ref } from 'vue'
-
 import { toast } from '@/app/shell/ui'
 import { isTauri } from '@/app/tauri/env'
 
@@ -20,7 +17,7 @@ interface UpdaterMessages {
 
 interface UpdateCheckOptions {
   silent?: boolean
-  messages: Ref<UpdaterMessages>
+  messages: UpdaterMessages
 }
 
 let startupCheckStarted = false
@@ -37,15 +34,15 @@ export async function checkForAppUpdate(options: UpdateCheckOptions) {
   return updateCheckInFlight
 }
 
-export function scheduleStartupUpdateCheck(messages: Ref<UpdaterMessages>) {
+export function scheduleStartupUpdateCheck(messages: UpdaterMessages) {
   if (startupCheckStarted || !isTauri()) return
   startupCheckStarted = true
-  void promiseTimeout(STARTUP_UPDATE_CHECK_DELAY_MS).then(() =>
+  void new Promise<void>((resolve) => setTimeout(resolve, STARTUP_UPDATE_CHECK_DELAY_MS)).then(() =>
     checkForAppUpdate({ silent: true, messages })
   )
 }
 
-async function runUpdateCheck(silent: boolean, messages: Ref<UpdaterMessages>) {
+async function runUpdateCheck(silent: boolean, messages: UpdaterMessages) {
   try {
     const [{ check }, { confirm, message }, { relaunch }] = await Promise.all([
       import('@tauri-apps/plugin-updater'),
@@ -54,7 +51,7 @@ async function runUpdateCheck(silent: boolean, messages: Ref<UpdaterMessages>) {
     ])
 
     const update = await check()
-    const t = messages.value
+    const t = messages
 
     if (!update) {
       if (!silent) toast.info(t.appUpToDate)
@@ -98,11 +95,11 @@ async function runUpdateCheck(silent: boolean, messages: Ref<UpdaterMessages>) {
     await relaunch()
   } catch (error) {
     if (!silent) {
-      const message = error instanceof Error ? error.message : String(error)
+      const msg = error instanceof Error ? error.message : String(error)
       toast.warning(
-        isMissingUpdateManifestError(message)
-          ? messages.value.updateUnavailable
-          : messages.value.updateCheckFailed({ error: message })
+        isMissingUpdateManifestError(msg)
+          ? messages.updateUnavailable
+          : messages.updateCheckFailed({ error: msg })
       )
     }
   }

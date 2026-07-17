@@ -1,5 +1,4 @@
-import { useLocalStorage } from '@vueuse/core'
-import { watch } from 'vue'
+import { atom } from 'nanostores'
 
 import {
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
@@ -12,7 +11,7 @@ import {
   type WebFontProviderId
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
-import { dialogMessages } from '@open-pencil/vue'
+import { dialogMessages } from '@open-pencil/react'
 
 import {
   clearDownloadedFontCache as clearTauriDownloadedFontCache,
@@ -29,37 +28,56 @@ if (typeof navigator !== 'undefined') {
 
 export type FontProviderSettings = Record<WebFontProviderId, boolean>
 
-export const onlineFontsEnabled = useLocalStorage('op-online-fonts-enabled', true)
-export const fontProviderSettings = useLocalStorage<FontProviderSettings>(
-  'op-font-providers',
-  DEFAULT_WEB_FONT_PROVIDER_SETTINGS
+function readLS<T>(key: string, fallback: T): T {
+  if (typeof localStorage === 'undefined') return fallback
+  const raw = localStorage.getItem(key)
+  if (raw === null) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeLS(key: string, value: unknown) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(key, JSON.stringify(value))
+  }
+}
+
+export const $onlineFontsEnabled = atom<boolean>(readLS('op-online-fonts-enabled', true))
+export const $fontProviderSettings = atom<FontProviderSettings>(
+  readLS('op-font-providers', DEFAULT_WEB_FONT_PROVIDER_SETTINGS)
 )
 
-watch(
-  [onlineFontsEnabled, fontProviderSettings],
-  () => {
-    fontManager.setOnlineFontProviders(
-      onlineFontsEnabled.value
-        ? Object.fromEntries(
-            WEB_FONT_PROVIDER_IDS.map((provider) => [
-              provider,
-              fontProviderSettings.value[provider]
-            ])
-          )
-        : {}
-    )
-  },
-  { deep: true, immediate: true }
-)
+$onlineFontsEnabled.subscribe((v) => writeLS('op-online-fonts-enabled', v))
+$fontProviderSettings.subscribe((v) => writeLS('op-font-providers', v))
+
+function applyFontProviders() {
+  fontManager.setOnlineFontProviders(
+    $onlineFontsEnabled.get()
+      ? Object.fromEntries(
+          WEB_FONT_PROVIDER_IDS.map((provider) => [
+            provider,
+            $fontProviderSettings.get()[provider]
+          ])
+        )
+      : {}
+  )
+}
+
+$onlineFontsEnabled.subscribe(applyFontProviders)
+$fontProviderSettings.subscribe(applyFontProviders)
+applyFontProviders()
 
 let tauriFontCacheConfigured = false
 let webFontUnavailableToastShown = false
 
 function showWebFontUnavailableToast(): void {
-  if (webFontUnavailableToastShown || isTauri() || !onlineFontsEnabled.value) return
-  if (!WEB_FONT_PROVIDER_IDS.some((provider) => fontProviderSettings.value[provider])) return
+  if (webFontUnavailableToastShown || isTauri() || !$onlineFontsEnabled.get()) return
+  if (!WEB_FONT_PROVIDER_IDS.some((provider) => $fontProviderSettings.get()[provider])) return
   webFontUnavailableToastShown = true
-  toast.warning(dialogMessages.get().webFontProvidersRequireDesktopApp)
+  toast.warning(dialogMessages.webFontProvidersRequireDesktopApp)
 }
 
 function configureTauriFontCache() {
@@ -101,7 +119,7 @@ export function preloadFonts(): void {
     return
   }
   void requestLocalFontAccess()
-  if (onlineFontsEnabled.value) fontManager.preloadWebFontFamilies()
+  if ($onlineFontsEnabled.get()) fontManager.preloadWebFontFamilies()
 }
 
 export function localFontAccessState(): LocalFontAccessState {

@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { atom } from 'nanostores'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
@@ -22,7 +22,7 @@ import { createChatSessionManager } from '@/app/ai/chat/transports'
 import { exposeChatTransportOverride } from '@/app/browser-bridge'
 import { getActiveEditorStore } from '@/app/editor/active-store'
 
-const activeTab = ref<'design' | 'code' | 'ai'>('design')
+export const $activeTab = atom<'design' | 'code' | 'ai'>('design')
 
 const chatSession = createChatSessionManager({
   isConfigured,
@@ -58,7 +58,7 @@ export function useAIChat() {
     maxOutputTokens,
     pexelsApiKey,
     unsplashAccessKey,
-    activeTab,
+    activeTab: $activeTab,
     isConfigured,
     ensureChat: chatSession.ensureChat,
     resetChat: chatSession.resetChat

@@ -1,7 +1,6 @@
-import { useActiveElement } from '@vueuse/core'
-import { computed } from 'vue'
+import { useEffect, useRef } from 'react'
 
-import { useEditorCommands, useViewportKind } from '@open-pencil/vue'
+import { useEditorCommands, useViewportKind } from '@open-pencil/react'
 
 import { useAIChat } from '@/app/ai/chat/use'
 import { useEditorStore } from '@/app/editor/active-store'
@@ -11,32 +10,55 @@ import { isInputElement } from '@/app/shell/keyboard/focus'
 import { bindNudgeKeys } from '@/app/shell/keyboard/nudging'
 import { registerKeyboardShortcuts } from '@/app/shell/keyboard/registry'
 import { openFileDialog } from '@/app/shell/menu/use'
-import { closeTab, createTab, activeTab as activeTabRef } from '@/app/tabs'
+import { closeTab, createTab, $activeTabId, $tabs } from '@/app/tabs'
 
 export function useKeyboard() {
   const { activeTab } = useAIChat()
   const store = useEditorStore()
   const { isMobile } = useViewportKind()
   const { runCommand } = useEditorCommands()
-  const activeElement = useActiveElement()
-  const inputFocused = computed(() => isInputElement(activeElement.value))
 
-  const actions = createKeyboardActions({ store, activeTab, isMobile, runCommand })
+  const inputFocused = useRef(false)
+  const inputFocusedRef = { get value() { return inputFocused.current } }
 
-  bindEditorClipboard(store)
-  bindNudgeKeys(store)
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      inputFocused.current = isInputElement(e.target as Element | null)
+    }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', () => { inputFocused.current = false })
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', () => { inputFocused.current = false })
+    }
+  }, [])
 
-  registerKeyboardShortcuts({
-    inputFocused,
-    store,
-    runCommand,
-    actions,
-    openFileDialog: () => {
-      void openFileDialog()
-    },
-    closeActiveTab: () => {
-      if (activeTabRef.value) closeTab(activeTabRef.value.id)
-    },
-    createTab: () => createTab()
-  })
+  useEffect(() => {
+    const clipboardDispose = bindEditorClipboard(store)
+    const nudgeDispose = bindNudgeKeys(store)
+
+    const actions = createKeyboardActions({ store, activeTab, isMobile, runCommand })
+
+    const unsubscribe = registerKeyboardShortcuts({
+      inputFocused: inputFocusedRef,
+      store,
+      runCommand,
+      actions,
+      openFileDialog: () => { void openFileDialog() },
+      closeActiveTab: () => {
+        const tabs = $tabs.get()
+        const activeId = $activeTabId.get()
+        const tab = tabs.find((t) => t.id === activeId)
+        if (tab) closeTab(tab.id)
+      },
+      createTab: () => createTab()
+    })
+
+    return () => {
+      unsubscribe?.()
+      clipboardDispose?.()
+      nudgeDispose?.()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 }

@@ -1,5 +1,3 @@
-import { shallowReactive } from 'vue'
-
 import { createEditor } from '@open-pencil/core/editor'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import { SceneGraph } from '@open-pencil/scene-graph'
@@ -23,7 +21,7 @@ export type { EditorToolDef as ToolDef, Tool } from '@open-pencil/core/editor'
 export function createEditorStore(initialGraph?: SceneGraph) {
   const graph = initialGraph ?? new SceneGraph()
 
-  const state = shallowReactive<AppEditorState>(createInitialAppEditorState(graph.getPages()[0].id))
+  const state = createInitialAppEditorState(graph.getPages()[0].id) as AppEditorState
 
   const viewportSize = { width: 0, height: 0 }
   const editor = createEditor({

@@ -1,5 +1,4 @@
-import { tryOnScopeDispose, useLocalStorage } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { atom, computed } from 'nanostores'
 
 import { createFollowActions, generateRoomId } from '@/app/collab/awareness'
 import { createLocalAwarenessActions } from '@/app/collab/local-awareness'
@@ -12,27 +11,41 @@ import { DEFAULT_COLLAB_STATE, type CollabState, type RemotePeer } from '@/app/c
 import { createYjsGraphSync } from '@/app/collab/yjs-sync'
 import type { EditorStore } from '@/app/editor/active-store'
 
-export { COLLAB_KEY, useCollabInjected } from '@/app/collab/context'
+export { COLLAB_KEY, useCollabInjected, CollabContext } from '@/app/collab/context'
 export { DEFAULT_COLLAB_STATE }
 export type { CollabState, RemotePeer }
+
+const COLLAB_NAME_STORAGE_KEY = 'op-collab-name'
+
+function readStoredCollabName(): string {
+  if (typeof localStorage === 'undefined') return ''
+  return localStorage.getItem(COLLAB_NAME_STORAGE_KEY) ?? ''
+}
 
 export function useCollab(storeOrGetter: EditorStore | (() => EditorStore)) {
   const getStore = () =>
     typeof storeOrGetter === 'function' ? (storeOrGetter as () => EditorStore)() : storeOrGetter
-  const storedName = useLocalStorage('op-collab-name', '')
-  const state = ref<CollabState>(createInitialCollabState(storedName.value))
+
+  const $storedName = atom<string>(readStoredCollabName())
+  $storedName.subscribe((name) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(COLLAB_NAME_STORAGE_KEY, name)
+    }
+  })
+
+  const $state = atom<CollabState>(createInitialCollabState($storedName.get()))
   const runtime = createCollabRuntime()
-  const remotePeers = computed(() => state.value.peers)
+  const $remotePeers = computed($state, (s) => s.peers)
   const getActiveStore = () => runtime.connectedStore ?? getStore()
 
-  const { followingPeer, followPeer, resetFollow, tickFollow } = createFollowActions(
+  const { $followingPeer, followPeer, resetFollow, tickFollow } = createFollowActions(
     getActiveStore,
     () => runtime.awareness
   )
   const { broadcastAwareness, updateCursor, updateSelection, updatePeersList, setLocalName } =
     createLocalAwarenessActions({
-      state,
-      storedName,
+      state: $state,
+      storedName: $storedName,
       getStore: getActiveStore,
       getAwareness: () => runtime.awareness
     })
@@ -48,7 +61,7 @@ export function useCollab(storeOrGetter: EditorStore | (() => EditorStore)) {
   })
   const { connect, disconnect } = createCollabConnectionActions({
     runtime,
-    state,
+    state: $state,
     getStore,
     updatePeersList,
     tickFollow,
@@ -65,12 +78,10 @@ export function useCollab(storeOrGetter: EditorStore | (() => EditorStore)) {
     return roomId
   }
 
-  tryOnScopeDispose(disconnect)
-
   return {
-    state,
-    remotePeers,
-    followingPeer,
+    $state,
+    $remotePeers,
+    $followingPeer,
     connect,
     disconnect,
     shareCurrentDoc,

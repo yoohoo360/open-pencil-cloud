@@ -1,5 +1,3 @@
-import { useEventListener } from '@vueuse/core'
-
 import type { EditorStore } from '@/app/editor/active-store'
 import { isEditing } from '@/app/shell/keyboard/focus'
 import { isReservedModShortcut } from '@/app/shell/keyboard/reserved'
@@ -11,8 +9,8 @@ const NUDGE_DELTAS: Partial<Record<string, [number, number]>> = {
   ArrowRight: [1, 0]
 }
 
-export function bindNudgeKeys(store: EditorStore) {
-  useEventListener(window, 'keydown', (e: KeyboardEvent) => {
+export function bindNudgeKeys(store: EditorStore): () => void {
+  function onKeydown(e: KeyboardEvent) {
     if (isEditing(e) || store.state.editingTextId) return
     if (isReservedModShortcut(e)) e.preventDefault()
     if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -23,5 +21,8 @@ export function bindNudgeKeys(store: EditorStore) {
     const step = e.shiftKey ? 10 : 1
     store.nudgeSelected(delta[0] * step, delta[1] * step)
     e.preventDefault()
-  })
+  }
+
+  window.addEventListener('keydown', onKeydown)
+  return () => window.removeEventListener('keydown', onKeydown)
 }
