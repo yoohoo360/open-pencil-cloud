@@ -1,5 +1,4 @@
-import { computed, inject, provide, proxyRefs } from 'vue'
-import type { InjectionKey, ShallowUnwrapRef } from 'vue'
+import { createContext, useContext } from 'react'
 
 import type { Color } from '@open-pencil/scene-graph/primitives'
 import {
@@ -13,88 +12,65 @@ import {
   updateHSBChannel,
   updateHSLChannel,
   updateHue,
-  updateRGBChannel,
-  useI18n
-} from '@open-pencil/vue'
-import type { OkHCLControls } from '@open-pencil/vue'
-
-type ColorPanelProps = {
-  color: Color
-  okhcl?: OkHCLControls | null
-}
-
-type ColorPanelEmit = (event: 'update', color: Color) => void
+  updateRGBChannel
+} from '@open-pencil/react'
+import type { OkHCLControls } from '@open-pencil/react'
+import { dialogMessages } from '@open-pencil/react'
 
 type RekaColor = ReturnType<typeof createColorPickerModel>['rekaColor']
 
-function createColorPickerPanelContext(props: ColorPanelProps, emit: ColorPanelEmit) {
-  const { panels } = useI18n()
-  const color = computed(() => props.color)
-  const okhcl = computed(() => props.okhcl ?? null)
-  const pickerModel = computed(() => createColorPickerModel(color.value))
-  const rekaColor = computed(() => pickerModel.value.rekaColor)
-  const hslColor = computed(() => pickerModel.value.hsl)
-  const hsbColor = computed(() => pickerModel.value.hsb)
-  const rgbColor = computed(() => pickerModel.value.rgb)
-  const sliderPreview = computed(() => createSliderPreviewModel(pickerModel.value))
-  const sliderGradient = computed(() => createSliderGradientModel(pickerModel.value))
-  const okhclSliderPreview = computed(() =>
-    okhcl.value?.okhcl ? createOkHCLSliderPreviewModel(okhcl.value.okhcl) : null
-  )
-  const okhclSliderGradient = computed(() =>
-    okhcl.value?.okhcl ? createOkHCLSliderGradientModel(okhcl.value.okhcl) : null
-  )
-  const fieldOptions = computed(
-    () =>
-      okhcl.value?.fieldOptions ?? [
-        { value: 'rgb', label: panels.value.colorFormatRgb },
-        { value: 'hsl', label: panels.value.colorFormatHsl },
-        { value: 'hsb', label: panels.value.colorFormatHsb }
-      ]
-  )
-  const fieldFormat = computed(() => okhcl.value?.fieldFormat ?? 'rgb')
-  const isOkHCLFormat = computed(() => fieldFormat.value === 'okhcl' && okhcl.value)
+export type ColorPickerPanelContext = {
+  panels: typeof dialogMessages
+  color: Color
+  okhcl: OkHCLControls | null
+  pickerModel: ReturnType<typeof createColorPickerModel>
+  rekaColor: RekaColor
+  hslColor: ReturnType<typeof createColorPickerModel>['hsl']
+  hsbColor: ReturnType<typeof createColorPickerModel>['hsb']
+  rgbColor: ReturnType<typeof createColorPickerModel>['rgb']
+  sliderPreview: ReturnType<typeof createSliderPreviewModel>
+  sliderGradient: ReturnType<typeof createSliderGradientModel>
+  okhclSliderPreview: ReturnType<typeof createOkHCLSliderPreviewModel> | null
+  okhclSliderGradient: ReturnType<typeof createOkHCLSliderGradientModel> | null
+  fieldOptions: { value: string; label: string }[]
+  fieldFormat: string
+  isOkHCLFormat: boolean
+  onRekaColorUpdate: (colorValue: RekaColor) => void
+  setFieldFormat: (value: string) => void
+  updateRGBAHue: (value: number) => void
+  updateRGBAAlpha: (value: number) => void
+  updateRGBChannelValue: (channel: 'r' | 'g' | 'b', value: number) => void
+  updateHSLChannelValue: (channel: 'h' | 's' | 'l', value: number) => void
+  updateHSBChannelValue: (channel: 'h' | 's' | 'b', value: number) => void
+  updateOkHCLChannel: (channel: 'h' | 'c' | 'l' | 'a', value: number) => void
+}
 
-  function updateColor(nextColor: Color) {
-    emit('update', nextColor)
-  }
-
-  function onRekaColorUpdate(colorValue: RekaColor) {
-    updateColor(rekaToAppColor(colorValue))
-  }
-
-  function setFieldFormat(value: string) {
-    okhcl.value?.setFieldFormat(value as NonNullable<OkHCLControls>['fieldFormat'])
-  }
-
-  function updateRGBAHue(value: number) {
-    updateColor(updateHue(pickerModel.value, value))
-  }
-
-  function updateRGBAAlpha(value: number) {
-    updateColor(updateAlpha(color.value, value))
-  }
-
-  function updateRGBChannelValue(channel: 'r' | 'g' | 'b', value: number) {
-    updateColor(updateRGBChannel(color.value, channel, value))
-  }
-
-  function updateHSLChannelValue(channel: 'h' | 's' | 'l', value: number) {
-    updateColor(updateHSLChannel(pickerModel.value, channel, value))
-  }
-
-  function updateHSBChannelValue(channel: 'h' | 's' | 'b', value: number) {
-    updateColor(updateHSBChannel(pickerModel.value, channel, value))
-  }
-
-  function updateOkHCLChannel(channel: 'h' | 'c' | 'l' | 'a', value: number) {
-    okhcl.value?.updateOkHCL({ [channel]: value })
-  }
+export function createColorPickerPanelContext(
+  color: Color,
+  okhcl: OkHCLControls | null | undefined,
+  onUpdate: (color: Color) => void
+): ColorPickerPanelContext {
+  const resolvedOkhcl = okhcl ?? null
+  const pickerModel = createColorPickerModel(color)
+  const rekaColor = pickerModel.rekaColor
+  const hslColor = pickerModel.hsl
+  const hsbColor = pickerModel.hsb
+  const rgbColor = pickerModel.rgb
+  const sliderPreview = createSliderPreviewModel(pickerModel)
+  const sliderGradient = createSliderGradientModel(pickerModel)
+  const okhclSliderPreview = resolvedOkhcl?.okhcl
+    ? createOkHCLSliderPreviewModel(resolvedOkhcl.okhcl)
+    : null
+  const okhclSliderGradient = resolvedOkhcl?.okhcl
+    ? createOkHCLSliderGradientModel(resolvedOkhcl.okhcl)
+    : null
+  const fieldFormat = resolvedOkhcl?.fieldFormat ?? 'rgb'
+  const isOkHCLFormat = fieldFormat === 'okhcl' && !!resolvedOkhcl
 
   return {
-    panels,
+    panels: dialogMessages,
     color,
-    okhcl,
+    okhcl: resolvedOkhcl,
     pickerModel,
     rekaColor,
     hslColor,
@@ -104,33 +80,37 @@ function createColorPickerPanelContext(props: ColorPanelProps, emit: ColorPanelE
     sliderGradient,
     okhclSliderPreview,
     okhclSliderGradient,
-    fieldOptions,
+    fieldOptions: resolvedOkhcl?.fieldOptions ?? [
+      { value: 'rgb', label: 'RGB' },
+      { value: 'hsl', label: 'HSL' },
+      { value: 'hsb', label: 'HSB' }
+    ],
     fieldFormat,
     isOkHCLFormat,
-    onRekaColorUpdate,
-    setFieldFormat,
-    updateRGBAHue,
-    updateRGBAAlpha,
-    updateRGBChannelValue,
-    updateHSLChannelValue,
-    updateHSBChannelValue,
-    updateOkHCLChannel
+    onRekaColorUpdate: (colorValue: RekaColor) => onUpdate(rekaToAppColor(colorValue)),
+    setFieldFormat: (value: string) => {
+      resolvedOkhcl?.setFieldFormat(value as NonNullable<OkHCLControls>['fieldFormat'])
+    },
+    updateRGBAHue: (value: number) => onUpdate(updateHue(pickerModel, value)),
+    updateRGBAAlpha: (value: number) => onUpdate(updateAlpha(color, value)),
+    updateRGBChannelValue: (channel: 'r' | 'g' | 'b', value: number) =>
+      onUpdate(updateRGBChannel(color, channel, value)),
+    updateHSLChannelValue: (channel: 'h' | 's' | 'l', value: number) =>
+      onUpdate(updateHSLChannel(pickerModel, channel, value)),
+    updateHSBChannelValue: (channel: 'h' | 's' | 'b', value: number) =>
+      onUpdate(updateHSBChannel(pickerModel, channel, value)),
+    updateOkHCLChannel: (channel: 'h' | 'c' | 'l' | 'a', value: number) => {
+      resolvedOkhcl?.updateOkHCL({ [channel]: value })
+    }
   }
 }
 
-export type ColorPickerPanelContext = ShallowUnwrapRef<
-  ReturnType<typeof createColorPickerPanelContext>
->
+const ColorPickerPanelReactContext = createContext<ColorPickerPanelContext | null>(null)
 
-const COLOR_PICKER_PANEL_KEY: InjectionKey<ColorPickerPanelContext> =
-  Symbol('ColorPickerPanelContext')
-
-export function provideColorPickerPanel(props: ColorPanelProps, emit: ColorPanelEmit) {
-  provide(COLOR_PICKER_PANEL_KEY, proxyRefs(createColorPickerPanelContext(props, emit)))
-}
+export const ColorPickerPanelProvider = ColorPickerPanelReactContext.Provider
 
 export function useColorPickerPanelContext(): ColorPickerPanelContext {
-  const ctx = inject(COLOR_PICKER_PANEL_KEY)
+  const ctx = useContext(ColorPickerPanelReactContext)
   if (!ctx) throw new Error('Color picker panel controls must be used within ColorPickerPanel')
   return ctx
 }

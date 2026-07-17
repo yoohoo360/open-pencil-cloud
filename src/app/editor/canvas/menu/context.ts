@@ -1,6 +1,4 @@
-import { computed, type Ref } from 'vue'
-
-import { formatShortcut, type Editor, type MenuEntry } from '@open-pencil/vue'
+import { formatShortcut, type Editor, type MenuEntry } from '@open-pencil/react'
 
 import type { createCanvasMenuActions } from '@/app/editor/canvas/menu/actions'
 import {
@@ -80,16 +78,14 @@ function copyPasteAsEntry(
   }
 }
 
-export function useCanvasContextMenu(
-  baseEntries: Ref<MenuEntry[]>,
-  hasSelection: Ref<boolean>,
+export function buildCanvasContextMenu(
+  baseEntries: MenuEntry[],
+  hasSelection: boolean,
   editor: Editor,
   actions: CanvasMenuActions,
-  labels: Ref<CanvasCopyLabels>
-) {
-  return computed<MenuEntry[]>(() => {
-    const entries = withoutStaticSelectionCommands(baseEntries.value)
-    if (!hasSelection.value) return entries
-    return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels.value)]
-  })
+  labels: CanvasCopyLabels
+): MenuEntry[] {
+  const entries = withoutStaticSelectionCommands(baseEntries)
+  if (!hasSelection) return entries
+  return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels)]
 }
