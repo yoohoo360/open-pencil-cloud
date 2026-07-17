@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenPencil React SDK Example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #1e1e1e; color: #e0e0e0; }
+
+    .layout { display: flex; flex-direction: column; height: 100vh; }
+
+    .toolbar {
+      display: flex; gap: 2px; padding: 4px 8px;
+      background: #2a2a2a; border-bottom: 1px solid #3a3a3a;
+    }
+    .toolbar button {
+      padding: 4px 10px; font-size: 11px; background: transparent;
+      color: #ccc; border: 1px solid transparent; border-radius: 4px; cursor: pointer;
+    }
+    .toolbar button:hover { background: #3a3a3a; }
+    .toolbar button.active { background: #4a90d9; color: white; border-color: #5a9fe9; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    .panel { width: 220px; background: #252525; overflow-y: auto; flex-shrink: 0; }
+    .panel.left { border-right: 1px solid #3a3a3a; }
+    .panel.right { border-left: 1px solid #3a3a3a; }
+
+    .section { padding: 8px; }
+    .section h3 { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 6px; letter-spacing: 0.5px; }
+
+    .list-item { padding: 4px 8px; font-size: 13px; border-radius: 4px; cursor: pointer; }
+    .list-item:hover { background: #333; }
+    .list-item.active { background: #4a90d9; color: white; }
+
+    .canvas-area { flex: 1; }
+
+    label { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+    label input {
+      flex: 1; background: #1e1e1e; border: 1px solid #3a3a3a;
+      color: #e0e0e0; padding: 3px 6px; border-radius: 3px; font-size: 12px;
+    }
+
+    .muted { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
