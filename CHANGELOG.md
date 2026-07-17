@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- Add `@open-pencil/react` headless React SDK alongside `@open-pencil/vue`, with Vue-root + React-island dual Vite host (veaury) on the `chore/react-init` monorepo base
+
 ### Changed
 
 - Add Figma-style page management in the Pages panel, including rename/delete actions and drag-and-drop page reordering.

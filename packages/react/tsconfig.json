@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationDir": "./dist",
+    "outDir": "./dist",
+    "rootDir": "..",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "#core/*": ["../core/src/*"],
+      "@open-pencil/react": ["./src/index.ts"],
+      "@open-pencil/react/*": ["./src/*"],
+      "@open-pencil/core": ["../core/src/index.ts"],
+      "@open-pencil/core/*": ["../core/src/*"],
+      "@open-pencil/common": ["../common/src/index.ts"],
+      "@open-pencil/common/*": ["../common/src/*"],
+      "@open-pencil/core/editor": ["../core/src/editor/index.ts"],
+      "@open-pencil/core/render": ["../core/src/render/index.ts"],
+      "@open-pencil/core/color": ["../core/src/color/index.ts"],
+      "@open-pencil/core/text": ["../core/src/text/index.ts"],
+      "@open-pencil/core/constants": ["../core/src/constants.ts"],
+      "@open-pencil/core/io": ["../core/src/io/index.ts"],
+      "@open-pencil/core/canvaskit": ["../core/src/canvaskit.ts"],
+      "@open-pencil/core/canvas": ["../core/src/canvas/index.ts"],
+      "@open-pencil/core/random": ["../core/src/random.ts"],
+      "@open-pencil/scene-graph": ["../scene-graph/src/index.ts"],
+      "@open-pencil/scene-graph/*": ["../scene-graph/src/*"],
+      "@open-pencil/scene-graph/primitives": ["../scene-graph/src/primitives.ts"],
+      "@open-pencil/scene-graph/geometry": ["../scene-graph/src/geometry.ts"],
+      "@open-pencil/scene-graph/snap": ["../scene-graph/src/snap.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "../core/src/global.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

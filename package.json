@@ -12,6 +12,7 @@
     "packages/core",
     "packages/dom-css",
     "packages/vue",
+    "packages/react",
     "packages/cli",
     "packages/mcp",
     "packages/docs"
@@ -25,11 +26,11 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "tauri": "tauri",
-    "lint": "bun run lint:structure && oxlint -c oxlint.json --type-aware --type-check src/ packages/scene-graph/src/ packages/core/src/ packages/common/src/ packages/vue/src/ packages/cli/src/ packages/mcp/src/ packages/dom-css/src/ packages/pen/src/ packages/kiwi/src/ packages/fig/src/",
+    "lint": "bun run lint:structure && oxlint -c oxlint.json --type-aware --type-check src/ packages/scene-graph/src/ packages/core/src/ packages/common/src/ packages/vue/src/ packages/react/src/ packages/cli/src/ packages/mcp/src/ packages/dom-css/src/ packages/pen/src/ packages/kiwi/src/ packages/fig/src/",
     "lint:structure": "oxlint -c oxlint.json vite.config.ts vite/ .storybook/ src/ packages/scene-graph/src/ packages/scene-graph/scripts/ packages/core/src/ packages/common/src/ packages/vue/src/ packages/cli/src/ packages/mcp/src/ packages/dom-css/src/ packages/dom-css/tests/ packages/dom-css/scripts/ packages/pen/src/ packages/pen/scripts/ packages/kiwi/src/ packages/kiwi/tests/ packages/kiwi/scripts/ packages/fig/src/ packages/fig/tests/ packages/fig/scripts/ tests/ scripts/ tools/",
-    "format": "oxfmt --write .oxfmtrc.json vite.config.ts vite/ .storybook/ src/ packages/scene-graph/src/ packages/scene-graph/scripts/ packages/core/src/ packages/common/src/ packages/cli/src/ packages/mcp/src/ packages/vue/src/ packages/dom-css/src/ packages/dom-css/tests/ packages/dom-css/scripts/ packages/pen/src/ packages/pen/scripts/ packages/kiwi/src/ packages/kiwi/tests/ packages/kiwi/scripts/ packages/fig/src/ packages/fig/tests/ packages/fig/scripts/ tests scripts/ tools/",
+    "format": "oxfmt --write .oxfmtrc.json vite.config.ts vite/ .storybook/ src/ packages/scene-graph/src/ packages/scene-graph/scripts/ packages/core/src/ packages/common/src/ packages/cli/src/ packages/mcp/src/ packages/vue/src/ packages/react/src/ packages/dom-css/src/ packages/dom-css/tests/ packages/dom-css/scripts/ packages/pen/src/ packages/pen/scripts/ packages/kiwi/src/ packages/kiwi/tests/ packages/kiwi/scripts/ packages/fig/src/ packages/fig/tests/ packages/fig/scripts/ tests scripts/ tools/",
     "format:check": "bun run format && status=$(git status --porcelain -uall) && test -z \"$status\" || (echo \"$status\" && exit 1)",
-    "check": "bun run build:packages && bun run lint && tsgo --noEmit && bun run check:vue && bun run check:i18n && bun run check:packages && bun run check:deps && bun run check:audit && bun run check:secrets && bun run check:monorepo && bun run check:arch && bun run test:type-shapes && bun run test:tools && bun run test:dupes",
+    "check": "bun run build:packages && bun run lint && tsgo --noEmit && bun run check:vue && bun run check:react && bun run check:i18n && bun run check:packages && bun run check:deps && bun run check:audit && bun run check:secrets && bun run check:monorepo && bun run check:arch && bun run test:type-shapes && bun run test:tools && bun run test:dupes",
     "check:deps": "knip --include unlisted,unresolved,binaries",
     "check:audit": "bun audit --audit-level=critical",
     "check:secrets": "bun tools/secret-scan/src/index.ts",
@@ -50,13 +51,14 @@
     "test:tools": "bun tools/test.ts",
     "test:dupes": "jscpd packages/scene-graph/src packages/pen/src packages/core/src packages/cli/src packages/dom-css/src src --min-lines 5 --min-tokens 50 --format typescript --threshold 0",
     "test:packages": "bun tools/package-quality/src/check/metadata.ts && bun tools/package-quality/src/check/publint.ts && bun tools/package-quality/src/check/attw.ts && bun tools/package-quality/src/smoke.ts",
-    "build:packages": "bun --filter @open-pencil/scene-graph build && bun --filter @open-pencil/pen build && bun --filter @open-pencil/kiwi build && bun --filter @open-pencil/fig build && bun --filter @open-pencil/core build && bun --filter @open-pencil/dom-css build && bun --filter @open-pencil/vue build && bun --filter @open-pencil/mcp build && bun --filter @open-pencil/cli build",
+    "build:packages": "bun --filter @open-pencil/scene-graph build && bun --filter @open-pencil/pen build && bun --filter @open-pencil/kiwi build && bun --filter @open-pencil/fig build && bun --filter @open-pencil/core build && bun --filter @open-pencil/dom-css build && bun --filter @open-pencil/vue build && bun --filter @open-pencil/react build && bun --filter @open-pencil/mcp build && bun --filter @open-pencil/cli build",
     "open-pencil": "bun packages/cli/src/index.ts",
     "docs:dev": "bun --filter @open-pencil/docs dev",
     "docs:build": "bun --filter @open-pencil/docs build",
     "docs:preview": "bun --filter @open-pencil/docs preview",
     "visual-compare": "bun tools/visual-oracles/src/compare.ts",
-    "generate:tauri-menu": "bun tools/tauri-menu/src/generate.ts"
+    "generate:tauri-menu": "bun tools/tauri-menu/src/generate.ts",
+    "check:react": "tsgo --noEmit -p packages/react/tsconfig.json"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.74",
@@ -116,7 +118,13 @@
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.29",
     "yoga-layout": "npm:@open-pencil/yoga-layout@3.3.0-grid.3",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@open-pencil/react": "workspace:*",
+    "@nanostores/react": "^1.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "veaury": "^2.6.3",
+    "@radix-ui/react-tooltip": "^1.2.12"
   },
   "devDependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
@@ -163,7 +171,11 @@
     "vite-plugin-pwa": "^1.2.0",
     "vue-tsc": "^3.2.5",
     "workbox-window": "^7.4.0",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-vue-jsx": "^5.1.6",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   },
   "overrides": {
     "brace-expansion": "5.0.6",

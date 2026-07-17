@@ -26,7 +26,7 @@ import {
 
 import type { LayoutSizing } from '@open-pencil/scene-graph'
 import type { SizeLimitProp, TestId } from '@open-pencil/vue'
-import PanelRow from '@/components/ui/PanelRow.vue'
+import PanelRow from '@/components/ui/panel/PanelRow.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 
 type SizeSelectValue = LayoutSizing | `add-${SizeLimitProp}` | `remove-${SizeLimitProp}`

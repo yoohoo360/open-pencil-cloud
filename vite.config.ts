@@ -1,10 +1,11 @@
 import process from 'node:process'
 
 import tailwindcss from '@tailwindcss/vite'
-import vue from '@vitejs/plugin-vue'
 import IconsResolver from 'unplugin-icons/resolver'
 import Icons from 'unplugin-icons/vite'
 import Components from 'unplugin-vue-components/vite'
+// @ts-expect-error veaury ships CJS entry without types for this path
+import veauryVitePlugins from 'veaury/vite/index.js'
 import { defineConfig } from 'vite'
 
 import packageJson from './package.json'
@@ -32,7 +33,15 @@ export default defineConfig(async ({ command }) => ({
     Icons({ compiler: 'vue3' }),
     Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
     openPencilAutomationPlugin(command, host),
-    vue(),
+    // Vue root + React islands: .vue uses Vue JSX; packages/react + src/react_app use React
+    veauryVitePlugins({
+      type: 'custom',
+      vueJsxInclude: [
+        /vue&type=script&lang\.[tj]sx$/i,
+        /vue&type=script&setup=true&lang\.[tj]sx$/i,
+        /[/\\]vue_app[/\\][\w\W]+\.[tj]sx$/
+      ]
+    }),
     openPencilPwaPlugin()
   ],
   clearScreen: false,

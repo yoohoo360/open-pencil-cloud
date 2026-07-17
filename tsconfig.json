@@ -81,12 +81,24 @@
       ],
       "@open-pencil/pen/*": [
         "./packages/pen/src/*"
+      ],
+      "#react/*": [
+        "./packages/react/src/*"
+      ],
+      "@open-pencil/react": [
+        "./packages/react/src/index.ts"
+      ],
+      "@open-pencil/react/*": [
+        "./packages/react/src/*"
       ]
     }
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.vue"
+    "src/**/*.vue",
+    "src/**/*.tsx",
+    "packages/react/src/**/*.ts",
+    "packages/react/src/**/*.tsx"
   ],
   "references": [
     {
