@@ -1,5 +1,3 @@
-import { watchDebounced } from '@vueuse/core'
-
 import type { EditorState } from '@open-pencil/core/editor'
 
 type AutosaveState = EditorState & { autosaveEnabled: boolean }
@@ -17,10 +15,17 @@ export function createAutosave({
   hasWritableSource,
   saveCurrentDocument
 }: AutosaveOptions) {
-  const stop = watchDebounced(
-    () => state.sceneVersion,
-    async (version) => {
-      if (version === getSavedVersion()) return
+  let lastVersion = state.sceneVersion
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  const poll = setInterval(() => {
+    const version = state.sceneVersion
+    if (version === lastVersion) return
+    lastVersion = version
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(async () => {
+      if (version !== state.sceneVersion) return
+      if (state.sceneVersion === getSavedVersion()) return
       if (!state.autosaveEnabled) return
       if (!hasWritableSource()) return
       try {
@@ -28,9 +33,13 @@ export function createAutosave({
       } catch (e) {
         console.warn('Autosave failed:', e)
       }
-    },
-    { debounce: 3000 }
-  )
+    }, 3000)
+  }, 500)
 
-  return { disposeAutosave: stop }
+  return {
+    disposeAutosave() {
+      clearInterval(poll)
+      if (timer) clearTimeout(timer)
+    }
+  }
 }

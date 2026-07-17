@@ -23,7 +23,7 @@ export function createComponentInstanceActions(ctx: EditorContext) {
       return
     }
 
-    let component = sourceLibraryKey
+    const component = sourceLibraryKey
       ? importGraph?.getNode(componentId)
       : ctx.graph.getNode(componentId)
 

@@ -31,7 +31,7 @@ import {
   PropertySectionHeader,
   PropertySectionRoot,
   PropertySectionTitle
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 </script>
 
 <template>

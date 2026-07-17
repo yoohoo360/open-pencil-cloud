@@ -1,12 +1,6 @@
 import type { DownloadedFontCache } from '@open-pencil/core/text'
 
-import {
-  readCacheBytes,
-  readCacheJson,
-  removeCachePrefix,
-  writeCacheBytes,
-  writeCacheJson
-} from '@/app/cache'
+import { readCacheBytes, readCacheJson, removeCachePrefix, writeCacheBytes, writeCacheJson } from '@/app/cache'
 
 type FontCacheEntry = {
   family: string

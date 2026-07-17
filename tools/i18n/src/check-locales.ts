@@ -8,9 +8,9 @@ import {
   TRANSLATED_LOCALES,
   messageDefaults,
   type TranslatedLocale
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
-const LOCALES_DIR = 'packages/vue/src/i18n/locales'
+const LOCALES_DIR = 'packages/react/src/i18n/locales'
 const LOCALE_FILE_NAMES: Record<string, string> = {
   variableTypes: 'variable-types'
 }

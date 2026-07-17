@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { atom } from 'nanostores'
 import type * as awarenessProtocol from 'y-protocols/awareness'
 
 import { randomIndex } from '@open-pencil/core/random'
@@ -59,23 +59,24 @@ export function createFollowActions(
   getStore: () => EditorStore,
   getAwareness: () => Awareness | null
 ) {
-  const followingPeer = ref<number | null>(null)
+  const $followingPeer = atom<number | null>(null)
 
   function followPeer(clientId: number | null) {
-    followingPeer.value = clientId
+    $followingPeer.set(clientId)
   }
 
   function resetFollow() {
-    followingPeer.value = null
+    $followingPeer.set(null)
   }
 
   function tickFollow() {
     const store = getStore()
     const awareness = getAwareness()
-    if (!followingPeer.value || !awareness) return
-    const peerState = awareness.getStates().get(followingPeer.value)
+    const followingPeer = $followingPeer.get()
+    if (!followingPeer || !awareness) return
+    const peerState = awareness.getStates().get(followingPeer)
     if (!peerState?.cursor) {
-      followingPeer.value = null
+      $followingPeer.set(null)
       return
     }
     const cursor = peerState.cursor as CursorState
@@ -92,7 +93,7 @@ export function createFollowActions(
     store.requestRender()
   }
 
-  return { followingPeer, followPeer, resetFollow, tickFollow }
+  return { $followingPeer, followPeer, resetFollow, tickFollow }
 }
 
 export function generateRoomId(): string {

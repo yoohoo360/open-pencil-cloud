@@ -17,7 +17,7 @@ It provides:
 ## Usage
 
 ```ts
-import { useStrokeControls } from '@open-pencil/vue'
+import { useStrokeControls } from '@open-pencil/react'
 
 const strokes = useStrokeControls()
 ```

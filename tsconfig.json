@@ -15,7 +15,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -24,9 +24,8 @@
       "@/*": [
         "./src/*"
       ],
-      "#vue/*": [
-        "./packages/vue/src/*",
-        "./packages/vue/src/*.vue"
+      "#react/*": [
+        "./packages/react/src/*"
       ],
       "#core/*": [
         "./packages/core/src/*"
@@ -46,8 +45,11 @@
       "tinykeys": [
         "./node_modules/tinykeys/dist/tinykeys.d.ts"
       ],
-      "@open-pencil/vue": [
-        "./packages/vue/src/index.ts"
+      "@open-pencil/react": [
+        "./packages/react/src/index.ts"
+      ],
+      "@open-pencil/react/*": [
+        "./packages/react/src/*"
       ],
       "@open-pencil/core": [
         "./packages/core/src/index.ts"
@@ -86,7 +88,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.vue"
+    "src/**/*.tsx"
   ],
   "references": [
     {

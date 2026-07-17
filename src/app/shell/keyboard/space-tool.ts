@@ -1,9 +1,9 @@
-import { useEventListener } from '@vueuse/core'
-import type { ComputedRef } from 'vue'
-
 import type { EditorStore } from '@/app/editor/active-store'
 
-export function bindSpaceHandTool(inputFocused: ComputedRef<boolean>, store: EditorStore) {
+export function bindSpaceHandTool(
+  inputFocused: { value: boolean },
+  store: EditorStore
+): { resetToolBeforeSpace: () => void; dispose: () => void } {
   let toolBeforeSpace: typeof store.state.activeTool | null = null
 
   function restoreTool() {
@@ -12,7 +12,7 @@ export function bindSpaceHandTool(inputFocused: ComputedRef<boolean>, store: Edi
     toolBeforeSpace = null
   }
 
-  useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  function onKeydown(event: KeyboardEvent) {
     if (event.code !== 'Space') return
     if (inputFocused.value || store.state.editingTextId) return
     if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -20,17 +20,24 @@ export function bindSpaceHandTool(inputFocused: ComputedRef<boolean>, store: Edi
     if (toolBeforeSpace !== null || store.state.activeTool === 'HAND') return
     toolBeforeSpace = store.state.activeTool
     store.setTool('HAND')
-  })
+  }
 
-  useEventListener(window, 'keyup', (event: KeyboardEvent) => {
+  function onKeyup(event: KeyboardEvent) {
     if (event.code === 'Space') restoreTool()
-  })
+  }
 
-  useEventListener(window, 'blur', restoreTool)
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('keyup', onKeyup)
+  window.addEventListener('blur', restoreTool)
 
   return {
     resetToolBeforeSpace() {
       toolBeforeSpace = null
+    },
+    dispose() {
+      window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('keyup', onKeyup)
+      window.removeEventListener('blur', restoreTool)
     }
   }
 }

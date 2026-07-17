@@ -52,9 +52,9 @@ SVG is slow for complex documents. Every node is a DOM element — 10,000 nodes 
 
 Tauri v2 uses the system webview (~5MB) instead of bundling Chromium (~100MB). The Rust backend provides native performance for file I/O and system integration.
 
-### Why not React (like the original plan)?
+### Why React?
 
-The project migrated from React to Vue 3 early in development. Vue's reactivity system and VueUse composables proved more ergonomic for the editor's state management needs.
+The editor shell and headless SDK use React 19. High-frequency paths (canvas pan/zoom, pointer drag, text edit, NumberField scrub) keep mutable editor state and RAF loops outside React render, while UI panels subscribe with selective `useSyncExternalStore` snapshots so repaint-only ticks do not thrash the property panel tree.
 
 ### Why not custom layout engine?
 

@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import type { WritableAtom } from 'nanostores'
 import type { Awareness } from 'y-protocols/awareness'
 
 import { buildRemotePeers, remotePeersToCursors } from '@/app/collab/awareness'
@@ -6,8 +6,8 @@ import type { CollabState } from '@/app/collab/types'
 import type { EditorStore } from '@/app/editor/active-store'
 
 type LocalAwarenessOptions = {
-  state: Ref<CollabState>
-  storedName: Ref<string>
+  state: WritableAtom<CollabState>
+  storedName: WritableAtom<string>
   getStore: () => EditorStore
   getAwareness: () => Awareness | null
 }
@@ -21,9 +21,10 @@ export function createLocalAwarenessActions({
   function broadcastAwareness() {
     const awareness = getAwareness()
     if (!awareness) return
+    const s = state.get()
     awareness.setLocalStateField('user', {
-      name: state.value.localName,
-      color: state.value.localColor
+      name: s.localName,
+      color: s.localColor
     })
   }
 
@@ -49,14 +50,14 @@ export function createLocalAwarenessActions({
       awareness.clientID
     )
 
-    state.value.peers = peers
+    state.set({ ...state.get(), peers })
     store.state.remoteCursors = remotePeersToCursors(peers, store.state.currentPageId)
     store.requestRender()
   }
 
   function setLocalName(name: string) {
-    state.value.localName = name
-    storedName.value = name
+    state.set({ ...state.get(), localName: name })
+    storedName.set(name)
     broadcastAwareness()
   }
 

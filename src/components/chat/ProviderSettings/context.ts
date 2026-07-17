@@ -1,185 +1,52 @@
-import { computed, inject, provide, proxyRefs, ref, watch } from 'vue'
-import type { InjectionKey, ShallowUnwrapRef } from 'vue'
+import { createContext, useContext } from 'react'
 
-import {
-  testProviderConnection,
-  type ProviderConnectionTestFailureReason
-} from '@/app/ai/chat/connection-test'
-import { useAIChat } from '@/app/ai/chat/use'
+import type { ReadableAtom, WritableAtom } from 'nanostores'
 
-function createProviderSettingsContext() {
-  const {
-    providerID,
-    providerDef,
-    apiKey,
-    setAPIKey,
-    customBaseURL,
-    customModelID,
-    modelID,
-    customAPIType,
-    maxOutputTokens,
-    pexelsApiKey,
-    unsplashAccessKey
-  } = useAIChat()
+import type { AIProviderID } from '@open-pencil/core/constants'
+import type { ProviderConnectionTestFailureReason } from '@/app/ai/chat/connection-test'
 
-  const isACP = computed(() => providerID.value.startsWith('acp:'))
-  const keyInput = ref('')
-  const pexelsKeyInput = ref('')
-  const unsplashKeyInput = ref('')
-  const baseURLInput = ref(customBaseURL.value)
-  const customModelInput = ref(customModelID.value)
-  const hasExistingKey = ref(!!apiKey.value)
-  const hasExistingPexelsKey = ref(!!pexelsApiKey.value)
-  const hasExistingUnsplashKey = ref(!!unsplashAccessKey.value)
-  const connectionTestStatus = ref<'idle' | 'testing' | 'success' | 'error'>('idle')
-  const connectionTestReason = ref<ProviderConnectionTestFailureReason | null>(null)
-
-  const effectiveAPIKey = computed(() => keyInput.value.trim() || apiKey.value)
-  const canTestConnection = computed(() => {
-    if (isACP.value) return false
-    if (!effectiveAPIKey.value.trim()) return false
-    if (providerDef.value.supportsCustomBaseURL && !baseURLInput.value.trim()) return false
-    if (providerDef.value.supportsCustomModel && !customModelInput.value.trim()) return false
-    return true
-  })
-
-  function resetConnectionTest() {
-    connectionTestStatus.value = 'idle'
-    connectionTestReason.value = null
-  }
-
-  watch(providerID, () => {
-    keyInput.value = ''
-    hasExistingKey.value = !!apiKey.value
-    baseURLInput.value = customBaseURL.value
-    customModelInput.value = customModelID.value
-    resetConnectionTest()
-  })
-
-  watch([keyInput, baseURLInput, customModelInput, customAPIType], resetConnectionTest)
-
-  function save() {
-    if (keyInput.value.trim()) {
-      setAPIKey(keyInput.value.trim())
-      hasExistingKey.value = true
-      keyInput.value = ''
-    }
-    if (pexelsKeyInput.value.trim()) {
-      pexelsApiKey.value = pexelsKeyInput.value.trim()
-      hasExistingPexelsKey.value = true
-      pexelsKeyInput.value = ''
-    }
-    if (unsplashKeyInput.value.trim()) {
-      unsplashAccessKey.value = unsplashKeyInput.value.trim()
-      hasExistingUnsplashKey.value = true
-      unsplashKeyInput.value = ''
-    }
-    if (providerDef.value.supportsCustomBaseURL) {
-      customBaseURL.value = baseURLInput.value.trim()
-    }
-    if (providerDef.value.supportsCustomModel) {
-      customModelID.value = customModelInput.value.trim()
-    }
-  }
-
-  function clearKey() {
-    setAPIKey('')
-    keyInput.value = ''
-    hasExistingKey.value = false
-  }
-
-  function clearPexelsKey() {
-    pexelsApiKey.value = ''
-    pexelsKeyInput.value = ''
-    hasExistingPexelsKey.value = false
-  }
-
-  function clearUnsplashKey() {
-    unsplashAccessKey.value = ''
-    unsplashKeyInput.value = ''
-    hasExistingUnsplashKey.value = false
-  }
-
-  function setCustomAPIType(value: string) {
-    customAPIType.value = value as 'completions' | 'responses'
-    save()
-  }
-
-  async function testConnection() {
-    if (connectionTestStatus.value === 'testing') return
-    connectionTestStatus.value = 'testing'
-    connectionTestReason.value = null
-
-    const result = await testProviderConnection({
-      providerID: providerID.value,
-      apiKey: effectiveAPIKey.value,
-      modelID: modelID.value,
-      customModelID: providerDef.value.supportsCustomModel
-        ? customModelInput.value.trim()
-        : customModelID.value,
-      customBaseURL: providerDef.value.supportsCustomBaseURL
-        ? baseURLInput.value.trim()
-        : customBaseURL.value,
-      customAPIType: customAPIType.value
-    })
-
-    if (result.ok) {
-      connectionTestStatus.value = 'success'
-      connectionTestReason.value = null
-      return
-    }
-
-    connectionTestStatus.value = 'error'
-    connectionTestReason.value = result.reason
-  }
-
-  return {
-    providerID,
-    providerDef,
-    apiKey,
-    modelID,
-    customAPIType,
-    customBaseURL,
-    customModelID,
-    maxOutputTokens,
-    pexelsApiKey,
-    unsplashAccessKey,
-    isACP,
-    keyInput,
-    pexelsKeyInput,
-    unsplashKeyInput,
-    baseURLInput,
-    customModelInput,
-    hasExistingKey,
-    hasExistingPexelsKey,
-    hasExistingUnsplashKey,
-    connectionTestStatus,
-    connectionTestReason,
-    canTestConnection,
-    save,
-    clearKey,
-    clearPexelsKey,
-    clearUnsplashKey,
-    setCustomAPIType,
-    testConnection
-  }
+export type ProviderSettingsContext = {
+  providerID: WritableAtom<AIProviderID>
+  providerDef: ReadableAtom<{ supportsCustomBaseURL?: boolean; supportsCustomModel?: boolean; defaultModel?: string }>
+  apiKey: WritableAtom<string>
+  modelID: WritableAtom<string>
+  customAPIType: WritableAtom<'completions' | 'responses'>
+  customBaseURL: WritableAtom<string>
+  customModelID: WritableAtom<string>
+  maxOutputTokens: WritableAtom<number>
+  pexelsApiKey: WritableAtom<string>
+  unsplashAccessKey: WritableAtom<string>
+  isACP: boolean
+  keyInput: string
+  setKeyInput: (value: string) => void
+  pexelsKeyInput: string
+  setPexelsKeyInput: (value: string) => void
+  unsplashKeyInput: string
+  setUnsplashKeyInput: (value: string) => void
+  baseURLInput: string
+  setBaseURLInput: (value: string) => void
+  customModelInput: string
+  setCustomModelInput: (value: string) => void
+  hasExistingKey: boolean
+  hasExistingPexelsKey: boolean
+  hasExistingUnsplashKey: boolean
+  connectionTestStatus: 'idle' | 'testing' | 'success' | 'error'
+  connectionTestReason: ProviderConnectionTestFailureReason | null
+  canTestConnection: boolean
+  save: () => void
+  clearKey: () => void
+  clearPexelsKey: () => void
+  clearUnsplashKey: () => void
+  setCustomAPIType: (value: string) => void
+  testConnection: () => Promise<void>
 }
 
-export type ProviderSettingsContext = ShallowUnwrapRef<
-  ReturnType<typeof createProviderSettingsContext>
->
+const ProviderSettingsReactContext = createContext<ProviderSettingsContext | null>(null)
 
-const PROVIDER_SETTINGS_KEY: InjectionKey<ProviderSettingsContext> =
-  Symbol('ProviderSettingsContext')
-
-export function provideProviderSettings() {
-  const ctx = proxyRefs(createProviderSettingsContext())
-  provide(PROVIDER_SETTINGS_KEY, ctx)
-  return ctx
-}
+export const ProviderSettingsContextProvider = ProviderSettingsReactContext.Provider
 
 export function useProviderSettingsContext(): ProviderSettingsContext {
-  const ctx = inject(PROVIDER_SETTINGS_KEY)
+  const ctx = useContext(ProviderSettingsReactContext)
   if (!ctx) throw new Error('Provider settings controls must be used within ProviderSettings')
   return ctx
 }

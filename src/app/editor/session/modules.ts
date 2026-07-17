@@ -1,5 +1,3 @@
-import { computed } from 'vue'
-
 import type { Editor } from '@open-pencil/core/editor'
 import type { IORegistry } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
@@ -31,20 +29,32 @@ export function defineEditorStoreAccessors(store: object, editor: Editor) {
   })
 }
 
+/**
+ * Plain getter-based computed accessors — no Vue reactivity needed.
+ * React consumers call these synchronously; React SDK hooks drive re-renders
+ * via useSceneComputed / useEditorEvent subscriptions.
+ */
 export function createEditorComputedRefs(editor: Editor, state: AppEditorState) {
-  const selectedNodes = computed(() => {
-    void state.sceneVersion
-    return editor.getSelectedNodes()
-  })
+  const selectedNodes = {
+    get value() {
+      void state.sceneVersion
+      return editor.getSelectedNodes()
+    }
+  }
 
-  const selectedNode = computed(() =>
-    selectedNodes.value.length === 1 ? selectedNodes.value[0] : undefined
-  )
+  const selectedNode = {
+    get value() {
+      const nodes = selectedNodes.value
+      return nodes.length === 1 ? nodes[0] : undefined
+    }
+  }
 
-  const layerTree = computed(() => {
-    void state.sceneVersion
-    return editor.getLayerTree()
-  })
+  const layerTree = {
+    get value() {
+      void state.sceneVersion
+      return editor.getLayerTree()
+    }
+  }
 
   return { selectedNodes, selectedNode, layerTree }
 }

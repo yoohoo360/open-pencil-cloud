@@ -19,7 +19,7 @@ Il fournit des helpers pour :
 ## Utilisation
 
 ```ts
-import { useEffectsControls } from '@open-pencil/vue'
+import { useEffectsControls } from '@open-pencil/react'
 
 const effects = useEffectsControls()
 ```

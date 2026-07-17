@@ -1,5 +1,5 @@
 import type { Room } from 'trystero'
-import type { Ref } from 'vue'
+import type { WritableAtom } from 'nanostores'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import type { Awareness } from 'y-protocols/awareness'
@@ -30,7 +30,7 @@ export type CollabRuntime = {
 type ConnectCollabSessionOptions = {
   roomId: string
   runtime: CollabRuntime
-  state: Ref<CollabState>
+  state: WritableAtom<CollabState>
   store: EditorStore
   disconnect: () => void
   updatePeersList: () => void
@@ -42,7 +42,7 @@ type ConnectCollabSessionOptions = {
 
 type CollabConnectionActionsOptions = {
   runtime: CollabRuntime
-  state: Ref<CollabState>
+  state: WritableAtom<CollabState>
   getStore: () => EditorStore
   updatePeersList: () => void
   tickFollow: () => void
@@ -162,7 +162,7 @@ export function connectCollabSession({
   if (runtime.room) disconnect()
 
   runtime.connectedStore = store
-  state.value.roomId = roomId
+  state.set({ ...state.get(), roomId })
   runtime.ydoc = new Y.Doc()
   runtime.awareness = new awarenessProtocol.Awareness(runtime.ydoc)
   runtime.ynodes = runtime.ydoc.getMap('nodes')
@@ -190,12 +190,12 @@ export function connectCollabSession({
     ydoc: runtime.ydoc,
     awareness: runtime.awareness,
     setConnected: () => {
-      state.value.connected = true
+      state.set({ ...state.get(), connected: true })
     },
     updatePeersList
   })
   runtime.room = roomConnection.room
-  state.value.connected = true
+  state.set({ ...state.get(), connected: true })
   broadcastAwareness()
 
   runtime.stopZoomWatch = watchAwarenessZoom(store, () => runtime.awareness)
@@ -224,10 +224,8 @@ export function resetCollabRuntime(runtime: CollabRuntime) {
   runtime.connectedStore = null
 }
 
-export function resetCollabConnectionState(state: Ref<CollabState>) {
-  state.value.connected = false
-  state.value.roomId = null
-  state.value.peers = []
+export function resetCollabConnectionState(state: WritableAtom<CollabState>) {
+  state.set({ ...state.get(), connected: false, roomId: null, peers: [] })
 }
 
 export function disposeCollabSessionResources(resources: CollabSessionResources) {

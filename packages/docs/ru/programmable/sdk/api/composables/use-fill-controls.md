@@ -12,7 +12,7 @@ description: Компосабл панели заливок с поведени�
 ## Использование
 
 ```ts
-import { useFillControls } from '@open-pencil/vue'
+import { useFillControls } from '@open-pencil/react'
 
 const fills = useFillControls()
 ```

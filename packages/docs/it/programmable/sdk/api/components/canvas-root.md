@@ -5,7 +5,7 @@ description: Primitiva canvas headless per le superfici di rendering di OpenPenc
 
 # CanvasRoot
 
-`CanvasRoot` è la primitiva canvas strutturale in `@open-pencil/vue`.
+`CanvasRoot` è la primitiva canvas strutturale in `@open-pencil/react`.
 
 Usala quando vuoi struttura canvas e contesto forniti dall'SDK, con layout e stile gestiti dall'app.
 

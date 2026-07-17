@@ -524,8 +524,6 @@ export class SceneGraph {
       const componentSetId = component?.parentId ?? ''
       const componentSet = this.nodes.get(componentSetId)
       if (componentSet?.remote) {
-        const [] = node.componentId.split(':')
-
         const sourceLibraryKey = component?.id.split(':')[0]
         if (component && componentSet && sourceLibraryKey) {
           this.removeRemoteComponent(sourceLibraryKey, component, componentSet)
@@ -658,7 +656,7 @@ export class SceneGraph {
     }
     const oldNodeMap = json.nodes
     const newMap = new Map()
-    for (let [_key, node] of oldNodeMap) {
+    for (const [_key, node] of oldNodeMap) {
       const newNode = formatGraph(node)
       newMap.set(newNode.id, newNode)
     }

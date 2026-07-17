@@ -1,7 +1,5 @@
-import { computed } from 'vue'
-
-import type { MenuEntry } from '@open-pencil/vue'
-import { useEditorCommands, useI18n } from '@open-pencil/vue'
+import { useEditorCommands, useI18n } from '@open-pencil/react'
+import type { MenuEntry } from '@open-pencil/react'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { executeClipboardCommand } from '@/app/editor/clipboard/system'
@@ -10,7 +8,7 @@ import type { AppMenuActionItem, AppMenuEntry, AppMenuGroupSchema } from '@/app/
 import { APP_MENU_SCHEMA } from '@/app/shell/menu/schema'
 import { appMenuShortcutLabel } from '@/app/shell/menu/shortcut'
 import { openFileDialog } from '@/app/shell/menu/use'
-import { useAppTheme } from '@/app/shell/theme'
+import { $theme, useAppTheme } from '@/app/shell/theme'
 
 export interface AppMenuGroup {
   label: string
@@ -29,9 +27,9 @@ export function useAppMenu() {
   const store = useEditorStore()
   const { menuItem: commandMenuItem } = useEditorCommands()
   const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
-  const { theme, setTheme } = useAppTheme()
+  const { setTheme } = useAppTheme()
 
-  const translatedMenuItemLabels: Partial<Record<string, keyof typeof menu.value>> = {
+  const translatedMenuItemLabels: Partial<Record<string, keyof typeof menu>> = {
     new: 'new',
     open: 'open',
     save: 'save',
@@ -63,15 +61,13 @@ export function useAppMenu() {
     'arrange.align-bottom': 'arrangeAlignBottom'
   }
 
-  const languageMenu = computed<MenuEntry[]>(() =>
-    availableLocales.map((code) => ({
-      label: localeLabels[code],
-      checked: locale.value === code,
-      onCheckedChange: (checked: boolean) => {
-        if (checked) setLocale(code)
-      }
-    }))
-  )
+  const languageMenu: MenuEntry[] = availableLocales.map((code) => ({
+    label: localeLabels[code],
+    checked: locale === code,
+    onCheckedChange: (checked: boolean) => {
+      if (checked) setLocale(code)
+    }
+  }))
 
   function exportSelection(format: 'png' | 'svg' | 'fig') {
     if (store.state.selectedIds.size > 0) void store.exportSelection(1, format)
@@ -99,17 +95,18 @@ export function useAppMenu() {
   }
 
   function checked(item: AppMenuActionItem): boolean | undefined {
+    const theme = $theme.get()
     switch (item.id) {
       case 'autosave':
         return store.state.autosaveEnabled
       case 'profiler':
         return store.renderer?.profiler.hudVisible ?? false
       case 'theme-light':
-        return theme.value === 'light'
+        return theme === 'light'
       case 'theme-dark':
-        return theme.value === 'dark'
+        return theme === 'dark'
       case 'theme-auto':
-        return theme.value === 'auto'
+        return theme === 'auto'
       default:
         return undefined
     }
@@ -136,7 +133,7 @@ export function useAppMenu() {
 
   function menuLabel(entry: AppMenuActionItem): string {
     const key = translatedMenuItemLabels[entry.id]
-    return key ? menu.value[key] : entry.label
+    return key ? (menu as Record<string, string>)[key] ?? entry.label : entry.label
   }
 
   function buildEntry(entry: AppMenuEntry): MenuEntry | null {
@@ -144,7 +141,7 @@ export function useAppMenu() {
     if (isSeparator(entry)) return { separator: true }
 
     if (entry.id === 'language') {
-      return { label: menuLabel(entry), sub: languageMenu.value }
+      return { label: menuLabel(entry), sub: languageMenu }
     }
 
     if (entry.command) {
@@ -162,8 +159,8 @@ export function useAppMenu() {
   }
 
   function groupLabel(group: AppMenuGroupSchema): string {
-    const key = group.label.toLowerCase() as keyof typeof menu.value
-    return menu.value[key] ?? group.label
+    const key = group.label.toLowerCase() as keyof typeof menu
+    return (menu as Record<string, string>)[key] ?? group.label
   }
 
   function buildGroup(group: AppMenuGroupSchema): AppMenuGroup | null {
@@ -174,8 +171,8 @@ export function useAppMenu() {
     }
   }
 
-  const topMenus = computed<AppMenuGroup[]>(() =>
-    APP_MENU_SCHEMA.map(buildGroup).filter((group): group is AppMenuGroup => group !== null)
+  const topMenus: AppMenuGroup[] = APP_MENU_SCHEMA.map(buildGroup).filter(
+    (group): group is AppMenuGroup => group !== null
   )
 
   return { topMenus }

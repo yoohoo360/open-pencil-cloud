@@ -1,5 +1,3 @@
-import { computed } from 'vue'
-import type { Ref } from 'vue'
 import IconArrowDownToLine from '~icons/lucide/arrow-down-to-line'
 import IconArrowUpToLine from '~icons/lucide/arrow-up-to-line'
 import IconClipboard from '~icons/lucide/clipboard'
@@ -11,7 +9,7 @@ import IconScissors from '~icons/lucide/scissors'
 import IconTrash2 from '~icons/lucide/trash-2'
 import IconUngroup from '~icons/lucide/ungroup'
 
-import type { useEditorCommands } from '@open-pencil/vue'
+import type { useEditorCommands } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
 import type { ToolbarActionItem } from '@/components/Toolbar/types'
@@ -19,14 +17,14 @@ import type { ToolbarActionItem } from '@/components/Toolbar/types'
 type ToolbarActionOptions = {
   store: EditorStore
   getCommand: ReturnType<typeof useEditorCommands>['getCommand']
-  menu: Ref<{ copy: string; paste: string; cut: string; front: string; back: string; lock: string }>
+  menu: { copy: string; paste: string; cut: string; front: string; back: string; lock: string }
 }
 
-export function useToolbarActions({ store, getCommand, menu }: ToolbarActionOptions) {
-  const editActions = computed<ToolbarActionItem[]>(() => [
-    { icon: IconCopy, label: menu.value.copy, action: () => void store.mobileCopy() },
-    { icon: IconClipboard, label: menu.value.paste, action: () => store.mobilePaste() },
-    { icon: IconScissors, label: menu.value.cut, action: () => void store.mobileCut() },
+export function createToolbarActions({ store, getCommand, menu }: ToolbarActionOptions) {
+  const editActions: ToolbarActionItem[] = [
+    { icon: IconCopy, label: menu.copy, action: () => void store.mobileCopy() },
+    { icon: IconClipboard, label: menu.paste, action: () => store.mobilePaste() },
+    { icon: IconScissors, label: menu.cut, action: () => void store.mobileCut() },
     {
       icon: IconCopyPlus,
       label: getCommand('selection.duplicate').label,
@@ -37,17 +35,17 @@ export function useToolbarActions({ store, getCommand, menu }: ToolbarActionOpti
       label: getCommand('selection.delete').label,
       action: () => getCommand('selection.delete').run()
     }
-  ])
+  ]
 
-  const arrangeActions = computed<ToolbarActionItem[]>(() => [
+  const arrangeActions: ToolbarActionItem[] = [
     {
       icon: IconArrowUpToLine,
-      label: menu.value.front,
+      label: menu.front,
       action: () => getCommand('selection.bringToFront').run()
     },
     {
       icon: IconArrowDownToLine,
-      label: menu.value.back,
+      label: menu.back,
       action: () => getCommand('selection.sendToBack').run()
     },
     {
@@ -62,10 +60,10 @@ export function useToolbarActions({ store, getCommand, menu }: ToolbarActionOpti
     },
     {
       icon: IconLock,
-      label: menu.value.lock,
+      label: menu.lock,
       action: () => getCommand('selection.toggleLock').run()
     }
-  ])
+  ]
 
   return { editActions, arrangeActions }
 }

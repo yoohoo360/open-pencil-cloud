@@ -18,7 +18,7 @@ Udostępnia stan i akcje dla:
 ## Użycie
 
 ```ts
-import { useLayout } from '@open-pencil/vue'
+import { useLayout } from '@open-pencil/react'
 
 const layout = useLayout()
 ```

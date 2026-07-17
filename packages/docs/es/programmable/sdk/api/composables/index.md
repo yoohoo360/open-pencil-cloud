@@ -1,11 +1,11 @@
 ---
 title: Composables
-description: APIs de composables principales en @open-pencil/vue.
+description: APIs de composables principales en @open-pencil/react.
 ---
 
 # Composables
 
-Estos son los composables principales que usará la mayoría de los consumidores de `@open-pencil/vue`.
+Estos son los composables principales que usará la mayoría de los consumidores de `@open-pencil/react`.
 
 ## Contexto y canvas
 

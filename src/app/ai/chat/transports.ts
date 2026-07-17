@@ -1,7 +1,7 @@
-import { Chat } from '@ai-sdk/vue'
+import type { useChat } from '@ai-sdk/react'
 import { DirectChatTransport, stepCountIs, ToolLoopAgent } from 'ai'
 import type { ChatTransport, UIMessage } from 'ai'
-import type { ComputedRef, Ref } from 'vue'
+import type { ReadableAtom } from 'nanostores'
 
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 import type { ACPAgentID, AIProviderID } from '@open-pencil/core/constants'
@@ -14,15 +14,15 @@ import type { getActiveEditorStore } from '@/app/editor/active-store'
 type EditorStore = ReturnType<typeof getActiveEditorStore>
 
 type ChatSessionOptions = {
-  isConfigured: ComputedRef<boolean>
-  isACPProvider: ComputedRef<boolean>
-  providerID: Ref<AIProviderID>
-  apiKey: Ref<string>
-  modelID: Ref<string>
-  customModelID: Ref<string>
-  customBaseURL: Ref<string>
-  customAPIType: Ref<'completions' | 'responses'>
-  maxOutputTokens: Ref<number>
+  isConfigured: ReadableAtom<boolean>
+  isACPProvider: ReadableAtom<boolean>
+  providerID: ReadableAtom<AIProviderID>
+  apiKey: ReadableAtom<string>
+  modelID: ReadableAtom<string>
+  customModelID: ReadableAtom<string>
+  customBaseURL: ReadableAtom<string>
+  customAPIType: ReadableAtom<'completions' | 'responses'>
+  maxOutputTokens: ReadableAtom<number>
   getActiveEditorStore: () => EditorStore
 }
 
@@ -129,7 +129,7 @@ export function createChatSessionManager({
   let transportDirty = false
   let currentChatStore: EditorStore | null = null
   let currentChatMessages = new WeakMap<EditorStore, UIMessage[]>()
-  let chat: Chat<UIMessage> | null = null
+  let chat: ReturnType<typeof useChat> | null = null
   let acpTransportInstance: { destroy(): Promise<void> } | null = null
   let overrideTransport: (() => ChatTransport<UIMessage>) | null = null
 
@@ -141,7 +141,7 @@ export function createChatSessionManager({
 
   async function createActiveACPTransport() {
     await acpTransportInstance?.destroy()
-    const transport = await createACPTransport(providerID.value)
+    const transport = await createACPTransport(providerID.get())
     acpTransportInstance = transport
     return transport as ChatTransport<UIMessage>
   }
@@ -154,32 +154,33 @@ export function createChatSessionManager({
 
     return createToolLoopTransport({
       store,
-      providerID: providerID.value,
-      apiKey: apiKey.value,
-      modelID: modelID.value,
-      customModelID: customModelID.value,
-      customBaseURL: customBaseURL.value,
-      customAPIType: customAPIType.value,
-      maxOutputTokens: maxOutputTokens.value
+      providerID: providerID.get(),
+      apiKey: apiKey.get(),
+      modelID: modelID.get(),
+      customModelID: customModelID.get(),
+      customBaseURL: customBaseURL.get(),
+      customAPIType: customAPIType.get(),
+      maxOutputTokens: maxOutputTokens.get()
     })
   }
 
-  async function ensureChat(): Promise<Chat<UIMessage> | null> {
-    if (!isConfigured.value) return null
+  async function ensureChat(
+    chatHook: ReturnType<typeof useChat>
+  ): Promise<ReturnType<typeof useChat> | null> {
+    if (!isConfigured.get()) return null
 
     const store = getActiveEditorStore()
-    if (currentChatStore && chat) {
-      currentChatMessages.set(currentChatStore, chat.messages)
-    }
+    chat = chatHook
 
     if (!chat || transportDirty || currentChatStore !== store) {
-      const messages = currentChatMessages.get(store)
-      const transport: ChatTransport<UIMessage> = isACPProvider.value
-        ? await createActiveACPTransport()
-        : createTransport(store)
-      chat = new Chat<UIMessage>({ transport, messages })
       currentChatStore = store
       transportDirty = false
+
+      if (isACPProvider.get()) {
+        await createActiveACPTransport()
+      } else {
+        createTransport(store)
+      }
     }
     return chat
   }

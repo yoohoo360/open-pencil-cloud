@@ -1,6 +1,6 @@
 ---
 title: Locale APIs
-description: Locale-Stores und Metadaten auf niedrigerem Level, exportiert von @open-pencil/vue.
+description: Locale-Stores und Metadaten auf niedrigerem Level, exportiert von @open-pencil/react.
 ---
 
 # Locale APIs
@@ -24,7 +24,7 @@ import {
   setLocale,
   AVAILABLE_LOCALES,
   LOCALE_LABELS,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 ```
 
 ## Hinweise
