@@ -650,6 +650,7 @@ const noGeneratedTestIdLiterals = {
   create(context) {
     const file = normalizedFilename(context)
     if (file.endsWith('/packages/vue/src/testing/test-id.ts')) return {}
+    if (file.endsWith('/packages/react/src/testing/test-id.ts')) return {}
     if (file.endsWith('/tests/helpers/test-ids.ts')) return {}
     if (!file.includes('/src/') && !file.includes('/tests/')) return {}
 
@@ -1187,7 +1188,8 @@ const noDirectStorageAccess = {
       '/src/app/ai/chat/storage.ts',
       '/src/app/cache/index.ts',
       '/src/app/shell/layout-storage.ts',
-      '/packages/vue/src/i18n/locale.ts'
+      '/packages/vue/src/i18n/locale.ts',
+      '/packages/react/src/i18n/locale.ts'
     ]
     if (allowedFiles.some((suffix) => file.endsWith(suffix))) return {}
 
