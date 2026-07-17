@@ -26,6 +26,15 @@ function subscribeEditor(editor: Editor, events: readonly EditorEventName[], onC
   }
 }
 
+function sceneSnapshotCacheKey(editor: Editor): string {
+  const ids = editor.state.selectedIds
+  return `${editor.state.sceneVersion}|${editor.state.currentPageId}|${ids.size}|${[...ids].join('\x1f')}`
+}
+
+function cacheKeysEqual(a: unknown, b: unknown): boolean {
+  return Object.is(a, b)
+}
+
 /**
  * Subscribe to editor state with a selector.
  *
@@ -41,12 +50,17 @@ export function useEditorStore<T>(
   options?: {
     events?: readonly EditorEventName[]
     isEqual?: (a: T, b: T) => boolean
+    /** Stable key for snapshot caching. Required when selector returns fresh object refs. */
+    getCacheKey?: (editor: Editor) => unknown
+    cacheKeysEqual?: (a: unknown, b: unknown) => boolean
   }
 ): T {
   const editor = useEditor()
   const events = options?.events ?? SCENE_EVENTS
   const isEqual = options?.isEqual ?? Object.is
-  const cacheRef = useRef<{ editor: Editor; value: T } | null>(null)
+  const getCacheKey = options?.getCacheKey
+  const keysEqual = options?.cacheKeysEqual ?? cacheKeysEqual
+  const cacheRef = useRef<{ editor: Editor; cacheKey: unknown; value: T } | null>(null)
 
   const subscribe = useCallback(
     (onChange: () => void) => subscribeEditor(editor, events, onChange),
@@ -54,12 +68,22 @@ export function useEditorStore<T>(
   )
 
   const getSnapshot = () => {
-    const next = selector(editor)
     const cache = cacheRef.current
+    if (getCacheKey) {
+      const cacheKey = getCacheKey(editor)
+      if (cache && cache.editor === editor && keysEqual(cache.cacheKey, cacheKey)) {
+        return cache.value
+      }
+      const next = selector(editor)
+      cacheRef.current = { editor, cacheKey, value: next }
+      return next
+    }
+
+    const next = selector(editor)
     if (cache && cache.editor === editor && isEqual(cache.value, next)) {
       return cache.value
     }
-    cacheRef.current = { editor, value: next }
+    cacheRef.current = { editor, cacheKey: undefined, value: next }
     return next
   }
 
@@ -71,31 +95,20 @@ export function useEditorStore<T>(
  * keying on sceneVersion + selection + page.
  */
 export function useSceneSnapshot<T>(selector: (editor: Editor) => T): T {
-  return useEditorStore(
-    (editor) => {
-      void editor.state.sceneVersion
-      void editor.state.selectedIds
-      void editor.state.currentPageId
-      return selector(editor)
-    },
-    {
-      events: SCENE_EVENTS,
-      isEqual: Object.is
-    }
-  )
+  return useEditorStore(selector, {
+    events: SCENE_EVENTS,
+    getCacheKey: sceneSnapshotCacheKey
+  })
 }
 
 /**
  * Viewport / overlay snapshot (pan, zoom, hover). Use sparingly — high frequency.
  */
 export function useRepaintSnapshot<T>(selector: (editor: Editor) => T): T {
-  return useEditorStore(
-    (editor) => {
-      void editor.state.renderVersion
-      return selector(editor)
-    },
-    { events: REPAINT_EVENTS }
-  )
+  return useEditorStore(selector, {
+    events: REPAINT_EVENTS,
+    getCacheKey: (editor) => editor.state.renderVersion
+  })
 }
 
 /** Stable version counters for memo / effect deps without reading full state. */
