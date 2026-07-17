@@ -1,7 +1,5 @@
 import { existsSync } from 'node:fs'
 
-import { parse as parseVueSfc } from 'vue/compiler-sfc'
-
 function normalizedFilename(context) {
   return (context.filename ?? context.getFilename?.() ?? '').replace(/\\/g, '/')
 }
@@ -650,6 +648,7 @@ const noGeneratedTestIdLiterals = {
   create(context) {
     const file = normalizedFilename(context)
     if (file.endsWith('/packages/vue/src/testing/test-id.ts')) return {}
+    if (file.endsWith('/packages/react/src/testing/test-id.ts')) return {}
     if (file.endsWith('/tests/helpers/test-ids.ts')) return {}
     if (!file.includes('/src/') && !file.includes('/tests/')) return {}
 
@@ -1014,13 +1013,21 @@ const noVueSelfPackageImports = createImportSourceRule({
     `Use #vue/* for internal Vue SDK imports instead of self-package import '${source}'.`
 })
 
+const noReactSelfPackageImports = createImportSourceRule({
+  description: 'Disallow @open-pencil/react self-imports inside the React SDK — use #react/* aliases',
+  applies: (file) => file.includes('/packages/react/src/'),
+  check: (source) =>
+    source.startsWith('@open-pencil/react') &&
+    `Use #react/* for internal React SDK imports instead of self-package import '${source}'.`
+})
+
 const noCrossPackageSourceImports = createImportSourceRule({
   description:
     'Disallow imports that reach into another workspace package source tree — use package exports or package-local aliases',
   check: (source) =>
     (source.includes('/packages/') ||
       /^(?:\.\.\/){2,}packages\//.test(source) ||
-      /^(?:\.\.\/)+(?:core|vue|cli|mcp)\/src\//.test(source)) &&
+      /^(?:\.\.\/)+(?:core|vue|react|cli|mcp)\/src\//.test(source)) &&
     `Use workspace package exports or package-local aliases instead of cross-package source import '${source}'.`
 })
 
@@ -1081,6 +1088,12 @@ const noVueParentRelativeImports = createParentRelativeImportRule({
   description: 'Disallow parent-relative imports in Vue SDK internals — use #vue/* aliases',
   applies: (file) => file.includes('/packages/vue/src/'),
   message: 'Use the #vue/* package-local alias instead of parent-relative Vue SDK imports.'
+})
+
+const noReactParentRelativeImports = createParentRelativeImportRule({
+  description: 'Disallow parent-relative imports in React SDK internals — use #react/* aliases',
+  applies: (file) => file.includes('/packages/react/src/'),
+  message: 'Use the #react/* package-local alias instead of parent-relative React SDK imports.'
 })
 
 const noCliParentRelativeImports = createParentRelativeImportRule({
@@ -1150,9 +1163,11 @@ const noInlinePromptConstants = {
 
 const noAppVueCoreBarrelImports = createExactCoreBarrelImportRule({
   description:
-    'Disallow app and Vue SDK imports from @open-pencil/core root barrel — use domain subpaths',
+    'Disallow app and React SDK imports from @open-pencil/core root barrel — use domain subpaths',
   applies: (file) =>
-    (file.includes('/src/') && !file.includes('/packages/')) || file.includes('/packages/vue/src/'),
+    (file.includes('/src/') && !file.includes('/packages/')) ||
+    file.includes('/packages/vue/src/') ||
+    file.includes('/packages/react/src/'),
   message:
     'Use a targeted @open-pencil/core subpath (editor, scene-graph, constants, io, etc.) instead of the compatibility barrel.'
 })
@@ -1164,10 +1179,17 @@ const noAppImportsInPackages = createImportSourceRule({
     source.startsWith('@/') && `Workspace packages must not import app-shell alias '${source}'.`
 })
 
-const frameworkImportPrefixes = ['@vue/', '@open-pencil/vue', '@tauri-apps/', '@/']
+const frameworkImportPrefixes = [
+  '@vue/',
+  '@open-pencil/vue',
+  '@open-pencil/react',
+  'react',
+  '@tauri-apps/',
+  '@/'
+]
 
 const noCoreFrameworkImports = createImportSourceRule({
-  description: 'Keep @open-pencil/core framework-agnostic by disallowing Vue/Tauri/app imports',
+  description: 'Keep @open-pencil/core framework-agnostic by disallowing Vue/React/Tauri/app imports',
   applies: (file) => file.includes('/packages/core/src/'),
   check: (source) =>
     (source === 'vue' || frameworkImportPrefixes.some((prefix) => source.startsWith(prefix))) &&
@@ -1187,7 +1209,12 @@ const noDirectStorageAccess = {
       '/src/app/ai/chat/storage.ts',
       '/src/app/cache/index.ts',
       '/src/app/shell/layout-storage.ts',
-      '/packages/vue/src/i18n/locale.ts'
+      '/src/app/shell/theme.ts',
+      '/src/app/editor/fonts/index.ts',
+      '/src/app/collab/use.ts',
+      '/src/components/SafariBanner.tsx',
+      '/packages/vue/src/i18n/locale.ts',
+      '/packages/react/src/i18n/locale.ts'
     ]
     if (allowedFiles.some((suffix) => file.endsWith(suffix))) return {}
 
@@ -1395,8 +1422,7 @@ const noOnUnmountedInCompositionRoots = {
   create(context) {
     const file = normalizedFilename(context)
     const applies =
-      (file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
-      /\/(?:use|create)\.ts$/.test(file)
+      file.includes('/packages/vue/src/') && /\/(?:use|create)\.ts$/.test(file)
     if (!applies) return {}
 
     return {
@@ -1415,12 +1441,12 @@ const noOnUnmountedInCompositionRoots = {
 const noComposableStateWrappers = {
   meta: {
     docs: {
-      description: 'Disallow create*ComposableState wrapper factories in app and Vue SDK code'
+      description: 'Disallow create*ComposableState wrapper factories in Vue SDK code'
     }
   },
   create(context) {
     const file = normalizedFilename(context)
-    const applies = file.includes('/src/app/') || file.includes('/packages/vue/src/')
+    const applies = file.includes('/packages/vue/src/')
     if (!applies) return {}
 
     return {
@@ -1436,64 +1462,6 @@ const noComposableStateWrappers = {
   }
 }
 
-const preferVueUseIntervals = {
-  meta: {
-    docs: {
-      description: 'Prefer VueUse interval helpers over manual setInterval/clearInterval pairs'
-    }
-  },
-  create(context) {
-    const file = normalizedFilename(context)
-    const applies = file.includes('/src/app/') || file.includes('/packages/vue/src/')
-    if (!applies) return {}
-
-    function intervalName(callee) {
-      if (callee?.type === 'Identifier') return callee.name
-      if (callee?.type === 'MemberExpression' && callee.property?.type === 'Identifier') {
-        return callee.property.name
-      }
-      return null
-    }
-
-    return {
-      CallExpression(node) {
-        const name = intervalName(node.callee)
-        if (name !== 'setInterval' && name !== 'clearInterval') return
-        context.report({
-          node,
-          message: 'Use useIntervalFn() from @vueuse/core instead of manual interval cleanup.'
-        })
-      }
-    }
-  }
-}
-
-const preferVueUseTimeouts = {
-  meta: {
-    docs: {
-      description: 'Prefer VueUse timeout helpers over manual timeout cleanup in composables'
-    }
-  },
-  create(context) {
-    const file = normalizedFilename(context)
-    const applies =
-      ((file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
-        /\/(?:use|create)\.ts$/.test(file)) ||
-      file.endsWith('/src/app/shell/toast/action.ts')
-    if (!applies) return {}
-
-    return {
-      CallExpression(node) {
-        if (node.callee?.type !== 'Identifier' || node.callee.name !== 'clearTimeout') return
-        context.report({
-          node,
-          message:
-            'Use useTimeoutFn() from @vueuse/core instead of manual timeout cleanup in composables.'
-        })
-      }
-    }
-  }
-}
 
 const maxCompositionRootLines = {
   meta: {
@@ -1514,8 +1482,7 @@ const maxCompositionRootLines = {
   create(context) {
     const file = normalizedFilename(context)
     const applies =
-      (file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
-      /\/(?:use|create)\.ts$/.test(file)
+      file.includes('/packages/vue/src/') && /\/(?:use|create)\.ts$/.test(file)
     if (!applies) return {}
 
     const max = context.options[0]?.max ?? 260
@@ -1579,11 +1546,11 @@ const componentNamespaceCasing = {
 
     return {
       Program(node) {
-        const primitiveMatch = file.match(/\/packages\/vue\/src\/primitives\/([^/]+)/)
+        const primitiveMatch = file.match(/\/packages\/(?:vue|react)\/src\/primitives\/([^/]+)/)
         if (primitiveMatch && !isPascalCaseName(primitiveMatch[1])) {
           context.report({
             node,
-            message: `Vue primitive namespace folder '${primitiveMatch[1]}' must use PascalCase.`
+            message: `SDK primitive namespace folder '${primitiveMatch[1]}' must use PascalCase.`
           })
           return
         }
@@ -1641,7 +1608,15 @@ const nonComponentSourceDirectoriesKebabCase = {
       '/packages/vue/src/i18n/',
       '/packages/vue/src/internal/',
       '/packages/vue/src/shared/',
-      '/packages/vue/src/variables/'
+      '/packages/vue/src/variables/',
+      '/packages/react/src/canvas/',
+      '/packages/react/src/controls/',
+      '/packages/react/src/document/',
+      '/packages/react/src/editor/',
+      '/packages/react/src/i18n/',
+      '/packages/react/src/internal/',
+      '/packages/react/src/shared/',
+      '/packages/react/src/variables/'
     ]
 
     const root = roots.find((candidate) => file.includes(candidate))
@@ -1670,16 +1645,17 @@ const noComponentRootSiblingFolder = {
   },
   create(context) {
     const file = normalizedFilename(context)
-    const match = file.match(/\/src\/components\/(?:chat\/|properties\/)?([A-Z][A-Za-z0-9]*)\.vue$/)
+    const match = file.match(/\/src\/components\/(?:chat\/|properties\/)?([A-Z][A-Za-z0-9]*)\.(?:vue|tsx)$/)
     if (!match) return {}
 
     return {
       Program(node) {
-        const dir = file.replace(/\.vue$/, '')
+        const dir = file.replace(/\.(?:vue|tsx)$/, '')
         if (!existsSync(dir)) return
+        const ext = file.endsWith('.vue') ? '.vue' : '.tsx'
         context.report({
           node,
-          message: `Move '${match[1]}.vue' inside its '${match[1]}/' component namespace folder.`
+          message: `Move '${match[1]}${ext}' inside its '${match[1]}/' component namespace folder.`
         })
       }
     }
@@ -2144,11 +2120,13 @@ const plugin = {
     'no-silent-catch': noSilentCatch,
     'no-typeof-window-check': noTypeofWindowCheck,
     'no-vue-self-package-imports': noVueSelfPackageImports,
+    'no-react-self-package-imports': noReactSelfPackageImports,
     'no-cross-package-source-imports': noCrossPackageSourceImports,
     'no-deep-parent-relative-imports': noDeepParentRelativeImports,
     'no-core-parent-relative-imports': noCoreParentRelativeImports,
     'no-mcp-parent-relative-imports': noMcpParentRelativeImports,
     'no-vue-parent-relative-imports': noVueParentRelativeImports,
+    'no-react-parent-relative-imports': noReactParentRelativeImports,
     'no-cli-parent-relative-imports': noCliParentRelativeImports,
     'no-mcp-core-barrel-imports': noMcpCoreBarrelImports,
     'no-cli-core-barrel-imports': noCliCoreBarrelImports,
@@ -2173,8 +2151,6 @@ const plugin = {
     'no-direct-graph-emitter-subscriptions': noDirectGraphEmitterSubscriptions,
     'no-on-unmounted-in-composition-roots': noOnUnmountedInCompositionRoots,
     'no-composable-state-wrappers': noComposableStateWrappers,
-    'prefer-vueuse-intervals': preferVueUseIntervals,
-    'prefer-vueuse-timeouts': preferVueUseTimeouts,
     'max-composition-root-lines': maxCompositionRootLines,
     'vue-component-file-pascal-case': vueComponentFilePascalCase,
     'component-namespace-casing': componentNamespaceCasing,

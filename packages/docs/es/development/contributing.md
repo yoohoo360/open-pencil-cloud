@@ -72,7 +72,7 @@ Desarrolladores y agentes IA deben leer `AGENTS.md` en la raíz del repo ([ver e
 
 ## Archivos clave
 
-El código fuente del motor core vive en `packages/core/src/`. El código específico de la app para editor, documentos, IA, colaboración, shell, demo y automatización vive en `src/app/*`; el SDK Vue contiene el código reutilizable de canvas y composables en `packages/vue/src/`.
+El código fuente del motor core vive en `packages/core/src/`. El código específico de la app para editor, documentos, IA, colaboración, shell, demo y automatización vive en `src/app/*`; el SDK Vue contiene el código reutilizable de canvas y composables en `packages/react/src/`.
 
 | Archivo | Propósito |
 |---------|-----------|
@@ -91,6 +91,6 @@ El código fuente del motor core vive en `packages/core/src/`. El código espec�
 | `packages/mcp/src/server.ts` | Factory del servidor MCP |
 | `packages/cli/src/commands/` | Comandos CLI (info, tree, find, export, eval, analyze) |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Composable de renderizado del canvas |
-| `packages/vue/src/canvas/useCanvasInput.ts` | Manejo de entrada ratón/touch |
+| `packages/react/src/canvas/CanvasRoot.vue` | Composable de renderizado del canvas |
+| `packages/react/src/canvas/useCanvasInput.ts` | Manejo de entrada ratón/touch |
 | `src/app/shell/keyboard/use.ts` | Manejo de atajos de teclado |

@@ -12,7 +12,7 @@ Usalo quando vuoi il comportamento di tabella variabili dell'SDK ma hai bisogno 
 ## Utilizzo
 
 ```ts
-import { useVariablesTable } from '@open-pencil/vue'
+import { useVariablesTable } from '@open-pencil/react'
 
 const { columns } = useVariablesTable(options)
 ```

@@ -12,7 +12,7 @@ Utilisez-le quand vous voulez des libellés fournis par le SDK pour les menus, c
 ## Utilisation
 
 ```ts
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
 
 const { menu, commands, panels, locale, availableLocales, localeLabels, setLocale } = useI18n()
 ```
@@ -34,7 +34,7 @@ const { menu, commands, panels, locale, availableLocales, localeLabels, setLocal
 
 ```vue
 <script setup lang="ts">
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
 
 const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
 </script>

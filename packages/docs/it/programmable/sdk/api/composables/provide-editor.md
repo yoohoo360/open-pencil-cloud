@@ -12,7 +12,7 @@ description: Fornisce un'istanza dell'editor OpenPencil a un sottoalbero Vue tra
 ## Utilizzo
 
 ```ts
-import { provideEditor } from '@open-pencil/vue'
+import { provideEditor } from '@open-pencil/react'
 
 provideEditor(editor)
 ```
@@ -21,7 +21,7 @@ provideEditor(editor)
 
 ```vue
 <script setup lang="ts">
-import { provideEditor } from '@open-pencil/vue'
+import { provideEditor } from '@open-pencil/react'
 
 import type { Editor } from '@open-pencil/core/editor'
 

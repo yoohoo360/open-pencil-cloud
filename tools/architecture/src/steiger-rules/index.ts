@@ -1,7 +1,5 @@
 import path from 'node:path'
 
-import { parse as parseVueSfc } from 'vue/compiler-sfc'
-
 import {
   collectFolders,
   createFileRule,
@@ -223,10 +221,10 @@ const noPropertyPanelImportsInCanvas = createImportRule(
   'open-pencil/no-property-panel-imports-in-canvas',
   (sourceRel, _specifier, resolved) => {
     const isCanvasSurface =
-      sourceRel === 'src/components/EditorCanvas.vue' ||
+      sourceRel === 'src/components/EditorCanvas.tsx' ||
       sourceRel.startsWith('src/app/editor/canvas/') ||
       sourceRel.startsWith('src/components/canvas/') ||
-      sourceRel.startsWith('packages/vue/src/canvas/')
+      sourceRel.startsWith('packages/react/src/canvas/')
 
     if (isCanvasSurface && resolved?.startsWith('src/components/properties/')) {
       return 'Canvas/editor overlay code must not import property-panel internals. Extract app-neutral UI or keep concerns local.'
@@ -254,7 +252,7 @@ const noPackageInternalsInApp = createImportRule(
       specifier in PACKAGE_ALIASES ||
       Object.keys(PACKAGE_ALIASES).some((alias) => specifier.startsWith(alias))
     ) {
-      return 'App code must use package public exports such as @open-pencil/core or @open-pencil/vue, not package-local aliases.'
+      return 'App code must use package public exports such as @open-pencil/core or @open-pencil/react, not package-local aliases.'
     }
     if (resolved?.startsWith('packages/')) {
       return 'App code must not import workspace package internals. Use package public exports instead.'
@@ -315,7 +313,11 @@ const noViewsImportedOutsideEntry = createImportRule(
   'open-pencil/no-views-imported-outside-entry',
   (sourceRel, _specifier, resolved) => {
     if (!resolved?.startsWith('src/views/')) return null
-    if (sourceRel === 'src/App.vue' || sourceRel === 'src/main.ts' || sourceRel === 'src/router.ts')
+    if (
+      sourceRel === 'src/App.tsx' ||
+      sourceRel === 'src/main.tsx' ||
+      sourceRel === 'src/router.tsx'
+    )
       return null
     return 'Views are top-level composition entrypoints and must not be imported by app services or reusable components.'
   }
@@ -337,7 +339,7 @@ const noPropertyPanelInternalsOutsidePanel = createImportRule(
   (sourceRel, _specifier, resolved) => {
     if (!resolved?.startsWith('src/components/properties/')) return null
     if (sourceRel.startsWith('src/components/properties/')) return null
-    if (sourceRel === 'src/components/DesignPanel.vue') return null
+    if (sourceRel === 'src/components/DesignPanel.tsx') return null
     return 'Property-panel internals must stay inside the property panel. Extract app-neutral UI before reusing elsewhere.'
   }
 )
@@ -347,7 +349,7 @@ const MACOS_MODIFIER_GLYPH_PATTERN = /[⌘⌥⌃]/u
 const noHardcodedMacOSShortcutGlyphs = createTextRule(
   'open-pencil/no-hardcoded-macos-shortcut-glyphs',
   (sourceRel, content) => {
-    if (!sourceRel.endsWith('.vue')) return []
+    if (!sourceRel.endsWith('.tsx') && !sourceRel.endsWith('.ts')) return []
     const diagnostics: Array<{ message: string; line?: number; column?: number }> = []
     for (const match of content.matchAll(MACOS_MODIFIER_GLYPH_PATTERN)) {
       const before = content.slice(0, match.index)
@@ -362,32 +364,8 @@ const noHardcodedMacOSShortcutGlyphs = createTextRule(
   }
 )
 
-const VUE_ATTRIBUTE_NODE = 6
-const VUE_DIRECTIVE_NODE = 7
-
-type VueTemplateNode = {
-  type?: number
-  name?: string
-  arg?: { content?: string }
-  props?: VueTemplateNode[]
-  children?: VueTemplateNode[]
-  loc?: { start?: { line?: number; column?: number } }
-}
-
-function walkVueTemplateAst(node: VueTemplateNode, visitor: (node: VueTemplateNode) => void) {
-  visitor(node)
-  for (const prop of node.props ?? []) walkVueTemplateAst(prop, visitor)
-  for (const child of node.children ?? []) walkVueTemplateAst(child, visitor)
-}
-
-function vuePropName(prop: VueTemplateNode) {
-  if (prop.type === VUE_ATTRIBUTE_NODE) return prop.name ?? null
-  if (prop.type === VUE_DIRECTIVE_NODE && prop.name === 'bind') return prop.arg?.content ?? null
-  return null
-}
-
 const SHARED_TEST_ID_ALLOWLIST = new Set([
-  'packages/vue/src/primitives/ColorPicker/ColorPickerRoot.vue'
+  'packages/react/src/primitives/ColorPicker/ColorPickerRoot.tsx'
 ])
 
 const noProductionTestIdsInSharedLayers = createTextRule(
@@ -395,7 +373,7 @@ const noProductionTestIdsInSharedLayers = createTextRule(
   (sourceRel, content) => {
     const inSharedLayer =
       sourceRel.startsWith('src/components/ui/') ||
-      sourceRel.startsWith('packages/vue/src/primitives/')
+      sourceRel.startsWith('packages/react/src/primitives/')
     const isFixture = sourceRel.includes('/demo/') || sourceRel.endsWith('.stories.ts')
     if (!inSharedLayer || isFixture || SHARED_TEST_ID_ALLOWLIST.has(sourceRel)) return []
 
@@ -414,29 +392,27 @@ const noProductionTestIdsInSharedLayers = createTextRule(
   }
 )
 
-const noNativeTitleAttributesInVue = createTextRule(
+const noNativeTitleAttributesInJsx = createTextRule(
   'open-pencil/no-native-title-attributes-in-vue',
   (sourceRel, content) => {
     if (
-      !sourceRel.endsWith('.vue') ||
-      (!sourceRel.startsWith('src/') && !sourceRel.startsWith('packages/vue/src/'))
+      (!sourceRel.endsWith('.tsx') && !sourceRel.endsWith('.jsx')) ||
+      (!sourceRel.startsWith('src/') && !sourceRel.startsWith('packages/react/src/'))
     ) {
       return []
     }
 
-    const template = parseVueSfc(content, { filename: sourceRel }).descriptor.template?.ast
-    if (!template) return []
-
     const diagnostics: Array<{ message: string; line?: number; column?: number }> = []
-    walkVueTemplateAst(template as VueTemplateNode, (node) => {
-      if (vuePropName(node) !== 'title') return
-      const loc = node.loc?.start
+    // Match title={...} or title="..." prop patterns in JSX/TSX
+    for (const match of content.matchAll(/\btitle=["'{]/gu)) {
+      const before = content.slice(0, match.index)
+      const lines = before.split('\n')
       diagnostics.push({
-        message: 'Use Tip/Reka tooltip patterns instead of native title attributes.',
-        line: loc?.line,
-        column: loc?.column
+        message: 'Use Tip/tooltip patterns instead of native title attributes.',
+        line: lines.length,
+        column: lines.at(-1)?.length ?? 0
       })
-    })
+    }
     return diagnostics
   }
 )
@@ -447,9 +423,9 @@ const noShortcutTextInLabels = createTextRule(
   'open-pencil/no-shortcut-text-in-labels',
   (sourceRel, content) => {
     if (
-      sourceRel !== 'packages/vue/src/i18n/messages.ts' &&
-      !sourceRel.startsWith('packages/vue/src/i18n/messages/') &&
-      !sourceRel.startsWith('packages/vue/src/i18n/locales/')
+      sourceRel !== 'packages/react/src/i18n/messages.ts' &&
+      !sourceRel.startsWith('packages/react/src/i18n/messages/') &&
+      !sourceRel.startsWith('packages/react/src/i18n/locales/')
     ) {
       return []
     }
@@ -476,13 +452,11 @@ const noUiImportsInCore = createImportRule(
   (sourceRel, specifier) => {
     if (!sourceRel.startsWith('packages/core/src/')) return null
     if (
-      specifier === 'vue' ||
-      specifier.startsWith('@vueuse/') ||
-      specifier === 'reka-ui' ||
-      specifier.startsWith('#vue/') ||
-      specifier.startsWith('@open-pencil/vue')
+      specifier === 'react' ||
+      specifier.startsWith('@radix-ui/') ||
+      specifier.startsWith('@open-pencil/react')
     ) {
-      return 'Core must stay framework-agnostic and cannot import Vue/UI modules.'
+      return 'Core must stay framework-agnostic and cannot import React/UI modules.'
     }
     return null
   }
@@ -512,7 +486,7 @@ export const openPencilArchitecturePlugin = {
     noAppImportsInSharedUi,
     noPropertyPanelInternalsOutsidePanel,
     noProductionTestIdsInSharedLayers,
-    noNativeTitleAttributesInVue,
+    noNativeTitleAttributesInJsx,
     noShortcutTextInLabels,
     noHardcodedMacOSShortcutGlyphs,
     noUiImportsInCore

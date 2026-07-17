@@ -1,12 +1,7 @@
-import { useEventListener } from '@vueuse/core'
-
-import { extractImageFilesFromClipboard } from '@open-pencil/vue'
+import { extractImageFilesFromClipboard } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
-import {
-  copySelectionToTauriClipboard,
-  pasteFromTauriClipboard
-} from '@/app/editor/clipboard/system'
+import { copySelectionToTauriClipboard, pasteFromTauriClipboard } from '@/app/editor/clipboard/system'
 import { isEditing } from '@/app/shell/keyboard/focus'
 import { isTauri } from '@/app/tauri/env'
 
@@ -15,8 +10,8 @@ function cursorPosition(store: EditorStore) {
   return ccx != null && ccy != null ? { x: ccx, y: ccy } : undefined
 }
 
-export function bindEditorClipboard(store: EditorStore) {
-  useEventListener(window, 'copy', (e: ClipboardEvent) => {
+export function bindEditorClipboard(store: EditorStore): () => void {
+  function onCopy(e: ClipboardEvent) {
     if (isEditing(e)) return
     e.preventDefault()
     if (isTauri()) {
@@ -24,9 +19,9 @@ export function bindEditorClipboard(store: EditorStore) {
       return
     }
     if (e.clipboardData) void store.writeCopyData(e.clipboardData)
-  })
+  }
 
-  useEventListener(window, 'cut', (e: ClipboardEvent) => {
+  function onCut(e: ClipboardEvent) {
     if (isEditing(e)) return
     e.preventDefault()
     if (isTauri()) {
@@ -38,9 +33,9 @@ export function bindEditorClipboard(store: EditorStore) {
     }
     if (e.clipboardData) void store.writeCopyData(e.clipboardData)
     store.deleteSelected()
-  })
+  }
 
-  useEventListener(window, 'paste', (e: ClipboardEvent) => {
+  function onPaste(e: ClipboardEvent) {
     if (isEditing(e)) return
     e.preventDefault()
 
@@ -61,5 +56,15 @@ export function bindEditorClipboard(store: EditorStore) {
     }
 
     if (isTauri()) void pasteFromTauriClipboard(store, cursorPos)
-  })
+  }
+
+  window.addEventListener('copy', onCopy)
+  window.addEventListener('cut', onCut)
+  window.addEventListener('paste', onPaste)
+
+  return () => {
+    window.removeEventListener('copy', onCopy)
+    window.removeEventListener('cut', onCut)
+    window.removeEventListener('paste', onPaste)
+  }
 }

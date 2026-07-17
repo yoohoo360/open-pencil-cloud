@@ -1,11 +1,11 @@
 ---
 title: Architecture SDK
-description: Structure des dossiers, frontières d'API publique et patterns de composition dans @open-pencil/vue.
+description: Structure des dossiers, frontières d'API publique et patterns de composition dans @open-pencil/react.
 ---
 
 # Architecture SDK
 
-`@open-pencil/vue` est la couche Vue au-dessus de `@open-pencil/core`.
+`@open-pencil/react` est la couche Vue au-dessus de `@open-pencil/core`.
 
 Elle ne possède pas le modèle d'éditeur lui-même. Elle adapte l'éditeur core en :
 
@@ -107,7 +107,7 @@ Préférer des props de slot ciblés ou l'usage direct de composables plutôt qu
 
 ## Règle pratique
 
-Si un morceau de logique pourrait être réutilisé dans une autre application basée sur OpenPencil sans emporter les styles applicatifs, il appartient probablement à `@open-pencil/vue`.
+Si un morceau de logique pourrait être réutilisé dans une autre application basée sur OpenPencil sans emporter les styles applicatifs, il appartient probablement à `@open-pencil/react`.
 
 ## Pages associées
 

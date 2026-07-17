@@ -1,6 +1,6 @@
 ---
 title: SDK Getting Started
-description: Set up @open-pencil/vue with createEditor, provideEditor, and a canvas.
+description: Set up @open-pencil/react with createEditor, provideEditor, and a canvas.
 ---
 
 # SDK Getting Started
@@ -8,14 +8,14 @@ description: Set up @open-pencil/vue with createEditor, provideEditor, and a can
 ## Installation
 
 ```bash
-bun add @open-pencil/core @open-pencil/vue canvaskit-wasm
+bun add @open-pencil/core @open-pencil/react canvaskit-wasm
 ```
 
-The SDK lives in the monorepo today and is also published as `@open-pencil/vue`.
+The SDK lives in the monorepo today and is also published as `@open-pencil/react`.
 
 ```ts
 import { createEditor } from '@open-pencil/core/editor'
-import { provideEditor, useCanvas } from '@open-pencil/vue'
+import { provideEditor, useCanvas } from '@open-pencil/react'
 ```
 
 ## Mental model
@@ -23,7 +23,7 @@ import { provideEditor, useCanvas } from '@open-pencil/vue'
 There are three layers:
 
 1. `@open-pencil/core` — framework-agnostic editor engine
-2. `@open-pencil/vue` — Vue composables and headless primitives
+2. `@open-pencil/react` — Vue composables and headless primitives
 3. your app — styling, routing, file flows, product-specific UI
 
 ## Minimal setup
@@ -43,7 +43,7 @@ const editor = createEditor({
 
 ```vue
 <script setup lang="ts">
-import { provideEditor } from '@open-pencil/vue'
+import { provideEditor } from '@open-pencil/react'
 
 import type { Editor } from '@open-pencil/core/editor'
 
@@ -67,7 +67,7 @@ You can think of this as the provider layer for the editor tree. The docs prefer
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { useCanvas, useEditor } from '@open-pencil/vue'
+import { useCanvas, useEditor } from '@open-pencil/react'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const editor = useEditor()
@@ -85,7 +85,7 @@ useCanvas(canvasRef, editor)
 Once the editor is provided, child components can read selection and issue commands:
 
 ```ts
-import { useEditorCommands, useSelectionState } from '@open-pencil/vue'
+import { useEditorCommands, useSelectionState } from '@open-pencil/react'
 
 const selection = useSelectionState()
 const commands = useEditorCommands()
@@ -97,7 +97,7 @@ const commands = useEditorCommands()
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { useCanvas, useEditor, useSelectionState } from '@open-pencil/vue'
+import { useCanvas, useEditor, useSelectionState } from '@open-pencil/react'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const editor = useEditor()

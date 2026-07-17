@@ -1,6 +1,3 @@
-import { useClipboard } from '@vueuse/core'
-import type { Ref } from 'vue'
-
 import { nodeToXPath } from '@open-pencil/core/xpath'
 
 import type { EditorStore } from '@/app/editor/active-store'
@@ -16,11 +13,17 @@ function toArrayBuffer(data: Uint8Array): ArrayBuffer {
   return bytes.buffer
 }
 
-export function createCanvasMenuActions(store: EditorStore, selectedIds: Ref<Set<string>>) {
-  const { copy } = useClipboard()
+async function writeTextToClipboard(text: string) {
+  if (isTauri()) {
+    await writeTauriClipboardText(text)
+  } else {
+    await navigator.clipboard.writeText(text)
+  }
+}
 
+export function createCanvasMenuActions(store: EditorStore, getSelectedIds: () => Set<string>) {
   function ids() {
-    return [...selectedIds.value]
+    return [...getSelectedIds()]
   }
 
   function execCommand(cmd: 'copy' | 'cut' | 'paste') {
@@ -32,11 +35,7 @@ export function createCanvasMenuActions(store: EditorStore, selectedIds: Ref<Set
 
   async function clipboardWrite(text: string | null, label: string) {
     if (!text) return
-    if (isTauri()) {
-      await writeTauriClipboardText(text)
-    } else {
-      await copy(text)
-    }
+    await writeTextToClipboard(text)
     toast.info(`Copied as ${label}`)
   }
 

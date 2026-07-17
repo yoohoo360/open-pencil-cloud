@@ -33,7 +33,7 @@ type ImportRef = {
   column: number
 }
 
-export const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.vue', '.js', '.jsx', '.mjs', '.mts'])
+export const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.mts'])
 export const ROOT_MARKDOWN_ALLOWLIST = new Set([
   'AGENTS.md',
   'CHANGELOG.md',
@@ -43,14 +43,14 @@ export const ROOT_MARKDOWN_ALLOWLIST = new Set([
 ])
 export const PACKAGE_ALIASES: Record<string, string> = {
   '#core/': 'packages/core/src/',
-  '#vue/': 'packages/vue/src/',
+  '#react/': 'packages/react/src/',
   '#cli/': 'packages/cli/src/',
   '#mcp/': 'packages/mcp/src/'
 }
 
 export const PACKAGE_ALIAS_OWNERS: Record<string, string> = {
   '#core/': 'packages/core/src/',
-  '#vue/': 'packages/vue/src/',
+  '#react/': 'packages/react/src/',
   '#cli/': 'packages/cli/src/',
   '#mcp/': 'packages/mcp/src/'
 }
@@ -177,7 +177,7 @@ export function createImportRule(
 }
 
 export function filePrefix(filePath: string): string | null {
-  const name = path.basename(filePath).replace(/\.(test|spec|bench)?\.?[cm]?[tj]sx?$|\.vue$/, '')
+  const name = path.basename(filePath).replace(/\.(test|spec|bench)?\.?[cm]?[tj]sx?$/, '')
   const match = /^([a-z][a-z0-9]+)-[a-z0-9-]+$/.exec(name)
   return match?.[1] ?? null
 }

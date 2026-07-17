@@ -12,7 +12,7 @@ description: Lee los mensajes de UI localizados de OpenPencil y cambia el idioma
 ## Uso
 
 ```ts
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
 
 const { menu, commands, panels, locale, availableLocales, localeLabels, setLocale } = useI18n()
 ```
@@ -34,7 +34,7 @@ const { menu, commands, panels, locale, availableLocales, localeLabels, setLocal
 
 ```vue
 <script setup lang="ts">
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
 
 const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
 </script>

@@ -14,7 +14,7 @@ C'est le point d'entrée principal pour les composables SDK et les primitives he
 `useEditor()` doit être appelé à l'intérieur d'un sous-arbre où `provideEditor(editor)` a déjà été appelé.
 
 ```ts
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 ```
@@ -25,7 +25,7 @@ const editor = useEditor()
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 const pageId = computed(() => editor.state.currentPageId)

@@ -1,6 +1,4 @@
-import { computed } from 'vue'
-
-import { useInlineRename } from '@open-pencil/vue'
+import { useInlineRename } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
 
@@ -10,7 +8,7 @@ export function useDocumentNameRename(store: EditorStore) {
   const rename = useInlineRename<'document-name'>((_id, name) => {
     store.state.documentName = name
   })
-  const editingName = computed(() => rename.editingId.value === DOCUMENT_NAME_ID)
+  const editingName = rename.editingId === DOCUMENT_NAME_ID
 
   function startRename() {
     rename.start(DOCUMENT_NAME_ID, store.state.documentName)

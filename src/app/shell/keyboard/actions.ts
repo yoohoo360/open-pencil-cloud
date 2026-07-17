@@ -1,12 +1,12 @@
-import type { Ref } from 'vue'
+import type { WritableAtom } from 'nanostores'
 
-import type { useEditorCommands, useViewportKind } from '@open-pencil/vue'
+import type { useEditorCommands, useViewportKind } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
 
 type KeyboardActionsOptions = {
   store: EditorStore
-  activeTab: Ref<'design' | 'code' | 'ai'>
+  activeTab: WritableAtom<'design' | 'code' | 'ai'>
   isMobile: ReturnType<typeof useViewportKind>['isMobile']
   runCommand: ReturnType<typeof useEditorCommands>['runCommand']
 }
@@ -90,7 +90,7 @@ export function createKeyboardActions({
         store.state.mobileDrawerSnap = 'half'
       }
     } else {
-      activeTab.value = activeTab.value === 'ai' ? 'design' : 'ai'
+      activeTab.set(activeTab.get() === 'ai' ? 'design' : 'ai')
     }
   }
 

@@ -3,9 +3,9 @@ import { omit } from 'es-toolkit/object'
 import type {
   ComponentPropertyDefinition,
   ComponentPropertyType,
+  SceneGraph,
   SceneNode
 } from '@open-pencil/scene-graph'
-import { SceneGraph } from '@open-pencil/scene-graph'
 import { buildVariantName, parseVariantName } from '@open-pencil/scene-graph/variant-name'
 
 import type { EditorContext } from '#core/editor/types'

@@ -72,7 +72,7 @@ Deweloperzy i agenci AI powinni przeczytać `AGENTS.md` w katalogu głównym rep
 
 ## Kluczowe pliki
 
-Kod źródłowy silnika core znajduje się w `packages/core/src/`. Kod aplikacyjny edytora, dokumentów, AI, współpracy, shella, demo i automatyzacji znajduje się w `src/app/*`; SDK Vue zawiera wielokrotnego użytku kod canvasu i composable w `packages/vue/src/`.
+Kod źródłowy silnika core znajduje się w `packages/core/src/`. Kod aplikacyjny edytora, dokumentów, AI, współpracy, shella, demo i automatyzacji znajduje się w `src/app/*`; SDK Vue zawiera wielokrotnego użytku kod canvasu i composable w `packages/react/src/`.
 
 | Plik | Cel |
 |------|-----|
@@ -91,6 +91,6 @@ Kod źródłowy silnika core znajduje się w `packages/core/src/`. Kod aplikacyj
 | `packages/mcp/src/server.ts` | Fabryka serwera MCP |
 | `packages/cli/src/commands/` | Polecenia CLI (info, tree, find, export, eval, analyze) |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Composable renderowania canvasu |
-| `packages/vue/src/canvas/useCanvasInput.ts` | Obsługa wejścia mysz/dotyk |
+| `packages/react/src/canvas/CanvasRoot.vue` | Composable renderowania canvasu |
+| `packages/react/src/canvas/useCanvasInput.ts` | Obsługa wejścia mysz/dotyk |
 | `src/app/shell/keyboard/use.ts` | Obsługa skrótów klawiszowych |

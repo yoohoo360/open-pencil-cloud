@@ -8,7 +8,7 @@ description: Construisez votre propre shell d'éditeur avec provideEditor, Canva
 Une application Vue OpenPencil typique comporte trois couches :
 
 1. `@open-pencil/core` crée l'éditeur
-2. `@open-pencil/vue` l'adapte en composables Vue et primitives headless
+2. `@open-pencil/react` l'adapte en composables Vue et primitives headless
 3. votre application affiche le shell, les styles et l'UX du produit
 
 ## Pourquoi c'est important
@@ -41,7 +41,7 @@ import {
   ToolbarRoot,
   PageListRoot,
   LayerTreeRoot,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const editor = createEditor({ width: 1440, height: 900 })
 provideEditor(editor)

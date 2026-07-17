@@ -69,7 +69,7 @@ Entwickler und KI-Agenten sollten `AGENTS.md` im Repo-Root lesen ([auf GitHub an
 
 ## Schlüsseldateien
 
-Der Core-Engine-Quellcode lebt in `packages/core/src/`. App-spezifischer Editor-, Dokument-, KI-, Kollaborations-, Shell-, Demo- und Automatisierungscode liegt unter `src/app/*`; das Vue SDK verwaltet wiederverwendbaren Canvas- und Composable-Code unter `packages/vue/src/`.
+Der Core-Engine-Quellcode lebt in `packages/core/src/`. App-spezifischer Editor-, Dokument-, KI-, Kollaborations-, Shell-, Demo- und Automatisierungscode liegt unter `src/app/*`; das Vue SDK verwaltet wiederverwendbaren Canvas- und Composable-Code unter `packages/react/src/`.
 
 | Datei | Zweck |
 |-------|-------|
@@ -86,5 +86,5 @@ Der Core-Engine-Quellcode lebt in `packages/core/src/`. App-spezifischer Editor-
 | `packages/mcp/src/server.ts` | MCP-Server-Factory |
 | `packages/cli/src/index.ts` | CLI-Einstiegspunkt |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Canvas-Rendering-Composable |
+| `packages/react/src/canvas/CanvasRoot.vue` | Canvas-Rendering-Composable |
 | `src/app/shell/keyboard/use.ts` | Tastenkürzel-Behandlung |

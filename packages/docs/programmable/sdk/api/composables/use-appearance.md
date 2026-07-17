@@ -18,7 +18,7 @@ It exposes selection-derived UI state for:
 ## Usage
 
 ```ts
-import { useAppearance } from '@open-pencil/vue'
+import { useAppearance } from '@open-pencil/react'
 
 const appearance = useAppearance()
 ```

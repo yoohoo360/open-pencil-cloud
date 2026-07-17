@@ -12,7 +12,7 @@ Użyj go, gdy twoja powłoka potrzebuje lekkiej abstrakcji nad punktami przełam
 ## Użycie
 
 ```ts
-import { useViewportKind } from '@open-pencil/vue'
+import { useViewportKind } from '@open-pencil/react'
 
 const { isMobile, isDesktop } = useViewportKind()
 ```

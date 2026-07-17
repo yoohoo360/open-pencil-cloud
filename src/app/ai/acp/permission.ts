@@ -1,5 +1,6 @@
+import { atom, computed } from 'nanostores'
+
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk'
-import { computed, shallowRef } from 'vue'
 
 import { ACP_PERMISSION_TIMEOUT_MS } from '@/constants'
 
@@ -9,8 +10,8 @@ export interface PendingPermission {
   timer: ReturnType<typeof setTimeout>
 }
 
-export const permissionQueue = shallowRef<PendingPermission[]>([])
-export const currentPermission = computed(() => permissionQueue.value[0] ?? null)
+export const $permissionQueue = atom<PendingPermission[]>([])
+export const $currentPermission = computed($permissionQueue, (q) => q[0] ?? null)
 
 function findRejectOption(request: RequestPermissionRequest): string {
   const reject = request.options.find((o) => o.kind.startsWith('reject'))
@@ -19,7 +20,7 @@ function findRejectOption(request: RequestPermissionRequest): string {
 
 function removeEntry(entry: PendingPermission) {
   clearTimeout(entry.timer)
-  permissionQueue.value = permissionQueue.value.filter((e) => e !== entry)
+  $permissionQueue.set($permissionQueue.get().filter((e) => e !== entry))
 }
 
 export function requestPermissionFromUser(
@@ -32,19 +33,19 @@ export function requestPermissionFromUser(
     }, ACP_PERMISSION_TIMEOUT_MS)
 
     const entry: PendingPermission = { request: params, resolve, timer }
-    permissionQueue.value = [...permissionQueue.value, entry]
+    $permissionQueue.set([...$permissionQueue.get(), entry])
   })
 }
 
 export function respondToPermission(optionId: string) {
-  const entry = permissionQueue.value.at(0)
+  const entry = $permissionQueue.get().at(0)
   if (!entry) return
   removeEntry(entry)
   entry.resolve({ outcome: { outcome: 'selected', optionId } })
 }
 
 export function rejectCurrentPermission() {
-  const entry = permissionQueue.value.at(0)
+  const entry = $permissionQueue.get().at(0)
   if (!entry) return
   removeEntry(entry)
   entry.resolve({

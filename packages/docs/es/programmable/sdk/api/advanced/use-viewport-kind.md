@@ -12,7 +12,7 @@ description: Lee indicadores de viewport de móvil y escritorio para shells de e
 ## Uso
 
 ```ts
-import { useViewportKind } from '@open-pencil/vue'
+import { useViewportKind } from '@open-pencil/react'
 
 const { isMobile, isDesktop } = useViewportKind()
 ```
