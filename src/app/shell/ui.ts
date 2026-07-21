@@ -1,5 +1,4 @@
-import { useEventListener } from '@vueuse/core'
-import { ref } from 'vue'
+import { useSyncExternalStore } from 'react'
 
 import { isTauri } from '@/app/tauri/env'
 import type { ToastVariant } from '@/components/ui/toast'
@@ -22,25 +21,52 @@ const ERROR_TOAST_DURATION = 10000
 // exceed this. Belt-and-suspenders against any error source we missed.
 const TOAST_STACK_LIMIT = 5
 
-const toasts = ref<Toast[]>([])
+let toastSnapshot: Toast[] = []
+const toastListeners = new Set<() => void>()
 let nextId = 0
 let errorHandlersInitialized = false
+
+function emitToasts() {
+  for (const listener of toastListeners) listener()
+}
+
+export function subscribeToasts(listener: () => void) {
+  toastListeners.add(listener)
+  return () => toastListeners.delete(listener)
+}
+
+export function getToastsSnapshot() {
+  return toastSnapshot
+}
+
+export function useToasts(): Toast[] {
+  return useSyncExternalStore(subscribeToasts, getToastsSnapshot, getToastsSnapshot)
+}
+
+/** @deprecated Use useToasts() in React components. */
+const toasts = {
+  get value() {
+    return toastSnapshot
+  }
+}
 
 function push(message: string, variant: ToastVariant) {
   // Dedupe: if the same message+variant is already visible, increment
   // its repeat count instead of stacking a duplicate. Prevents the
   // cascade-on-every-frame failure mode where a single unhealthy
   // event source floods the viewport.
-  const existing = toasts.value.find((t) => t.message === message && t.variant === variant)
+  const existing = toastSnapshot.find((t) => t.message === message && t.variant === variant)
   if (existing) {
-    existing.count += 1
-    existing.id = ++nextId
+    toastSnapshot = toastSnapshot.map((toast) =>
+      toast === existing ? { ...toast, count: toast.count + 1, id: ++nextId } : toast
+    )
+    emitToasts()
     return
   }
-  toasts.value.push({ id: ++nextId, message, variant, count: 1 })
-  if (toasts.value.length > TOAST_STACK_LIMIT) {
-    toasts.value.splice(0, toasts.value.length - TOAST_STACK_LIMIT)
-  }
+  toastSnapshot = [...toastSnapshot, { id: ++nextId, message, variant, count: 1 }].slice(
+    -TOAST_STACK_LIMIT
+  )
+  emitToasts()
 }
 
 function info(message: string) {
@@ -56,17 +82,18 @@ function error(message: string) {
 }
 
 function remove(id: number) {
-  toasts.value = toasts.value.filter((t) => t.id !== id)
+  toastSnapshot = toastSnapshot.filter((toast) => toast.id !== id)
+  emitToasts()
 }
 
 function setupGlobalErrorHandler() {
   if (errorHandlersInitialized) return
   errorHandlersInitialized = true
 
-  useEventListener(window, 'error', (e) => {
+  window.addEventListener('error', (e) => {
     error(e.message || 'An unexpected error occurred')
   })
-  useEventListener(window, 'unhandledrejection', (e) => {
+  window.addEventListener('unhandledrejection', (e) => {
     const msg = e.reason instanceof Error ? e.reason.message : String(e.reason)
     error(msg || 'An unexpected error occurred')
   })

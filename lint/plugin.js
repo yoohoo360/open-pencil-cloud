@@ -187,8 +187,8 @@ function isVueSourceFile(file) {
     file.endsWith('.vue') &&
     (file.startsWith('src/') ||
       file.includes('/src/') ||
-      file.startsWith('packages/vue/src/') ||
-      file.includes('/packages/vue/src/'))
+      file.startsWith('packages/react/src/') ||
+      file.includes('/packages/react/src/'))
   )
 }
 
@@ -649,7 +649,7 @@ const noGeneratedTestIdLiterals = {
   },
   create(context) {
     const file = normalizedFilename(context)
-    if (file.endsWith('/packages/vue/src/testing/test-id.ts')) return {}
+    if (file.endsWith('/packages/react/src/testing/test-id.ts')) return {}
     if (file.endsWith('/tests/helpers/test-ids.ts')) return {}
     if (!file.includes('/src/') && !file.includes('/tests/')) return {}
 
@@ -1007,11 +1007,11 @@ const noTypeofWindowCheck = {
 }
 
 const noVueSelfPackageImports = createImportSourceRule({
-  description: 'Disallow @open-pencil/vue self-imports inside the Vue SDK — use #vue/* aliases',
-  applies: (file) => file.includes('/packages/vue/src/'),
+  description: 'Disallow @open-pencil/react self-imports inside the Vue SDK — use #react/* aliases',
+  applies: (file) => file.includes('/packages/react/src/'),
   check: (source) =>
-    source.startsWith('@open-pencil/vue') &&
-    `Use #vue/* for internal Vue SDK imports instead of self-package import '${source}'.`
+    source.startsWith('@open-pencil/react') &&
+    `Use #react/* for internal Vue SDK imports instead of self-package import '${source}'.`
 })
 
 const noCrossPackageSourceImports = createImportSourceRule({
@@ -1078,9 +1078,9 @@ const noMcpParentRelativeImports = createParentRelativeImportRule({
 })
 
 const noVueParentRelativeImports = createParentRelativeImportRule({
-  description: 'Disallow parent-relative imports in Vue SDK internals — use #vue/* aliases',
-  applies: (file) => file.includes('/packages/vue/src/'),
-  message: 'Use the #vue/* package-local alias instead of parent-relative Vue SDK imports.'
+  description: 'Disallow parent-relative imports in Vue SDK internals — use #react/* aliases',
+  applies: (file) => file.includes('/packages/react/src/'),
+  message: 'Use the #react/* package-local alias instead of parent-relative Vue SDK imports.'
 })
 
 const noCliParentRelativeImports = createParentRelativeImportRule({
@@ -1152,7 +1152,7 @@ const noAppVueCoreBarrelImports = createExactCoreBarrelImportRule({
   description:
     'Disallow app and Vue SDK imports from @open-pencil/core root barrel — use domain subpaths',
   applies: (file) =>
-    (file.includes('/src/') && !file.includes('/packages/')) || file.includes('/packages/vue/src/'),
+    (file.includes('/src/') && !file.includes('/packages/')) || file.includes('/packages/react/src/'),
   message:
     'Use a targeted @open-pencil/core subpath (editor, scene-graph, constants, io, etc.) instead of the compatibility barrel.'
 })
@@ -1164,7 +1164,7 @@ const noAppImportsInPackages = createImportSourceRule({
     source.startsWith('@/') && `Workspace packages must not import app-shell alias '${source}'.`
 })
 
-const frameworkImportPrefixes = ['@vue/', '@open-pencil/vue', '@tauri-apps/', '@/']
+const frameworkImportPrefixes = ['@vue/', '@open-pencil/react', '@tauri-apps/', '@/']
 
 const noCoreFrameworkImports = createImportSourceRule({
   description: 'Keep @open-pencil/core framework-agnostic by disallowing Vue/Tauri/app imports',
@@ -1187,7 +1187,7 @@ const noDirectStorageAccess = {
       '/src/app/ai/chat/storage.ts',
       '/src/app/cache/index.ts',
       '/src/app/shell/layout-storage.ts',
-      '/packages/vue/src/i18n/locale.ts'
+      '/packages/react/src/i18n/locale.ts'
     ]
     if (allowedFiles.some((suffix) => file.endsWith(suffix))) return {}
 
@@ -1395,7 +1395,7 @@ const noOnUnmountedInCompositionRoots = {
   create(context) {
     const file = normalizedFilename(context)
     const applies =
-      (file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
+      (file.includes('/src/app/') || file.includes('/packages/react/src/')) &&
       /\/(?:use|create)\.ts$/.test(file)
     if (!applies) return {}
 
@@ -1420,7 +1420,7 @@ const noComposableStateWrappers = {
   },
   create(context) {
     const file = normalizedFilename(context)
-    const applies = file.includes('/src/app/') || file.includes('/packages/vue/src/')
+    const applies = file.includes('/src/app/') || file.includes('/packages/react/src/')
     if (!applies) return {}
 
     return {
@@ -1444,7 +1444,7 @@ const preferVueUseIntervals = {
   },
   create(context) {
     const file = normalizedFilename(context)
-    const applies = file.includes('/src/app/') || file.includes('/packages/vue/src/')
+    const applies = file.includes('/src/app/') || file.includes('/packages/react/src/')
     if (!applies) return {}
 
     function intervalName(callee) {
@@ -1477,7 +1477,7 @@ const preferVueUseTimeouts = {
   create(context) {
     const file = normalizedFilename(context)
     const applies =
-      ((file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
+      ((file.includes('/src/app/') || file.includes('/packages/react/src/')) &&
         /\/(?:use|create)\.ts$/.test(file)) ||
       file.endsWith('/src/app/shell/toast/action.ts')
     if (!applies) return {}
@@ -1514,7 +1514,7 @@ const maxCompositionRootLines = {
   create(context) {
     const file = normalizedFilename(context)
     const applies =
-      (file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
+      (file.includes('/src/app/') || file.includes('/packages/react/src/')) &&
       /\/(?:use|create)\.ts$/.test(file)
     if (!applies) return {}
 
@@ -1634,14 +1634,14 @@ const nonComponentSourceDirectoriesKebabCase = {
       '/packages/core/src/',
       '/packages/cli/src/',
       '/packages/mcp/src/',
-      '/packages/vue/src/canvas/',
-      '/packages/vue/src/controls/',
-      '/packages/vue/src/document/',
-      '/packages/vue/src/editor/',
-      '/packages/vue/src/i18n/',
-      '/packages/vue/src/internal/',
-      '/packages/vue/src/shared/',
-      '/packages/vue/src/variables/'
+      '/packages/react/src/canvas/',
+      '/packages/react/src/controls/',
+      '/packages/react/src/document/',
+      '/packages/react/src/editor/',
+      '/packages/react/src/i18n/',
+      '/packages/react/src/internal/',
+      '/packages/react/src/shared/',
+      '/packages/react/src/variables/'
     ]
 
     const root = roots.find((candidate) => file.includes(candidate))

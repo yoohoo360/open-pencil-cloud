@@ -4,7 +4,7 @@ description: Headless fill category state and conversion actions.
 ---
 
 <script setup lang="ts">
-import ColorFillDemo from '#vue/primitives/Fill/demo/ColorFillDemo.vue'
+import ColorFillDemo from '#react/primitives/Fill/demo/ColorFillDemo.vue'
 import { data } from './fill-root.data'
 </script>
 
@@ -23,7 +23,7 @@ category is already active.
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Fill } from '@open-pencil/scene-graph'
-import { FillRoot } from '@open-pencil/vue'
+import { FillRoot } from '@open-pencil/react'
 
 const fill = ref<Fill>({
   type: 'SOLID',

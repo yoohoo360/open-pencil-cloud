@@ -269,7 +269,7 @@ packages/
   fig/            @open-pencil/fig — .fig archives, SceneGraph conversion, instances, metadata
   core/           @open-pencil/core — editor engine, renderer, layout, tools, RPC, document I/O
   dom-css/        @open-pencil/dom-css — HTML/CSS/Tailwind to editable design documents
-  vue/            @open-pencil/vue — headless Vue SDK
+  vue/            @open-pencil/react — headless Vue SDK
   cli/            @open-pencil/cli — headless CLI
   mcp/            @open-pencil/mcp — MCP server (stdio + HTTP)
   docs/           Documentation site (openpencil.dev)

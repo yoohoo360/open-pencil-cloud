@@ -1,23 +1,16 @@
-import { useLocalStorage, usePreferredDark } from '@vueuse/core'
-import { computed, watch } from 'vue'
+import { useLocalStorage, usePreferredDark } from '#react/shared/dom/hooks'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import type { RulerTheme } from '@open-pencil/core/canvas'
 import { parseColor } from '@open-pencil/core/color'
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
-import { getActiveEditorStoreOrNull, useActiveEditorStoreRef } from '@/app/editor/active-store'
+import { getActiveEditorStoreOrNull, useActiveEditorStore } from '@/app/editor/active-store'
 
 export type AppTheme = 'dark' | 'light' | 'auto'
 
 const THEME_STORAGE_KEY = 'open-pencil:theme'
 const DEFAULT_THEME: AppTheme = 'dark'
-
-const theme = useLocalStorage<AppTheme>(THEME_STORAGE_KEY, DEFAULT_THEME)
-const prefersDark = usePreferredDark()
-const resolvedTheme = computed<'dark' | 'light'>(() => {
-  if (theme.value === 'auto') return prefersDark.value ? 'dark' : 'light'
-  return theme.value
-})
 
 function readRulerTheme(): RulerTheme | null {
   if (!IS_BROWSER || !('document' in globalThis)) return null
@@ -47,26 +40,29 @@ function applyTheme(value: 'dark' | 'light', setting: AppTheme): void {
 }
 
 export function useAppTheme() {
-  watch([resolvedTheme, theme], ([value, setting]) => applyTheme(value, setting), {
-    immediate: true
-  })
+  const [theme, setThemeValue] = useLocalStorage<AppTheme>(THEME_STORAGE_KEY, DEFAULT_THEME)
+  const prefersDark = usePreferredDark()
+  const resolvedTheme = useMemo<'dark' | 'light'>(
+    () => (theme === 'auto' ? (prefersDark ? 'dark' : 'light') : theme),
+    [prefersDark, theme]
+  )
+  const activeStore = useActiveEditorStore()
 
-  // Editors may mount after the theme was applied; push the canvas (ruler)
-  // theme whenever the active editor changes so rulers always match.
-  const activeStoreRef = useActiveEditorStoreRef()
-  watch([activeStoreRef, resolvedTheme], () => updateCanvasTheme(), { flush: 'post' })
+  useEffect(() => {
+    applyTheme(resolvedTheme, theme)
+  }, [resolvedTheme, theme])
 
-  const isLight = computed(() => resolvedTheme.value === 'light')
+  useEffect(() => {
+    updateCanvasTheme()
+  }, [activeStore, resolvedTheme])
 
-  function setTheme(value: AppTheme): void {
-    theme.value = value
-  }
+  const setTheme = useCallback((value: AppTheme) => setThemeValue(value), [setThemeValue])
 
-  function toggleTheme(): void {
-    theme.value = isLight.value ? 'dark' : 'light'
-  }
+  const isLight = resolvedTheme === 'light'
+  const toggleTheme = useCallback(
+    () => setThemeValue(isLight ? 'dark' : 'light'),
+    [isLight, setThemeValue]
+  )
 
   return { theme, resolvedTheme, isLight, setTheme, toggleTheme }
 }
-
-applyTheme(resolvedTheme.value, theme.value)

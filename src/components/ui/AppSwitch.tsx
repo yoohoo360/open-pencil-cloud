@@ -1,36 +1,45 @@
-<script lang="ts">
+import * as Switch from '@radix-ui/react-switch'
+import { memo, useMemo } from 'react'
+import { tv } from 'tailwind-variants'
+
 import type { ComponentUI } from '@/components/ui/types'
 import type { SwitchTheme } from '@/theme/switch'
+import theme from '@/theme/switch'
 
 export type AppSwitchUI = ComponentUI<SwitchTheme>
 
 export interface AppSwitchProps {
+  checked: boolean
   label: string
+  onCheckedChange: (checked: boolean) => void
   size?: keyof SwitchTheme['variants']['size']
   state?: keyof SwitchTheme['variants']['state']
   ui?: AppSwitchUI
 }
-</script>
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import { SwitchRoot, SwitchThumb } from 'reka-ui'
-import { tv } from 'tailwind-variants'
+export const AppSwitch = memo(function AppSwitch({
+  checked,
+  label,
+  onCheckedChange,
+  size = 'sm',
+  state = 'idle',
+  ui
+}: AppSwitchProps) {
+  const styles = useMemo(() => tv(theme)({ size, state }), [size, state])
 
-import theme from '@/theme/switch'
+  return (
+    <Switch.Root
+      aria-label={label}
+      checked={checked}
+      className={styles.root({ class: ui?.root })}
+      data-mixed={state === 'mixed' || undefined}
+      onCheckedChange={onCheckedChange}
+    >
+      <Switch.Thumb className={styles.thumb({ class: ui?.thumb })} />
+    </Switch.Root>
+  )
+})
 
-const { label, size = 'sm', state = 'idle', ui } = defineProps<AppSwitchProps>()
-const modelValue = defineModel<boolean>({ required: true })
-const styles = computed(() => tv(theme)({ size, state }))
-</script>
+AppSwitch.displayName = 'AppSwitch'
 
-<template>
-  <SwitchRoot
-    v-model="modelValue"
-    :aria-label="label"
-    :data-mixed="state === 'mixed' || undefined"
-    :class="styles.root({ class: ui?.root })"
-  >
-    <SwitchThumb :class="styles.thumb({ class: ui?.thumb })" />
-  </SwitchRoot>
-</template>
+export default AppSwitch

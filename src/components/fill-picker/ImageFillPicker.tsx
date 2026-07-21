@@ -1,9 +1,7 @@
-<script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
-import { useFileDialog, useObjectUrl } from '@vueuse/core'
+import IconLucideImage from '~icons/lucide/image'
+import { memo, useEffect, useRef, useState, type ChangeEvent } from 'react'
 
-import AppSelect from '@/components/ui/AppSelect.vue'
-
+import AppSelect from '@/components/ui/AppSelect'
 import { useEditorStore } from '@/app/editor/active-store'
 
 import type { Fill, ImageScaleMode } from '@open-pencil/scene-graph'
@@ -15,71 +13,90 @@ const IMAGE_SCALE_MODES: { value: ImageScaleMode; label: string }[] = [
   { value: 'TILE', label: 'Tile' }
 ]
 
-const { fill } = defineProps<{ fill: Fill }>()
-const emit = defineEmits<{ update: [fill: Fill] }>()
+export type ImageFillPickerProps = {
+  fill: Fill
+  onUpdate?: (fill: Fill) => void
+}
 
-const store = useEditorStore()
+export const ImageFillPicker = memo(function ImageFillPicker({
+  fill,
+  onUpdate
+}: ImageFillPickerProps) {
+  const store = useEditorStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
 
-const imageBlob = shallowRef<Blob | null>(null)
-const imagePreviewUrl = useObjectUrl(imageBlob)
-
-watch(
-  () => fill.imageHash,
-  (hash) => {
-    if (!hash) {
-      imageBlob.value = null
+  useEffect(() => {
+    if (!fill.imageHash) {
+      setImageBlob(null)
       return
     }
-    const data = store.getImage(hash)
-    imageBlob.value = data ? new Blob([data]) : null
-  },
-  { immediate: true }
-)
+    const data = store.getImage(fill.imageHash)
+    setImageBlob(data ? new Blob([new Uint8Array(data)]) : null)
+  }, [fill.imageHash, store])
 
-const { open: pickImage, onChange: onFileChange } = useFileDialog({
-  accept: 'image/png,image/jpeg,image/webp',
-  multiple: false
-})
+  useEffect(() => {
+    if (!imageBlob) {
+      setImagePreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(imageBlob)
+    setImagePreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [imageBlob])
 
-onFileChange(async (files) => {
-  const file = files?.[0]
-  if (!file) return
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const hash = store.storeImage(bytes)
-  emit('update', {
-    ...fill,
-    type: 'IMAGE',
-    imageHash: hash,
-    imageScaleMode: fill.imageScaleMode ?? 'FILL'
-  })
-})
+  const pickImage = () => fileInputRef.current?.click()
 
-const scaleMode = computed({
-  get: () => fill.imageScaleMode ?? ('FILL' as ImageScaleMode),
-  set: (mode: ImageScaleMode) => emit('update', { ...fill, imageScaleMode: mode })
-})
-</script>
+  const onFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const hash = store.storeImage(bytes)
+    onUpdate?.({
+      ...fill,
+      type: 'IMAGE',
+      imageHash: hash,
+      imageScaleMode: fill.imageScaleMode ?? 'FILL'
+    })
+  }
 
-<template>
-  <div class="space-y-2">
-    <div
-      v-if="imagePreviewUrl"
-      class="flex h-24 items-center justify-center overflow-hidden rounded border border-border"
-    >
-      <img :src="imagePreviewUrl" class="max-h-full max-w-full object-contain" />
+  const scaleMode = fill.imageScaleMode ?? 'FILL'
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={onFileChange}
+      />
+      {imagePreviewUrl ? (
+        <div className="flex h-24 items-center justify-center overflow-hidden rounded border border-border">
+          <img src={imagePreviewUrl} alt="" className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : null}
+      <button
+        type="button"
+        className="flex h-7 w-full cursor-pointer items-center justify-center gap-1 rounded border border-border bg-input text-xs text-surface hover:bg-hover"
+        data-test-id="fill-picker-choose-image"
+        onClick={pickImage}
+      >
+        <IconLucideImage className="size-3" />
+        {fill.imageHash ? 'Replace' : 'Choose image'}
+      </button>
+      <AppSelect
+        value={scaleMode}
+        options={IMAGE_SCALE_MODES}
+        onValueChange={(mode) =>
+          onUpdate?.({ ...fill, imageScaleMode: mode as ImageScaleMode })
+        }
+      />
     </div>
-    <button
-      class="flex h-7 w-full cursor-pointer items-center justify-center gap-1 rounded border border-border bg-input text-xs text-surface hover:bg-hover"
-      data-test-id="fill-picker-choose-image"
-      @click="pickImage()"
-    >
-      <icon-lucide-image class="size-3" />
-      {{ fill.imageHash ? 'Replace' : 'Choose image' }}
-    </button>
-    <AppSelect
-      :model-value="scaleMode"
-      :options="IMAGE_SCALE_MODES"
-      @update:model-value="(m) => (scaleMode = m as ImageScaleMode)"
-    />
-  </div>
-</template>
+  )
+})
+
+ImageFillPicker.displayName = 'ImageFillPicker'
+export default ImageFillPicker

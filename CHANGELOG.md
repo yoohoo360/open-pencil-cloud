@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Migrate the app and SDK from Vue 3 to React 19: rename `@open-pencil/vue` → `@open-pencil/react`, convert SFCs to TSX with `memo`/`useMemo`, and replace Reka UI / VueUse with Radix React and shared DOM hooks.
+
 ### Added
 
 - Import HTML, CSS, Tailwind, and JSX as editable documents from the app, CLI, and SDK, and export standalone browser-ready HTML with compiled CSS and optional external assets.
@@ -178,7 +182,7 @@
 - Fix section drawing and color input forwarding in the property panel.
 - Fix asset insertion coordinates inside entered containers.
 - Fix MCP stdio handshake and eval return values.
-- Fix `@open-pencil/vue` npm imports referencing an unexported core subpath.
+- Fix `@open-pencil/react` npm imports referencing an unexported core subpath.
 - Fix Figma clipboard text compatibility — pasted OpenPencil text keeps editable fixed bounds, line wrapping, baselines, glyph offsets, and Figma edit-mode layout.
 - Fix local font matching so requested upright and weighted faces do not fall back to italic or regular faces.
 - Fix CanvasKit paragraph rendering to preserve requested text weights and slants.
@@ -303,7 +307,7 @@
 
 - Fix npm publishing pipeline to publish packed tarballs instead of raw package folders
 - Attempt to fix `@open-pencil/mcp` npm package contents so the published CLI includes its built `dist/` entrypoints
-- Fix `@open-pencil/vue` npm package metadata and build output so the published package resolves from `dist/` while local workspace development keeps using source aliases
+- Fix `@open-pencil/react` npm package metadata and build output so the published package resolves from `dist/` while local workspace development keeps using source aliases
 
 ## 0.11.0 — 2026-03-30
 
@@ -316,7 +320,7 @@
 - Layer panel click syncs canvas scope automatically
 - Vue SDK internationalization primitives — `useI18n()`, locale detection, persisted locale selection, lazy-loaded locale JSON files, and exported locale metadata for custom editor shells
 - Vue SDK docs and public API audit — documented advanced exports (`useOkHCL()`, variables helpers, viewport and locale APIs), aligned docs with the actual `provideEditor()` injection model, and expanded release-ready SDK guidance
-- npm release pipeline now publishes `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/vue` together on version tags
+- npm release pipeline now publishes `@open-pencil/core`, `@open-pencil/cli`, `@open-pencil/mcp`, and `@open-pencil/react` together on version tags
 - App language picker in the menu bar — switch UI locale without reloading
 - Added a vector curve editor and improved drawing experience with the pen tool
 - Resume pen drawing from existing open path endpoints — click an endpoint to continue the curve

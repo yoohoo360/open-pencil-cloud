@@ -12,7 +12,7 @@ Usalo quando la tua shell ha bisogno di una leggera astrazione sui breakpoint in
 ## Utilizzo
 
 ```ts
-import { useViewportKind } from '@open-pencil/vue'
+import { useViewportKind } from '@open-pencil/react'
 
 const { isMobile, isDesktop } = useViewportKind()
 ```

@@ -1,38 +1,40 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo } from 'react'
 
-import { useI18n, useMask } from '@open-pencil/vue'
-
-import AppSelect from '@/components/ui/AppSelect.vue'
-import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup.vue'
-import PanelSection from '@/components/ui/panel/PanelSection.vue'
-
+import { useI18n, useMask } from '@open-pencil/react'
 import type { MaskType } from '@open-pencil/scene-graph'
+import AppSelect from '@/components/ui/AppSelect'
+import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup'
+import PanelSection from '@/components/ui/panel/PanelSection'
 
-const { panels } = useI18n()
-const { active, maskType, setMaskType } = useMask()
+export const MaskSection = memo(function MaskSection() {
+  const { panels } = useI18n()
+  const { active, maskType, setMaskType } = useMask()
 
-const maskTypeOptions = computed<Array<{ value: MaskType; label: string }>>(() => [
-  { value: 'ALPHA', label: panels.value.maskTypeAlpha },
-  { value: 'VECTOR', label: panels.value.maskTypeVector },
-  { value: 'LUMINANCE', label: panels.value.maskTypeLuminance }
-])
+  const maskTypeOptions = useMemo<Array<{ value: MaskType; label: string }>>(
+    () => [
+      { value: 'ALPHA', label: panels.maskTypeAlpha },
+      { value: 'VECTOR', label: panels.maskTypeVector },
+      { value: 'LUMINANCE', label: panels.maskTypeLuminance }
+    ],
+    [panels.maskTypeAlpha, panels.maskTypeLuminance, panels.maskTypeVector]
+  )
 
-const selectedMaskType = computed<MaskType>({
-  get: () => maskType.value,
-  set: setMaskType
+  if (!active) return null
+
+  return (
+    <PanelSection label={panels.mask}>
+      <PanelFieldGroup label={panels.maskType}>
+        <AppSelect
+          value={maskType}
+          onValueChange={setMaskType}
+          label={panels.maskType}
+          options={maskTypeOptions}
+          data-property="mask-type"
+        />
+      </PanelFieldGroup>
+    </PanelSection>
+  )
 })
-</script>
 
-<template>
-  <PanelSection v-if="active" :label="panels.mask">
-    <PanelFieldGroup :label="panels.maskType">
-      <AppSelect
-        v-model="selectedMaskType"
-        :label="panels.maskType"
-        :options="maskTypeOptions"
-        data-property="mask-type"
-      />
-    </PanelFieldGroup>
-  </PanelSection>
-</template>
+MaskSection.displayName = 'MaskSection'
+export default MaskSection

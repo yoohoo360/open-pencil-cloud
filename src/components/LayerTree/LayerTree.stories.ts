@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/vue3-vite'
+import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 
-import LayerTreeThemeDemo from './demo/LayerTreeThemeDemo.vue'
+import LayerTreeThemeDemo from '@/components/LayerTree/demo/LayerTreeThemeDemo'
 
 const meta = {
   title: 'Design System/Editor/Layer Tree',

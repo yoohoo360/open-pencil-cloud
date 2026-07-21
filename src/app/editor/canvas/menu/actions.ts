@@ -1,6 +1,3 @@
-import { useClipboard } from '@vueuse/core'
-import type { Ref } from 'vue'
-
 import { nodeToXPath } from '@open-pencil/core/xpath'
 
 import type { EditorStore } from '@/app/editor/active-store'
@@ -16,8 +13,10 @@ function toArrayBuffer(data: Uint8Array): ArrayBuffer {
   return bytes.buffer
 }
 
-export function createCanvasMenuActions(store: EditorStore, selectedIds: Ref<Set<string>>) {
-  const { copy } = useClipboard()
+export function createCanvasMenuActions(
+  store: EditorStore,
+  selectedIds: { value: Set<string> }
+) {
 
   function ids() {
     return [...selectedIds.value]
@@ -35,7 +34,7 @@ export function createCanvasMenuActions(store: EditorStore, selectedIds: Ref<Set
     if (isTauri()) {
       await writeTauriClipboardText(text)
     } else {
-      await copy(text)
+      await navigator.clipboard.writeText(text)
     }
     toast.info(`Copied as ${label}`)
   }

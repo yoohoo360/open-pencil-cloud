@@ -1,23 +1,30 @@
-import { useTimeoutFn } from '@vueuse/core'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { ACTION_TOAST_DURATION } from '@/constants'
 
 export function useActionToast() {
   const store = useEditorStore()
-  const { start: scheduleHideToast, stop: cancelHideToast } = useTimeoutFn(
-    () => {
-      store.state.actionToast = null
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (timeout.current) clearTimeout(timeout.current)
     },
-    ACTION_TOAST_DURATION,
-    { immediate: false }
+    []
   )
 
-  function showActionToast(label: string) {
-    store.state.actionToast = label
-    cancelHideToast()
-    scheduleHideToast()
-  }
+  const showActionToast = useCallback(
+    (label: string) => {
+      store.state.actionToast = label
+      if (timeout.current) clearTimeout(timeout.current)
+      timeout.current = setTimeout(() => {
+        store.state.actionToast = null
+        timeout.current = null
+      }, ACTION_TOAST_DURATION)
+    },
+    [store]
+  )
 
   return {
     showActionToast

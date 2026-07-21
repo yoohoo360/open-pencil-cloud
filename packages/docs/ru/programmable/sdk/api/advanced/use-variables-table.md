@@ -12,7 +12,7 @@ description: Создание определений колонок TanStack Tab
 ## Использование
 
 ```ts
-import { useVariablesTable } from '@open-pencil/vue'
+import { useVariablesTable } from '@open-pencil/react'
 
 const { columns } = useVariablesTable(options)
 ```

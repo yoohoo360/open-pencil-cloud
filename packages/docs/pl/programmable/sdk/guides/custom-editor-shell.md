@@ -8,7 +8,7 @@ description: Zbuduj własną powłokę edytora z provideEditor, CanvasRoot, menu
 Typowa aplikacja Vue z OpenPencil ma trzy warstwy:
 
 1. `@open-pencil/core` tworzy edytor
-2. `@open-pencil/vue` adaptuje go do kompozytów Vue i bezstanowych prymitywów
+2. `@open-pencil/react` adaptuje go do kompozytów Vue i bezstanowych prymitywów
 3. twoja aplikacja renderuje powłokę, stylowanie i UX specyficzny dla produktu
 
 ## Dlaczego to ważne
@@ -41,7 +41,7 @@ import {
   ToolbarRoot,
   PageListRoot,
   LayerTreeRoot,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const editor = createEditor({ width: 1440, height: 900 })
 provideEditor(editor)

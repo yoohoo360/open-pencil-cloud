@@ -1,12 +1,12 @@
 import { defineComponentMetaLoader } from '#docs/sdk/component-meta'
 
 const sources = [
-  'packages/vue/src/primitives/PropertySection/PropertySectionRoot.vue',
-  'packages/vue/src/primitives/PropertySection/PropertySectionHeader.vue',
-  'packages/vue/src/primitives/PropertySection/PropertySectionTitle.vue',
-  'packages/vue/src/primitives/PropertySection/PropertySectionActions.vue',
-  'packages/vue/src/primitives/PropertySection/PropertySectionContent.vue',
-  'packages/vue/src/primitives/PropertySection/PropertySectionEmptyAction.vue'
+  'packages/react/src/primitives/PropertySection/PropertySectionRoot.vue',
+  'packages/react/src/primitives/PropertySection/PropertySectionHeader.vue',
+  'packages/react/src/primitives/PropertySection/PropertySectionTitle.vue',
+  'packages/react/src/primitives/PropertySection/PropertySectionActions.vue',
+  'packages/react/src/primitives/PropertySection/PropertySectionContent.vue',
+  'packages/react/src/primitives/PropertySection/PropertySectionEmptyAction.vue'
 ]
 
 export default defineComponentMetaLoader(sources)

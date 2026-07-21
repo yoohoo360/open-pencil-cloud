@@ -1,29 +1,41 @@
-<script setup lang="ts">
-import AppSelect from '@/components/ui/AppSelect.vue'
-import HsbFields from '@/components/color-picker-panel/HsbFields.vue'
-import HslFields from '@/components/color-picker-panel/HslFields.vue'
-import OkhclFields from '@/components/color-picker-panel/OkhclFields.vue'
-import RgbFields from '@/components/color-picker-panel/RgbFields.vue'
+import type { ColorFieldFormat } from '@open-pencil/react'
+import { memo } from 'react'
+
+import AppSelect from '@/components/ui/AppSelect'
+import HsbFields from '@/components/color-picker-panel/HsbFields'
+import HslFields from '@/components/color-picker-panel/HslFields'
+import OkhclFields from '@/components/color-picker-panel/OkhclFields'
+import RgbFields from '@/components/color-picker-panel/RgbFields'
 import { useColorPickerPanelContext } from '@/components/color-picker-panel/context'
 
-const ctx = useColorPickerPanelContext()
-</script>
+export const FormatControls = memo(function FormatControls() {
+  const ctx = useColorPickerPanelContext()
 
-<template>
-  <div class="flex flex-col gap-2">
-    <AppSelect
-      class="w-[120px]"
-      data-test-id="color-format-select"
-      :model-value="ctx.fieldFormat"
-      :options="ctx.fieldOptions"
-      @update:model-value="ctx.setFieldFormat"
-    />
+  return (
+    <div className="flex flex-col gap-2">
+      <div data-test-id="color-format-select">
+        <AppSelect
+          className="w-[120px]"
+          value={ctx.fieldFormat}
+          options={ctx.fieldOptions}
+          onValueChange={(value) => ctx.setFieldFormat(String(value) as ColorFieldFormat)}
+        />
+      </div>
 
-    <div class="min-w-0 flex flex-col gap-2">
-      <RgbFields v-if="ctx.fieldFormat === 'rgb'" />
-      <HslFields v-else-if="ctx.fieldFormat === 'hsl'" />
-      <HsbFields v-else-if="ctx.fieldFormat === 'hsb'" />
-      <OkhclFields v-else />
+      <div className="min-w-0 flex flex-col gap-2">
+        {ctx.fieldFormat === 'rgb' ? (
+          <RgbFields />
+        ) : ctx.fieldFormat === 'hsl' ? (
+          <HslFields />
+        ) : ctx.fieldFormat === 'hsb' ? (
+          <HsbFields />
+        ) : (
+          <OkhclFields />
+        )}
+      </div>
     </div>
-  </div>
-</template>
+  )
+})
+
+FormatControls.displayName = 'FormatControls'
+export default FormatControls

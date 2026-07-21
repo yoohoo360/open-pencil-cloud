@@ -1,5 +1,5 @@
 import type { ClipboardImageResolution, Editor } from '@open-pencil/core/editor'
-import { dialogMessages } from '@open-pencil/vue'
+import { dialogMessages } from '@open-pencil/react'
 
 import { toast } from '@/app/shell/ui'
 

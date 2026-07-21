@@ -1,37 +1,45 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo, type ButtonHTMLAttributes, type ComponentType } from 'react'
 import { tv } from 'tailwind-variants'
 
+import type { ToolbarUI } from '@/components/Toolbar/types'
 import toolbarTheme from '@/theme/toolbar'
 
-import type { Component } from 'vue'
-import type { ToolbarUI } from '@/components/Toolbar/types'
-
-interface ToolButtonProps {
-  icon: Component
+export type ToolButtonProps = {
+  icon: ComponentType<{ className?: string }>
   label?: string
   active?: boolean
   mobile?: boolean
   ui?: ToolbarUI
-}
+  onClick?: () => void
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'>
 
-const { icon, label, active = false, mobile = false, ui } = defineProps<ToolButtonProps>()
-const toolbar = tv(toolbarTheme)
-const styles = computed(() => toolbar({ active, mobile }))
+export const ToolButton = memo(function ToolButton({
+  icon: Icon,
+  label,
+  active = false,
+  mobile = false,
+  ui,
+  onClick,
+  className,
+  ...rest
+}: ToolButtonProps) {
+  const toolbar = tv(toolbarTheme)
+  const styles = useMemo(() => toolbar({ active, mobile }), [active, mobile, toolbar])
 
-const emit = defineEmits<{
-  click: []
-}>()
-</script>
+  return (
+    <button
+      {...rest}
+      type="button"
+      data-active={active || undefined}
+      data-mobile={mobile || undefined}
+      aria-label={label}
+      className={styles.button({ class: [ui?.button, className] })}
+      onClick={onClick}
+    >
+      <Icon className={styles.icon({ class: ui?.icon })} />
+    </button>
+  )
+})
 
-<template>
-  <button
-    :data-active="active || undefined"
-    :data-mobile="mobile || undefined"
-    :aria-label="label"
-    :class="styles.button({ class: ui?.button })"
-    @click="emit('click')"
-  >
-    <component :is="icon" :class="styles.icon({ class: ui?.icon })" />
-  </button>
-</template>
+ToolButton.displayName = 'ToolButton'
+export default ToolButton

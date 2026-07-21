@@ -1,4 +1,4 @@
-import { shallowRef, computed, triggerRef } from 'vue'
+import { useSyncExternalStore } from 'react'
 
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import { readFigFile } from '@open-pencil/core/io/formats/fig'
@@ -23,79 +23,117 @@ function generateTabId(): string {
   return `tab-${nextTabId++}`
 }
 
-const tabsRef = shallowRef<Tab[]>([])
-const activeTabId = shallowRef('')
+type TabsSnapshot = {
+  tabs: Tab[]
+  activeTabId: string
+}
 
-export const activeTab = computed(() => tabsRef.value.find((t) => t.id === activeTabId.value))
+let snapshot: TabsSnapshot = { tabs: [], activeTabId: '' }
+const listeners = new Set<() => void>()
 
-export const allTabs = computed(() =>
-  tabsRef.value.map((t) => ({
+function emit() {
+  snapshot = { tabs: snapshot.tabs, activeTabId: snapshot.activeTabId }
+  for (const listener of listeners) listener()
+}
+
+export function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+export function getSnapshot() {
+  return snapshot
+}
+
+export function getActiveTab(): Tab | undefined {
+  return snapshot.tabs.find((t) => t.id === snapshot.activeTabId)
+}
+
+export function getAllTabs() {
+  return snapshot.tabs.map((t) => ({
     id: t.id,
     name: t.store.state.documentName,
-    isActive: t.id === activeTabId.value
+    isActive: t.id === snapshot.activeTabId
   }))
-)
+}
+
+/** @deprecated Prefer getActiveTab() — kept for gradual migration. */
+export const activeTab = {
+  get value() {
+    return getActiveTab()
+  }
+}
+
+/** @deprecated Prefer getAllTabs() */
+export const allTabs = {
+  get value() {
+    return getAllTabs()
+  }
+}
 
 export function getActiveStore(): EditorStore {
-  const tab = tabsRef.value.find((t) => t.id === activeTabId.value)
+  const tab = snapshot.tabs.find((t) => t.id === snapshot.activeTabId)
   if (!tab) throw new Error('No active tab')
   return tab.store
 }
 
 export function getActiveTabId(): string {
-  return activeTabId.value
+  return snapshot.activeTabId
 }
 
 export function getTabById(tabId: string): Tab | undefined {
-  return tabsRef.value.find((tab) => tab.id === tabId)
+  return snapshot.tabs.find((tab) => tab.id === tabId)
 }
 
 export function getTabForStore(store: EditorStore): Tab | undefined {
-  return tabsRef.value.find((tab) => tab.store === store)
+  return snapshot.tabs.find((tab) => tab.store === store)
 }
 
 export function getTabsSnapshot(): Tab[] {
-  return [...tabsRef.value]
+  return [...snapshot.tabs]
 }
 
 export function createTab(store?: EditorStore, initialGraph?: SceneGraph): Tab {
   const s = store ?? createEditorStore(initialGraph)
   const tab: Tab = { id: generateTabId(), store: s }
-  tabsRef.value = [...tabsRef.value, tab]
+  snapshot = { tabs: [...snapshot.tabs, tab], activeTabId: snapshot.activeTabId }
   activateTab(tab)
   return tab
 }
 
 function activateTab(tab: Tab) {
-  activeTabId.value = tab.id
+  snapshot = { tabs: snapshot.tabs, activeTabId: tab.id }
   setActiveEditorStore(tab.store)
-  triggerRef(tabsRef)
   setOpenPencilStore(tab.store)
+  emit()
 }
 
 export function switchTab(tabId: string) {
-  const tab = tabsRef.value.find((t) => t.id === tabId)
+  const tab = snapshot.tabs.find((t) => t.id === tabId)
   if (!tab) return
   activateTab(tab)
 }
 
 export function closeTab(tabId: string) {
-  const idx = tabsRef.value.findIndex((t) => t.id === tabId)
+  const idx = snapshot.tabs.findIndex((t) => t.id === tabId)
   if (idx === -1) return
 
-  const closingTab = tabsRef.value[idx]
-  const wasActive = activeTabId.value === tabId
-  tabsRef.value = tabsRef.value.filter((t) => t.id !== tabId)
+  const closingTab = snapshot.tabs[idx]
+  const wasActive = snapshot.activeTabId === tabId
+  const nextTabs = snapshot.tabs.filter((t) => t.id !== tabId)
+  snapshot = { tabs: nextTabs, activeTabId: snapshot.activeTabId }
 
-  if (tabsRef.value.length === 0) {
+  if (nextTabs.length === 0) {
     createTab()
     closingTab.store.dispose()
     return
   }
 
   if (wasActive) {
-    const newIdx = Math.min(idx, tabsRef.value.length - 1)
-    activateTab(tabsRef.value[newIdx])
+    const newIdx = Math.min(idx, nextTabs.length - 1)
+    activateTab(nextTabs[newIdx])
+  } else {
+    emit()
   }
 
   closingTab.store.dispose()
@@ -116,10 +154,10 @@ export async function openFileInNewTab(
   handle?: FileSystemFileHandle,
   path?: string
 ): Promise<void> {
-  const current = activeTab.value
+  const current = getActiveTab()
   const isUntouched =
     current?.store.state.documentName === 'Untitled' && !current.store.undo.canUndo
-  const store = isUntouched ? current.store : createTab().store
+  const store = isUntouched && current ? current.store : createTab().store
   if (isDOMImportFile(file)) {
     await store.openDOMFile(file, { handle, path })
     return
@@ -152,16 +190,31 @@ export async function openFileInNewTab(
     await store.fitCurrentPageToViewport()
   } finally {
     store.state.loading = false
+    emit()
   }
 }
 
 export function tabCount(): number {
-  return tabsRef.value.length
+  return snapshot.tabs.length
+}
+
+export function useActiveTab(): Tab | undefined {
+  return useSyncExternalStore(subscribe, getActiveTab, getActiveTab)
+}
+
+export function useAllTabs() {
+  return useSyncExternalStore(subscribe, getAllTabs, getAllTabs)
 }
 
 export function useTabsStore() {
+  const tabs = useAllTabs()
+  const activeTabId = useSyncExternalStore(
+    subscribe,
+    () => snapshot.activeTabId,
+    () => snapshot.activeTabId
+  )
   return {
-    tabs: allTabs,
+    tabs,
     activeTabId,
     createTab,
     switchTab,

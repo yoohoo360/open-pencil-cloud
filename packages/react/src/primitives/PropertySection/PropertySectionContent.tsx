@@ -1,21 +1,12 @@
-<script setup lang="ts">
-import { CollapsibleContent } from 'reka-ui'
+import { memo } from 'react'
 
-import { usePropertySection } from '#vue/primitives/PropertySection/context'
-import type { PropertySectionPartProps } from '#vue/primitives/PropertySection/types'
+import { PropertySectionPart, type PropertySectionPartComponentProps } from '#react/primitives/PropertySection/part'
+import { usePropertySection } from '#react/primitives/PropertySection/context'
 
-const { as = 'div', asChild = false } = defineProps<PropertySectionPartProps>()
-const ctx = usePropertySection()
-defineOptions({ inheritAttrs: false })
-</script>
+export const PropertySectionContent = memo(function PropertySectionContent(props: Omit<PropertySectionPartComponentProps, 'slot'>) {
+  const context = usePropertySection()
+  if (!context.open && context.unmountOnHide) return null
+  return <PropertySectionPart {...props} slot="content" hidden={!context.open} />
+})
 
-<template>
-  <CollapsibleContent
-    v-bind="{ ...$attrs, ...ctx.stateAttrs.value }"
-    :as="as"
-    :as-child="asChild"
-    data-slot="content"
-  >
-    <slot v-bind="ctx.slotProps.value" />
-  </CollapsibleContent>
-</template>
+PropertySectionContent.displayName = 'PropertySectionContent'

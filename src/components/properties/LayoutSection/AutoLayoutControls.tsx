@@ -1,49 +1,66 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import IconLucideArrowDown from '~icons/lucide/arrow-down'
+import IconLucideArrowRight from '~icons/lucide/arrow-right'
+import IconLucideLayoutGrid from '~icons/lucide/layout-grid'
+import IconLucideWrapText from '~icons/lucide/wrap-text'
+import { memo, useMemo } from 'react'
 
-import { useI18n, useLayoutControlsContext } from '@open-pencil/vue'
-
-import IconButton from '@/components/ui/IconButton.vue'
-
+import { useI18n } from '@open-pencil/react'
 import type { LayoutMode } from '@open-pencil/scene-graph'
 
-const ctx = useLayoutControlsContext()
-const { panels } = useI18n()
+import { useLayoutContext } from '@/components/properties/LayoutSection/types'
+import IconButton from '@/components/ui/IconButton'
 
-const layoutModes = computed<Array<{ mode: LayoutMode; label: string }>>(() => [
-  { mode: 'HORIZONTAL', label: panels.value.layoutHorizontal },
-  { mode: 'VERTICAL', label: panels.value.layoutVertical },
-  { mode: 'GRID', label: panels.value.layoutGrid }
-])
-</script>
+export const AutoLayoutControls = memo(function AutoLayoutControls() {
+  const ctx = useLayoutContext()
+  const { panels } = useI18n()
 
-<template>
-  <div
-    v-if="ctx.node.layoutMode !== 'NONE'"
-    class="flex items-center gap-1"
-    role="toolbar"
-    :aria-label="panels.flow"
-  >
-    <IconButton
-      v-for="direction in layoutModes"
-      :key="direction.mode"
-      :label="direction.label"
-      size="md"
-      :active="direction.mode === 'GRID' ? ctx.isGrid : ctx.node.layoutMode === direction.mode"
-      @click="ctx.editor.setLayoutMode(ctx.node.id, direction.mode)"
-    >
-      <icon-lucide-arrow-right v-if="direction.mode === 'HORIZONTAL'" class="size-3.5" />
-      <icon-lucide-arrow-down v-else-if="direction.mode === 'VERTICAL'" class="size-3.5" />
-      <icon-lucide-layout-grid v-else class="size-3.5" />
-    </IconButton>
-    <IconButton
-      v-if="ctx.isFlex"
-      :label="panels.layoutWrap"
-      size="md"
-      :active="ctx.node.layoutWrap === 'WRAP'"
-      @click="ctx.updateProp('layoutWrap', ctx.node.layoutWrap === 'WRAP' ? 'NO_WRAP' : 'WRAP')"
-    >
-      <icon-lucide-wrap-text class="size-3.5" />
-    </IconButton>
-  </div>
-</template>
+  const layoutModes = useMemo<Array<{ mode: LayoutMode; label: string }>>(
+    () => [
+      { mode: 'HORIZONTAL', label: panels.layoutHorizontal },
+      { mode: 'VERTICAL', label: panels.layoutVertical },
+      { mode: 'GRID', label: panels.layoutGrid }
+    ],
+    [panels.layoutGrid, panels.layoutHorizontal, panels.layoutVertical]
+  )
+
+  if (ctx.node.layoutMode === 'NONE') return null
+
+  return (
+    <div className="flex items-center gap-1" role="toolbar" aria-label={panels.flow}>
+      {layoutModes.map((direction) => (
+        <IconButton
+          key={direction.mode}
+          label={direction.label}
+          size="md"
+          active={
+            direction.mode === 'GRID' ? ctx.isGrid : ctx.node.layoutMode === direction.mode
+          }
+          onClick={() => ctx.editor.setLayoutMode(ctx.node.id, direction.mode)}
+        >
+          {direction.mode === 'HORIZONTAL' ? (
+            <IconLucideArrowRight className="size-3.5" />
+          ) : direction.mode === 'VERTICAL' ? (
+            <IconLucideArrowDown className="size-3.5" />
+          ) : (
+            <IconLucideLayoutGrid className="size-3.5" />
+          )}
+        </IconButton>
+      ))}
+      {ctx.isFlex ? (
+        <IconButton
+          label={panels.layoutWrap}
+          size="md"
+          active={ctx.node.layoutWrap === 'WRAP'}
+          onClick={() =>
+            ctx.updateProp('layoutWrap', ctx.node.layoutWrap === 'WRAP' ? 'NO_WRAP' : 'WRAP')
+          }
+        >
+          <IconLucideWrapText className="size-3.5" />
+        </IconButton>
+      ) : null}
+    </div>
+  )
+})
+
+AutoLayoutControls.displayName = 'AutoLayoutControls'
+export default AutoLayoutControls

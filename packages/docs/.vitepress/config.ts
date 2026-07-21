@@ -36,8 +36,8 @@ export default defineConfig({
           compilerOptions: {
             baseUrl: repoRoot,
             paths: {
-              '@open-pencil/vue': ['packages/vue/src/index.ts'],
-              '#vue/*': ['packages/vue/src/*']
+              '@open-pencil/react': ['packages/react/src/index.ts'],
+              '#react/*': ['packages/react/src/*']
             }
           },
           typesCache: createFileSystemTypesCache({
@@ -52,7 +52,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '#docs': fileURLToPath(new URL('.', import.meta.url)),
-        '#vue': fileURLToPath(new URL('../../vue/src', import.meta.url))
+        '#react': fileURLToPath(new URL('../../react/src', import.meta.url))
       }
     },
     plugins: [
@@ -65,7 +65,7 @@ export default defineConfig({
         customTemplateVariables: {
           title: 'OpenPencil',
           description:
-            'Open-source, AI-native design editor and toolkit. Opens Figma .fig files, provides a programmable scene graph, CLI, MCP server, and Vue SDK for custom editor shells.',
+            'Open-source, AI-native design editor and toolkit. Opens Figma .fig files, provides a programmable scene graph, CLI, MCP server, and React SDK for custom editor shells.',
           details:
             'Use this file as the compact map for agents. For complete Markdown content, fetch https://openpencil.dev/llms-full.txt.'
         }

@@ -1,39 +1,49 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import IconLucideChevronRight from '~icons/lucide/chevron-right'
+import { memo, useMemo } from 'react'
 import { tv } from 'tailwind-variants'
 
-import { useLayerTreeUI } from './ui'
-
+import { useLayerTreeUI } from '@/components/LayerTree/ui'
 import layerTreeTheme from '@/theme/layer-tree'
 
-const { expanded, visible } = defineProps<{
+export type LayerTreeDisclosureProps = {
   expanded: boolean
   visible: boolean
-}>()
+  onToggle: () => void
+}
 
-const emit = defineEmits<{
-  toggle: []
-}>()
+export const LayerTreeDisclosure = memo(function LayerTreeDisclosure({
+  expanded,
+  visible,
+  onToggle
+}: LayerTreeDisclosureProps) {
+  const ui = useLayerTreeUI()
+  const layerTree = tv(layerTreeTheme)
+  const styles = useMemo(() => layerTree({ expanded }), [expanded, layerTree])
 
-const ui = useLayerTreeUI()
-const layerTree = tv(layerTreeTheme)
-const styles = computed(() => layerTree({ expanded }))
-</script>
+  if (!visible) {
+    return (
+      <span
+        data-slot="disclosure-placeholder"
+        className={styles.disclosurePlaceholder({ class: ui?.disclosurePlaceholder })}
+      />
+    )
+  }
 
-<template>
-  <button
-    v-if="visible"
-    type="button"
-    data-slot="disclosure"
-    :data-expanded="expanded || undefined"
-    :class="styles.disclosure({ class: ui?.disclosure })"
-    @click.stop="emit('toggle')"
-  >
-    <icon-lucide-chevron-right class="size-3" />
-  </button>
-  <span
-    v-else
-    data-slot="disclosure-placeholder"
-    :class="styles.disclosurePlaceholder({ class: ui?.disclosurePlaceholder })"
-  />
-</template>
+  return (
+    <button
+      type="button"
+      data-slot="disclosure"
+      data-expanded={expanded || undefined}
+      className={styles.disclosure({ class: ui?.disclosure })}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle()
+      }}
+    >
+      <IconLucideChevronRight className="size-3" />
+    </button>
+  )
+})
+
+LayerTreeDisclosure.displayName = 'LayerTreeDisclosure'
+export default LayerTreeDisclosure

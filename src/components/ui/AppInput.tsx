@@ -1,61 +1,78 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo, type InputHTMLAttributes, type KeyboardEvent, type FocusEvent } from 'react'
 import { tv } from 'tailwind-variants'
 
 import theme from '@/theme/input'
 
-interface AppInputProps {
+export type AppInputProps = {
+  value: string | number
+  onValueChange: (value: string) => void
   type?: 'text' | 'password' | 'number' | 'search'
   placeholder?: string
-  readonly?: boolean
+  readOnly?: boolean
   disabled?: boolean
-  autofocus?: boolean
+  autoFocus?: boolean
   min?: number
   max?: number
   step?: number
   tone?: 'default' | 'panel'
   size?: 'sm' | 'md'
   state?: 'idle' | 'mixed' | 'bound' | 'invalid'
-}
+  className?: string
+  onChangeCommit?: () => void
+  onEnter?: (event: KeyboardEvent<HTMLInputElement>) => void
+  onFocus?: (event: FocusEvent<HTMLInputElement>) => void
+} & Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'value' | 'onChange' | 'onFocus' | 'type'
+>
 
-const {
+export const AppInput = memo(function AppInput({
+  value,
+  onValueChange,
   type = 'text',
   placeholder,
-  readonly,
+  readOnly,
   disabled,
-  autofocus,
+  autoFocus,
   min,
   max,
   step,
   tone = 'default',
   size = 'md',
-  state = 'idle'
-} = defineProps<AppInputProps>()
+  state = 'idle',
+  className,
+  onChangeCommit,
+  onEnter,
+  onFocus,
+  ...rest
+}: AppInputProps) {
+  const inputClass = useMemo(
+    () => tv(theme)({ tone, size, state, class: className }),
+    [className, size, state, tone]
+  )
 
-const inputClass = computed(() => tv(theme)({ tone, size, state }))
+  return (
+    <input
+      {...rest}
+      value={value}
+      type={type}
+      placeholder={placeholder}
+      readOnly={readOnly}
+      disabled={disabled}
+      autoFocus={autoFocus}
+      min={min}
+      max={max}
+      step={step}
+      className={inputClass}
+      onChange={(event) => onValueChange(event.target.value)}
+      onChangeCapture={() => onChangeCommit?.()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onEnter?.(event)
+      }}
+      onFocus={onFocus}
+    />
+  )
+})
 
-const modelValue = defineModel<string | number>({ required: true })
-const emit = defineEmits<{
-  change: []
-  enter: [event: KeyboardEvent]
-  focus: [event: FocusEvent]
-}>()
-</script>
-
-<template>
-  <input
-    v-model="modelValue"
-    :type="type"
-    :placeholder="placeholder"
-    :readonly="readonly"
-    :disabled="disabled"
-    :autofocus="autofocus"
-    :min="min"
-    :max="max"
-    :step="step"
-    :class="inputClass"
-    @change="emit('change')"
-    @keydown.enter="emit('enter', $event)"
-    @focus="emit('focus', $event)"
-  />
-</template>
+AppInput.displayName = 'AppInput'
+export default AppInput

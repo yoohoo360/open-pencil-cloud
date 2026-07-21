@@ -1,4 +1,4 @@
-import type { Component } from 'vue'
+import type { ComponentType } from 'react'
 import IconCircle from '~icons/lucide/circle'
 import IconColumns from '~icons/lucide/columns-3'
 import IconComponentSet from '~icons/lucide/component'
@@ -19,7 +19,7 @@ import IconType from '~icons/lucide/type'
 
 import type { Tool } from '@/app/editor/session'
 
-export const toolIcons: Record<Tool, Component> = {
+export const toolIcons: Record<Tool, ComponentType> = {
   SELECT: IconMousePointer,
   FRAME: IconFrame,
   SECTION: IconSection,

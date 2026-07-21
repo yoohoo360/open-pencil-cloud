@@ -1,15 +1,38 @@
-<script setup lang="ts">
-import { computed, useAttrs } from 'vue'
-import { BindableValueRoot, useI18n, useNumberBindingProvider } from '@open-pencil/vue'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import type { ClassValue } from 'tailwind-variants'
 
-import NumberField from '@/components/inputs/NumberField.vue'
-import VariableBindingPicker from '@/components/properties/binding/VariableBindingPicker.vue'
+import {
+  BindableValueRoot,
+  useI18n,
+  useNumberBindingProvider,
+  type BindingTarget,
+  type NumberBindingPath
+} from '@open-pencil/react'
+
+import NumberField, { type NumberFieldProps } from '@/components/inputs/NumberField'
+import VariableBindingPicker from '@/components/properties/binding/VariableBindingPicker'
 import { BindingPill, useBindingFieldUI } from '@/components/ui/binding'
 
-import type { BindingTarget, NumberBindingPath } from '@open-pencil/vue'
+export type VariableNumberFieldProps = {
+  value: number | symbol
+  min?: number
+  max?: number
+  step?: number
+  icon?: ReactNode
+  label?: string
+  suffix?: string
+  sensitivity?: number
+  placeholder?: string
+  nodeId: string
+  bindingPath: NumberBindingPath
+  afterVariable?: ReactNode
+  className?: ClassValue
+  onValueChange?: (value: number) => void
+  onCommit?: (value: number, previous: number) => void
+} & Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
 
-const {
-  modelValue,
+export const VariableNumberField = memo(function VariableNumberField({
+  value,
   min,
   max,
   step,
@@ -19,95 +42,75 @@ const {
   sensitivity,
   placeholder,
   nodeId,
-  bindingPath
-} = defineProps<{
-  modelValue: number | symbol
-  min?: number
-  max?: number
-  step?: number
-  icon?: string
-  label?: string
-  suffix?: string
-  sensitivity?: number
-  placeholder?: string
-  nodeId: string
-  bindingPath: NumberBindingPath
-}>()
+  bindingPath,
+  afterVariable,
+  onValueChange,
+  onCommit,
+  'aria-label': ariaLabel,
+  className,
+  ...rest
+}: VariableNumberFieldProps) {
+  const { panels, dialogs } = useI18n()
+  const provider = useNumberBindingProvider()
+  const bindingStyles = useBindingFieldUI()
+  const targets = useMemo<BindingTarget[]>(() => [{ nodeId, path: bindingPath }], [bindingPath, nodeId])
+  const accessibleLabel = ariaLabel ?? label ?? bindingPath
+  const numericValue = typeof value === 'number' ? value : 0
 
-const emit = defineEmits<{
-  'update:modelValue': [value: number]
-  commit: [value: number, previous: number]
-}>()
+  function bindingTooltip(name: string, resolvedValue: unknown) {
+    if (typeof resolvedValue !== 'number') return name
+    return `${name} · ${resolvedValue}${suffix ?? ''}`
+  }
 
-const { panels, dialogs } = useI18n()
-const provider = useNumberBindingProvider()
-const attrs = useAttrs()
-const targets = computed<BindingTarget[]>(() => [{ nodeId, path: bindingPath }])
-const accessibleLabel = computed(() => {
-  const ariaLabel = attrs['aria-label']
-  return typeof ariaLabel === 'string' ? ariaLabel : (label ?? bindingPath)
-})
-const bindingStyles = useBindingFieldUI()
-
-function bindingTooltip(name: string, resolvedValue: unknown) {
-  if (typeof resolvedValue !== 'number') return name
-  return `${name} · ${resolvedValue}${suffix ?? ''}`
-}
-
-defineOptions({ inheritAttrs: false })
-</script>
-
-<template>
-  <BindableValueRoot
-    v-slot="binding"
-    :provider="provider"
-    :targets="targets"
-    :value="typeof modelValue === 'number' ? modelValue : 0"
-  >
-    <NumberField
-      v-bind="$attrs"
-      :icon="icon"
-      :label="label"
-      :suffix="suffix"
-      :sensitivity="sensitivity"
-      :placeholder="placeholder"
-      :model-value="modelValue"
-      :min="min"
-      :max="max"
-      :step="step"
-      :ui="{ root: bindingStyles.root }"
-      :data-property="bindingPath"
-      :aria-label="accessibleLabel"
-      @update:model-value="emit('update:modelValue', $event)"
-      @commit="(value: number, previous: number) => emit('commit', value, previous)"
-    >
-      <template v-if="$slots.icon" #icon>
-        <slot name="icon" />
-      </template>
-      <template v-if="binding.variable" #bound>
-        <BindingPill
-          :label="binding.variable.name"
-          :tooltip="bindingTooltip(binding.variable.name, binding.resolvedValue)"
+  return (
+    <BindableValueRoot provider={provider} targets={targets} value={numericValue}>
+      {(binding) => (
+        <NumberField
+          {...({
+            ...rest,
+            className,
+            icon,
+            label,
+            suffix,
+            sensitivity,
+            placeholder,
+            value,
+            min,
+            max,
+            step,
+            ui: { root: bindingStyles.root },
+            'data-property': bindingPath,
+            'aria-label': accessibleLabel,
+            boundContent: binding.variable ? (
+              <BindingPill
+                label={binding.variable.name}
+                tooltip={bindingTooltip(binding.variable.name, binding.resolvedValue)}
+              />
+            ) : undefined,
+            suffixContent: (
+              <>
+                <span className={`flex items-center ${afterVariable ? '' : 'pr-1'}`}>
+                  <VariableBindingPicker
+                    triggerLabel={panels.applyVariable}
+                    searchPlaceholder={dialogs.search}
+                    emptyLabel={panels.noVariablesFound}
+                    detachLabel={panels.detachVariable}
+                    createLabel={panels.createNumberVariable({ value: Math.round(numericValue) })}
+                    createNamePlaceholder={panels.variableName}
+                    createSubmitLabel={panels.create}
+                  />
+                </span>
+                {afterVariable}
+              </>
+            ),
+            onValueChange,
+            onCommit
+          } as NumberFieldProps)}
         />
-      </template>
-      <template #suffix>
-        <span :class="$slots['after-variable'] ? '' : 'pr-1'" class="flex items-center">
-          <VariableBindingPicker
-            :trigger-label="panels.applyVariable"
-            :search-placeholder="dialogs.search"
-            :empty-label="panels.noVariablesFound"
-            :detach-label="panels.detachVariable"
-            :create-label="
-              panels.createNumberVariable({
-                value: typeof modelValue === 'number' ? Math.round(modelValue) : 0
-              })
-            "
-            :create-name-placeholder="panels.variableName"
-            :create-submit-label="panels.create"
-          />
-        </span>
-        <slot name="after-variable" />
-      </template>
-    </NumberField>
-  </BindableValueRoot>
-</template>
+      )}
+    </BindableValueRoot>
+  )
+})
+
+VariableNumberField.displayName = 'VariableNumberField'
+export default VariableNumberField

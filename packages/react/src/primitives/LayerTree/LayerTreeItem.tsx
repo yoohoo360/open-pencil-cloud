@@ -1,82 +1,107 @@
-<script setup lang="ts">
-import { computed, ref } from 'vue'
+import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react'
 
-import { useLayerTree } from '#vue/primitives/LayerTree/context'
+import type { LayerNode } from '#react/primitives/LayerTree/context'
+import { useLayerTree } from '#react/primitives/LayerTree/context'
 
-import type { LayerNode } from '#vue/primitives/LayerTree/context'
+export type LayerTreeItemActions = {
+  select: (additive: boolean, range?: boolean) => void
+  toggleExpand: () => void
+  toggleVisibility: () => void
+  toggleLock: () => void
+  rename: (name: string) => void
+}
 
-const { node, level, hasChildren } = defineProps<{
+export type LayerTreeItemSlotProps = {
   node: LayerNode
   level: number
   hasChildren: boolean
-}>()
-
-const emit = defineEmits<{
-  select: [id: string, additive: boolean]
-  toggleExpand: [id: string]
-  toggleVisibility: [id: string]
-  toggleLock: [id: string]
-  rename: [id: string, name: string]
-}>()
-
-const ctx = useLayerTree()
-
-const isSelected = computed(() => ctx.selectedIds.value.has(node.id))
-const isDragging = computed(() => ctx.draggingId.value === node.id)
-const padLeft = computed(() => `${(level - 1) * ctx.indentPerLevel}px`)
-
-const rowEl = ref<HTMLElement | null>(null)
-
-function onRef(el: unknown) {
-  const htmlEl = el as HTMLElement | null
-  rowEl.value = htmlEl
-  ctx.setRowRef(node.id, htmlEl)
+  isSelected: boolean
+  isDragging: boolean
+  focused: boolean
+  padLeft: string
+  actions: LayerTreeItemActions
 }
 
-ctx.setupDrag(rowEl, () => ({
-  id: node.id,
+export type LayerTreeItemProps = {
+  node: LayerNode
+  level: number
+  hasChildren: boolean
+  children?: ReactNode | ((props: LayerTreeItemSlotProps) => ReactNode)
+  onSelect?: (id: string, additive: boolean) => void
+  onToggleExpand?: (id: string) => void
+  onToggleVisibility?: (id: string) => void
+  onToggleLock?: (id: string) => void
+  onRename?: (id: string, name: string) => void
+}
+
+export const LayerTreeItem = memo(function LayerTreeItem({
+  node,
   level,
   hasChildren,
-  parentId: null
-}))
+  children,
+  onSelect,
+  onToggleExpand,
+  onToggleVisibility,
+  onToggleLock,
+  onRename
+}: LayerTreeItemProps) {
+  const context = useLayerTree()
+  const rowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = rowRef.current
+    if (!element) return
+    context.setRowRef(node.id, element)
+    const cleanup = context.setupDrag(element, () => ({
+      id: node.id,
+      level,
+      hasChildren,
+      parentId: null
+    }))
+    return () => {
+      cleanup()
+      context.setRowRef(node.id, null)
+    }
+  }, [context, hasChildren, level, node.id])
+  const slotProps = useMemo<LayerTreeItemSlotProps>(
+    () => ({
+      node,
+      level,
+      hasChildren,
+      isSelected: context.selectedIds.has(node.id),
+      isDragging: context.draggingId === node.id,
+      focused: context.focused,
+      padLeft: `${(level - 1) * context.indentPerLevel}px`,
+      actions: {
+        select: (additive, range = false) => {
+          onSelect?.(node.id, additive)
+          context.select(node.id, { additive, range })
+        },
+        toggleExpand: () => {
+          onToggleExpand?.(node.id)
+          context.toggleExpand(node.id)
+        },
+        toggleVisibility: () => {
+          onToggleVisibility?.(node.id)
+          context.toggleVisibility(node.id)
+        },
+        toggleLock: () => {
+          onToggleLock?.(node.id)
+          context.toggleLock(node.id)
+        },
+        rename: (name) => {
+          onRename?.(node.id, name)
+          context.rename(node.id, name)
+        }
+      }
+    }),
+    [context, hasChildren, level, node, onRename, onSelect, onToggleExpand, onToggleLock, onToggleVisibility]
+  )
 
-const actions = {
-  select: (additive: boolean) => {
-    emit('select', node.id, additive)
-    ctx.select(node.id, additive)
-  },
-  toggleExpand: () => {
-    emit('toggleExpand', node.id)
-    ctx.toggleExpand(node.id)
-  },
-  toggleVisibility: () => {
-    emit('toggleVisibility', node.id)
-    ctx.toggleVisibility(node.id)
-  },
-  toggleLock: () => {
-    emit('toggleLock', node.id)
-    ctx.toggleLock(node.id)
-  },
-  rename: (name: string) => {
-    emit('rename', node.id, name)
-    ctx.rename(node.id, name)
-  }
-}
+  return (
+    <div ref={rowRef} data-slot="item" data-node-id={node.id} className="w-full">
+      {typeof children === 'function' ? children(slotProps) : children}
+    </div>
+  )
+})
 
-defineExpose({ rowEl })
-</script>
-
-<template>
-  <div :ref="onRef" :data-node-id="node.id" class="w-full">
-    <slot
-      :node="node"
-      :level="level"
-      :has-children="hasChildren"
-      :is-selected="isSelected"
-      :is-dragging="isDragging"
-      :focused="ctx.focused.value"
-      :pad-left="padLeft"
-      :actions="actions"
-    />
-  </div>
-</template>
+LayerTreeItem.displayName = 'LayerTreeItem'

@@ -1,37 +1,32 @@
-<script lang="ts">
-import type { VNode } from 'vue'
-import type { ClassValue } from 'tailwind-variants'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 
 import type { PanelGridTheme } from '@/theme/panel/grid'
-type PanelGridColumns = keyof PanelGridTheme['variants']['columns']
-
-export interface PanelGridProps {
-  columns?: PanelGridColumns
-  class?: ClassValue
-}
-
-export interface PanelGridSlots {
-  default(): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { tv } from 'tailwind-variants'
-
 import theme from '@/theme/panel/grid'
 
-const { columns = 'two-rail', class: className } = defineProps<PanelGridProps>()
-defineSlots<PanelGridSlots>()
-const panelGrid = tv(theme)
-</script>
+type PanelGridColumns = keyof PanelGridTheme['variants']['columns']
 
-<template>
-  <div
-    data-slot="root"
-    data-panel-grid
-    :data-columns="columns"
-    :class="panelGrid({ columns, class: className })"
-  >
-    <slot />
-  </div>
-</template>
+export type PanelGridProps = {
+  children: ReactNode
+  className?: ClassValue
+  columns?: PanelGridColumns
+} & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>
+
+export const PanelGrid = memo(function PanelGrid({
+  children,
+  className,
+  columns = 'two-rail',
+  ...props
+}: PanelGridProps) {
+  const classes = useMemo(() => tv(theme)({ columns, class: className }), [className, columns])
+
+  return (
+    <div {...props} className={classes} data-columns={columns} data-panel-grid data-slot="root">
+      {children}
+    </div>
+  )
+})
+
+PanelGrid.displayName = 'PanelGrid'
+
+export default PanelGrid

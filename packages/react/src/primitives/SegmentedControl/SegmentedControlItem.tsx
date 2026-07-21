@@ -1,62 +1,86 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-import { Primitive, RovingFocusItem, ToggleGroupItem } from 'reka-ui'
+import * as RovingFocus from '@radix-ui/react-roving-focus'
+import * as ToggleGroup from '@radix-ui/react-toggle-group'
+import { Slot } from '@radix-ui/react-slot'
+import {
+  createElement,
+  memo,
+  type ButtonHTMLAttributes,
+  type MouseEvent,
+  type ReactNode
+} from 'react'
 
-import { useSegmentedControl } from '#vue/primitives/SegmentedControl/context'
+import { useSegmentedControl } from '#react/primitives/SegmentedControl/context'
 import type {
   SegmentedControlItemProps,
-  SegmentedControlItemSlots
-} from '#vue/primitives/SegmentedControl/types'
+  SegmentedControlItemSlotProps
+} from '#react/primitives/SegmentedControl/types'
 
-const {
+export type SegmentedControlItemComponentProps = SegmentedControlItemProps &
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'value'> & {
+    children?: ReactNode | ((props: SegmentedControlItemSlotProps) => ReactNode)
+    onClick?: (event: MouseEvent<HTMLElement>) => void
+  }
+
+export const SegmentedControlItem = memo(function SegmentedControlItem({
   value,
   disabled: disabledProp = false,
-  as = 'button',
-  asChild = false
-} = defineProps<SegmentedControlItemProps>()
-defineSlots<SegmentedControlItemSlots>()
-defineOptions({ inheritAttrs: false })
+  as: As = 'button',
+  asChild = false,
+  children,
+  onClick,
+  ...props
+}: SegmentedControlItemComponentProps) {
+  const context = useSegmentedControl()
+  const disabled = disabledProp || context.disabled
+  const selected = context.selected(value)
+  const slotProps = { value, selected, disabled, mode: context.mode }
+  const content = typeof children === 'function' ? children(slotProps) : children
 
-const ctx = useSegmentedControl()
-const disabled = computed(() => disabledProp || ctx.disabled.value)
-const selected = computed(() => ctx.selected(value))
-const slotProps = computed(() => ({
-  value,
-  selected: selected.value,
-  disabled: disabled.value,
-  mode: ctx.mode.value
-}))
+  if (context.mode !== 'action') {
+    return (
+      <ToggleGroup.Item
+        {...props}
+        value={value}
+        disabled={disabled}
+        asChild={asChild}
+        data-slot="item"
+      >
+        {asChild ? content : createElement(As, undefined, content)}
+      </ToggleGroup.Item>
+    )
+  }
 
-function activate() {
-  if (!disabled.value) ctx.activate(value)
-}
-</script>
-
-<template>
-  <ToggleGroupItem
-    v-if="ctx.mode.value !== 'action'"
-    v-bind="$attrs"
-    :value="value"
-    :disabled="disabled"
-    :as="as"
-    :as-child="asChild"
-    data-slot="item"
-  >
-    <slot v-bind="slotProps" />
-  </ToggleGroupItem>
-
-  <RovingFocusItem v-else :focusable="!disabled" as-child>
-    <Primitive
-      v-bind="$attrs"
-      :as="as"
-      :as-child="asChild"
-      :type="!asChild && as === 'button' ? 'button' : undefined"
-      :disabled="disabled"
+  const item = asChild ? (
+    <Slot
+      {...props}
       data-slot="item"
       data-state="off"
-      @click="activate"
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented && !disabled) context.activate(value)
+      }}
     >
-      <slot v-bind="slotProps" />
-    </Primitive>
-  </RovingFocusItem>
-</template>
+      {content}
+    </Slot>
+  ) : (
+    createElement(
+      As,
+      {
+        ...props,
+        type: As === 'button' ? 'button' : undefined,
+        disabled,
+        'data-slot': 'item',
+        'data-state': 'off',
+        onClick: (event: MouseEvent<HTMLElement>) => {
+          onClick?.(event)
+          if (!event.defaultPrevented && !disabled) context.activate(value)
+        }
+      },
+      content
+    )
+  )
+
+  return <RovingFocus.Item asChild focusable={!disabled}>{item}</RovingFocus.Item>
+})
+
+SegmentedControlItem.displayName = 'SegmentedControlItem'

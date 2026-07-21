@@ -1,61 +1,69 @@
-<script setup lang="ts">
-import { proxyRefs } from 'vue'
+import { useLayout } from '#react/controls/layout/use'
+import { LayoutControlsProvider } from '#react/primitives/LayoutControls/context'
+import type { LayoutControlsRootSlotProps } from '#react/primitives/LayoutControls/types'
+import { memo, useMemo, type ReactNode } from 'react'
 
-import { useLayout } from '#vue/controls/layout/use'
-import { provideLayoutControls } from '#vue/primitives/LayoutControls/context'
-import type { LayoutControlsRootSlots } from '#vue/primitives/LayoutControls/types'
-
-const ctx = useLayout()
-defineSlots<LayoutControlsRootSlots>()
-const actions = {
-  updateProp: ctx.updateProp,
-  updateSizeLimit: ctx.updateSizeLimit,
-  setSizeLimitToCurrent: ctx.setSizeLimitToCurrent,
-  commitSizeLimit: ctx.commitSizeLimit,
-  addSizeLimit: ctx.addSizeLimit,
-  removeSizeLimit: ctx.removeSizeLimit,
-  commitProp: ctx.commitProp,
-  setAxisSizing: ctx.setAxisSizing,
-  updateAxisSize: ctx.updateAxisSize,
-  commitAxisSize: ctx.commitAxisSize,
-  setHorizontalPadding: ctx.setHorizontalPadding,
-  commitHorizontalPadding: ctx.commitHorizontalPadding,
-  setVerticalPadding: ctx.setVerticalPadding,
-  commitVerticalPadding: ctx.commitVerticalPadding,
-  setAlignment: ctx.setAlignment,
-  setGapAuto: ctx.setGapAuto,
-  setLayoutDirection: ctx.setLayoutDirection,
-  updateGridTrack: ctx.updateGridTrack,
-  addTrack: ctx.addTrack,
-  removeTrack: ctx.removeTrack,
-  toggleIndividualPadding: ctx.toggleIndividualPadding
+export type LayoutControlsRootProps = {
+  children?: ReactNode | ((props: LayoutControlsRootSlotProps) => ReactNode)
 }
-provideLayoutControls(
-  proxyRefs(ctx) as ReturnType<typeof proxyRefs<typeof ctx>> & {
-    node: NonNullable<typeof ctx.node.value>
-  }
-)
-</script>
 
-<template>
-  <slot
-    :editor="ctx.editor"
-    :node="ctx.node.value"
-    :layout-direction="ctx.layoutDirection.value"
-    :gap-auto="ctx.gapAuto.value"
-    :is-in-auto-layout="ctx.isInAutoLayout.value"
-    :is-grid="ctx.isGrid.value"
-    :is-flex="ctx.isFlex.value"
-    :width-sizing="ctx.widthSizing.value"
-    :height-sizing="ctx.heightSizing.value"
-    :width-sizing-options="ctx.widthSizingOptions.value"
-    :height-sizing-options="ctx.heightSizingOptions.value"
-    :align-grid="ctx.alignGrid.value"
-    :show-individual-padding="ctx.showIndividualPadding.value"
-    :has-uniform-padding="ctx.hasUniformPadding.value"
-    :has-symmetric-padding="ctx.hasSymmetricPadding.value"
-    :track-sizing-options="ctx.trackSizingOptions"
-    :track-label="ctx.trackLabel"
-    :actions="actions"
-  />
-</template>
+export const LayoutControlsRoot = memo(function LayoutControlsRoot({
+  children
+}: LayoutControlsRootProps) {
+  const ctx = useLayout()
+  const slotProps = useMemo<LayoutControlsRootSlotProps>(
+    () => ({
+      editor: ctx.editor,
+      node: ctx.node,
+      layoutDirection: ctx.layoutDirection,
+      gapAuto: ctx.gapAuto,
+      isInAutoLayout: ctx.isInAutoLayout,
+      isGrid: ctx.isGrid,
+      isFlex: ctx.isFlex,
+      widthSizing: ctx.widthSizing,
+      heightSizing: ctx.heightSizing,
+      widthSizingOptions: ctx.widthSizingOptions,
+      heightSizingOptions: ctx.heightSizingOptions,
+      alignGrid: ctx.alignGrid,
+      showIndividualPadding: ctx.showIndividualPadding,
+      hasUniformPadding: ctx.hasUniformPadding,
+      hasSymmetricPadding: ctx.hasSymmetricPadding,
+      trackSizingOptions: ctx.trackSizingOptions,
+      trackLabel: ctx.trackLabel,
+      actions: {
+        updateProp: ctx.updateProp,
+        updateSizeLimit: ctx.updateSizeLimit,
+        setSizeLimitToCurrent: ctx.setSizeLimitToCurrent,
+        commitSizeLimit: ctx.commitSizeLimit,
+        addSizeLimit: ctx.addSizeLimit,
+        removeSizeLimit: ctx.removeSizeLimit,
+        commitProp: ctx.commitProp,
+        setAxisSizing: ctx.setAxisSizing,
+        updateAxisSize: ctx.updateAxisSize,
+        commitAxisSize: ctx.commitAxisSize,
+        setHorizontalPadding: ctx.setHorizontalPadding,
+        commitHorizontalPadding: ctx.commitHorizontalPadding,
+        setVerticalPadding: ctx.setVerticalPadding,
+        commitVerticalPadding: ctx.commitVerticalPadding,
+        setAlignment: ctx.setAlignment,
+        setGapAuto: ctx.setGapAuto,
+        setLayoutDirection: ctx.setLayoutDirection,
+        updateGridTrack: ctx.updateGridTrack,
+        addTrack: ctx.addTrack,
+        removeTrack: ctx.removeTrack,
+        toggleIndividualPadding: ctx.toggleIndividualPadding
+      }
+    }),
+    [ctx]
+  )
+  const context = ctx.node ? { ...slotProps, node: ctx.node } : null
+
+  const content = typeof children === 'function' ? children(slotProps) : children
+  return context ? (
+    <LayoutControlsProvider value={context}>{content}</LayoutControlsProvider>
+  ) : (
+    <>{content}</>
+  )
+})
+
+LayoutControlsRoot.displayName = 'LayoutControlsRoot'

@@ -1,21 +1,9 @@
-<script setup lang="ts">
-import { Primitive } from 'reka-ui'
+import { memo } from 'react'
 
-import { usePropertySection } from '#vue/primitives/PropertySection/context'
-import type { PropertySectionPartProps } from '#vue/primitives/PropertySection/types'
+import { PropertySectionPart, type PropertySectionPartComponentProps } from '#react/primitives/PropertySection/part'
 
-const { as = 'div', asChild = false } = defineProps<PropertySectionPartProps>()
-const ctx = usePropertySection()
-defineOptions({ inheritAttrs: false })
-</script>
+export const PropertySectionActions = memo(function PropertySectionActions(props: Omit<PropertySectionPartComponentProps, 'slot'>) {
+  return <PropertySectionPart {...props} slot="actions" />
+})
 
-<template>
-  <Primitive
-    v-bind="{ ...$attrs, ...ctx.stateAttrs.value }"
-    :as="as"
-    :as-child="asChild"
-    data-slot="actions"
-  >
-    <slot v-bind="ctx.slotProps.value" />
-  </Primitive>
-</template>
+PropertySectionActions.displayName = 'PropertySectionActions'

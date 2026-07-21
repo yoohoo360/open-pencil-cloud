@@ -1,68 +1,86 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useCallback, useMemo, type ReactNode } from 'react'
 
-import { usePageList } from '#vue/primitives/PageList/usePageList'
+import { usePageList } from '#react/primitives/PageList/usePageList'
 
-const { dividerPattern: customDividerPattern } = defineProps<{
+type PageListItem = {
+  id: string
+  name: string
+  childIds: string[]
+}
+
+export type PageListActions = {
+  add: () => void
+  switch: (pageId: string) => void
+  rename: (pageId: string, name: string) => void
+  delete: (pageId: string) => void
+  move: (pageId: string, index: number) => void
+}
+
+export type PageListRootSlotProps = {
+  pages: PageListItem[]
+  currentPageId: string
+  isDivider: (page: Pick<PageListItem, 'name' | 'childIds'>) => boolean
+  actions: PageListActions
+}
+
+export type PageListRootProps = {
   dividerPattern?: RegExp
-}>()
-
-const emit = defineEmits<{
-  add: []
-  switch: [pageId: string]
-  rename: [pageId: string, name: string]
-  delete: [pageId: string]
-  move: [pageId: string, index: number]
-}>()
-
-const { pages, currentPageId, switchPage, addPage, renamePage, deletePage, movePage } =
-  usePageList()
-
-const dividerPattern = computed(() => customDividerPattern ?? /^[-–—*\s]+$/)
-
-function isDivider(page: { name: string; childIds: string[] }) {
-  return page.childIds.length === 0 && dividerPattern.value.test(page.name)
+  children?: ReactNode | ((props: PageListRootSlotProps) => ReactNode)
+  onAdd?: () => void
+  onSwitch?: (pageId: string) => void
+  onRename?: (pageId: string, name: string) => void
+  onDelete?: (pageId: string) => void
+  onMove?: (pageId: string, index: number) => void
 }
 
-function handleAdd() {
-  addPage()
-  emit('add')
-}
+const DEFAULT_DIVIDER_PATTERN = /^[-–—*\s]+$/
 
-function handleSwitch(pageId: string) {
-  switchPage(pageId)
-  emit('switch', pageId)
-}
+export const PageListRoot = memo(function PageListRoot({
+  dividerPattern = DEFAULT_DIVIDER_PATTERN,
+  children,
+  onAdd,
+  onSwitch,
+  onRename,
+  onDelete,
+  onMove
+}: PageListRootProps) {
+  const { pages, currentPageId, addPage, switchPage, renamePage, deletePage, movePage } = usePageList()
+  const actions = useMemo<PageListActions>(
+    () => ({
+      add: () => {
+        addPage()
+        onAdd?.()
+      },
+      switch: (pageId) => {
+        switchPage(pageId)
+        onSwitch?.(pageId)
+      },
+      rename: (pageId, name) => {
+        renamePage(pageId, name)
+        onRename?.(pageId, name)
+      },
+      delete: (pageId) => {
+        deletePage(pageId)
+        onDelete?.(pageId)
+      },
+      move: (pageId, index) => {
+        movePage(pageId, index)
+        onMove?.(pageId, index)
+      }
+    }),
+    [addPage, deletePage, movePage, onAdd, onDelete, onMove, onRename, onSwitch, renamePage, switchPage]
+  )
+  const isDivider = useCallback(
+    (page: Pick<PageListItem, 'name' | 'childIds'>) =>
+      page.childIds.length === 0 && dividerPattern.test(page.name),
+    [dividerPattern]
+  )
+  const slotProps = useMemo<PageListRootSlotProps>(
+    () => ({ pages, currentPageId, isDivider, actions }),
+    [actions, currentPageId, isDivider, pages]
+  )
 
-function handleRename(pageId: string, name: string) {
-  renamePage(pageId, name)
-  emit('rename', pageId, name)
-}
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
 
-function handleDelete(pageId: string) {
-  deletePage(pageId)
-  emit('delete', pageId)
-}
-
-function handleMove(pageId: string, index: number) {
-  movePage(pageId, index)
-  emit('move', pageId, index)
-}
-
-const actions = {
-  add: handleAdd,
-  switch: handleSwitch,
-  rename: handleRename,
-  delete: handleDelete,
-  move: handleMove
-}
-</script>
-
-<template>
-  <slot
-    :pages="pages"
-    :current-page-id="currentPageId"
-    :is-divider="isDivider"
-    :actions="actions"
-  />
-</template>
+PageListRoot.displayName = 'PageListRoot'

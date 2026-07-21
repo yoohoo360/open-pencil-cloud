@@ -1,42 +1,50 @@
-<script setup lang="ts">
-import { computed, watchEffect } from 'vue'
-import { templateRef } from '@vueuse/core'
+import { useNumberField } from '#react/primitives/NumberField/context'
+import { memo, useEffect, useMemo, type InputHTMLAttributes } from 'react'
 
-import { useNumberField } from '#vue/primitives/NumberField/context'
-
-const ctx = useNumberField()
-const inputEl = templateRef<HTMLInputElement>('inputEl')
-
-const ariaAttrs = computed(() => ({
-  role: 'spinbutton' as const,
-  'aria-valuenow': ctx.isMixed.value ? undefined : ctx.numericValue.value,
-  'aria-valuemin': Number.isFinite(ctx.min.value) ? ctx.min.value : undefined,
-  'aria-valuemax': Number.isFinite(ctx.max.value) ? ctx.max.value : undefined,
-  'aria-disabled': ctx.disabled.value ? ('true' as const) : undefined,
-  'aria-label': ctx.ariaLabel.value
-}))
-
-watchEffect(() => {
-  ctx.inputRef.value = inputEl.value
+export const NumberFieldInput = memo(function NumberFieldInput(
+  props: InputHTMLAttributes<HTMLInputElement>
+) {
+  const context = useNumberField()
+  useEffect(() => {
+    return () => {
+      context.inputRef.current = null
+    }
+  }, [context.inputRef])
+  const stateAttrs = useMemo(() => context.stateAttrs, [context.stateAttrs])
+  if (!context.editing) return null
+  return (
+    <input
+      {...props}
+      {...stateAttrs}
+      ref={context.inputRef}
+      data-slot="input"
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      spellCheck={false}
+      disabled={context.disabled}
+      value={context.draftValue}
+      role="spinbutton"
+      aria-valuenow={context.isMixed ? undefined : context.numericValue}
+      aria-valuemin={Number.isFinite(context.min) ? context.min : undefined}
+      aria-valuemax={Number.isFinite(context.max) ? context.max : undefined}
+      aria-disabled={context.disabled || undefined}
+      aria-label={context.ariaLabel}
+      onBlur={(event) => {
+        props.onBlur?.(event)
+        context.actions.commitEdit()
+      }}
+      onKeyDown={(event) => {
+        props.onKeyDown?.(event)
+        event.stopPropagation()
+        context.actions.keydown(event.nativeEvent)
+      }}
+      onChange={(event) => {
+        props.onChange?.(event)
+        context.actions.setDraft(event.currentTarget.value)
+      }}
+    />
+  )
 })
 
-defineOptions({ inheritAttrs: false })
-</script>
-
-<template>
-  <input
-    v-if="ctx.editing.value"
-    ref="inputEl"
-    v-bind="{ ...$attrs, ...ctx.stateAttrs.value, ...ariaAttrs }"
-    data-slot="input"
-    type="text"
-    inputmode="decimal"
-    autocomplete="off"
-    :spellcheck="false"
-    :disabled="ctx.disabled.value"
-    :value="ctx.draftValue.value"
-    @blur="ctx.actions.commitEdit"
-    @keydown.stop="ctx.actions.keydown"
-    @input="ctx.actions.input"
-  />
-</template>
+NumberFieldInput.displayName = 'NumberFieldInput'

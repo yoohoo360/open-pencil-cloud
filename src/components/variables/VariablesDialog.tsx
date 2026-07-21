@@ -1,106 +1,43 @@
-<script setup lang="ts">
-import { watch, type Component } from 'vue'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
+import IconLucideCopy from '~icons/lucide/copy'
+import IconLucideEllipsis from '~icons/lucide/ellipsis'
+import IconLucideFolderPlus from '~icons/lucide/folder-plus'
+import IconLucideHash from '~icons/lucide/hash'
+import IconLucidePalette from '~icons/lucide/palette'
+import IconLucidePencil from '~icons/lucide/pencil'
+import IconLucidePin from '~icons/lucide/pin'
+import IconLucidePlus from '~icons/lucide/plus'
+import IconLucideSearch from '~icons/lucide/search'
+import IconLucideToggleLeft from '~icons/lucide/toggle-left'
+import IconLucideTrash2 from '~icons/lucide/trash-2'
+import IconLucideType from '~icons/lucide/type'
+import IconLucideX from '~icons/lucide/x'
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { flexRender } from '@tanstack/react-table'
+import { memo, useEffect, useMemo, useRef, type ComponentType } from 'react'
 import { tv } from 'tailwind-variants'
-import { templateRef } from '@vueuse/core'
-import {
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuPortal,
-  ContextMenuRoot,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-  DialogClose,
-  DialogContent,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  TabsContent,
-  TabsList,
-  TabsRoot,
-  TabsTrigger
-} from 'reka-ui'
-import { FlexRender } from '@tanstack/vue-table'
 
-import { variablesAddTestId, vTestId, useI18n, useVariablesEditor } from '@open-pencil/vue'
-
-import IconHash from '~icons/lucide/hash'
-import IconPalette from '~icons/lucide/palette'
-import IconToggleLeft from '~icons/lucide/toggle-left'
-import IconType from '~icons/lucide/type'
-import IconX from '~icons/lucide/x'
-import ColorInput from '@/components/ColorPicker/ColorInput.vue'
-import Tip from '@/components/ui/Tip.vue'
+import type { VariableType } from '@open-pencil/scene-graph'
+import { useI18n, useVariablesEditor, variablesAddTestId } from '@open-pencil/react'
+import ColorInput from '@/components/ColorPicker/ColorInput'
+import Tip from '@/components/ui/Tip'
 import { useDialogUI } from '@/components/ui/dialog'
 import { useMenuUI } from '@/components/ui/menu'
 import variableTableTheme from '@/theme/variable-table'
 
-import type { VariableType } from '@open-pencil/scene-graph'
+const variableTypeIcons = {
+  COLOR: IconLucidePalette,
+  FLOAT: IconLucideHash,
+  STRING: IconLucideType,
+  BOOLEAN: IconLucideToggleLeft
+} as Record<VariableType, ComponentType<Record<string, unknown>>>
 
-const open = defineModel<boolean>('open', { default: false })
-const cls = useDialogUI({ content: 'flex h-[75vh] w-[800px] max-w-[90vw] flex-col' })
-const menuCls = useMenuUI({ content: 'w-40', item: 'justify-start gap-2' })
-const addVariableMenuCls = useMenuUI({ content: 'w-48' })
-const variableTable = tv(variableTableTheme)
-const tableStyles = variableTable()
-
-const variableTypeIcons: Record<VariableType, Component> = {
-  COLOR: IconPalette,
-  FLOAT: IconHash,
-  STRING: IconType,
-  BOOLEAN: IconToggleLeft
+export type VariablesDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
-
-const { dialogs, panels, variableTypes: variableTypeText } = useI18n()
-
-const variableTypes: Array<{
-  type: VariableType
-  label: () => string
-  description: () => string
-}> = [
-  {
-    type: 'COLOR',
-    label: () => variableTypeText.value.color,
-    description: () => variableTypeText.value.colorHint
-  },
-  {
-    type: 'FLOAT',
-    label: () => variableTypeText.value.number,
-    description: () => variableTypeText.value.numberHint
-  },
-  {
-    type: 'STRING',
-    label: () => variableTypeText.value.text,
-    description: () => variableTypeText.value.textHint
-  },
-  {
-    type: 'BOOLEAN',
-    label: () => variableTypeText.value.boolean,
-    description: () => variableTypeText.value.booleanHint
-  }
-]
-
-const ctx = useVariablesEditor({
-  colorInput: ColorInput,
-  icons: variableTypeIcons,
-  fallbackIcon: IconToggleLeft,
-  deleteIcon: IconX
-})
-const collectionInput = templateRef<HTMLInputElement>('collectionInput')
-const modeInput = templateRef<HTMLInputElement>('modeInput')
-
-watch(collectionInput, (input) => {
-  void ctx.collectionRename.focusInput(input)
-})
-watch(modeInput, (input) => {
-  void ctx.modeRename.focusInput(input)
-})
 
 function getModeId(columnId: string): string | undefined {
   return columnId.startsWith('mode-') ? columnId.slice(5) : undefined
@@ -110,319 +47,417 @@ function modeId(columnId: string): string {
   return columnId.slice(5)
 }
 
-function modeLabelClass(defaultMode: boolean) {
-  return variableTable({ defaultMode }).modeLabel()
-}
+export const VariablesDialog = memo(function VariablesDialog({
+  open,
+  onOpenChange
+}: VariablesDialogProps) {
+  const cls = useDialogUI({ content: 'flex h-[75vh] w-[800px] max-w-[90vw] flex-col' })
+  const menuCls = useMenuUI({ content: 'w-40', item: 'justify-start gap-2' })
+  const addVariableMenuCls = useMenuUI({ content: 'w-48' })
+  const variableTable = useMemo(() => tv(variableTableTheme), [])
+  const tableStyles = useMemo(() => variableTable(), [variableTable])
+  const collectionInputRef = useRef<HTMLInputElement>(null)
+  const modeInputRef = useRef<HTMLInputElement>(null)
 
-function resizeHandleClass(resizing: boolean) {
-  return variableTable({ resizing }).resizeHandle()
-}
-</script>
+  const { dialogs, panels, variableTypes: variableTypeText } = useI18n()
 
-<template>
-  <DialogRoot v-model:open="open">
-    <DialogPortal>
-      <DialogOverlay :class="cls.overlay" />
-      <DialogContent
-        data-test-id="variables-dialog"
-        :aria-describedby="undefined"
-        :class="cls.content"
-      >
-        <DialogTitle class="sr-only">{{ dialogs.localVariables }}</DialogTitle>
-        <div v-if="!ctx.hasCollections.value" class="flex flex-1 flex-col">
-          <div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-            <h2 class="text-sm font-semibold text-surface">{{ dialogs.localVariables }}</h2>
-            <DialogClose
-              :aria-label="dialogs.close"
-              class="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
-            >
-              <icon-lucide-x class="size-4" />
-            </DialogClose>
-          </div>
-          <div class="flex flex-1 items-center justify-center">
-            <div class="text-center">
-              <p class="text-sm text-muted">{{ dialogs.noVariableCollections }}</p>
-              <button
-                data-test-id="variables-create-collection"
-                class="mt-2 cursor-pointer rounded bg-hover px-3 py-1.5 text-xs text-surface hover:bg-border"
-                @click="ctx.addCollection"
-              >
-                {{ dialogs.createCollection }}
-              </button>
-            </div>
-          </div>
-        </div>
+  const variableTypes = useMemo(
+    () =>
+      [
+        {
+          type: 'COLOR' as const,
+          label: variableTypeText.color,
+          description: variableTypeText.colorHint
+        },
+        {
+          type: 'FLOAT' as const,
+          label: variableTypeText.number,
+          description: variableTypeText.numberHint
+        },
+        {
+          type: 'STRING' as const,
+          label: variableTypeText.text,
+          description: variableTypeText.textHint
+        },
+        {
+          type: 'BOOLEAN' as const,
+          label: variableTypeText.boolean,
+          description: variableTypeText.booleanHint
+        }
+      ] satisfies Array<{
+        type: VariableType
+        label: string
+        description: string
+      }>,
+    [variableTypeText]
+  )
 
-        <template v-else>
-          <TabsRoot
-            v-model="ctx.activeCollectionId.value"
-            class="flex flex-1 flex-col overflow-hidden"
-          >
-            <div class="flex shrink-0 items-center border-b border-border">
-              <TabsList class="flex flex-1 gap-0.5 overflow-x-auto px-3 py-1">
-                <template v-for="col in ctx.collections.value" :key="col.id">
-                  <input
-                    v-if="ctx.collectionRename.editingId.value === col.id"
-                    ref="collectionInput"
-                    class="w-24 rounded border border-accent bg-input px-2 py-0.5 text-xs text-surface outline-none"
-                    :value="col.name"
-                    @blur="ctx.collectionRename.commit(col.id, $event)"
-                    @keydown="ctx.collectionRename.onKeydown"
-                  />
-                  <TabsTrigger
-                    v-else
-                    :value="col.id"
-                    data-test-id="variables-collection-tab"
-                    class="cursor-pointer rounded border-none px-2.5 py-1 text-xs whitespace-nowrap text-muted data-[state=active]:bg-hover data-[state=active]:text-surface"
-                    @dblclick="ctx.startRenameCollection(col.id)"
-                  >
-                    {{ col.name }}
-                  </TabsTrigger>
-                </template>
-              </TabsList>
+  const ctx = useVariablesEditor({
+    colorInput: ColorInput as unknown as ComponentType<Record<string, unknown>>,
+    icons: variableTypeIcons,
+    fallbackIcon: IconLucideToggleLeft as ComponentType<Record<string, unknown>>,
+    deleteIcon: IconLucideX as ComponentType<Record<string, unknown>>
+  })
 
-              <div class="flex items-center gap-1.5 px-3">
-                <DropdownMenuRoot>
-                  <DropdownMenuTrigger as-child>
-                    <button
-                      data-test-id="variables-collection-menu"
-                      class="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
-                    >
-                      <icon-lucide-ellipsis class="size-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuContent
-                      side="bottom"
-                      :side-offset="4"
-                      align="start"
-                      :class="menuCls.content"
-                    >
-                      <DropdownMenuItem
-                        :class="menuCls.item"
-                        @select="ctx.startRenameCollection(ctx.activeCollectionId.value)"
-                      >
-                        <icon-lucide-pencil :class="menuCls.icon" />
-                        {{ dialogs.renameCollection }}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator class="mx-1.5 my-1 h-px bg-border" />
-                      <DropdownMenuItem
-                        :class="menuCls.item"
-                        class="text-red-500"
-                        data-test-id="variables-delete-collection"
-                        @select="ctx.removeCollection(ctx.activeCollectionId.value)"
-                      >
-                        <icon-lucide-trash-2 :class="menuCls.icon" />
-                        {{ dialogs.deleteCollection }}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuRoot>
-                <div class="flex items-center gap-1 rounded border border-border px-2 py-0.5">
-                  <icon-lucide-search class="size-3 text-muted" />
-                  <input
-                    v-model="ctx.searchTerm.value"
-                    data-test-id="variables-search-input"
-                    class="w-24 border-none bg-transparent text-xs text-surface outline-none placeholder:text-muted"
-                    :placeholder="dialogs.search"
-                  />
-                </div>
-                <Tip :label="dialogs.createCollection">
+  useEffect(() => {
+    if (ctx.collectionRename.editingId && collectionInputRef.current) {
+      void ctx.collectionRename.focusInput(collectionInputRef.current)
+    }
+  }, [ctx.collectionRename, ctx.collectionRename.editingId])
+
+  useEffect(() => {
+    if (ctx.modeRename.editingId && modeInputRef.current) {
+      void ctx.modeRename.focusInput(modeInputRef.current)
+    }
+  }, [ctx.modeRename, ctx.modeRename.editingId])
+
+  const activeCollection = useMemo(
+    () => ctx.collections.find((col) => col.id === ctx.activeCollectionId) ?? null,
+    [ctx.activeCollectionId, ctx.collections]
+  )
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={cls.overlay} />
+        <Dialog.Content
+          data-test-id="variables-dialog"
+          aria-describedby={undefined}
+          className={cls.content}
+        >
+          <Dialog.Title className="sr-only">{dialogs.localVariables}</Dialog.Title>
+          {!ctx.hasCollections ? (
+            <div className="flex flex-1 flex-col">
+              <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <h2 className="text-sm font-semibold text-surface">{dialogs.localVariables}</h2>
+                <Dialog.Close
+                  aria-label={dialogs.close}
+                  className="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
+                >
+                  <IconLucideX className="size-4" />
+                </Dialog.Close>
+              </div>
+              <div className="flex flex-1 items-center justify-center">
+                <div className="text-center">
+                  <p className="text-sm text-muted">{dialogs.noVariableCollections}</p>
                   <button
-                    data-test-id="variables-add-collection"
-                    class="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
-                    @click="ctx.addCollection"
+                    type="button"
+                    data-test-id="variables-create-collection"
+                    className="mt-2 cursor-pointer rounded bg-hover px-3 py-1.5 text-xs text-surface hover:bg-border"
+                    onClick={ctx.addCollection}
                   >
-                    <icon-lucide-folder-plus class="size-3.5" />
+                    {dialogs.createCollection}
                   </button>
-                </Tip>
-                <DialogClose
-                  :aria-label="dialogs.close"
-                  class="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
-                >
-                  <icon-lucide-x class="size-4" />
-                </DialogClose>
+                </div>
               </div>
             </div>
-
-            <TabsContent
-              v-for="col in ctx.collections.value"
-              :key="col.id"
-              :value="col.id"
-              class="flex flex-1 flex-col overflow-hidden outline-none"
-            >
-              <div class="flex-1 overflow-auto">
-                <table
-                  class="w-full min-w-full border-collapse"
-                  :style="{ width: `${ctx.table.getCenterTotalSize()}px` }"
+          ) : (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex shrink-0 items-center border-b border-border">
+                <div
+                  role="tablist"
+                  className="flex flex-1 gap-0.5 overflow-x-auto px-3 py-1"
                 >
-                  <thead class="sticky top-0 z-10 bg-panel">
-                    <tr
-                      v-for="headerGroup in ctx.table.getHeaderGroups()"
-                      :key="headerGroup.id"
-                      class="border-b border-border"
-                    >
-                      <th
-                        v-for="header in headerGroup.headers"
-                        :key="header.id"
-                        class="relative px-4 py-2 text-left text-[11px] font-medium text-muted"
-                        :style="{ width: `${header.getSize()}px` }"
+                  {ctx.collections.map((col) =>
+                    ctx.collectionRename.editingId === col.id ? (
+                      <input
+                        key={col.id}
+                        ref={collectionInputRef}
+                        className="w-24 rounded border border-accent bg-input px-2 py-0.5 text-xs text-surface outline-none"
+                        defaultValue={col.name}
+                        onBlur={(event) => ctx.collectionRename.commit(col.id, event.currentTarget)}
+                        onKeyDown={(event) => ctx.collectionRename.onKeydown(event.nativeEvent)}
+                      />
+                    ) : (
+                      <button
+                        key={col.id}
+                        type="button"
+                        role="tab"
+                        data-test-id="variables-collection-tab"
+                        aria-selected={ctx.activeCollectionId === col.id}
+                        data-state={ctx.activeCollectionId === col.id ? 'active' : 'inactive'}
+                        className="cursor-pointer rounded border-none px-2.5 py-1 text-xs whitespace-nowrap text-muted data-[state=active]:bg-hover data-[state=active]:text-surface"
+                        onClick={() => ctx.setActiveCollectionId(col.id)}
+                        onDoubleClick={() => ctx.startRenameCollection(col.id)}
                       >
-                        <template v-if="getModeId(header.column.id)">
-                          <input
-                            v-if="ctx.modeRename.editingId.value === getModeId(header.column.id)"
-                            ref="modeInput"
-                            class="-mx-1 w-full rounded border border-accent bg-input px-1 py-0 text-[11px] font-medium text-surface outline-none"
-                            :value="header.column.columnDef.header"
-                            @blur="ctx.modeRename.commit(modeId(header.column.id), $event)"
-                            @keydown="ctx.modeRename.onKeydown"
-                          />
-                          <ContextMenuRoot v-else>
-                            <ContextMenuTrigger as-child>
-                              <span
-                                :data-default="
-                                  getModeId(header.column.id) === col.defaultModeId || undefined
-                                "
-                                :class="
-                                  modeLabelClass(getModeId(header.column.id) === col.defaultModeId)
-                                "
-                                @dblclick="ctx.startRenameMode(modeId(header.column.id))"
-                              >
-                                {{ header.column.columnDef.header }}
-                              </span>
-                            </ContextMenuTrigger>
-                            <ContextMenuPortal>
-                              <ContextMenuContent :class="menuCls.content">
-                                <ContextMenuItem
-                                  :class="menuCls.item"
-                                  @select="ctx.startRenameMode(modeId(header.column.id))"
-                                >
-                                  <icon-lucide-pencil :class="menuCls.icon" />
-                                  {{ dialogs.renameMode }}
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  :class="menuCls.item"
-                                  @select="ctx.duplicateMode(modeId(header.column.id))"
-                                >
-                                  <icon-lucide-copy :class="menuCls.icon" />
-                                  {{ dialogs.duplicateMode }}
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  v-if="getModeId(header.column.id) !== col.defaultModeId"
-                                  :class="menuCls.item"
-                                  @select="ctx.setDefaultMode(modeId(header.column.id))"
-                                >
-                                  <icon-lucide-pin :class="menuCls.icon" />
-                                  {{ dialogs.setDefaultMode }}
-                                </ContextMenuItem>
-                                <ContextMenuSeparator :class="menuCls.separator" />
-                                <ContextMenuItem
-                                  :class="[menuCls.item, 'text-red-500']"
-                                  :disabled="col.modes.length <= 1"
-                                  @select="ctx.removeMode(modeId(header.column.id))"
-                                >
-                                  <icon-lucide-trash-2 :class="menuCls.icon" />
-                                  {{ dialogs.deleteMode }}
-                                </ContextMenuItem>
-                              </ContextMenuContent>
-                            </ContextMenuPortal>
-                          </ContextMenuRoot>
-                        </template>
-                        <FlexRender
-                          v-else-if="!header.isPlaceholder"
-                          :render="header.column.columnDef.header"
-                          :props="header.getContext()"
-                        />
-                        <div
-                          v-if="header.column.getCanResize()"
-                          :data-resizing="header.column.getIsResizing() || undefined"
-                          :class="resizeHandleClass(header.column.getIsResizing())"
-                          @mousedown="header.getResizeHandler()?.($event)"
-                          @touchstart="header.getResizeHandler()?.($event)"
-                          @dblclick="header.column.resetSize()"
-                        />
-                      </th>
-                      <th class="w-8 px-1 py-2">
-                        <Tip :label="dialogs.addMode">
-                          <button
-                            data-test-id="variables-add-mode"
-                            class="flex size-5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
-                            @click="ctx.addMode"
-                          >
-                            <icon-lucide-plus class="size-3" />
-                          </button>
-                        </Tip>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="row in ctx.table.getRowModel().rows"
-                      :key="row.id"
-                      data-test-id="variable-row"
-                      :class="tableStyles.row()"
-                    >
-                      <td
-                        v-for="cell in row.getVisibleCells()"
-                        :key="cell.id"
-                        class="px-4 py-1.5"
-                        :style="{ width: `${cell.column.getSize()}px` }"
+                        {col.name}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 px-3">
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button
+                        type="button"
+                        data-test-id="variables-collection-menu"
+                        className="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
                       >
-                        <FlexRender
-                          :render="cell.column.columnDef.cell"
-                          :props="cell.getContext()"
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                        <IconLucideEllipsis className="size-3.5" />
+                      </button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content
+                        side="bottom"
+                        sideOffset={4}
+                        align="start"
+                        className={menuCls.content}
+                      >
+                        <DropdownMenu.Item
+                          className={menuCls.item}
+                          onSelect={() => ctx.startRenameCollection(ctx.activeCollectionId)}
+                        >
+                          <IconLucidePencil className={menuCls.icon} />
+                          {dialogs.renameCollection}
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Separator className="mx-1.5 my-1 h-px bg-border" />
+                        <DropdownMenu.Item
+                          className={`${menuCls.item} text-red-500`}
+                          data-test-id="variables-delete-collection"
+                          onSelect={() => ctx.removeCollection(ctx.activeCollectionId)}
+                        >
+                          <IconLucideTrash2 className={menuCls.icon} />
+                          {dialogs.deleteCollection}
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
+                  <div className="flex items-center gap-1 rounded border border-border px-2 py-0.5">
+                    <IconLucideSearch className="size-3 text-muted" />
+                    <input
+                      value={ctx.searchTerm}
+                      onChange={(event) => ctx.setSearchTerm(event.target.value)}
+                      data-test-id="variables-search-input"
+                      className="w-24 border-none bg-transparent text-xs text-surface outline-none placeholder:text-muted"
+                      placeholder={dialogs.search}
+                    />
+                  </div>
+                  <Tip label={dialogs.createCollection}>
+                    <button
+                      type="button"
+                      data-test-id="variables-add-collection"
+                      className="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
+                      onClick={ctx.addCollection}
+                    >
+                      <IconLucideFolderPlus className="size-3.5" />
+                    </button>
+                  </Tip>
+                  <Dialog.Close
+                    aria-label={dialogs.close}
+                    className="flex size-6 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
+                  >
+                    <IconLucideX className="size-4" />
+                  </Dialog.Close>
+                </div>
               </div>
 
-              <div
-                class="flex w-full shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-2"
-              >
-                <span class="text-xs text-muted">{{ panels.createVariable }}</span>
-                <DropdownMenuRoot>
-                  <DropdownMenuTrigger as-child>
-                    <button
-                      data-test-id="variables-add-variable"
-                      class="flex cursor-pointer items-center gap-1.5 rounded bg-hover px-2.5 py-1.5 text-xs text-surface hover:bg-border"
+              {activeCollection ? (
+                <div
+                  role="tabpanel"
+                  className="flex flex-1 flex-col overflow-hidden outline-none"
+                >
+                  <div className="flex-1 overflow-auto">
+                    <table
+                      className="w-full min-w-full border-collapse"
+                      style={{ width: `${ctx.table.getCenterTotalSize()}px` }}
                     >
-                      <icon-lucide-plus class="size-3.5" />
-                      {{ panels.add }}
-                      <icon-lucide-chevron-down class="size-3" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuContent
-                      side="top"
-                      :side-offset="8"
-                      align="end"
-                      :class="addVariableMenuCls.content"
-                    >
-                      <DropdownMenuItem
-                        v-for="item in variableTypes"
-                        :key="item.type"
-                        :class="menuCls.item"
-                        v-test-id="variablesAddTestId(item.type)"
-                        @select="ctx.addVariable(item.type)"
-                      >
-                        <component :is="variableTypeIcons[item.type]" :class="menuCls.icon" />
-                        <span class="flex min-w-0 flex-1 flex-col">
-                          <span>{{ item.label() }}</span>
-                          <span class="truncate text-[10px] text-muted">{{
-                            item.description()
-                          }}</span>
-                        </span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuRoot>
-              </div>
-            </TabsContent>
-          </TabsRoot>
-        </template>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
-</template>
+                      <thead className="sticky top-0 z-10 bg-panel">
+                        {ctx.table.getHeaderGroups().map((headerGroup) => (
+                          <tr key={headerGroup.id} className="border-b border-border">
+                            {headerGroup.headers.map((header) => {
+                              const columnModeId = getModeId(header.column.id)
+                              return (
+                                <th
+                                  key={header.id}
+                                  className="relative px-4 py-2 text-left text-[11px] font-medium text-muted"
+                                  style={{ width: `${header.getSize()}px` }}
+                                >
+                                  {columnModeId ? (
+                                    ctx.modeRename.editingId === columnModeId ? (
+                                      <input
+                                        ref={modeInputRef}
+                                        className="-mx-1 w-full rounded border border-accent bg-input px-1 py-0 text-[11px] font-medium text-surface outline-none"
+                                        defaultValue={String(header.column.columnDef.header ?? '')}
+                                        onBlur={(event) =>
+                                          ctx.modeRename.commit(modeId(header.column.id), event.currentTarget)
+                                        }
+                                        onKeyDown={(event) =>
+                                          ctx.modeRename.onKeydown(event.nativeEvent)
+                                        }
+                                      />
+                                    ) : (
+                                      <ContextMenu.Root>
+                                        <ContextMenu.Trigger asChild>
+                                          <span
+                                            data-default={
+                                              columnModeId === activeCollection.defaultModeId ||
+                                              undefined
+                                            }
+                                            className={variableTable({
+                                              defaultMode:
+                                                columnModeId === activeCollection.defaultModeId
+                                            }).modeLabel()}
+                                            onDoubleClick={() =>
+                                              ctx.startRenameMode(modeId(header.column.id))
+                                            }
+                                          >
+                                            {String(header.column.columnDef.header ?? '')}
+                                          </span>
+                                        </ContextMenu.Trigger>
+                                        <ContextMenu.Portal>
+                                          <ContextMenu.Content className={menuCls.content}>
+                                            <ContextMenu.Item
+                                              className={menuCls.item}
+                                              onSelect={() =>
+                                                ctx.startRenameMode(modeId(header.column.id))
+                                              }
+                                            >
+                                              <IconLucidePencil className={menuCls.icon} />
+                                              {dialogs.renameMode}
+                                            </ContextMenu.Item>
+                                            <ContextMenu.Item
+                                              className={menuCls.item}
+                                              onSelect={() =>
+                                                ctx.duplicateMode(modeId(header.column.id))
+                                              }
+                                            >
+                                              <IconLucideCopy className={menuCls.icon} />
+                                              {dialogs.duplicateMode}
+                                            </ContextMenu.Item>
+                                            {columnModeId !== activeCollection.defaultModeId ? (
+                                              <ContextMenu.Item
+                                                className={menuCls.item}
+                                                onSelect={() =>
+                                                  ctx.setDefaultMode(modeId(header.column.id))
+                                                }
+                                              >
+                                                <IconLucidePin className={menuCls.icon} />
+                                                {dialogs.setDefaultMode}
+                                              </ContextMenu.Item>
+                                            ) : null}
+                                            <ContextMenu.Separator className={menuCls.separator} />
+                                            <ContextMenu.Item
+                                              className={`${menuCls.item} text-red-500`}
+                                              disabled={activeCollection.modes.length <= 1}
+                                              onSelect={() =>
+                                                ctx.removeMode(modeId(header.column.id))
+                                              }
+                                            >
+                                              <IconLucideTrash2 className={menuCls.icon} />
+                                              {dialogs.deleteMode}
+                                            </ContextMenu.Item>
+                                          </ContextMenu.Content>
+                                        </ContextMenu.Portal>
+                                      </ContextMenu.Root>
+                                    )
+                                  ) : !header.isPlaceholder ? (
+                                    flexRender(header.column.columnDef.header, header.getContext())
+                                  ) : null}
+                                  {header.column.getCanResize() ? (
+                                    <div
+                                      data-resizing={header.column.getIsResizing() || undefined}
+                                      className={variableTable({
+                                        resizing: header.column.getIsResizing()
+                                      }).resizeHandle()}
+                                      onMouseDown={header.getResizeHandler()}
+                                      onTouchStart={header.getResizeHandler()}
+                                      onDoubleClick={() => header.column.resetSize()}
+                                    />
+                                  ) : null}
+                                </th>
+                              )
+                            })}
+                            <th className="w-8 px-1 py-2">
+                              <Tip label={dialogs.addMode}>
+                                <button
+                                  type="button"
+                                  data-test-id="variables-add-mode"
+                                  className="flex size-5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-surface"
+                                  onClick={ctx.addMode}
+                                >
+                                  <IconLucidePlus className="size-3" />
+                                </button>
+                              </Tip>
+                            </th>
+                          </tr>
+                        ))}
+                      </thead>
+                      <tbody>
+                        {ctx.table.getRowModel().rows.map((row) => (
+                          <tr
+                            key={row.id}
+                            data-test-id="variable-row"
+                            className={tableStyles.row()}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <td
+                                key={cell.id}
+                                className="px-4 py-1.5"
+                                style={{ width: `${cell.column.getSize()}px` }}
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-2">
+                    <span className="text-xs text-muted">{panels.createVariable}</span>
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          type="button"
+                          data-test-id="variables-add-variable"
+                          className="flex cursor-pointer items-center gap-1.5 rounded bg-hover px-2.5 py-1.5 text-xs text-surface hover:bg-border"
+                        >
+                          <IconLucidePlus className="size-3.5" />
+                          {panels.add}
+                          <IconLucideChevronDown className="size-3" />
+                        </button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content
+                          side="top"
+                          sideOffset={8}
+                          align="end"
+                          className={addVariableMenuCls.content}
+                        >
+                          {variableTypes.map((item) => {
+                            const TypeIcon = variableTypeIcons[item.type]
+                            return (
+                              <DropdownMenu.Item
+                                key={item.type}
+                                className={menuCls.item}
+                                data-test-id={variablesAddTestId(item.type)}
+                                onSelect={() => ctx.addVariable(item.type)}
+                              >
+                                <TypeIcon className={menuCls.icon} />
+                                <span className="flex min-w-0 flex-1 flex-col">
+                                  <span>{item.label}</span>
+                                  <span className="truncate text-[10px] text-muted">
+                                    {item.description}
+                                  </span>
+                                </span>
+                              </DropdownMenu.Item>
+                            )
+                          })}
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+})
+
+VariablesDialog.displayName = 'VariablesDialog'
+export default VariablesDialog

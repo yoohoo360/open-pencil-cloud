@@ -1,31 +1,40 @@
-<script setup lang="ts">
-import { ref, watch } from 'vue'
+import { MIXED, type MixedValue } from '@open-pencil/react'
+import { memo, useEffect, useState } from 'react'
 
-import { MIXED, type MixedValue } from '@open-pencil/vue'
+import AppInput from '@/components/ui/AppInput'
 
-import AppInput from '@/components/ui/AppInput.vue'
+export type ComponentPropertyTextFieldProps = {
+  value: MixedValue<string>
+  label: string
+  onCommit?: (value: string) => void
+}
 
-const { value, label } = defineProps<{ value: MixedValue<string>; label: string }>()
-const emit = defineEmits<{ commit: [value: string] }>()
-const draft = ref('')
+export const ComponentPropertyTextField = memo(function ComponentPropertyTextField({
+  value,
+  label,
+  onCommit,
+  ...rest
+}: ComponentPropertyTextFieldProps) {
+  const [draft, setDraft] = useState('')
 
-watch(
-  () => value,
-  (next) => {
-    draft.value = next === MIXED ? '' : next
-  },
-  { immediate: true }
-)
-</script>
+  useEffect(() => {
+    setDraft(value === MIXED ? '' : value)
+  }, [value])
 
-<template>
-  <AppInput
-    v-model="draft"
-    tone="panel"
-    size="sm"
-    :state="value === MIXED ? 'mixed' : 'idle'"
-    :placeholder="value === MIXED ? '—' : undefined"
-    :aria-label="label"
-    @change="emit('commit', draft)"
-  />
-</template>
+  return (
+    <AppInput
+      {...rest}
+      value={draft}
+      tone="panel"
+      size="sm"
+      state={value === MIXED ? 'mixed' : 'idle'}
+      placeholder={value === MIXED ? '—' : undefined}
+      aria-label={label}
+      onValueChange={setDraft}
+      onChangeCommit={() => onCommit?.(draft)}
+    />
+  )
+})
+
+ComponentPropertyTextField.displayName = 'ComponentPropertyTextField'
+export default ComponentPropertyTextField

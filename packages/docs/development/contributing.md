@@ -87,7 +87,7 @@ Developers and AI agents working on the codebase should read `AGENTS.md` in the 
 
 ## Key Files
 
-Core engine source lives in `packages/core/src/`. App-specific editor, document, AI, collaboration, shell, demo, and automation code lives under `src/app/*`; the Vue SDK owns reusable canvas/composable code under `packages/vue/src/`.
+Core engine source lives in `packages/core/src/`. App-specific editor, document, AI, collaboration, shell, demo, and automation code lives under `src/app/*`; the Vue SDK owns reusable canvas/composable code under `packages/react/src/`.
 
 | File | Purpose |
 |------|---------|
@@ -106,6 +106,6 @@ Core engine source lives in `packages/core/src/`. App-specific editor, document,
 | `packages/mcp/src/server.ts` | MCP server factory |
 | `packages/cli/src/commands/` | CLI commands (info, tree, find, export, eval, analyze) |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Canvas rendering composable |
-| `packages/vue/src/canvas/useCanvasInput.ts` | Mouse/touch input handling |
+| `packages/react/src/canvas/CanvasRoot.vue` | Canvas rendering composable |
+| `packages/react/src/canvas/useCanvasInput.ts` | Mouse/touch input handling |
 | `src/app/shell/keyboard/use.ts` | Keyboard shortcut handling |

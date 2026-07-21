@@ -1,98 +1,109 @@
-<script setup lang="ts">
 import { colorToCSS } from '@open-pencil/core/color'
-import { fromPercent, toPercent } from '@open-pencil/vue'
+import { fromPercent, toPercent } from '@open-pencil/react'
+import { memo } from 'react'
 
-import OkhclChannelSlider from '@/components/color-picker-panel/OkhclChannelSlider.vue'
+import OkhclChannelSlider from '@/components/color-picker-panel/OkhclChannelSlider'
 import { useColorPickerPanelContext } from '@/components/color-picker-panel/context'
 
-const ctx = useColorPickerPanelContext()
 const percentText = (value: number) => `${Math.round(toPercent(value))}%`
-</script>
 
-<template>
-  <div v-if="ctx.isOkHCLFormat && ctx.okhcl?.okhcl" class="flex flex-col gap-2">
-    <OkhclChannelSlider
-      label="Hue"
-      :model-value="ctx.okhcl.okhcl.h"
-      :min="0"
-      :max="360"
-      :step="1"
-      :display-value="Math.round(ctx.okhcl.okhcl.h)"
-      :display-min="0"
-      :display-max="360"
-      :thumb-fill="colorToCSS(ctx.okhclSliderPreview?.okhclHue ?? ctx.color)"
-      gradient="background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
-      data-test-id="color-slider-okhcl-h"
-      @update:model-value="ctx.updateOkHCLChannel('h', $event)"
-      @update-display="ctx.updateOkHCLChannel('h', $event)"
-    />
+export const OkhclFields = memo(function OkhclFields() {
+  const ctx = useColorPickerPanelContext()
+  const okhcl = ctx.okhcl?.okhcl
 
-    <OkhclChannelSlider
-      label="Chroma"
-      :model-value="ctx.okhcl.okhcl.c"
-      :min="0"
-      :max="0.4"
-      :step="0.001"
-      :display-value="toPercent(ctx.okhcl.okhcl.c)"
-      :display-min="0"
-      :display-max="40"
-      suffix="%"
-      :gradient="ctx.okhclSliderGradient?.okhclChroma ?? undefined"
-      :thumb-fill="colorToCSS(ctx.okhclSliderPreview?.okhclChroma ?? ctx.color)"
-      :format-value-text="percentText"
-      data-test-id="color-slider-okhcl-c"
-      @update:model-value="ctx.updateOkHCLChannel('c', $event)"
-      @update-display="ctx.updateOkHCLChannel('c', fromPercent($event))"
-    />
+  if (!ctx.isOkHCLFormat || !okhcl) return null
 
-    <OkhclChannelSlider
-      label="Lightness"
-      :model-value="ctx.okhcl.okhcl.l"
-      :min="0"
-      :max="1"
-      :step="0.001"
-      :display-value="toPercent(ctx.okhcl.okhcl.l)"
-      :display-min="0"
-      :display-max="100"
-      suffix="%"
-      :gradient="ctx.okhclSliderGradient?.okhclLightness ?? undefined"
-      :thumb-fill="colorToCSS(ctx.okhclSliderPreview?.okhclLightness ?? ctx.color)"
-      :format-value-text="percentText"
-      data-test-id="color-slider-okhcl-l"
-      @update:model-value="ctx.updateOkHCLChannel('l', $event)"
-      @update-display="ctx.updateOkHCLChannel('l', fromPercent($event))"
-    />
+  return (
+    <div className="flex flex-col gap-2">
+      <OkhclChannelSlider
+        label="Hue"
+        value={okhcl.h}
+        min={0}
+        max={360}
+        step={1}
+        displayValue={Math.round(okhcl.h)}
+        displayMin={0}
+        displayMax={360}
+        thumbFill={colorToCSS(ctx.okhclSliderPreview?.okhclHue ?? ctx.color)}
+        gradient="background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
+        data-test-id="color-slider-okhcl-h"
+        onValueChange={(next) => ctx.updateOkHCLChannel('h', next)}
+        onDisplayChange={(next) => ctx.updateOkHCLChannel('h', next)}
+      />
 
-    <OkhclChannelSlider
-      label="Alpha"
-      :model-value="ctx.okhcl.okhcl.a ?? 1"
-      :min="0"
-      :max="1"
-      :step="0.001"
-      :display-value="toPercent(ctx.okhcl.okhcl.a ?? 1)"
-      :display-min="0"
-      :display-max="100"
-      suffix="%"
-      checkerboard
-      :gradient="`background: linear-gradient(to right, transparent, ${colorToCSS({ ...ctx.color, a: 1 })})`"
-      :thumb-fill="colorToCSS(ctx.color)"
-      :format-value-text="percentText"
-      data-test-id="color-slider-okhcl-a"
-      @update:model-value="ctx.updateOkHCLChannel('a', $event)"
-      @update-display="ctx.updateOkHCLChannel('a', fromPercent($event))"
-    />
+      <OkhclChannelSlider
+        label="Chroma"
+        value={okhcl.c}
+        min={0}
+        max={0.4}
+        step={0.001}
+        displayValue={toPercent(okhcl.c)}
+        displayMin={0}
+        displayMax={40}
+        suffix="%"
+        gradient={ctx.okhclSliderGradient?.okhclChroma}
+        thumbFill={colorToCSS(ctx.okhclSliderPreview?.okhclChroma ?? ctx.color)}
+        formatValueText={percentText}
+        data-test-id="color-slider-okhcl-c"
+        onValueChange={(next) => ctx.updateOkHCLChannel('c', next)}
+        onDisplayChange={(next) => ctx.updateOkHCLChannel('c', fromPercent(next))}
+      />
 
-    <div class="flex items-start justify-between gap-2 text-[10px] text-muted">
-      <p class="min-w-0 flex-1 leading-4 break-words">{{ ctx.panels.colorHintOkhcl }}</p>
-      <span
-        v-if="ctx.okhcl.previewColorSpace"
-        class="shrink-0 rounded border border-border px-1 py-0.5 text-[10px] uppercase"
-      >
-        {{ ctx.okhcl.previewColorSpace }}
-      </span>
+      <OkhclChannelSlider
+        label="Lightness"
+        value={okhcl.l}
+        min={0}
+        max={1}
+        step={0.001}
+        displayValue={toPercent(okhcl.l)}
+        displayMin={0}
+        displayMax={100}
+        suffix="%"
+        gradient={ctx.okhclSliderGradient?.okhclLightness}
+        thumbFill={colorToCSS(ctx.okhclSliderPreview?.okhclLightness ?? ctx.color)}
+        formatValueText={percentText}
+        data-test-id="color-slider-okhcl-l"
+        onValueChange={(next) => ctx.updateOkHCLChannel('l', next)}
+        onDisplayChange={(next) => ctx.updateOkHCLChannel('l', fromPercent(next))}
+      />
+
+      <OkhclChannelSlider
+        label="Alpha"
+        value={okhcl.a ?? 1}
+        min={0}
+        max={1}
+        step={0.001}
+        displayValue={toPercent(okhcl.a ?? 1)}
+        displayMin={0}
+        displayMax={100}
+        suffix="%"
+        checkerboard
+        gradient={`background: linear-gradient(to right, transparent, ${colorToCSS({ ...ctx.color, a: 1 })})`}
+        thumbFill={colorToCSS(ctx.color)}
+        formatValueText={percentText}
+        data-test-id="color-slider-okhcl-a"
+        onValueChange={(next) => ctx.updateOkHCLChannel('a', next)}
+        onDisplayChange={(next) => ctx.updateOkHCLChannel('a', fromPercent(next))}
+      />
+
+      <div className="flex items-start justify-between gap-2 text-[10px] text-muted">
+        <p className="min-w-0 flex-1 leading-4 break-words">{ctx.panels.colorHintOkhcl}</p>
+        {ctx.okhcl?.previewColorSpace ? (
+          <span className="shrink-0 rounded border border-border px-1 py-0.5 text-[10px] uppercase">
+            {ctx.okhcl.previewColorSpace}
+          </span>
+        ) : null}
+      </div>
+      {ctx.okhcl?.clipped ? (
+        <p className="text-[10px] leading-4 text-[var(--color-warning-text)]">
+          {ctx.panels.colorPreviewClipped({
+            space: ctx.okhcl.previewColorSpace ?? 'display-p3'
+          })}
+        </p>
+      ) : null}
     </div>
-    <p v-if="ctx.okhcl.clipped" class="text-[10px] leading-4 text-[var(--color-warning-text)]">
-      {{ ctx.panels.colorPreviewClipped({ space: ctx.okhcl.previewColorSpace ?? 'display-p3' }) }}
-    </p>
-  </div>
-</template>
+  )
+})
+
+OkhclFields.displayName = 'OkhclFields'
+export default OkhclFields

@@ -12,7 +12,7 @@ Usalo quando vuoi controllo diretto su collezioni, modalità attive, filtraggio 
 ## Utilizzo
 
 ```ts
-import { useVariables } from '@open-pencil/vue'
+import { useVariables } from '@open-pencil/react'
 
 const variables = useVariables()
 ```

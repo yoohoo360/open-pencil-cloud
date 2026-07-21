@@ -1,5 +1,3 @@
-import { promiseTimeout } from '@vueuse/core'
-
 import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 import { randomHex } from '@open-pencil/core/random'
 
@@ -56,7 +54,7 @@ function assertCompatibleMcpVersion(health: AutomationHealth): void {
 
 async function pollHealth(retries: number, delayMs: number): Promise<AutomationHealth | null> {
   for (let i = 0; i < retries; i++) {
-    await promiseTimeout(delayMs)
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
     const health = await readHealth()
     if (health) return health
   }

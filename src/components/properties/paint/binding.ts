@@ -1,5 +1,5 @@
 import type { Color } from '@open-pencil/scene-graph/primitives'
-import type { BindableValueActions, BindingTarget } from '@open-pencil/vue'
+import type { BindableValueActions, BindingTarget } from '@open-pencil/react'
 
 export type PaintBindingKind = 'fills' | 'strokes'
 

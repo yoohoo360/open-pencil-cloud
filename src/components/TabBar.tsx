@@ -1,79 +1,88 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui'
+import IconLucideFile from '~icons/lucide/file'
+import IconLucidePlus from '~icons/lucide/plus'
+import IconLucideX from '~icons/lucide/x'
+import { memo, useCallback, useMemo } from 'react'
 import { tv } from 'tailwind-variants'
 
-import Tip from '@/components/ui/Tip.vue'
+import { useI18n } from '@open-pencil/react'
+import Tip from '@/components/ui/Tip'
+import { createTab, useTabsStore } from '@/app/tabs'
 import tabBarTheme from '@/theme/tab-bar'
-import { useTabsStore, createTab } from '@/app/tabs'
-import { useI18n } from '@open-pencil/vue'
 
-const { dialogs } = useI18n()
+export const TabBar = memo(function TabBar() {
+  const { dialogs } = useI18n()
+  const { tabs, activeTabId, switchTab, closeTab } = useTabsStore()
+  const tabBarStyles = tv(tabBarTheme)
+  const baseStyles = useMemo(() => tabBarStyles(), [tabBarStyles])
 
-const { tabs, activeTabId, switchTab, closeTab } = useTabsStore()
-const tabBarStyles = tv(tabBarTheme)
-const baseStyles = tabBarStyles()
+  const onMiddleClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>, tabId: string) => {
+      if (event.button === 1) {
+        event.preventDefault()
+        closeTab(tabId)
+      }
+    },
+    [closeTab]
+  )
 
-const modelValue = computed({
-  get: () => activeTabId.value,
-  set: (id: string) => switchTab(id)
+  const onClose = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>, tabId: string) => {
+      event.stopPropagation()
+      closeTab(tabId)
+    },
+    [closeTab]
+  )
+
+  if (tabs.length <= 1) return null
+
+  return (
+    <div className={baseStyles.root()} role="tablist">
+      <div className={baseStyles.list()}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={tab.isActive}
+            data-test-id="tabbar-tab"
+            data-state={tab.isActive ? 'active' : 'inactive'}
+            className={tabBarStyles({ active: tab.isActive }).trigger()}
+            data-active={tab.isActive || undefined}
+            onClick={() => switchTab(tab.id)}
+            onMouseDown={(event) => onMiddleClick(event, tab.id)}
+          >
+            <IconLucideFile className={baseStyles.icon()} />
+            <span className={baseStyles.label()}>{tab.name}</span>
+            <Tip label={dialogs.closeTab({ name: tab.name })}>
+              <button
+                type="button"
+                data-test-id="tabbar-close"
+                className={tabBarStyles({ active: tab.isActive }).close()}
+                data-active={tab.isActive || undefined}
+                aria-label={dialogs.closeTab({ name: tab.name })}
+                tabIndex={-1}
+                onClick={(event) => onClose(event, tab.id)}
+              >
+                <IconLucideX className={baseStyles.closeIcon()} />
+              </button>
+            </Tip>
+          </button>
+        ))}
+      </div>
+      <Tip label={dialogs.newTab}>
+        <button
+          type="button"
+          data-test-id="tabbar-new"
+          className={baseStyles.newAction()}
+          aria-label={dialogs.newTab}
+          onClick={() => createTab()}
+        >
+          <IconLucidePlus className={baseStyles.newIcon()} />
+        </button>
+      </Tip>
+    </div>
+  )
 })
 
-function onMiddleClick(e: MouseEvent, tabId: string) {
-  if (e.button === 1) {
-    e.preventDefault()
-    closeTab(tabId)
-  }
-}
-
-function onClose(e: MouseEvent, tabId: string) {
-  e.stopPropagation()
-  closeTab(tabId)
-}
-</script>
-
-<template>
-  <TabsRoot
-    v-if="tabs.length > 1"
-    v-model="modelValue"
-    activation-mode="automatic"
-    :class="baseStyles.root()"
-  >
-    <TabsList :class="baseStyles.list()">
-      <TabsTrigger
-        v-for="tab in tabs"
-        :key="tab.id"
-        :value="tab.id"
-        data-test-id="tabbar-tab"
-        :class="tabBarStyles({ active: tab.isActive }).trigger()"
-        :data-active="tab.isActive || undefined"
-        @mousedown="onMiddleClick($event, tab.id)"
-      >
-        <icon-lucide-file :class="baseStyles.icon()" />
-        <span :class="baseStyles.label()">{{ tab.name }}</span>
-        <Tip :label="dialogs.closeTab({ name: tab.name })">
-          <button
-            data-test-id="tabbar-close"
-            :class="tabBarStyles({ active: tab.isActive }).close()"
-            :data-active="tab.isActive || undefined"
-            :aria-label="dialogs.closeTab({ name: tab.name })"
-            tabindex="-1"
-            @click="onClose($event, tab.id)"
-          >
-            <icon-lucide-x :class="baseStyles.closeIcon()" />
-          </button>
-        </Tip>
-      </TabsTrigger>
-    </TabsList>
-    <Tip :label="dialogs.newTab">
-      <button
-        data-test-id="tabbar-new"
-        :class="baseStyles.newAction()"
-        :aria-label="dialogs.newTab"
-        @click="createTab()"
-      >
-        <icon-lucide-plus :class="baseStyles.newIcon()" />
-      </button>
-    </Tip>
-  </TabsRoot>
-</template>
+TabBar.displayName = 'TabBar'
+export default TabBar

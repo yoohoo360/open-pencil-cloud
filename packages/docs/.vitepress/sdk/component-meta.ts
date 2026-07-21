@@ -55,7 +55,7 @@ function findWorkspaceRoot(start: string): string {
 }
 
 const repoRoot = findWorkspaceRoot(fileURLToPath(new URL('.', import.meta.url)))
-const checker = createChecker(resolve(repoRoot, 'packages/vue/tsconfig.json'), { schema: false })
+const checker = createChecker(resolve(repoRoot, 'packages/react/tsconfig.json'), { schema: false })
 
 export interface SdkComponentData {
   components: SdkComponentMeta[]
@@ -73,7 +73,7 @@ export function readComponentMeta(source: string): SdkComponentMeta {
   const meta = checker.getComponentMeta(absoluteSource)
 
   return {
-    name: meta.name ?? source.split('/').at(-1)?.replace(/\.vue$/, '') ?? source,
+    name: meta.name ?? source.split('/').at(-1)?.replace(/\.(vue|tsx)$/, '') ?? source,
     source,
     props: meta.props
       .filter((prop) => !prop.global)

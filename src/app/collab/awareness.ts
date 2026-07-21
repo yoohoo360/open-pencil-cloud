@@ -1,4 +1,3 @@
-import { ref } from 'vue'
 import type * as awarenessProtocol from 'y-protocols/awareness'
 
 import { randomIndex } from '@open-pencil/core/random'
@@ -8,6 +7,7 @@ import type { EditorStore } from '@/app/editor/active-store'
 import { PEER_COLORS, ROOM_ID_CHARS, ROOM_ID_LENGTH } from '@/constants'
 
 import type { RemotePeer } from './types'
+import type { MutableValue } from './session'
 
 type Awareness = awarenessProtocol.Awareness
 
@@ -57,9 +57,9 @@ export function remotePeersToCursors(peers: RemotePeer[], currentPageId: string)
 
 export function createFollowActions(
   getStore: () => EditorStore,
-  getAwareness: () => Awareness | null
+  getAwareness: () => Awareness | null,
+  followingPeer: MutableValue<number | null>
 ) {
-  const followingPeer = ref<number | null>(null)
 
   function followPeer(clientId: number | null) {
     followingPeer.value = clientId

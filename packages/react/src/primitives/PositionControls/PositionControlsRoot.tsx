@@ -1,64 +1,65 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { MIXED, createNodePropScrubActions } from '#react/controls/node-props/helpers'
+import { useEditor } from '#react/editor/context'
+import { useSceneComputed } from '#react/internal/scene-computed/use'
+import { memo, useMemo, type ReactNode } from 'react'
 
-import { MIXED, useNodeProps } from '#vue/controls/node-props/use'
-
-const {
-  updateProp,
-  commitProp,
-  node,
-  nodes,
-  isMulti,
-  active,
-  prop: multiProp,
-  store
-} = useNodeProps()
-
-const xValue = computed(() =>
-  isMulti.value ? multiProp('x').value : Math.round(node.value?.x ?? 0)
-)
-const yValue = computed(() =>
-  isMulti.value ? multiProp('y').value : Math.round(node.value?.y ?? 0)
-)
-const wValue = multiProp('width')
-const hValue = multiProp('height')
-const rotationValue = computed(() =>
-  isMulti.value ? multiProp('rotation').value : Math.round(node.value?.rotation ?? 0)
-)
-const ids = computed(() => nodes.value.map((n) => n.id))
-
-function align(axis: 'horizontal' | 'vertical', pos: 'min' | 'center' | 'max') {
-  store.alignNodes(ids.value, axis, pos)
+export type PositionControlsRootSlotProps = {
+  active: boolean
+  isMulti: boolean
+  ids: string[]
+  xValue: number | typeof MIXED
+  yValue: number | typeof MIXED
+  wValue: number | typeof MIXED
+  hValue: number | typeof MIXED
+  rotationValue: number | typeof MIXED
+  mixed: typeof MIXED
+  actions: {
+    updateProp: ReturnType<typeof createNodePropScrubActions>['updateProp']
+    commitProp: ReturnType<typeof createNodePropScrubActions>['commitProp']
+    align: (axis: 'horizontal' | 'vertical', position: 'min' | 'center' | 'max') => void
+    flip: (axis: 'horizontal' | 'vertical') => void
+    rotate: (degrees: number) => void
+  }
 }
 
-function flip(axis: 'horizontal' | 'vertical') {
-  store.flipNodes(ids.value, axis)
+export type PositionControlsRootProps = {
+  children?: ReactNode | ((props: PositionControlsRootSlotProps) => ReactNode)
 }
 
-function rotate(degrees: number) {
-  store.rotateNodes(ids.value, degrees)
-}
+export const PositionControlsRoot = memo(function PositionControlsRoot({
+  children
+}: PositionControlsRootProps) {
+  const editor = useEditor()
+  const nodes = useSceneComputed(() => editor.getSelectedNodes())
+  const node = useSceneComputed(() => editor.getSelectedNode() ?? null)
+  const isMulti = nodes.length > 1
+  const merged = <K extends 'x' | 'y' | 'width' | 'height' | 'rotation'>(key: K) =>
+    nodes.length > 0 && nodes.every((item) => item[key] === nodes[0]?.[key])
+      ? (nodes[0]?.[key] ?? MIXED)
+      : MIXED
+  const scrubActions = useMemo(() => createNodePropScrubActions(editor), [editor])
+  const ids = useMemo(() => nodes.map((item) => item.id), [nodes])
+  const slotProps = useMemo<PositionControlsRootSlotProps>(
+    () => ({
+      active: node !== null || isMulti,
+      isMulti,
+      ids,
+      xValue: isMulti ? merged('x') : Math.round(node?.x ?? 0),
+      yValue: isMulti ? merged('y') : Math.round(node?.y ?? 0),
+      wValue: merged('width'),
+      hValue: merged('height'),
+      rotationValue: isMulti ? merged('rotation') : Math.round(node?.rotation ?? 0),
+      mixed: MIXED,
+      actions: {
+        ...scrubActions,
+        align: (axis, position) => editor.alignNodes(ids, axis, position),
+        flip: (axis) => editor.flipNodes(ids, axis),
+        rotate: (degrees) => editor.rotateNodes(ids, degrees)
+      }
+    }),
+    [editor, ids, isMulti, node, nodes, scrubActions]
+  )
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
 
-const actions = {
-  updateProp,
-  commitProp,
-  align,
-  flip,
-  rotate
-}
-</script>
-
-<template>
-  <slot
-    :active="active"
-    :is-multi="isMulti"
-    :ids="ids"
-    :x-value="xValue"
-    :y-value="yValue"
-    :w-value="wValue"
-    :h-value="hValue"
-    :rotation-value="rotationValue"
-    :mixed="MIXED"
-    :actions="actions"
-  />
-</template>
+PositionControlsRoot.displayName = 'PositionControlsRoot'

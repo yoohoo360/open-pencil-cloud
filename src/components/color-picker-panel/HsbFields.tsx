@@ -1,74 +1,72 @@
-<script setup lang="ts">
-import { inputNumberValue } from '@open-pencil/vue'
 import { colorToCSS } from '@open-pencil/core/color'
+import { inputNumberValue } from '@open-pencil/react'
+import { memo } from 'react'
 
-import StandardColorSlider from '@/components/color-picker-panel/StandardColorSlider.vue'
+import StandardColorSlider from '@/components/color-picker-panel/StandardColorSlider'
 import { useColorPickerPanelContext } from '@/components/color-picker-panel/context'
 
-const ctx = useColorPickerPanelContext()
-</script>
+export const HsbFields = memo(function HsbFields() {
+  const ctx = useColorPickerPanelContext()
 
-<template>
-  <div
-    class="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-px overflow-hidden rounded border border-border bg-border"
-  >
-    <input
-      type="number"
-      class="bg-input px-2 py-1 text-xs text-surface outline-none"
-      :value="Math.round(ctx.hsbColor.h)"
-      min="0"
-      max="360"
-      @change="ctx.updateHSBChannelValue('h', inputNumberValue($event))"
-    />
-    <input
-      type="number"
-      class="bg-input px-2 py-1 text-xs text-surface outline-none"
-      :value="Math.round(ctx.hsbColor.s)"
-      min="0"
-      max="100"
-      @change="ctx.updateHSBChannelValue('s', inputNumberValue($event))"
-    />
-    <input
-      type="number"
-      class="bg-input px-2 py-1 text-xs text-surface outline-none"
-      :value="Math.round(ctx.hsbColor.b)"
-      min="0"
-      max="100"
-      @change="ctx.updateHSBChannelValue('b', inputNumberValue($event))"
-    />
-  </div>
+  return (
+    <>
+      <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-px overflow-hidden rounded border border-border bg-border">
+        <input
+          type="number"
+          className="bg-input px-2 py-1 text-xs text-surface outline-none"
+          value={Math.round(ctx.hsbColor.h)}
+          min={0}
+          max={360}
+          onChange={(event) => ctx.updateHSBChannelValue('h', inputNumberValue(event.nativeEvent))}
+        />
+        <input
+          type="number"
+          className="bg-input px-2 py-1 text-xs text-surface outline-none"
+          value={Math.round(ctx.hsbColor.s)}
+          min={0}
+          max={100}
+          onChange={(event) => ctx.updateHSBChannelValue('s', inputNumberValue(event.nativeEvent))}
+        />
+        <input
+          type="number"
+          className="bg-input px-2 py-1 text-xs text-surface outline-none"
+          value={Math.round(ctx.hsbColor.b)}
+          min={0}
+          max={100}
+          onChange={(event) => ctx.updateHSBChannelValue('b', inputNumberValue(event.nativeEvent))}
+        />
+      </div>
 
-  <StandardColorSlider
-    label="Saturation"
-    :model-value="ctx.rekaColor"
-    channel="saturation"
-    color-space="hsb"
-    :step="0.1"
-    :number-value="Math.round(ctx.hsbColor.s)"
-    :number-min="0"
-    :number-max="100"
-    suffix="%"
-    :thumb-fill="colorToCSS(ctx.sliderPreview.hsbSaturation)"
-    data-test-id="color-slider-hsb-s"
-    @update="ctx.onRekaColorUpdate"
-    @update-number="ctx.updateHSBChannelValue('s', $event)"
-  />
+      <StandardColorSlider
+        label="Saturation"
+        value={Math.round(ctx.hsbColor.s)}
+        min={0}
+        max={100}
+        step={0.1}
+        suffix="%"
+        gradient={ctx.sliderGradient.hsbSaturation}
+        thumbFill={colorToCSS(ctx.sliderPreview.hsbSaturation)}
+        data-test-id="color-slider-hsb-s"
+        onValueChange={(next) => ctx.updateHSBChannelValue('s', next)}
+      />
 
-  <StandardColorSlider
-    label="Brightness"
-    :model-value="ctx.rekaColor"
-    channel="brightness"
-    color-space="hsb"
-    :step="0.1"
-    :number-value="Math.round(ctx.hsbColor.b)"
-    :number-min="0"
-    :number-max="100"
-    suffix="%"
-    :thumb-fill="colorToCSS(ctx.sliderPreview.hsbBrightness)"
-    data-test-id="color-slider-hsb-b"
-    @update="ctx.onRekaColorUpdate"
-    @update-number="ctx.updateHSBChannelValue('b', $event)"
-  />
+      <StandardColorSlider
+        label="Brightness"
+        value={Math.round(ctx.hsbColor.b)}
+        min={0}
+        max={100}
+        step={0.1}
+        suffix="%"
+        gradient={ctx.sliderGradient.hsbBrightness}
+        thumbFill={colorToCSS(ctx.sliderPreview.hsbBrightness)}
+        data-test-id="color-slider-hsb-b"
+        onValueChange={(next) => ctx.updateHSBChannelValue('b', next)}
+      />
 
-  <p class="text-[10px] leading-4 text-muted">{{ ctx.panels.colorHintHsb }}</p>
-</template>
+      <p className="text-[10px] leading-4 text-muted">{ctx.panels.colorHintHsb}</p>
+    </>
+  )
+})
+
+HsbFields.displayName = 'HsbFields'
+export default HsbFields

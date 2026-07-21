@@ -1,55 +1,57 @@
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-import { EDITOR_TOOLS } from '@open-pencil/core/editor'
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
 
-import { useEditor } from '#vue/editor/context'
-import { provideToolbar } from '#vue/primitives/Toolbar/context'
+import { EDITOR_TOOLS, type EditorToolDef, type Tool } from '@open-pencil/core/editor'
 
-import type { EditorToolDef, Tool } from '@open-pencil/core/editor'
+import { useEditor } from '#react/editor/context'
+import { ToolbarProvider, type ToolbarContext } from '#react/primitives/Toolbar/context'
 
-const { tools = EDITOR_TOOLS } = defineProps<{
+export type ToolbarRootSlotProps = Pick<ToolbarContext, 'tools' | 'activeTool' | 'expandedFlyout'> & {
+  actions: Pick<ToolbarContext, 'setTool' | 'toggleFlyout' | 'closeFlyout'>
+}
+
+export type ToolbarRootProps = {
   tools?: EditorToolDef[]
-}>()
-
-const editor = useEditor()
-const activeTool = computed(() => editor.state.activeTool)
-const expandedFlyout = ref<Tool | null>(null)
-
-function setTool(tool: Tool) {
-  editor.setTool(tool)
-  expandedFlyout.value = null
+  children?: ReactNode | ((props: ToolbarRootSlotProps) => ReactNode)
 }
 
-function toggleFlyout(tool: Tool) {
-  expandedFlyout.value = expandedFlyout.value === tool ? null : tool
-}
+export const ToolbarRoot = memo(function ToolbarRoot({
+  tools = EDITOR_TOOLS,
+  children
+}: ToolbarRootProps) {
+  const editor = useEditor()
+  const [expandedFlyout, setExpandedFlyout] = useState<Tool | null>(null)
+  const activeTool = editor.state.activeTool
+  const setTool = useCallback(
+    (tool: Tool) => {
+      editor.setTool(tool)
+      setExpandedFlyout(null)
+    },
+    [editor]
+  )
+  const toggleFlyout = useCallback(
+    (tool: Tool) => setExpandedFlyout((current) => (current === tool ? null : tool)),
+    []
+  )
+  const closeFlyout = useCallback(() => setExpandedFlyout(null), [])
+  const context = useMemo<ToolbarContext>(
+    () => ({ editor, tools, activeTool, expandedFlyout, setTool, toggleFlyout, closeFlyout }),
+    [activeTool, closeFlyout, editor, expandedFlyout, setTool, toggleFlyout, tools]
+  )
+  const slotProps = useMemo<ToolbarRootSlotProps>(
+    () => ({
+      tools,
+      activeTool,
+      expandedFlyout,
+      actions: { setTool, toggleFlyout, closeFlyout }
+    }),
+    [activeTool, closeFlyout, expandedFlyout, setTool, toggleFlyout, tools]
+  )
 
-function closeFlyout() {
-  expandedFlyout.value = null
-}
-
-const actions = {
-  setTool,
-  toggleFlyout,
-  closeFlyout
-}
-
-provideToolbar({
-  editor,
-  tools,
-  activeTool,
-  expandedFlyout,
-  setTool,
-  toggleFlyout,
-  closeFlyout
+  return (
+    <ToolbarProvider value={context}>
+      {typeof children === 'function' ? children(slotProps) : children}
+    </ToolbarProvider>
+  )
 })
-</script>
 
-<template>
-  <slot
-    :tools="tools"
-    :active-tool="activeTool"
-    :expanded-flyout="expandedFlyout"
-    :actions="actions"
-  />
-</template>
+ToolbarRoot.displayName = 'ToolbarRoot'

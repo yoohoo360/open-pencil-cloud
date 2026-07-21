@@ -14,7 +14,7 @@ Es ist der Haupt-Einstiegspunkt für SDK-Composables und headless Primitive, die
 `useEditor()` muss innerhalb eines Teilbaums aufgerufen werden, in dem `provideEditor(editor)` bereits aufgerufen wurde.
 
 ```ts
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 ```
@@ -25,7 +25,7 @@ const editor = useEditor()
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 const pageId = computed(() => editor.state.currentPageId)

@@ -1,23 +1,19 @@
-<script setup lang="ts">
+import { memo, useMemo } from 'react'
+
 import { useMobileHudContext } from '@/components/MobileHud/context'
+import { useVueRefValue } from '@/shared/useVueRefValue'
 
-const hud = useMobileHudContext()
-</script>
+export const MobileActiveToolBadge = memo(function MobileActiveToolBadge() {
+  const hud = useMobileHudContext()
+  const activeTool = useVueRefValue({ get value() { return hud.store.state.activeTool } })
+  const ActiveToolIcon = useMemo(() => hud.activeToolIcon, [hud.activeToolIcon])
 
-<template>
-  <div
-    class="flex size-8 items-center justify-center rounded-full border border-accent/20 bg-panel/70 shadow-md backdrop-blur-xl transition-colors duration-200"
-  >
-    <Transition
-      mode="out-in"
-      enter-active-class="animate-in fade-in zoom-in-75 duration-150"
-      leave-active-class="animate-out fade-out zoom-out-75 duration-150"
-    >
-      <component
-        :is="hud.activeToolIcon"
-        :key="hud.store.state.activeTool"
-        class="size-3.5 text-accent"
-      />
-    </Transition>
-  </div>
-</template>
+  return (
+    <div className="flex size-8 items-center justify-center rounded-full border border-accent/20 bg-panel/70 shadow-md backdrop-blur-xl transition-colors duration-200">
+      <ActiveToolIcon key={activeTool} className="size-3.5 text-accent" />
+    </div>
+  )
+})
+
+MobileActiveToolBadge.displayName = 'MobileActiveToolBadge'
+export default MobileActiveToolBadge

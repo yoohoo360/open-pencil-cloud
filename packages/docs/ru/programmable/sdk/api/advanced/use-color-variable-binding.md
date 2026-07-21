@@ -12,7 +12,7 @@ description: Хелпер привязки переменных для реда�
 ## Использование
 
 ```ts
-import { useColorVariableBinding } from '@open-pencil/vue'
+import { useColorVariableBinding } from '@open-pencil/react'
 
 const fillBinding = useColorVariableBinding('fills')
 const strokeBinding = useColorVariableBinding('strokes')

@@ -1,38 +1,39 @@
-<script setup lang="ts">
-import { ref } from 'vue'
+import { memo, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { useEditor } from '#vue/editor/context'
-import { useCanvas, type UseCanvasOptions } from '#vue/canvas/surface/use'
-import { provideCanvas } from '#vue/canvas/context'
+import { useCanvas, type UseCanvasOptions } from '#react/canvas/surface/use'
+import { CanvasContextProvider } from '#react/canvas/context'
+import { useEditor } from '#react/editor/context'
 
-const { showRulers, preserveDrawingBuffer } = defineProps<UseCanvasOptions>()
+export type CanvasRootProps = UseCanvasOptions & {
+  children: ReactNode
+}
 
-const editor = useEditor()
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-const ready = ref(false)
+/** Provides the canvas surface and renderer-backed interaction helpers. */
+export const CanvasRoot = memo(function CanvasRoot({
+  children,
+  showRulers,
+  preserveDrawingBuffer
+}: CanvasRootProps) {
+  const editor = useEditor()
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [ready, setReady] = useState(false)
+  const { renderNow, hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle } = useCanvas(
+    canvasRef,
+    editor,
+    { showRulers, preserveDrawingBuffer, onReady: () => setReady(true) }
+  )
 
-const { renderNow, hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle } = useCanvas(
-  canvasRef,
-  editor,
-  {
-    showRulers,
-    preserveDrawingBuffer,
-    onReady: () => {
-      ready.value = true
-    }
-  }
-)
+  const context = useMemo(
+    () => ({
+      canvasRef,
+      ready,
+      renderNow,
+      hitTestSectionTitle,
+      hitTestComponentLabel,
+      hitTestFrameTitle
+    }),
+    [ready, renderNow, hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle]
+  )
 
-provideCanvas({
-  canvasRef,
-  ready,
-  renderNow,
-  hitTestSectionTitle,
-  hitTestComponentLabel,
-  hitTestFrameTitle
+  return <CanvasContextProvider value={context}>{children}</CanvasContextProvider>
 })
-</script>
-
-<template>
-  <slot :canvas-ref="canvasRef" :ready="ready" :render-now="renderNow" />
-</template>

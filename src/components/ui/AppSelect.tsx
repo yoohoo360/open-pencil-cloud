@@ -1,73 +1,85 @@
-<script setup lang="ts" generic="T extends string | number">
+import * as Select from '@radix-ui/react-select'
+import IconLucideCheck from '~icons/lucide/check'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
+import IconLucideChevronUp from '~icons/lucide/chevron-up'
+import { memo, useMemo } from 'react'
 import { tv } from 'tailwind-variants'
-import {
-  SelectContent,
-  SelectItem,
-  SelectItemIndicator,
-  SelectItemText,
-  SelectPortal,
-  SelectRoot,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectTrigger,
-  SelectValue,
-  SelectViewport
-} from 'reka-ui'
 
-import theme from '@/theme/app-select'
-import type { AppSelectTheme } from '@/theme/app-select'
 import type { ComponentUI } from '@/components/ui/types'
+import type { AppSelectTheme } from '@/theme/app-select'
+import theme from '@/theme/app-select'
 
-interface AppSelectProps<TValue extends string | number> {
-  label?: string
-  options: { value: TValue; label: string }[]
-  placeholder?: string
-  ui?: ComponentUI<AppSelectTheme>
+export type AppSelectOption<TValue extends string | number> = {
+  value: TValue
+  label: string
 }
 
-defineOptions({ inheritAttrs: false })
+export type AppSelectProps<TValue extends string | number> = {
+  value: TValue
+  onValueChange: (value: TValue) => void
+  label?: string
+  options: AppSelectOption<TValue>[]
+  placeholder?: string
+  ui?: ComponentUI<AppSelectTheme>
+  className?: string
+}
 
-const { options, label, placeholder, ui } = defineProps<AppSelectProps<T>>()
-const modelValue = defineModel<T>({ required: true })
-const styles = tv(theme)()
-</script>
+export function AppSelect<TValue extends string | number>({
+  value,
+  onValueChange,
+  options,
+  label,
+  placeholder,
+  ui,
+  className
+}: AppSelectProps<TValue>) {
+  const styles = useMemo(() => tv(theme)(), [])
 
-<template>
-  <SelectRoot v-model="modelValue">
-    <SelectTrigger
-      v-bind="$attrs"
-      :class="styles.trigger({ class: ui?.trigger })"
-      :aria-label="label"
+  return (
+    <Select.Root
+      value={String(value)}
+      onValueChange={(next) => {
+        const match = options.find((opt) => String(opt.value) === next)
+        if (match) onValueChange(match.value)
+      }}
     >
-      <SelectValue :placeholder="placeholder" :class="styles.value({ class: ui?.value })" />
-      <icon-lucide-chevron-down class="ml-1 size-3 shrink-0 text-muted" />
-    </SelectTrigger>
-    <SelectPortal>
-      <SelectContent
-        position="popper"
-        :side-offset="2"
-        :class="styles.content({ class: ui?.content })"
+      <Select.Trigger
+        className={styles.trigger({ class: [ui?.trigger, className] })}
+        aria-label={label}
       >
-        <SelectScrollUpButton class="flex items-center justify-center py-0.5 text-muted">
-          <icon-lucide-chevron-up class="size-3.5" />
-        </SelectScrollUpButton>
-        <SelectViewport :class="styles.viewport({ class: ui?.viewport })">
-          <SelectItem
-            v-for="opt in options"
-            :key="String(opt.value)"
-            :value="opt.value"
-            :class="styles.item({ class: ui?.item })"
-          >
-            <SelectItemIndicator :class="styles.indicator({ class: ui?.indicator })">
-              <icon-lucide-check class="size-3 text-accent" />
-            </SelectItemIndicator>
-            <SelectItemText>{{ opt.label }}</SelectItemText>
-          </SelectItem>
-        </SelectViewport>
-        <SelectScrollDownButton class="flex items-center justify-center py-0.5 text-muted">
-          <icon-lucide-chevron-down class="size-3.5" />
-        </SelectScrollDownButton>
-      </SelectContent>
-    </SelectPortal>
-  </SelectRoot>
-</template>
+        <Select.Value placeholder={placeholder} className={styles.value({ class: ui?.value })} />
+        <IconLucideChevronDown className="ml-1 size-3 shrink-0 text-muted" />
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={2}
+          className={styles.content({ class: ui?.content })}
+        >
+          <Select.ScrollUpButton className="flex items-center justify-center py-0.5 text-muted">
+            <IconLucideChevronUp className="size-3.5" />
+          </Select.ScrollUpButton>
+          <Select.Viewport className={styles.viewport({ class: ui?.viewport })}>
+            {options.map((opt) => (
+              <Select.Item
+                key={String(opt.value)}
+                value={String(opt.value)}
+                className={styles.item({ class: ui?.item })}
+              >
+                <Select.ItemIndicator className={styles.indicator({ class: ui?.indicator })}>
+                  <IconLucideCheck className="size-3 text-accent" />
+                </Select.ItemIndicator>
+                <Select.ItemText>{opt.label}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+          <Select.ScrollDownButton className="flex items-center justify-center py-0.5 text-muted">
+            <IconLucideChevronDown className="size-3.5" />
+          </Select.ScrollDownButton>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
+
+export default memo(AppSelect)

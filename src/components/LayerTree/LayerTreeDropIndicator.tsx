@@ -1,41 +1,54 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo } from 'react'
 import { tv } from 'tailwind-variants'
 
-import { useLayerTreeUI } from './ui'
-
+import type { LayerDragInstruction } from '@open-pencil/react'
+import { useLayerTreeUI } from '@/components/LayerTree/ui'
 import layerTreeTheme from '@/theme/layer-tree'
 
-import type { LayerDragInstruction } from '@open-pencil/vue'
-
-const { active, instruction, level, indent } = defineProps<{
+export type LayerTreeDropIndicatorProps = {
   active: boolean
   instruction: LayerDragInstruction | null
   level: number
   indent: number
-}>()
+}
 
-const position = computed(() => {
-  if (!instruction) return null
-  if (instruction.type === 'make-child') return 'child' as const
-  return instruction.type === 'reorder-above' ? ('above' as const) : ('below' as const)
-})
-const indicatorStyle = computed(() => {
-  if (position.value === 'child') return { left: `${level * indent}px`, right: '4px' }
-  const offset = (level - 1) * indent
-  return { left: `${offset}px`, width: `calc(100% - ${offset}px)` }
-})
-const ui = useLayerTreeUI()
-const layerTree = tv(layerTreeTheme)
-const styles = computed(() => layerTree({ dropPosition: position.value ?? undefined }))
-</script>
+export const LayerTreeDropIndicator = memo(function LayerTreeDropIndicator({
+  active,
+  instruction,
+  level,
+  indent
+}: LayerTreeDropIndicatorProps) {
+  const ui = useLayerTreeUI()
+  const layerTree = tv(layerTreeTheme)
 
-<template>
-  <div
-    v-if="active && position"
-    data-slot="drop-indicator"
-    :data-drop-position="position"
-    :class="styles.dropIndicator({ class: ui?.dropIndicator })"
-    :style="indicatorStyle"
-  />
-</template>
+  const position = useMemo(() => {
+    if (!instruction) return null
+    if (instruction.type === 'make-child') return 'child' as const
+    return instruction.type === 'reorder-above' ? ('above' as const) : ('below' as const)
+  }, [instruction])
+
+  const indicatorStyle = useMemo(() => {
+    if (position === 'child') return { left: `${level * indent}px`, right: '4px' }
+    const offset = (level - 1) * indent
+    return { left: `${offset}px`, width: `calc(100% - ${offset}px)` }
+  }, [indent, level, position])
+
+  const styles = useMemo(
+    () => layerTree({ dropPosition: position ?? undefined }),
+    [layerTree, position]
+  )
+
+  if (!active || !position) return null
+
+  return (
+    <div
+      data-slot="drop-indicator"
+      data-drop-position={position}
+      className={styles.dropIndicator({ class: ui?.dropIndicator })}
+      style={indicatorStyle}
+    />
+  )
+})
+
+LayerTreeDropIndicator.displayName = 'LayerTreeDropIndicator'
+export default LayerTreeDropIndicator

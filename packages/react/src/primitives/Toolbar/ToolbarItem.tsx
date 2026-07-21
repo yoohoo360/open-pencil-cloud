@@ -1,22 +1,27 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-
-import { useToolbar } from '#vue/primitives/Toolbar/context'
+import { memo, useMemo, type ReactNode } from 'react'
 
 import type { Tool } from '@open-pencil/core/editor'
 
-const { tool } = defineProps<{
+import { useToolbar } from '#react/primitives/Toolbar/context'
+
+export type ToolbarItemSlotProps = {
   tool: Tool
-}>()
-
-const { activeTool, setTool } = useToolbar()
-
-const isActive = computed(() => activeTool.value === tool)
-const actions = {
-  select: () => setTool(tool)
+  active: boolean
+  actions: { select: () => void }
 }
-</script>
 
-<template>
-  <slot :active="isActive" :actions="actions" :tool="tool" />
-</template>
+export type ToolbarItemProps = {
+  tool: Tool
+  children?: ReactNode | ((props: ToolbarItemSlotProps) => ReactNode)
+}
+
+export const ToolbarItem = memo(function ToolbarItem({ tool, children }: ToolbarItemProps) {
+  const { activeTool, setTool } = useToolbar()
+  const slotProps = useMemo<ToolbarItemSlotProps>(
+    () => ({ tool, active: activeTool === tool, actions: { select: () => setTool(tool) } }),
+    [activeTool, setTool, tool]
+  )
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
+
+ToolbarItem.displayName = 'ToolbarItem'

@@ -1,27 +1,35 @@
-<script setup lang="ts">
-import AppTextButton from '@/components/ui/AppTextButton.vue'
+import { memo, type ReactNode } from 'react'
 
-interface ProviderSettingsFieldProps {
+import AppTextButton from '@/components/ui/AppTextButton'
+
+export type ProviderSettingsFieldProps = {
   label: string
   clearLabel?: string
+  onClear?: () => void
+  children: ReactNode
+  hint?: ReactNode
 }
 
-defineOptions({ inheritAttrs: false })
-
-const { label, clearLabel } = defineProps<ProviderSettingsFieldProps>()
-
-const emit = defineEmits<{ clear: [] }>()
-</script>
-
-<template>
-  <div class="flex flex-col gap-1">
-    <div class="flex items-center justify-between">
-      <label class="text-[10px] text-muted">{{ label }}</label>
-      <AppTextButton v-if="clearLabel" v-bind="$attrs" @click="emit('clear')">
-        {{ clearLabel }}
-      </AppTextButton>
+export const ProviderSettingsField = memo(function ProviderSettingsField({
+  label,
+  clearLabel,
+  onClear,
+  children,
+  hint
+}: ProviderSettingsFieldProps) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <label className="text-[10px] text-muted">{label}</label>
+        {clearLabel && onClear ? (
+          <AppTextButton onClick={onClear}>{clearLabel}</AppTextButton>
+        ) : null}
+      </div>
+      {children}
+      {hint}
     </div>
-    <slot />
-    <slot name="hint" />
-  </div>
-</template>
+  )
+})
+
+ProviderSettingsField.displayName = 'ProviderSettingsField'
+export default ProviderSettingsField

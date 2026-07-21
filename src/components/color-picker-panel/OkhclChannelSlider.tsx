@@ -1,13 +1,25 @@
-<script setup lang="ts">
-import { ChannelSliderRoot, ChannelSliderThumb, ChannelSliderTrack } from '@open-pencil/vue'
+import {
+  ChannelSliderRoot,
+  ChannelSliderThumb,
+  ChannelSliderTrack
+} from '@open-pencil/react'
+import { memo, useMemo, type CSSProperties } from 'react'
 
+import NumberField from '@/components/inputs/NumberField'
 import type { ColorSliderUI } from '@/components/color-picker-panel/ui'
-import NumberField from '@/components/inputs/NumberField.vue'
 import { useColorSliderUI } from '@/components/color-picker-panel/ui'
 
-interface OkhclChannelSliderProps {
+function gradientStyle(gradient?: string): CSSProperties | undefined {
+  if (!gradient) return undefined
+  const value = gradient.startsWith('background:')
+    ? gradient.slice('background:'.length).trim().replace(/;$/, '')
+    : gradient
+  return { background: value }
+}
+
+export type OkhclChannelSliderProps = {
   label: string
-  modelValue: number
+  value: number
   min: number
   max: number
   step?: number
@@ -21,11 +33,14 @@ interface OkhclChannelSliderProps {
   thumbFill?: string
   formatValueText?: (value: number) => string
   ui?: ColorSliderUI
+  onValueChange: (value: number) => void
+  onDisplayChange: (value: number) => void
+  'data-test-id'?: string
 }
 
-const {
+export const OkhclChannelSlider = memo(function OkhclChannelSlider({
   label,
-  modelValue,
+  value,
   min,
   max,
   step = 1,
@@ -38,47 +53,46 @@ const {
   checkerboard = false,
   thumbFill = '#fff',
   formatValueText,
-  ui
-} = defineProps<OkhclChannelSliderProps>()
+  ui,
+  onValueChange,
+  onDisplayChange,
+  'data-test-id': dataTestId
+}: OkhclChannelSliderProps) {
+  const styles = useColorSliderUI(checkerboard, ui)
+  const trackStyle = useMemo(() => gradientStyle(gradient), [gradient])
 
-const emit = defineEmits<{
-  'update:modelValue': [value: number]
-  updateDisplay: [value: number]
-}>()
+  return (
+    <div className={styles.root}>
+      <span className={styles.label}>{label}</span>
+      <ChannelSliderRoot
+        className={styles.slider}
+        data-slot="slider"
+        data-test-id={dataTestId}
+        formatValueText={formatValueText}
+        label={label}
+        max={max}
+        min={min}
+        modelValue={value}
+        step={step}
+        onValueChange={onValueChange}
+      >
+        <ChannelSliderTrack className={styles.track} style={trackStyle} />
+        <ChannelSliderThumb className={styles.thumb} style={{ background: thumbFill }} />
+      </ChannelSliderRoot>
+      <NumberField
+        aria-label={label}
+        className={styles.input}
+        max={displayMax}
+        min={displayMin}
+        step={displayStep}
+        suffix={suffix}
+        ui={{ leading: 'hidden' }}
+        value={displayValue}
+        onValueChange={onDisplayChange}
+      />
+    </div>
+  )
+})
 
-const styles = useColorSliderUI(
-  () => checkerboard,
-  () => ui
-)
-</script>
-
-<template>
-  <div :class="styles.root.value">
-    <span :class="styles.label.value">{{ label }}</span>
-    <ChannelSliderRoot
-      :class="styles.slider.value"
-      :model-value="modelValue"
-      :label="label"
-      :min="min"
-      :max="max"
-      :step="step"
-      :format-value-text="formatValueText"
-      data-slot="slider"
-      @update:model-value="emit('update:modelValue', $event)"
-    >
-      <ChannelSliderTrack :class="styles.track.value" :style="gradient" />
-      <ChannelSliderThumb :class="styles.thumb.value" :style="{ background: thumbFill }" />
-    </ChannelSliderRoot>
-    <NumberField
-      :class="styles.input.value"
-      :aria-label="label"
-      :model-value="displayValue"
-      :min="displayMin"
-      :max="displayMax"
-      :step="displayStep"
-      :suffix="suffix"
-      :ui="{ leading: 'hidden' }"
-      @update:model-value="emit('updateDisplay', $event)"
-    />
-  </div>
-</template>
+OkhclChannelSlider.displayName = 'OkhclChannelSlider'
+export default OkhclChannelSlider

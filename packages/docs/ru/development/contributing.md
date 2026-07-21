@@ -72,7 +72,7 @@ bun run check
 
 ## Ключевые файлы
 
-Исходники core-движка находятся в `packages/core/src/`. Код приложения для редактора, документов, AI, коллаборации, shell, демо и автоматизации живёт в `src/app/*`; Vue SDK содержит переиспользуемый canvas/composable-код в `packages/vue/src/`.
+Исходники core-движка находятся в `packages/core/src/`. Код приложения для редактора, документов, AI, коллаборации, shell, демо и автоматизации живёт в `src/app/*`; Vue SDK содержит переиспользуемый canvas/composable-код в `packages/react/src/`.
 
 | Файл | Назначение |
 |------|------------|
@@ -91,6 +91,6 @@ bun run check
 | `packages/mcp/src/server.ts` | Фабрика MCP-сервера |
 | `packages/cli/src/commands/` | Команды CLI (info, tree, find, export, eval, analyze) |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Composable отрисовки холста |
-| `packages/vue/src/canvas/useCanvasInput.ts` | Обработка ввода мышью/тачем |
+| `packages/react/src/canvas/CanvasRoot.vue` | Composable отрисовки холста |
+| `packages/react/src/canvas/useCanvasInput.ts` | Обработка ввода мышью/тачем |
 | `src/app/shell/keyboard/use.ts` | Обработка сочетаний клавиш |

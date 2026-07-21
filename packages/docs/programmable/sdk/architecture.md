@@ -1,11 +1,11 @@
 ---
 title: SDK Architecture
-description: Folder structure, public API boundaries, and composition patterns in @open-pencil/vue.
+description: Folder structure, public API boundaries, and composition patterns in @open-pencil/react.
 ---
 
 # SDK Architecture
 
-`@open-pencil/vue` is the Vue-facing layer over `@open-pencil/core`.
+`@open-pencil/react` is the Vue-facing layer over `@open-pencil/core`.
 
 It does not own the editor model itself. It adapts the core editor into:
 
@@ -113,7 +113,7 @@ Prefer focused slot props or direct composable usage over giant `v-slot="ctx"` p
 
 ## Practical rule of thumb
 
-If a piece of logic could be reused in a different OpenPencil-based app without bringing app styling with it, it probably belongs in `@open-pencil/vue`.
+If a piece of logic could be reused in a different OpenPencil-based app without bringing app styling with it, it probably belongs in `@open-pencil/react`.
 
 ## Related pages
 

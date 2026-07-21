@@ -1,81 +1,95 @@
-<script setup lang="ts" generic="T extends string | number">
+import * as Select from '@radix-ui/react-select'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
+import { Fragment, memo, useMemo, type ReactNode } from 'react'
 import { tv } from 'tailwind-variants'
-import {
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectItemText,
-  SelectLabel,
-  SelectPortal,
-  SelectRoot,
-  SelectSeparator,
-  SelectTrigger,
-  SelectViewport
-} from 'reka-ui'
 
-import theme from '@/theme/app-grouped-select'
-import type { AppGroupedSelectTheme } from '@/theme/app-grouped-select'
 import type { ComponentUI } from '@/components/ui/types'
+import type { AppGroupedSelectTheme } from '@/theme/app-grouped-select'
+import theme from '@/theme/app-grouped-select'
 
-interface SelectOption<TValue extends string | number> {
+export type SelectOption<TValue extends string | number> = {
   value: TValue
   label: string
 }
 
-interface SelectGroupDef<TValue extends string | number> {
+export type SelectGroupDef<TValue extends string | number> = {
   label?: string
   items: SelectOption<TValue>[]
 }
 
-interface AppGroupedSelectProps<TValue extends string | number> {
+export type AppGroupedSelectProps<TValue extends string | number> = {
+  value: TValue
+  onValueChange: (value: TValue) => void
   groups: SelectGroupDef<TValue>[]
   displayValue: string
   ui?: ComponentUI<AppGroupedSelectTheme>
+  className?: string
+  children?: ReactNode
 }
 
-defineOptions({ inheritAttrs: false })
+export function AppGroupedSelect<TValue extends string | number>({
+  value,
+  onValueChange,
+  groups,
+  displayValue,
+  ui,
+  className,
+  children
+}: AppGroupedSelectProps<TValue>) {
+  const styles = useMemo(() => tv(theme)(), [])
 
-const { groups, displayValue, ui } = defineProps<AppGroupedSelectProps<T>>()
+  return (
+    <Select.Root
+      value={String(value)}
+      onValueChange={(next) => {
+        for (const group of groups) {
+          const match = group.items.find((item) => String(item.value) === next)
+          if (match) {
+            onValueChange(match.value)
+            return
+          }
+        }
+      }}
+    >
+      <Select.Trigger className={styles.trigger({ class: [ui?.trigger, className] })}>
+        {children ?? displayValue}
+        <IconLucideChevronDown className="size-2.5 shrink-0 text-muted" />
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={4}
+          className={styles.content({ class: ui?.content })}
+        >
+          <Select.Viewport className={styles.viewport({ class: ui?.viewport })}>
+            {groups.map((group, index) => (
+              <Fragment key={index}>
+                <Select.Group>
+                  {group.label ? (
+                    <Select.Label className={styles.label({ class: ui?.label })}>
+                      {group.label}
+                    </Select.Label>
+                  ) : null}
+                  {group.items.map((item) => (
+                    <Select.Item
+                      key={String(item.value)}
+                      value={String(item.value)}
+                      className={styles.item({ class: ui?.item })}
+                    >
+                      <Select.ItemText>{item.label}</Select.ItemText>
+                    </Select.Item>
+                  ))}
+                </Select.Group>
+                {index < groups.length - 1 ? (
+                  <Select.Separator className={styles.separator({ class: ui?.separator })} />
+                ) : null}
+              </Fragment>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
 
-const modelValue = defineModel<T>({ required: true })
-
-const styles = tv(theme)()
-</script>
-
-<template>
-  <SelectRoot v-model="modelValue">
-    <SelectTrigger v-bind="$attrs" :class="styles.trigger({ class: ui?.trigger })">
-      <slot name="value">{{ displayValue }}</slot>
-      <icon-lucide-chevron-down class="size-2.5 shrink-0 text-muted" />
-    </SelectTrigger>
-    <SelectPortal>
-      <SelectContent
-        position="popper"
-        :side-offset="4"
-        :class="styles.content({ class: ui?.content })"
-      >
-        <SelectViewport :class="styles.viewport({ class: ui?.viewport })">
-          <template v-for="(group, index) in groups" :key="index">
-            <SelectGroup>
-              <SelectLabel v-if="group.label" :class="styles.label({ class: ui?.label })">
-                {{ group.label }}
-              </SelectLabel>
-              <SelectItem
-                v-for="item in group.items"
-                :key="String(item.value)"
-                :value="item.value"
-                :class="styles.item({ class: ui?.item })"
-              >
-                <SelectItemText>{{ item.label }}</SelectItemText>
-              </SelectItem>
-            </SelectGroup>
-            <SelectSeparator
-              v-if="index < groups.length - 1"
-              :class="styles.separator({ class: ui?.separator })"
-            />
-          </template>
-        </SelectViewport>
-      </SelectContent>
-    </SelectPortal>
-  </SelectRoot>
-</template>
+export default memo(AppGroupedSelect)

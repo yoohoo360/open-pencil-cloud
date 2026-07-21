@@ -1,33 +1,41 @@
-<script setup lang="ts">
-import { useAppearance } from '#vue/controls/appearance/use'
-import type { AppearanceControlsRootSlots } from '#vue/primitives/AppearanceControls/types'
+import { useAppearance } from '#react/controls/appearance/use'
+import type { AppearanceControlsRootSlotProps } from '#react/primitives/AppearanceControls/types'
+import { memo, useMemo, type ReactNode } from 'react'
 
-const ctx = useAppearance()
-defineSlots<AppearanceControlsRootSlots>()
-const actions = {
-  updateProp: ctx.updateProp,
-  commitProp: ctx.commitProp,
-  setBlendMode: ctx.setBlendMode,
-  toggleVisibility: ctx.toggleVisibility,
-  toggleIndependentCorners: ctx.toggleIndependentCorners,
-  updateCornerProp: ctx.updateCornerProp,
-  commitCornerProp: ctx.commitCornerProp
+export type AppearanceControlsRootProps = {
+  children?: ReactNode | ((props: AppearanceControlsRootSlotProps) => ReactNode)
 }
-</script>
 
-<template>
-  <slot
-    :node="ctx.node.value"
-    :is-multi="ctx.isMulti.value"
-    :active="ctx.active.value"
-    :has-corner-radius="ctx.hasCornerRadius.value"
-    :independent-corners="ctx.independentCorners.value"
-    :show-independent-corners="ctx.showIndependentCorners.value"
-    :corner-radius-value="ctx.cornerRadiusValue.value"
-    :corner-smoothing-percent="ctx.cornerSmoothingPercent.value"
-    :opacity-percent="ctx.opacityPercent.value"
-    :blend-mode-value="ctx.blendModeValue.value"
-    :visibility-state="ctx.visibilityState.value"
-    :actions="actions"
-  />
-</template>
+export const AppearanceControlsRoot = memo(function AppearanceControlsRoot({
+  children
+}: AppearanceControlsRootProps) {
+  const ctx = useAppearance()
+  const slotProps = useMemo<AppearanceControlsRootSlotProps>(
+    () => ({
+      node: ctx.node,
+      isMulti: ctx.isMulti,
+      active: ctx.active,
+      hasCornerRadius: ctx.hasCornerRadius,
+      independentCorners: ctx.independentCorners,
+      showIndependentCorners: ctx.showIndependentCorners,
+      cornerRadiusValue: ctx.cornerRadiusValue,
+      cornerSmoothingPercent: ctx.cornerSmoothingPercent,
+      opacityPercent: ctx.opacityPercent,
+      blendModeValue: ctx.blendModeValue,
+      visibilityState: ctx.visibilityState,
+      actions: {
+        updateProp: ctx.updateProp,
+        commitProp: ctx.commitProp,
+        setBlendMode: ctx.setBlendMode,
+        toggleVisibility: ctx.toggleVisibility,
+        toggleIndependentCorners: ctx.toggleIndependentCorners,
+        updateCornerProp: ctx.updateCornerProp,
+        commitCornerProp: ctx.commitCornerProp
+      }
+    }),
+    [ctx]
+  )
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
+
+AppearanceControlsRoot.displayName = 'AppearanceControlsRoot'

@@ -1,39 +1,44 @@
-<script setup lang="ts">
-import { useI18n } from '@open-pencil/vue'
+import { memo } from 'react'
 
-import ProviderSettingsKeyField from '@/components/chat/ProviderSettings/ProviderSettingsKeyField.vue'
+import { useI18n } from '@open-pencil/react'
+import ProviderSettingsKeyField from '@/components/chat/ProviderSettings/ProviderSettingsKeyField'
 import { useProviderSettingsContext } from '@/components/chat/ProviderSettings/context'
 
-const ctx = useProviderSettingsContext()
-const { dialogs } = useI18n()
-</script>
+export const StockPhotoKeysSection = memo(function StockPhotoKeysSection() {
+  const ctx = useProviderSettingsContext()
+  const { dialogs } = useI18n()
 
-<template>
-  <ProviderSettingsKeyField
-    v-model="ctx.pexelsKeyInput"
-    :label="dialogs.pexelsAPIKey"
-    :saved="!!ctx.pexelsApiKey"
-    kind="pexels"
-    :placeholder="
-      ctx.hasExistingPexelsKey ? dialogs.keySavedReplace : dialogs.stockPhotoToolOptional
-    "
-    key-url="https://www.pexels.com/api/"
-    :key-url-label="dialogs.getPexelsAPIKey"
-    @clear="ctx.clearPexelsKey"
-    @change="ctx.save"
-  />
+  return (
+    <>
+      <ProviderSettingsKeyField
+        label={dialogs.pexelsAPIKey}
+        value={ctx.pexelsKeyInput}
+        onValueChange={ctx.setPexelsKeyInput}
+        saved={!!ctx.pexelsApiKey}
+        kind="pexels"
+        placeholder={ctx.hasExistingPexelsKey ? dialogs.keySavedReplace : dialogs.stockPhotoToolOptional}
+        keyUrl="https://www.pexels.com/api/"
+        keyUrlLabel={dialogs.getPexelsAPIKey}
+        onClear={ctx.clearPexelsKey}
+        onChangeCommit={ctx.save}
+      />
+      <ProviderSettingsKeyField
+        label={dialogs.unsplashAccessKey}
+        value={ctx.unsplashKeyInput}
+        onValueChange={ctx.setUnsplashKeyInput}
+        saved={!!ctx.unsplashAccessKey}
+        kind="unsplash"
+        placeholder={
+          ctx.hasExistingUnsplashKey ? dialogs.keySavedReplace : dialogs.pexelsAlternativeOptional
+        }
+        keyUrl="https://unsplash.com/oauth/applications"
+        keyUrlLabel={dialogs.getUnsplashAccessKey}
+        onClear={ctx.clearUnsplashKey}
+        onChangeCommit={ctx.save}
+      />
+    </>
+  )
+})
 
-  <ProviderSettingsKeyField
-    v-model="ctx.unsplashKeyInput"
-    :label="dialogs.unsplashAccessKey"
-    :saved="!!ctx.unsplashAccessKey"
-    kind="unsplash"
-    :placeholder="
-      ctx.hasExistingUnsplashKey ? dialogs.keySavedReplace : dialogs.pexelsAlternativeOptional
-    "
-    key-url="https://unsplash.com/oauth/applications"
-    :key-url-label="dialogs.getUnsplashAccessKey"
-    @clear="ctx.clearUnsplashKey"
-    @change="ctx.save"
-  />
-</template>
+StockPhotoKeysSection.displayName = 'StockPhotoKeysSection'
+export default StockPhotoKeysSection

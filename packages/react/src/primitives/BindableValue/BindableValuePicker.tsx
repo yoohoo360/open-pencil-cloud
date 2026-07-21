@@ -1,25 +1,21 @@
-<script setup lang="ts">
-import { ComboboxRoot } from 'reka-ui'
+import { useBindableValue } from '#react/primitives/BindableValue/context'
+import type { BindableValueSlotProps } from '#react/primitives/BindableValue/types'
+import { memo, useMemo, type ReactNode } from 'react'
 
-import { useBindableValue } from '#vue/primitives/BindableValue/context'
-
-const ctx = useBindableValue()
-
-function select(value: unknown) {
-  if (typeof value !== 'object' || value === null || !('id' in value)) return
-  if (typeof value.id !== 'string') return
-  ctx.actions.bind(value.id)
+export type BindableValuePickerProps = {
+  children?: ReactNode | ((props: BindableValueSlotProps) => ReactNode)
 }
-</script>
 
-<template>
-  <ComboboxRoot
-    :open="ctx.open.value"
-    :model-value="ctx.variable.value"
-    :ignore-filter="true"
-    @update:model-value="select"
-    @update:open="(open: boolean) => (open ? ctx.actions.openPicker() : ctx.actions.closePicker())"
-  >
-    <slot v-bind="ctx.slotProps.value" />
-  </ComboboxRoot>
-</template>
+export const BindableValuePicker = memo(function BindableValuePicker({
+  children
+}: BindableValuePickerProps) {
+  const context = useBindableValue()
+  const content = useMemo(
+    () => (typeof children === 'function' ? children(context.slotProps) : children),
+    [children, context.slotProps]
+  )
+  if (!context.open) return null
+  return <>{content}</>
+})
+
+BindableValuePicker.displayName = 'BindableValuePicker'

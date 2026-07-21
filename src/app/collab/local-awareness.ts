@@ -1,13 +1,13 @@
-import type { Ref } from 'vue'
 import type { Awareness } from 'y-protocols/awareness'
 
 import { buildRemotePeers, remotePeersToCursors } from '@/app/collab/awareness'
 import type { CollabState } from '@/app/collab/types'
+import type { MutableValue } from '@/app/collab/session'
 import type { EditorStore } from '@/app/editor/active-store'
 
 type LocalAwarenessOptions = {
-  state: Ref<CollabState>
-  storedName: Ref<string>
+  state: MutableValue<CollabState>
+  storedName: MutableValue<string>
   getStore: () => EditorStore
   getAwareness: () => Awareness | null
 }

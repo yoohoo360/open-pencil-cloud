@@ -1,5 +1,4 @@
 import type { Room } from 'trystero'
-import type { Ref } from 'vue'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import type { Awareness } from 'y-protocols/awareness'
@@ -12,6 +11,10 @@ import type { CollabState } from '@/app/collab/types'
 import { bindCollabGraphEvents, registerYjsObservers } from '@/app/collab/yjs-sync'
 import type { EditorStore } from '@/app/editor/active-store'
 import { PEER_COLORS } from '@/constants'
+
+export type MutableValue<T> = {
+  value: T
+}
 
 export type CollabRuntime = {
   ydoc: Y.Doc | null
@@ -30,7 +33,7 @@ export type CollabRuntime = {
 type ConnectCollabSessionOptions = {
   roomId: string
   runtime: CollabRuntime
-  state: Ref<CollabState>
+  state: MutableValue<CollabState>
   store: EditorStore
   disconnect: () => void
   updatePeersList: () => void
@@ -42,7 +45,7 @@ type ConnectCollabSessionOptions = {
 
 type CollabConnectionActionsOptions = {
   runtime: CollabRuntime
-  state: Ref<CollabState>
+  state: MutableValue<CollabState>
   getStore: () => EditorStore
   updatePeersList: () => void
   tickFollow: () => void
@@ -224,7 +227,7 @@ export function resetCollabRuntime(runtime: CollabRuntime) {
   runtime.connectedStore = null
 }
 
-export function resetCollabConnectionState(state: Ref<CollabState>) {
+export function resetCollabConnectionState(state: MutableValue<CollabState>) {
   state.value.connected = false
   state.value.roomId = null
   state.value.peers = []

@@ -1,59 +1,84 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n, useLayoutControlsContext } from '@open-pencil/vue'
+import { memo, useMemo } from 'react'
 
-import SizeAxisField from '@/components/properties/LayoutSection/size/SizeAxisField.vue'
-import SizeLimitField from '@/components/properties/LayoutSection/size/SizeLimitField.vue'
-import PanelGrid from '@/components/ui/panel/PanelGrid.vue'
+import { useI18n } from '@open-pencil/react'
 
+import SizeAxisField from '@/components/properties/LayoutSection/size/SizeAxisField'
+import SizeLimitField from '@/components/properties/LayoutSection/size/SizeLimitField'
+import { useLayoutContext } from '@/components/properties/LayoutSection/types'
 import type { SizeLimitItem } from '@/components/properties/LayoutSection/size/types'
+import PanelGrid from '@/components/ui/panel/PanelGrid'
 
-const ctx = useLayoutControlsContext()
-const { panels } = useI18n()
+export const SizeControls = memo(function SizeControls() {
+  const ctx = useLayoutContext()
+  const { panels } = useI18n()
 
-const sizeLimits = computed<SizeLimitItem[]>(() => [
-  {
-    prop: 'minWidth',
-    icon: panels.value.minWidthShort,
-    label: panels.value.minWidthShort,
-    setLabel: panels.value.setToCurrentWidth,
-    removeLabel: panels.value.removeMinWidth
-  },
-  {
-    prop: 'maxWidth',
-    icon: panels.value.maxWidthShort,
-    label: panels.value.maxWidthShort,
-    setLabel: panels.value.setToCurrentWidth,
-    removeLabel: panels.value.removeMaxWidth
-  },
-  {
-    prop: 'minHeight',
-    icon: panels.value.minHeightShort,
-    label: panels.value.minHeightShort,
-    setLabel: panels.value.setToCurrentHeight,
-    removeLabel: panels.value.removeMinHeight
-  },
-  {
-    prop: 'maxHeight',
-    icon: panels.value.maxHeightShort,
-    label: panels.value.maxHeightShort,
-    setLabel: panels.value.setToCurrentHeight,
-    removeLabel: panels.value.removeMaxHeight
-  }
-])
+  const sizeLimits = useMemo<SizeLimitItem[]>(
+    () => [
+      {
+        prop: 'minWidth',
+        icon: panels.minWidthShort,
+        label: panels.minWidthShort,
+        setLabel: panels.setToCurrentWidth,
+        removeLabel: panels.removeMinWidth
+      },
+      {
+        prop: 'maxWidth',
+        icon: panels.maxWidthShort,
+        label: panels.maxWidthShort,
+        setLabel: panels.setToCurrentWidth,
+        removeLabel: panels.removeMaxWidth
+      },
+      {
+        prop: 'minHeight',
+        icon: panels.minHeightShort,
+        label: panels.minHeightShort,
+        setLabel: panels.setToCurrentHeight,
+        removeLabel: panels.removeMinHeight
+      },
+      {
+        prop: 'maxHeight',
+        icon: panels.maxHeightShort,
+        label: panels.maxHeightShort,
+        setLabel: panels.setToCurrentHeight,
+        removeLabel: panels.removeMaxHeight
+      }
+    ],
+    [
+      panels.maxHeightShort,
+      panels.maxWidthShort,
+      panels.minHeightShort,
+      panels.minWidthShort,
+      panels.removeMaxHeight,
+      panels.removeMaxWidth,
+      panels.removeMinHeight,
+      panels.removeMinWidth,
+      panels.setToCurrentHeight,
+      panels.setToCurrentWidth
+    ]
+  )
 
-const visibleSizeLimits = computed(() =>
-  sizeLimits.value.filter((item) => ctx.node[item.prop] != null)
-)
-</script>
+  const visibleSizeLimits = useMemo(
+    () => sizeLimits.filter((item) => ctx.node[item.prop] != null),
+    [ctx.node, sizeLimits]
+  )
 
-<template>
-  <PanelGrid columns="two">
-    <SizeAxisField axis="width" icon="W" :label="panels.width" />
-    <SizeAxisField axis="height" icon="H" :label="panels.height" />
-  </PanelGrid>
+  return (
+    <>
+      <PanelGrid columns="two">
+        <SizeAxisField axis="width" icon="W" label={panels.width} />
+        <SizeAxisField axis="height" icon="H" label={panels.height} />
+      </PanelGrid>
 
-  <PanelGrid v-if="visibleSizeLimits.length" columns="two" class="mt-1.5">
-    <SizeLimitField v-for="item in visibleSizeLimits" :key="item.prop" :item="item" />
-  </PanelGrid>
-</template>
+      {visibleSizeLimits.length > 0 ? (
+        <PanelGrid columns="two" className="mt-1.5">
+          {visibleSizeLimits.map((item) => (
+            <SizeLimitField key={item.prop} item={item} />
+          ))}
+        </PanelGrid>
+      ) : null}
+    </>
+  )
+})
+
+SizeControls.displayName = 'SizeControls'
+export default SizeControls

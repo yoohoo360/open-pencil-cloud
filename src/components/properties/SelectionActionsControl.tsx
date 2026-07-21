@@ -1,27 +1,34 @@
-<script setup lang="ts">
-import { useEditorCommands } from '@open-pencil/vue'
+import IconLucideShapes from '~icons/lucide/shapes'
+import { memo } from 'react'
 
-import BooleanOperationsControl from '@/components/properties/BooleanOperationsControl.vue'
-import IconButton from '@/components/ui/IconButton.vue'
+import { useEditorCommands } from '@open-pencil/react'
+import BooleanOperationsControl from '@/components/properties/BooleanOperationsControl'
+import IconButton from '@/components/ui/IconButton'
 
-const { showBooleanOperations = false } = defineProps<{
+export type SelectionActionsControlProps = {
   showBooleanOperations?: boolean
-}>()
+}
 
-const { getCommand, runCommand } = useEditorCommands()
-const maskCommand = getCommand('selection.toggleMask')
-</script>
+export const SelectionActionsControl = memo(function SelectionActionsControl({
+  showBooleanOperations = false
+}: SelectionActionsControlProps) {
+  const { getCommand, runCommand } = useEditorCommands()
+  const maskCommand = getCommand('selection.toggleMask')
 
-<template>
-  <div class="ml-auto flex items-center gap-1">
-    <IconButton
-      :label="maskCommand.label"
-      :disabled="!maskCommand.enabled.value"
-      data-test-id="selection-toggle-mask"
-      @click="runCommand('selection.toggleMask')"
-    >
-      <icon-lucide-shapes class="size-3.5" />
-    </IconButton>
-    <BooleanOperationsControl v-if="showBooleanOperations" />
-  </div>
-</template>
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      <IconButton
+        label={maskCommand.label}
+        disabled={!maskCommand.enabled}
+        data-test-id="selection-toggle-mask"
+        onClick={() => runCommand('selection.toggleMask')}
+      >
+        <IconLucideShapes className="size-3.5" />
+      </IconButton>
+      {showBooleanOperations ? <BooleanOperationsControl /> : null}
+    </div>
+  )
+})
+
+SelectionActionsControl.displayName = 'SelectionActionsControl'
+export default SelectionActionsControl

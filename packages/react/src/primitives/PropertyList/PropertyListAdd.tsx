@@ -1,39 +1,45 @@
-<script setup lang="ts" generic="K extends PropertyListKey">
-import { computed } from 'vue'
-import { Primitive } from 'reka-ui'
+import { usePropertyListPart } from '#react/primitives/PropertyList/context'
+import { Slot } from '@radix-ui/react-slot'
+import { createElement, memo, useMemo, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import type * as React from 'react'
 
-import { usePropertyListPart } from '#vue/primitives/PropertyList/context'
 import type { PropertyListItemFor, PropertyListKey, PropertyListPartProps } from './types'
 
-const {
+export type PropertyListAddProps<K extends PropertyListKey> = PropertyListPartProps<K> &
+  ComponentPropsWithoutRef<'button'> & {
+    item: PropertyListItemFor<K>
+    children?: ReactNode
+    onAdd?: (item: PropertyListItemFor<K>) => void
+  }
+
+export const PropertyListAdd = memo(function PropertyListAdd<K extends PropertyListKey>({
   propKey,
   item,
-  as = 'button',
+  as: As = 'button',
   asChild = false,
-  disabled: disabledProp = false
-} = defineProps<PropertyListPartProps<K> & { item: PropertyListItemFor<K> }>()
-const emit = defineEmits<{ add: [item: PropertyListItemFor<K>] }>()
-const context = usePropertyListPart(propKey)
-const disabled = computed(() => disabledProp || context.disabled.value)
-defineOptions({ inheritAttrs: false })
-
-function add() {
-  if (disabled.value) return
-  emit('add', item)
-  context.actions.add(item)
-}
-</script>
-
-<template>
-  <Primitive
-    v-bind="$attrs"
-    :as="as"
-    :as-child="asChild"
-    :type="!asChild && as === 'button' ? 'button' : undefined"
-    :disabled="disabled"
-    data-slot="add"
-    @click="add"
-  >
-    <slot />
-  </Primitive>
-</template>
+  disabled: disabledProp = false,
+  onClick,
+  onAdd,
+  children,
+  ...props
+}: PropertyListAddProps<K>) {
+  const context = usePropertyListPart(propKey)
+  const disabled = disabledProp || context.disabled
+  const attributes = useMemo(
+    () => ({
+      ...props,
+      type: !asChild && As === 'button' ? ('button' as const) : undefined,
+      disabled,
+      'data-slot': 'add',
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        onClick?.(event)
+        if (!event.defaultPrevented && !disabled) {
+          onAdd?.(item)
+          context.actions.add(item)
+        }
+      }
+    }),
+    [As, asChild, disabled, item, onAdd, onClick, props, context.actions]
+  )
+  return asChild ? <Slot {...attributes}>{children}</Slot> : createElement(As, attributes, children)
+}) as <K extends PropertyListKey>(props: PropertyListAddProps<K>) => ReactNode

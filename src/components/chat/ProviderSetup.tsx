@@ -1,185 +1,224 @@
-<script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import IconLucideSparkles from '~icons/lucide/sparkles'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   testProviderConnection,
   type ProviderConnectionTestFailureReason
 } from '@/app/ai/chat/connection-test'
-import ProviderConnectionTestButton from '@/components/chat/ProviderConnectionTestButton.vue'
-import ProviderSelectField from '@/components/chat/ProviderSelect/ProviderSelectField.vue'
-import AppInput from '@/components/ui/AppInput.vue'
-import AppTextButton from '@/components/ui/AppTextButton.vue'
-import { useAIChat } from '@/app/ai/chat/use'
 import { ACP_AGENTS } from '@open-pencil/core/constants'
+import { useI18n } from '@open-pencil/react'
 import { openExternalLink } from '@/app/shell/ui'
-import { useI18n } from '@open-pencil/vue'
+import { useAIChat } from '@/app/ai/chat/use'
+import ProviderConnectionTestButton from '@/components/chat/ProviderConnectionTestButton'
+import ProviderSelectField from '@/components/chat/ProviderSelect/ProviderSelectField'
+import AppInput from '@/components/ui/AppInput'
+import AppTextButton from '@/components/ui/AppTextButton'
+import { useVueRefValue } from '@/shared/useVueRefValue'
 
-const { providerID, providerDef, setAPIKey, modelID, customBaseURL, customModelID, customAPIType } =
-  useAIChat()
-const { dialogs } = useI18n()
+export const ProviderSetup = memo(function ProviderSetup() {
+  const {
+    providerID: providerIDRef,
+    providerDef: providerDefRef,
+    setAPIKey,
+    modelID: modelIDRef,
+    customBaseURL: customBaseURLRef,
+    customModelID: customModelIDRef,
+    customAPIType: customAPITypeRef
+  } = useAIChat()
+  const providerID = useVueRefValue(providerIDRef)
+  const providerDef = useVueRefValue(providerDefRef)
+  const modelID = useVueRefValue(modelIDRef)
+  const customBaseURL = useVueRefValue(customBaseURLRef)
+  const customModelID = useVueRefValue(customModelIDRef)
+  const customAPIType = useVueRefValue(customAPITypeRef)
+  const { dialogs } = useI18n()
 
-const isACP = computed(() => providerID.value.startsWith('acp:'))
-const acpAgent = computed(() => {
-  if (!isACP.value) return null
-  const id = providerID.value.replace('acp:', '')
-  return ACP_AGENTS.find((a) => a.id === id) ?? null
-})
+  const isACP = providerID.startsWith('acp:')
+  const acpAgent = useMemo(() => {
+    if (!isACP) return null
+    const id = providerID.replace('acp:', '')
+    return ACP_AGENTS.find((a) => a.id === id) ?? null
+  }, [isACP, providerID])
 
-const keyInput = ref('')
-const baseURLInput = ref(customBaseURL.value)
-const customModelInput = ref(customModelID.value)
-const connectionTestStatus = ref<'idle' | 'testing' | 'success' | 'error'>('idle')
-const connectionTestReason = ref<ProviderConnectionTestFailureReason | null>(null)
+  const [keyInput, setKeyInput] = useState('')
+  const [baseURLInput, setBaseURLInput] = useState(customBaseURL)
+  const [customModelInput, setCustomModelInput] = useState(customModelID)
+  const [connectionTestStatus, setConnectionTestStatus] = useState<
+    'idle' | 'testing' | 'success' | 'error'
+  >('idle')
+  const [connectionTestReason, setConnectionTestReason] =
+    useState<ProviderConnectionTestFailureReason | null>(null)
 
-const canTestConnection = computed(() => {
-  if (isACP.value) return false
-  if (!keyInput.value.trim()) return false
-  if (providerDef.value.supportsCustomBaseURL && !baseURLInput.value.trim()) return false
-  if (
-    providerDef.value.supportsCustomModel &&
-    providerID.value !== 'openrouter' &&
-    !customModelInput.value.trim()
-  ) {
-    return false
+  const canTestConnection =
+    !isACP &&
+    !!keyInput.trim() &&
+    (!providerDef.supportsCustomBaseURL || !!baseURLInput.trim()) &&
+    (!providerDef.supportsCustomModel ||
+      providerID === 'openrouter' ||
+      !!customModelInput.trim())
+
+  const resetConnectionTest = useCallback(() => {
+    setConnectionTestStatus('idle')
+    setConnectionTestReason(null)
+  }, [])
+
+  useEffect(() => {
+    resetConnectionTest()
+  }, [providerID, keyInput, baseURLInput, customModelInput, customAPIType, resetConnectionTest])
+
+  const testConnection = useCallback(async () => {
+    if (connectionTestStatus === 'testing') return
+    setConnectionTestStatus('testing')
+    setConnectionTestReason(null)
+
+    const result = await testProviderConnection({
+      providerID: providerIDRef.value,
+      apiKey: keyInput.trim(),
+      modelID: modelIDRef.value,
+      customModelID: providerDef.supportsCustomModel
+        ? customModelInput.trim()
+        : customModelIDRef.value,
+      customBaseURL: providerDef.supportsCustomBaseURL
+        ? baseURLInput.trim()
+        : customBaseURLRef.value,
+      customAPIType: customAPITypeRef.value
+    })
+
+    if (result.ok) {
+      setConnectionTestStatus('success')
+      setConnectionTestReason(null)
+      return
+    }
+
+    setConnectionTestStatus('error')
+    setConnectionTestReason(result.reason)
+  }, [
+    baseURLInput,
+    connectionTestStatus,
+    customAPITypeRef,
+    customBaseURLRef,
+    customModelIDRef,
+    customModelInput,
+    keyInput,
+    modelIDRef,
+    providerDef.supportsCustomBaseURL,
+    providerDef.supportsCustomModel,
+    providerIDRef
+  ])
+
+  const save = () => {
+    const key = keyInput.trim()
+    if (!key) return
+    if (providerDef.supportsCustomBaseURL) {
+      customBaseURLRef.value = baseURLInput.trim()
+    }
+    if (providerDef.supportsCustomModel) {
+      customModelIDRef.value = customModelInput.trim()
+    }
+    setAPIKey(key)
+    setKeyInput('')
   }
-  return true
-})
 
-function resetConnectionTest() {
-  connectionTestStatus.value = 'idle'
-  connectionTestReason.value = null
-}
+  return (
+    <div
+      data-test-id="provider-setup"
+      className="flex flex-1 flex-col items-center justify-center px-6"
+    >
+      <IconLucideSparkles className="mb-3 size-7 text-muted" />
+      <p className="mb-5 text-center text-xs text-muted">{dialogs.connectAIProvider}</p>
 
-watch([providerID, keyInput, baseURLInput, customModelInput, customAPIType], resetConnectionTest)
+      {!isACP ? (
+        <form className="flex w-full flex-col gap-2" onSubmit={(event) => event.preventDefault()}>
+          <ProviderSelectField />
 
-async function testConnection() {
-  if (connectionTestStatus.value === 'testing') return
-  connectionTestStatus.value = 'testing'
-  connectionTestReason.value = null
+          {providerDef.supportsCustomBaseURL ? (
+            <AppInput
+              value={baseURLInput}
+              onValueChange={setBaseURLInput}
+              data-test-id="provider-base-url"
+              placeholder={dialogs.baseURLPlaceholder}
+            />
+          ) : null}
 
-  const result = await testProviderConnection({
-    providerID: providerID.value,
-    apiKey: keyInput.value.trim(),
-    modelID: modelID.value,
-    customModelID: providerDef.value.supportsCustomModel
-      ? customModelInput.value.trim()
-      : customModelID.value,
-    customBaseURL: providerDef.value.supportsCustomBaseURL
-      ? baseURLInput.value.trim()
-      : customBaseURL.value,
-    customAPIType: customAPIType.value
-  })
+          {providerDef.supportsCustomModel && providerID !== 'openrouter' ? (
+            <AppInput
+              value={customModelInput}
+              onValueChange={setCustomModelInput}
+              data-test-id="provider-custom-model"
+              placeholder={dialogs.modelIDPlaceholder}
+            />
+          ) : null}
 
-  if (result.ok) {
-    connectionTestStatus.value = 'success'
-    connectionTestReason.value = null
-    return
-  }
+          <AppInput
+            value={keyInput}
+            onValueChange={setKeyInput}
+            type="password"
+            data-test-id="api-key-input"
+            placeholder={providerDef.keyPlaceholder}
+          />
 
-  connectionTestStatus.value = 'error'
-  connectionTestReason.value = result.reason
-}
+          <ProviderConnectionTestButton
+            status={connectionTestStatus}
+            reason={connectionTestReason}
+            disabled={!canTestConnection}
+            onTest={testConnection}
+          />
 
-function save() {
-  const key = keyInput.value.trim()
-  if (!key) return
-  if (providerDef.value.supportsCustomBaseURL) {
-    customBaseURL.value = baseURLInput.value.trim()
-  }
-  if (providerDef.value.supportsCustomModel) {
-    customModelID.value = customModelInput.value.trim()
-  }
-  setAPIKey(key)
-  keyInput.value = ''
-}
-</script>
+          <button
+            type="button"
+            data-test-id="api-key-save"
+            className="mt-1 w-full rounded bg-accent py-1.5 text-xs font-medium text-white hover:bg-accent/90"
+            disabled={!keyInput.trim()}
+            onClick={save}
+          >
+            {dialogs.connect}
+          </button>
+        </form>
+      ) : (
+        <div className="flex w-full flex-col gap-2">
+          <ProviderSelectField />
+          <p className="text-center text-[10px] leading-relaxed text-muted">
+            Uses your existing {acpAgent?.name} subscription.{' '}
+            {acpAgent?.installCommand ? (
+              <>
+                Install it with{' '}
+                <code className="rounded bg-input px-1 py-0.5 font-mono text-[9px]">
+                  {acpAgent.installCommand}
+                </code>{' '}
+                and sign in before sending your first message.
+              </>
+            ) : (
+              <>
+                Make sure{' '}
+                <code className="rounded bg-input px-1 py-0.5 font-mono text-[9px]">
+                  {acpAgent?.command}
+                </code>{' '}
+                is installed and authenticated.
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
-<template>
-  <div data-test-id="provider-setup" class="flex flex-1 flex-col items-center justify-center px-6">
-    <icon-lucide-sparkles class="mb-3 size-7 text-muted" />
-    <p class="mb-5 text-center text-xs text-muted">{{ dialogs.connectAIProvider }}</p>
+      {!isACP && providerDef.keyURL ? (
+        <AppTextButton
+          data-test-id="api-key-get-link"
+          underline
+          ui={{ base: 'mt-2.5' }}
+          onClick={() => openExternalLink(providerDef.keyURL as string)}
+        >
+          {dialogs.getAPIKey({ provider: providerDef.name })}
+        </AppTextButton>
+      ) : null}
 
-    <form v-if="!isACP" class="flex w-full flex-col gap-2" @submit.prevent="save">
-      <ProviderSelectField data-test-id="provider-selector" />
-
-      <!-- Base URL (compatible providers only) -->
-      <AppInput
-        v-if="providerDef.supportsCustomBaseURL"
-        v-model="baseURLInput"
-        data-test-id="provider-base-url"
-        :placeholder="dialogs.baseURLPlaceholder"
-      />
-
-      <!-- Optional custom model ID for providers that support arbitrary model IDs. -->
-      <AppInput
-        v-if="providerDef.supportsCustomModel && providerID !== 'openrouter'"
-        v-model="customModelInput"
-        data-test-id="provider-custom-model"
-        :placeholder="dialogs.modelIDPlaceholder"
-      />
-
-      <AppInput
-        v-model="keyInput"
-        type="password"
-        data-test-id="api-key-input"
-        :placeholder="providerDef.keyPlaceholder"
-      />
-
-      <ProviderConnectionTestButton
-        :status="connectionTestStatus"
-        :reason="connectionTestReason"
-        :disabled="!canTestConnection"
-        @test="testConnection"
-      />
-
-      <button
-        type="submit"
-        data-test-id="api-key-save"
-        class="mt-1 w-full rounded bg-accent py-1.5 text-xs font-medium text-white hover:bg-accent/90"
-        :disabled="!keyInput.trim()"
-      >
-        {{ dialogs.connect }}
-      </button>
-    </form>
-
-    <!-- ACP agent — no API key needed -->
-    <div v-else class="flex w-full flex-col gap-2">
-      <ProviderSelectField data-test-id="provider-selector" />
-
-      <p class="text-center text-[10px] leading-relaxed text-muted">
-        Uses your existing {{ acpAgent?.name }} subscription.
-        <template v-if="acpAgent?.installCommand">
-          Install it with
-          <code class="rounded bg-input px-1 py-0.5 font-mono text-[9px]">{{
-            acpAgent.installCommand
-          }}</code>
-          and sign in before sending your first message.
-        </template>
-        <template v-else>
-          Make sure
-          <code class="rounded bg-input px-1 py-0.5 font-mono text-[9px]">{{
-            acpAgent?.command
-          }}</code>
-          is installed and authenticated.
-        </template>
-      </p>
+      {providerID === 'openrouter' ? (
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-muted/50">
+          {dialogs.oneKeyManyModels}
+        </p>
+      ) : null}
     </div>
+  )
+})
 
-    <AppTextButton
-      v-if="!isACP && providerDef.keyURL"
-      data-test-id="api-key-get-link"
-      underline
-      :ui="{ base: 'mt-2.5' }"
-      @click="openExternalLink(providerDef.keyURL as string)"
-    >
-      {{ dialogs.getAPIKey({ provider: providerDef.name }) }}
-    </AppTextButton>
-
-    <p
-      v-if="providerID === 'openrouter'"
-      class="mt-3 text-center text-[10px] leading-relaxed text-muted/50"
-    >
-      {{ dialogs.oneKeyManyModels }}
-    </p>
-  </div>
-</template>
+ProviderSetup.displayName = 'ProviderSetup'
+export default ProviderSetup

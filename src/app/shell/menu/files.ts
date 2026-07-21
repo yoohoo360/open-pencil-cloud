@@ -1,20 +1,7 @@
-import { useFileDialog } from '@vueuse/core'
-
 import { setOpenPencilOpenFileHandler } from '@/app/browser-bridge'
 import { openFileInNewTab } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
 import { IS_BROWSER } from '@/constants'
-
-const fileDialog = useFileDialog({
-  accept: '.fig,.pen,.html,.htm,.xhtml',
-  multiple: false,
-  reset: true
-})
-
-fileDialog.onChange((files) => {
-  const file = files?.[0]
-  if (file) void openFileInNewTab(file)
-})
 
 if (IS_BROWSER && 'window' in globalThis) {
   setOpenPencilOpenFileHandler(async (path: string) => {
@@ -79,9 +66,36 @@ export async function openFileDialog() {
     }
   }
 
-  fileDialog.open()
+  await openBrowserFileDialog()
 }
 
 export async function importFileDialog() {
   await openFileDialog()
+}
+
+function openBrowserFileDialog(): Promise<void> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.fig,.pen,.html,.htm,.xhtml'
+    input.addEventListener(
+      'change',
+      () => {
+        const file = input.files?.[0]
+        input.remove()
+        if (file) void openFileInNewTab(file).finally(resolve)
+        else resolve()
+      },
+      { once: true }
+    )
+    input.addEventListener(
+      'cancel',
+      () => {
+        input.remove()
+        resolve()
+      },
+      { once: true }
+    )
+    input.click()
+  })
 }

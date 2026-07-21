@@ -1,31 +1,35 @@
-<script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useEventListener } from '@vueuse/core'
-
 import {
   clampNumberValue,
   evaluateNumberExpression,
   normalizeNumberValue,
   stepNumberValue
-} from '#vue/controls/number-expression'
-import type { NumberExpressionError } from '#vue/controls/number-expression'
-import { useOptionalBindableValue } from '#vue/primitives/BindableValue/context'
-import { provideNumberField } from '#vue/primitives/NumberField/context'
+} from '#react/controls/number-expression'
+import type { NumberExpressionError } from '#react/controls/number-expression'
+import { useOptionalBindableValue } from '#react/primitives/BindableValue/context'
+import { NumberFieldProvider } from '#react/primitives/NumberField/context'
 import type {
   NumberFieldActions,
+  NumberFieldContext,
   NumberFieldEditPolicy,
   NumberFieldMutationSource,
   NumberFieldRootAttrs,
-  NumberFieldRootEmits,
   NumberFieldRootProps,
-  NumberFieldRootSlots,
   NumberFieldSlotProps,
-  NumberFieldState,
   NumberFieldStateAttrs
-} from '#vue/primitives/NumberField/types'
-import { inputValue } from '#vue/shared/dom-events'
+} from '#react/primitives/NumberField/types'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type * as React from 'react'
 
-const {
+export type NumberFieldRootComponentProps = NumberFieldRootProps & {
+  children?: ReactNode | ((props: NumberFieldSlotProps) => ReactNode)
+  onValueChange?: (value: number) => void
+  onCommit?: (value: number, previous: number) => void
+  onEditingChange?: (editing: boolean) => void
+  onInvalid?: (expression: string, reason: NumberExpressionError) => void
+  onDetachRequest?: (source: NumberFieldMutationSource) => void
+}
+
+export const NumberFieldRoot = memo(function NumberFieldRoot({
   modelValue,
   min = -Infinity,
   max = Infinity,
@@ -33,354 +37,352 @@ const {
   sensitivity = 1,
   placeholder = 'Mixed',
   ariaLabel,
-  disabled: disabledProp = false,
+  disabled = false,
   bound: boundProp = false,
-  editPolicy = 'editable'
-} = defineProps<NumberFieldRootProps>()
-const emit = defineEmits<NumberFieldRootEmits>()
-defineSlots<NumberFieldRootSlots>()
-
-const binding = useOptionalBindableValue<number>()
-const editing = ref(false)
-const scrubbing = ref(false)
-const draftValue = ref('')
-const inputRef = ref<HTMLInputElement | null>(null)
-const invalidReason = ref<NumberExpressionError | null>(null)
-const workingValue = ref(0)
-
-const isMixed = computed(() => binding?.state.value === 'mixed' || typeof modelValue === 'symbol')
-const numericValue = computed(() => {
-  const resolved = binding?.resolvedValue.value
-  if (binding?.state.value === 'bound' && typeof resolved === 'number') return resolved
-  return typeof modelValue === 'number' ? modelValue : 0
-})
-const displayValue = computed(() =>
-  isMixed.value ? '' : String(normalizeNumberValue(numericValue.value))
-)
-const disabled = computed(() => disabledProp)
-const bound = computed(() => (binding ? binding.state.value === 'bound' : boundProp))
-const effectiveEditPolicy = computed<NumberFieldEditPolicy>(() => {
-  if (!binding) return editPolicy
-  if (binding.policy.value === 'readonly-when-bound') return 'readonly'
-  if (binding.policy.value === 'detach-on-edit') return 'detach-on-edit'
-  return 'editable'
-})
-const minValue = computed(() => min)
-const maxValue = computed(() => max)
-const stepValue = computed(() => (Number.isFinite(step) && step > 0 ? step : 1))
-const ariaLabelValue = computed(() => ariaLabel)
-
-let interactionStartValue = 0
-let interactionStartedMixed = false
-let mutationRequested = false
-let stopMove: (() => void) | undefined
-let stopUp: (() => void) | undefined
-let stopCancel: (() => void) | undefined
-let scrubTarget: Element | undefined
-let scrubPointerId: number | undefined
-
-function canMutate(): boolean {
-  return !disabled.value && !(bound.value && effectiveEditPolicy.value === 'readonly')
-}
-
-function requestMutation(source: NumberFieldMutationSource): boolean {
-  if (mutationRequested) return true
-  if (!canMutate()) return false
-  if (binding && !binding.actions.beginMutation(source)) return false
-  if (!binding && bound.value && effectiveEditPolicy.value === 'detach-on-edit') {
-    emit('detach-request', source)
-  }
-  mutationRequested = true
-  return true
-}
-
-function beginInteraction() {
-  interactionStartValue = numericValue.value
-  interactionStartedMixed = isMixed.value
-  workingValue.value = numericValue.value
-  mutationRequested = false
-  invalidReason.value = null
-}
-
-function updateValue(value: number) {
-  const normalized = normalizeNumberValue(clampNumberValue(value, min, max))
-  workingValue.value = normalized
-  if (binding?.actions.applyValue(normalized)) return
-  if (modelValue !== normalized) emit('update:modelValue', normalized)
-}
-
-function restoreInteractionValue() {
-  if (workingValue.value !== interactionStartValue || interactionStartedMixed !== isMixed.value) {
-    workingValue.value = interactionStartValue
-    if (!binding?.actions.applyValue(interactionStartValue)) {
-      emit('update:modelValue', interactionStartValue)
-    }
-  }
-}
-
-function finishCommit(value: number) {
-  updateValue(value)
-  editing.value = false
-  if (workingValue.value !== interactionStartValue) {
-    emit('commit', workingValue.value, interactionStartValue)
-  }
-  binding?.actions.commitMutation()
-}
-
-function startEdit() {
-  if (editing.value || !canMutate()) return
-  beginInteraction()
-  draftValue.value = interactionStartedMixed ? '' : String(interactionStartValue)
-  editing.value = true
-  void nextTick(() => {
-    inputRef.value?.focus()
-    inputRef.value?.select()
-  })
-}
-
-function setDraft(value: string) {
-  if (value !== draftValue.value && !requestMutation('edit')) return
-  draftValue.value = value
-  const absoluteNumber = /^\s*(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\s*$/i.test(value)
-  if (absoluteNumber) updateValue(Number(value))
-}
-
-function onInput(event: Event) {
-  setDraft(inputValue(event))
-}
-
-function commitEdit() {
-  if (!editing.value) return
-  const expression = draftValue.value
-  const result = evaluateNumberExpression(expression, {
-    current: interactionStartValue,
-    max,
-    mixed: interactionStartedMixed
-  })
-  if (!result.ok) {
-    invalidReason.value = result.error
-    restoreInteractionValue()
-    editing.value = false
-    binding?.actions.cancelMutation()
-    emit('invalid', expression, result.error)
-    return
-  }
-  finishCommit(result.value)
-}
-
-function cancelEdit() {
-  if (!editing.value) return
-  restoreInteractionValue()
-  invalidReason.value = null
-  editing.value = false
-  binding?.actions.cancelMutation()
-}
-
-function stopScrubListeners() {
-  stopMove?.()
-  stopUp?.()
-  stopCancel?.()
-  stopMove = undefined
-  stopUp = undefined
-  stopCancel = undefined
-  if (scrubTarget && scrubPointerId != null && scrubTarget.hasPointerCapture(scrubPointerId)) {
-    scrubTarget.releasePointerCapture(scrubPointerId)
-  }
-  scrubTarget = undefined
-  scrubPointerId = undefined
-  if (typeof document !== 'undefined') document.body.style.cursor = ''
-}
-
-function startScrub(event: PointerEvent) {
-  if (!canMutate()) return
-  event.preventDefault()
-  beginInteraction()
-
-  const startX = event.clientX
-  let lastX = startX
-  let accumulated = numericValue.value
-  let hasMoved = false
-  const target = event.currentTarget instanceof Element ? event.currentTarget : undefined
-  scrubTarget = target
-  scrubPointerId = event.pointerId
-  target?.setPointerCapture(event.pointerId)
-  const listenerTarget = target ?? document
-
-  stopMove = useEventListener(listenerTarget, 'pointermove', (moveEvent: PointerEvent) => {
-    if (moveEvent.pointerId !== event.pointerId) return
-    const dx = moveEvent.clientX - lastX
-    lastX = moveEvent.clientX
-    if (!hasMoved && Math.abs(moveEvent.clientX - startX) > 2) {
-      if (!requestMutation('scrub')) return
-      hasMoved = true
-      scrubbing.value = true
-      document.body.style.cursor = 'ew-resize'
-    }
-    if (!hasMoved) return
-    accumulated += dx * stepValue.value * sensitivity
-    updateValue(accumulated)
-  })
-
-  const finish = (cancelled: boolean) => {
-    stopScrubListeners()
-    scrubbing.value = false
-    if (cancelled) {
-      restoreInteractionValue()
-      binding?.actions.cancelMutation()
-      return
-    }
-    if (!hasMoved) {
-      startEdit()
-      return
-    }
-    if (workingValue.value !== interactionStartValue) {
-      emit('commit', workingValue.value, interactionStartValue)
-    }
-    binding?.actions.commitMutation()
-  }
-
-  stopUp = useEventListener(listenerTarget, 'pointerup', (upEvent: PointerEvent) => {
-    if (upEvent.pointerId === event.pointerId) finish(false)
-  })
-  stopCancel = useEventListener(listenerTarget, 'pointercancel', (cancelEvent: PointerEvent) => {
-    if (cancelEvent.pointerId === event.pointerId) finish(true)
-  })
-}
-
-function stepValueFromKeyboard(event: KeyboardEvent) {
-  if (event.code !== 'ArrowUp' && event.code !== 'ArrowDown') return false
-  if (!editing.value) beginInteraction()
-  if (!requestMutation('step')) return true
-  event.preventDefault()
-
-  const draftResult = editing.value
-    ? evaluateNumberExpression(draftValue.value, {
-        current: interactionStartValue,
-        max,
-        mixed: interactionStartedMixed
-      })
-    : undefined
-  const base = draftResult?.ok ? draftResult.value : workingValue.value
-  const next = stepNumberValue(
-    base,
-    event.code === 'ArrowUp' ? 1 : -1,
-    stepValue.value,
-    event,
-    min,
-    max
+  editPolicy = 'editable',
+  children,
+  onValueChange,
+  onCommit,
+  onEditingChange,
+  onInvalid,
+  onDetachRequest
+}: NumberFieldRootComponentProps) {
+  const binding = useOptionalBindableValue<number>()
+  const [editing, setEditing] = useState(false)
+  const [scrubbing, setScrubbing] = useState(false)
+  const [draftValue, setDraftValue] = useState('')
+  const [invalidReason, setInvalidReason] = useState<NumberExpressionError | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const interaction = useRef({ start: 0, mixed: false, working: 0, requested: false })
+  const isMixed = binding?.state === 'mixed' || typeof modelValue === 'symbol'
+  const numericValue =
+    binding?.state === 'bound' && typeof binding.resolvedValue === 'number'
+      ? binding.resolvedValue
+      : typeof modelValue === 'number'
+        ? modelValue
+        : 0
+  const bound = binding ? binding.state === 'bound' : boundProp
+  const effectiveEditPolicy: NumberFieldEditPolicy =
+    binding?.policy === 'readonly-when-bound'
+      ? 'readonly'
+      : binding?.policy === 'detach-on-edit'
+        ? 'detach-on-edit'
+        : binding
+          ? 'editable'
+          : editPolicy
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 1
+  const canMutate = !disabled && !(bound && effectiveEditPolicy === 'readonly')
+  const state = useMemo(
+    () => ({ editing, scrubbing, mixed: isMixed, disabled, bound }),
+    [bound, disabled, editing, isMixed, scrubbing]
   )
-  updateValue(next)
-  draftValue.value = String(next)
-
-  if (!editing.value) {
-    if (next !== interactionStartValue) emit('commit', next, interactionStartValue)
+  const stateAttrs = useMemo<NumberFieldStateAttrs>(
+    () => ({
+      'data-editing': editing ? '' : undefined,
+      'data-scrubbing': scrubbing ? '' : undefined,
+      'data-mixed': isMixed ? '' : undefined,
+      'data-disabled': disabled ? '' : undefined,
+      'data-bound': bound ? '' : undefined
+    }),
+    [bound, disabled, editing, isMixed, scrubbing]
+  )
+  const requestMutation = useCallback(
+    (source: NumberFieldMutationSource) => {
+      if (interaction.current.requested) return true
+      if (!canMutate) return false
+      if (binding && !binding.actions.beginMutation(source)) return false
+      if (!binding && bound && effectiveEditPolicy === 'detach-on-edit') onDetachRequest?.(source)
+      interaction.current.requested = true
+      return true
+    },
+    [binding, bound, canMutate, effectiveEditPolicy, onDetachRequest]
+  )
+  const beginInteraction = useCallback(() => {
+    interaction.current = {
+      start: numericValue,
+      mixed: isMixed,
+      working: numericValue,
+      requested: false
+    }
+    setInvalidReason(null)
+  }, [isMixed, numericValue])
+  const updateValue = useCallback(
+    (value: number) => {
+      const normalized = normalizeNumberValue(clampNumberValue(value, min, max))
+      interaction.current.working = normalized
+      if (!binding?.actions.applyValue(normalized)) onValueChange?.(normalized)
+    },
+    [binding, max, min, onValueChange]
+  )
+  const restore = useCallback(() => {
+    const current = interaction.current
+    if (current.working !== current.start) {
+      current.working = current.start
+      if (!binding?.actions.applyValue(current.start)) onValueChange?.(current.start)
+    }
+  }, [binding, onValueChange])
+  const cancelEdit = useCallback(() => {
+    if (!editing) return
+    restore()
+    setInvalidReason(null)
+    setEditing(false)
+    binding?.actions.cancelMutation()
+  }, [binding, editing, restore])
+  const commitEdit = useCallback(() => {
+    if (!editing) return
+    const result = evaluateNumberExpression(draftValue, {
+      current: interaction.current.start,
+      max,
+      mixed: interaction.current.mixed
+    })
+    if (!result.ok) {
+      setInvalidReason(result.error)
+      restore()
+      setEditing(false)
+      binding?.actions.cancelMutation()
+      onInvalid?.(draftValue, result.error)
+      return
+    }
+    updateValue(result.value)
+    setEditing(false)
+    if (interaction.current.working !== interaction.current.start)
+      onCommit?.(interaction.current.working, interaction.current.start)
     binding?.actions.commitMutation()
-  }
-  return true
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (stepValueFromKeyboard(event)) return
-  if (event.code === 'Enter') {
-    event.preventDefault()
-    commitEdit()
-  } else if (event.code === 'Escape') {
-    event.preventDefault()
-    cancelEdit()
-  }
-}
-
-const state = computed<NumberFieldState>(() => ({
-  editing: editing.value,
-  scrubbing: scrubbing.value,
-  mixed: isMixed.value,
-  disabled: disabled.value,
-  bound: bound.value
-}))
-
-const stateAttrs = computed<NumberFieldStateAttrs>(() => ({
-  'data-editing': editing.value ? '' : undefined,
-  'data-scrubbing': scrubbing.value ? '' : undefined,
-  'data-mixed': isMixed.value ? '' : undefined,
-  'data-disabled': disabled.value ? '' : undefined,
-  'data-bound': bound.value ? '' : undefined
-}))
-
-const rootTabindex = computed<0 | -1 | undefined>(() => {
-  if (editing.value) return undefined
-  return disabled.value ? -1 : 0
+  }, [binding, draftValue, editing, max, onCommit, onInvalid, restore, updateValue])
+  const startEdit = useCallback(() => {
+    if (editing || !canMutate) return
+    beginInteraction()
+    setDraftValue(isMixed ? '' : String(numericValue))
+    setEditing(true)
+  }, [beginInteraction, canMutate, editing, isMixed, numericValue])
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+    onEditingChange?.(editing)
+  }, [editing, onEditingChange])
+  const setDraft = useCallback(
+    (value: string) => {
+      if (value !== draftValue && !requestMutation('edit')) return
+      setDraftValue(value)
+      if (/^\s*(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\s*$/i.test(value)) updateValue(Number(value))
+    },
+    [draftValue, requestMutation, updateValue]
+  )
+  const keydown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+        if (!editing) beginInteraction()
+        if (!requestMutation('step')) return
+        event.preventDefault()
+        const parsed = editing
+          ? evaluateNumberExpression(draftValue, {
+              current: interaction.current.start,
+              max,
+              mixed: interaction.current.mixed
+            })
+          : undefined
+        const base = parsed?.ok ? parsed.value : interaction.current.working
+        const next = stepNumberValue(
+          base,
+          event.code === 'ArrowUp' ? 1 : -1,
+          safeStep,
+          event.nativeEvent,
+          min,
+          max
+        )
+        updateValue(next)
+        setDraftValue(String(next))
+        if (!editing) {
+          if (next !== interaction.current.start) onCommit?.(next, interaction.current.start)
+          binding?.actions.commitMutation()
+        }
+        return
+      }
+      if (event.code === 'Enter') {
+        event.preventDefault()
+        commitEdit()
+      }
+      if (event.code === 'Escape') {
+        event.preventDefault()
+        cancelEdit()
+      }
+    },
+    [
+      beginInteraction,
+      binding,
+      cancelEdit,
+      commitEdit,
+      draftValue,
+      editing,
+      max,
+      min,
+      onCommit,
+      requestMutation,
+      safeStep,
+      updateValue
+    ]
+  )
+  const startScrub = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      if (!canMutate) return
+      event.preventDefault()
+      beginInteraction()
+      const target = event.currentTarget
+      target.setPointerCapture(event.pointerId)
+      const startX = event.clientX
+      let lastX = startX
+      let moved = false
+      let accumulated = numericValue
+      const finish = (cancelled: boolean) => {
+        target.removeEventListener('pointermove', move)
+        target.removeEventListener('pointerup', up)
+        target.removeEventListener('pointercancel', cancel)
+        if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId)
+        document.body.style.cursor = ''
+        setScrubbing(false)
+        if (cancelled) {
+          restore()
+          binding?.actions.cancelMutation()
+          return
+        }
+        if (!moved) {
+          startEdit()
+          return
+        }
+        if (interaction.current.working !== interaction.current.start)
+          onCommit?.(interaction.current.working, interaction.current.start)
+        binding?.actions.commitMutation()
+      }
+      const move = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== event.pointerId) return
+        const dx = moveEvent.clientX - lastX
+        lastX = moveEvent.clientX
+        if (!moved && Math.abs(moveEvent.clientX - startX) > 2) {
+          if (!requestMutation('scrub')) return
+          moved = true
+          setScrubbing(true)
+          document.body.style.cursor = 'ew-resize'
+        }
+        if (!moved) return
+        accumulated += dx * safeStep * sensitivity
+        updateValue(accumulated)
+      }
+      const up = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId === event.pointerId) finish(false)
+      }
+      const cancel = (cancelEvent: PointerEvent) => {
+        if (cancelEvent.pointerId === event.pointerId) finish(true)
+      }
+      target.addEventListener('pointermove', move)
+      target.addEventListener('pointerup', up)
+      target.addEventListener('pointercancel', cancel)
+    },
+    [
+      beginInteraction,
+      binding,
+      canMutate,
+      numericValue,
+      onCommit,
+      requestMutation,
+      restore,
+      safeStep,
+      sensitivity,
+      startEdit,
+      updateValue
+    ]
+  )
+  const rootAttrs = useMemo<NumberFieldRootAttrs>(
+    () => ({
+      ...stateAttrs,
+      role: editing ? undefined : ('spinbutton' as const),
+      tabIndex: editing ? undefined : disabled ? (-1 as const) : (0 as const),
+      'aria-valuenow': editing || isMixed ? undefined : numericValue,
+      'aria-valuemin': !editing && Number.isFinite(min) ? min : undefined,
+      'aria-valuemax': !editing && Number.isFinite(max) ? max : undefined,
+      'aria-disabled': !editing && disabled ? ('true' as const) : undefined,
+      'aria-label': editing ? undefined : ariaLabel,
+      onFocus: startEdit,
+      onKeyDown: keydown
+    }),
+    [ariaLabel, disabled, editing, isMixed, keydown, max, min, numericValue, startEdit, stateAttrs]
+  )
+  const actions = useMemo<NumberFieldActions>(
+    () => ({
+      startScrub: (event) => startScrub(event as unknown as React.PointerEvent<HTMLElement>),
+      startEdit,
+      cancelEdit,
+      commitEdit,
+      setDraft,
+      input: (event) => setDraft((event.target as HTMLInputElement).value),
+      keydown: (event) => keydown(event as unknown as React.KeyboardEvent<HTMLElement>)
+    }),
+    [cancelEdit, commitEdit, keydown, setDraft, startEdit, startScrub]
+  )
+  const slotProps = useMemo<NumberFieldSlotProps>(
+    () => ({
+      modelValue,
+      displayValue: isMixed ? '' : String(normalizeNumberValue(numericValue)),
+      draftValue,
+      isMixed,
+      placeholder,
+      ...state,
+      state,
+      attrs: rootAttrs,
+      actions
+    }),
+    [actions, draftValue, isMixed, modelValue, numericValue, placeholder, rootAttrs, state]
+  )
+  const context = useMemo<NumberFieldContext>(
+    () => ({
+      modelValue,
+      numericValue,
+      displayValue: slotProps.displayValue,
+      draftValue,
+      isMixed,
+      editing,
+      scrubbing,
+      disabled,
+      bound,
+      min,
+      max,
+      step: safeStep,
+      ariaLabel,
+      inputRef,
+      state,
+      stateAttrs,
+      rootAttrs,
+      slotProps,
+      actions,
+      invalidReason
+    }),
+    [
+      actions,
+      ariaLabel,
+      bound,
+      disabled,
+      draftValue,
+      editing,
+      invalidReason,
+      isMixed,
+      max,
+      min,
+      modelValue,
+      numericValue,
+      rootAttrs,
+      safeStep,
+      scrubbing,
+      slotProps,
+      state,
+      stateAttrs
+    ]
+  )
+  return (
+    <NumberFieldProvider value={context}>
+      {typeof children === 'function' ? children(slotProps) : children}
+    </NumberFieldProvider>
+  )
 })
 
-const rootAttrs = computed<NumberFieldRootAttrs>(() => ({
-  ...stateAttrs.value,
-  role: editing.value ? undefined : 'spinbutton',
-  tabindex: rootTabindex.value,
-  'aria-valuenow': editing.value || isMixed.value ? undefined : numericValue.value,
-  'aria-valuemin': !editing.value && Number.isFinite(min) ? min : undefined,
-  'aria-valuemax': !editing.value && Number.isFinite(max) ? max : undefined,
-  'aria-disabled': !editing.value && disabled.value ? 'true' : undefined,
-  'aria-label': editing.value ? undefined : ariaLabel,
-  onFocus: startEdit,
-  onKeydown
-}))
-
-const actions: NumberFieldActions = {
-  startScrub,
-  startEdit,
-  cancelEdit,
-  commitEdit,
-  setDraft,
-  input: onInput,
-  keydown: onKeydown
-}
-
-const slotProps = computed<NumberFieldSlotProps>(() => ({
-  modelValue,
-  displayValue: displayValue.value,
-  draftValue: draftValue.value,
-  isMixed: isMixed.value,
-  placeholder,
-  ...state.value,
-  state: state.value,
-  attrs: rootAttrs.value,
-  actions
-}))
-
-provideNumberField({
-  modelValue: computed(() => modelValue),
-  numericValue,
-  displayValue,
-  draftValue,
-  isMixed,
-  editing,
-  scrubbing,
-  disabled,
-  bound,
-  min: minValue,
-  max: maxValue,
-  step: stepValue,
-  ariaLabel: ariaLabelValue,
-  inputRef,
-  state,
-  stateAttrs,
-  rootAttrs,
-  slotProps,
-  actions,
-  invalidReason
-})
-
-watch(editing, (value) => emit('editing-change', value))
-watch(
-  () => modelValue,
-  (value) => {
-    if (!editing.value && !scrubbing.value && typeof value === 'number') workingValue.value = value
-  },
-  { immediate: true }
-)
-
-onBeforeUnmount(stopScrubListeners)
-</script>
-
-<template>
-  <slot v-bind="slotProps" />
-</template>
+NumberFieldRoot.displayName = 'NumberFieldRoot'

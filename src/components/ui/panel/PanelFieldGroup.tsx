@@ -1,48 +1,46 @@
-<script lang="ts">
-import type { VNode } from 'vue'
-import type { ClassValue } from 'tailwind-variants'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 
 import type { ComponentUI } from '@/components/ui/types'
 import type { PanelFieldGroupTheme } from '@/theme/panel/field-group'
-
-export interface PanelFieldGroupProps {
-  label?: string
-  for?: string
-  class?: ClassValue
-  ui?: ComponentUI<PanelFieldGroupTheme>
-}
-
-export interface PanelFieldGroupSlots {
-  default(): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { tv } from 'tailwind-variants'
-
 import theme from '@/theme/panel/field-group'
 
-const { label, for: labelFor, class: className, ui } = defineProps<PanelFieldGroupProps>()
-defineSlots<PanelFieldGroupSlots>()
-const styles = tv(theme)()
-</script>
+export type PanelFieldGroupProps = {
+  label?: string
+  htmlFor?: string
+  className?: ClassValue
+  ui?: ComponentUI<PanelFieldGroupTheme>
+  children?: ReactNode
+} & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>
 
-<template>
-  <div
-    data-slot="root"
-    data-panel-field-group
-    :class="styles.root({ class: [ui?.root, className] })"
-  >
-    <label
-      v-if="label"
-      data-slot="label"
-      :for="labelFor"
-      :class="styles.label({ class: ui?.label })"
+export const PanelFieldGroup = memo(function PanelFieldGroup({
+  label,
+  htmlFor,
+  className,
+  ui,
+  children,
+  ...rest
+}: PanelFieldGroupProps) {
+  const styles = useMemo(() => tv(theme)(), [])
+
+  return (
+    <div
+      {...rest}
+      data-slot="root"
+      data-panel-field-group
+      className={styles.root({ class: [ui?.root, className] })}
     >
-      {{ label }}
-    </label>
-    <div data-slot="container" :class="styles.container({ class: ui?.container })">
-      <slot />
+      {label ? (
+        <label data-slot="label" htmlFor={htmlFor} className={styles.label({ class: ui?.label })}>
+          {label}
+        </label>
+      ) : null}
+      <div data-slot="container" className={styles.container({ class: ui?.container })}>
+        {children}
+      </div>
     </div>
-  </div>
-</template>
+  )
+})
+
+PanelFieldGroup.displayName = 'PanelFieldGroup'
+export default PanelFieldGroup

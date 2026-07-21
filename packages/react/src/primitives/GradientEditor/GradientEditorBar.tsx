@@ -1,65 +1,86 @@
-<script setup lang="ts">
-import { templateRef } from '@vueuse/core'
-import { ref } from 'vue'
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode
+} from 'react'
 
 import type { GradientStop } from '@open-pencil/scene-graph'
 
-const { stops, ui } = defineProps<{
+export type GradientEditorBarSlotProps = {
   stops: GradientStop[]
   activeStopIndex: number
   barBackground: string
-  ui?: {
-    bar?: string
-  }
-}>()
-
-const emit = defineEmits<{
-  selectStop: [index: number]
-  dragStop: [index: number, position: number]
-}>()
-
-const barRef = templateRef<HTMLElement>('barRef')
-const draggingIndex = ref<number | null>(null)
-
-function stopPointerDown(index: number, e: PointerEvent) {
-  emit('selectStop', index)
-  draggingIndex.value = index
-  barRef.value?.setPointerCapture(e.pointerId)
+  draggingIndex: number | null
+  actions: { stopPointerDown: (index: number, event: React.PointerEvent<HTMLDivElement>) => void }
 }
 
-function onPointerMove(e: PointerEvent) {
-  const el = barRef.value
-  if (!el || draggingIndex.value === null || !el.hasPointerCapture(e.pointerId)) return
-  const rect = el.getBoundingClientRect()
-  const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-  emit('dragStop', draggingIndex.value, pos)
+export type GradientEditorBarProps = {
+  stops: GradientStop[]
+  activeStopIndex: number
+  barBackground: string
+  ui?: { bar?: string }
+  children?: ReactNode | ((props: GradientEditorBarSlotProps) => ReactNode)
+  onSelectStop?: (index: number) => void
+  onDragStop?: (index: number, position: number) => void
 }
 
-function onPointerUp() {
-  draggingIndex.value = null
-}
+export const GradientEditorBar = memo(function GradientEditorBar({
+  stops,
+  activeStopIndex,
+  barBackground,
+  ui,
+  children,
+  onSelectStop,
+  onDragStop
+}: GradientEditorBarProps) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const stopPointerDown = useCallback(
+    (index: number, event: React.PointerEvent<HTMLDivElement>) => {
+      onSelectStop?.(index)
+      setDraggingIndex(index)
+      event.currentTarget.setPointerCapture(event.pointerId)
+    },
+    [onSelectStop]
+  )
+  const onPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const element = barRef.current
+      if (!element || draggingIndex === null || !element.hasPointerCapture(event.pointerId)) return
+      const rect = element.getBoundingClientRect()
+      onDragStop?.(
+        draggingIndex,
+        Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+      )
+    },
+    [draggingIndex, onDragStop]
+  )
+  const slotProps = useMemo<GradientEditorBarSlotProps>(
+    () => ({
+      stops,
+      activeStopIndex,
+      barBackground,
+      draggingIndex,
+      actions: { stopPointerDown }
+    }),
+    [activeStopIndex, barBackground, draggingIndex, stopPointerDown, stops]
+  )
 
-const actions = {
-  stopPointerDown
-}
+  return (
+    <div
+      className={ui?.bar}
+      onPointerMove={onPointerMove}
+      onPointerUp={() => setDraggingIndex(null)}
+      ref={barRef}
+      style={{ background: barBackground } as CSSProperties}
+    >
+      {typeof children === 'function' ? children(slotProps) : children}
+    </div>
+  )
+})
 
-defineExpose({ barRef })
-</script>
-
-<template>
-  <div
-    ref="barRef"
-    :class="ui?.bar"
-    :style="{ background: barBackground }"
-    @pointermove="onPointerMove"
-    @pointerup="onPointerUp"
-  >
-    <slot
-      :stops="stops"
-      :active-stop-index="activeStopIndex"
-      :bar-background="barBackground"
-      :actions="actions"
-      :dragging-index="draggingIndex"
-    />
-  </div>
-</template>
+GradientEditorBar.displayName = 'GradientEditorBar'

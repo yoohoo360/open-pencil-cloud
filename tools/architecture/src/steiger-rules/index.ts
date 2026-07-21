@@ -228,10 +228,10 @@ const noPropertyPanelImportsInCanvas = createImportRule(
   'open-pencil/no-property-panel-imports-in-canvas',
   (sourceRel, _specifier, resolved) => {
     const isCanvasSurface =
-      sourceRel === 'src/components/EditorCanvas.vue' ||
+      sourceRel === 'src/components/EditorCanvas.tsx' ||
       sourceRel.startsWith('src/app/editor/canvas/') ||
       sourceRel.startsWith('src/components/canvas/') ||
-      sourceRel.startsWith('packages/vue/src/canvas/')
+      sourceRel.startsWith('packages/react/src/canvas/')
 
     if (isCanvasSurface && resolved?.startsWith('src/components/properties/')) {
       return 'Canvas/editor overlay code must not import property-panel internals. Extract app-neutral UI or keep concerns local.'
@@ -259,7 +259,7 @@ const noPackageInternalsInApp = createImportRule(
       specifier in PACKAGE_ALIASES ||
       Object.keys(PACKAGE_ALIASES).some((alias) => specifier.startsWith(alias))
     ) {
-      return 'App code must use package public exports such as @open-pencil/core or @open-pencil/vue, not package-local aliases.'
+      return 'App code must use package public exports such as @open-pencil/core or @open-pencil/react, not package-local aliases.'
     }
     if (resolved?.startsWith('packages/')) {
       return 'App code must not import workspace package internals. Use package public exports instead.'
@@ -320,7 +320,7 @@ const noViewsImportedOutsideEntry = createImportRule(
   'open-pencil/no-views-imported-outside-entry',
   (sourceRel, _specifier, resolved) => {
     if (!resolved?.startsWith('src/views/')) return null
-    if (sourceRel === 'src/App.vue' || sourceRel === 'src/main.ts' || sourceRel === 'src/router.ts')
+    if (sourceRel === 'src/App.tsx' || sourceRel === 'src/main.tsx' || sourceRel === 'src/router.ts')
       return null
     return 'Views are top-level composition entrypoints and must not be imported by app services or reusable components.'
   }
@@ -342,7 +342,7 @@ const noPropertyPanelInternalsOutsidePanel = createImportRule(
   (sourceRel, _specifier, resolved) => {
     if (!resolved?.startsWith('src/components/properties/')) return null
     if (sourceRel.startsWith('src/components/properties/')) return null
-    if (sourceRel === 'src/components/DesignPanel.vue') return null
+    if (sourceRel === 'src/components/DesignPanel.tsx') return null
     return 'Property-panel internals must stay inside the property panel. Extract app-neutral UI before reusing elsewhere.'
   }
 )
@@ -392,7 +392,7 @@ function vuePropName(prop: VueTemplateNode) {
 }
 
 const SHARED_TEST_ID_ALLOWLIST = new Set([
-  'packages/vue/src/primitives/ColorPicker/ColorPickerRoot.vue'
+  'packages/react/src/primitives/ColorPicker/ColorPickerRoot.tsx'
 ])
 
 const noProductionTestIdsInSharedLayers = createTextRule(
@@ -400,7 +400,7 @@ const noProductionTestIdsInSharedLayers = createTextRule(
   (sourceRel, content) => {
     const inSharedLayer =
       sourceRel.startsWith('src/components/ui/') ||
-      sourceRel.startsWith('packages/vue/src/primitives/')
+      sourceRel.startsWith('packages/react/src/primitives/')
     const isFixture = sourceRel.includes('/demo/') || sourceRel.endsWith('.stories.ts')
     if (!inSharedLayer || isFixture || SHARED_TEST_ID_ALLOWLIST.has(sourceRel)) return []
 
@@ -424,7 +424,7 @@ const noNativeTitleAttributesInVue = createTextRule(
   (sourceRel, content) => {
     if (
       !sourceRel.endsWith('.vue') ||
-      (!sourceRel.startsWith('src/') && !sourceRel.startsWith('packages/vue/src/'))
+      (!sourceRel.startsWith('src/') && !sourceRel.startsWith('packages/react/src/'))
     ) {
       return []
     }
@@ -452,9 +452,9 @@ const noShortcutTextInLabels = createTextRule(
   'open-pencil/no-shortcut-text-in-labels',
   (sourceRel, content) => {
     if (
-      sourceRel !== 'packages/vue/src/i18n/messages.ts' &&
-      !sourceRel.startsWith('packages/vue/src/i18n/messages/') &&
-      !sourceRel.startsWith('packages/vue/src/i18n/locales/')
+      sourceRel !== 'packages/react/src/i18n/messages.ts' &&
+      !sourceRel.startsWith('packages/react/src/i18n/messages/') &&
+      !sourceRel.startsWith('packages/react/src/i18n/locales/')
     ) {
       return []
     }
@@ -481,11 +481,11 @@ const noUiImportsInCore = createImportRule(
   (sourceRel, specifier) => {
     if (!sourceRel.startsWith('packages/core/src/')) return null
     if (
-      specifier === 'vue' ||
+      specifier === 'react' ||
       specifier.startsWith('@vueuse/') ||
-      specifier === 'reka-ui' ||
-      specifier.startsWith('#vue/') ||
-      specifier.startsWith('@open-pencil/vue')
+      specifier.startsWith('@radix-ui/') ||
+      specifier.startsWith('#react/') ||
+      specifier.startsWith('@open-pencil/react')
     ) {
       return 'Core must stay framework-agnostic and cannot import Vue/UI modules.'
     }

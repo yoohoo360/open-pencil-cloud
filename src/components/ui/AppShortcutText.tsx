@@ -1,16 +1,31 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-const { ui } = defineProps<{
+export interface AppShortcutTextProps extends HTMLAttributes<HTMLSpanElement> {
+  children: ReactNode
   ui?: {
     base?: string
   }
-}>()
+}
 
-const cls = computed(() => twMerge('text-[11px] text-muted', ui?.base))
-</script>
+export const AppShortcutText = memo(function AppShortcutText({
+  children,
+  className,
+  ui,
+  ...props
+}: AppShortcutTextProps) {
+  const classes = useMemo(
+    () => twMerge('text-[11px] text-muted', ui?.base, className),
+    [className, ui?.base]
+  )
 
-<template>
-  <span :class="cls"><slot /></span>
-</template>
+  return (
+    <span {...props} className={classes}>
+      {children}
+    </span>
+  )
+})
+
+AppShortcutText.displayName = 'AppShortcutText'
+
+export default AppShortcutText

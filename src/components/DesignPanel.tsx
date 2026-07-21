@@ -1,135 +1,144 @@
-<script setup lang="ts">
-import { computed, ref } from 'vue'
+import IconLucideLayers3 from '~icons/lucide/layers-3'
+import { memo, useMemo, useState } from 'react'
 
-import { useI18n, useSelectionState, useEditorCommands } from '@open-pencil/vue'
-
+import { useEditorCommands, useI18n, useSelectionState } from '@open-pencil/react'
 import { COMPONENT_TYPES, nodeIcon } from '@/app/editor/icons'
-import PanelHeader from '@/components/ui/panel/PanelHeader.vue'
-import Tip from '@/components/ui/Tip.vue'
+import PanelHeader from '@/components/ui/panel/PanelHeader'
+import Tip from '@/components/ui/Tip'
+import VariablesDialog from '@/components/variables/VariablesDialog'
+import AppearanceSection from '@/components/properties/AppearanceSection'
+import ComponentPropertiesSection from '@/components/properties/component-properties/ComponentPropertiesSection'
+import ConstraintsSection from '@/components/properties/constraints/ConstraintsSection'
+import EffectsSection from '@/components/properties/EffectsSection'
+import ExportSection from '@/components/properties/ExportSection'
+import FillSection from '@/components/properties/FillSection'
+import LayoutSection from '@/components/properties/LayoutSection/LayoutSection'
+import MaskSection from '@/components/properties/MaskSection'
+import PageSection from '@/components/properties/PageSection'
+import PositionSection from '@/components/properties/PositionSection'
+import SelectionActionsControl from '@/components/properties/SelectionActionsControl'
+import StrokeSection from '@/components/properties/StrokeSection'
+import TypographySection from '@/components/properties/TypographySection'
+import VariablesSection from '@/components/properties/VariablesSection'
 
-import VariablesDialog from './variables/VariablesDialog.vue'
-import AppearanceSection from './properties/AppearanceSection.vue'
-import EffectsSection from './properties/EffectsSection.vue'
-import ExportSection from './properties/ExportSection.vue'
-import FillSection from './properties/FillSection.vue'
-import LayoutSection from './properties/LayoutSection/LayoutSection.vue'
-import MaskSection from './properties/MaskSection.vue'
-import PageSection from './properties/PageSection.vue'
-import ConstraintsSection from './properties/constraints/ConstraintsSection.vue'
-import PositionSection from './properties/PositionSection.vue'
-import SelectionActionsControl from './properties/SelectionActionsControl.vue'
-import StrokeSection from './properties/StrokeSection.vue'
-import TypographySection from './properties/TypographySection.vue'
-import VariablesSection from './properties/VariablesSection.vue'
-import ComponentPropertiesSection from './properties/component-properties/ComponentPropertiesSection.vue'
+export const DesignPanel = memo(function DesignPanel() {
+  const [variablesOpen, setVariablesOpen] = useState(false)
+  const { selectedNode: node, selectedCount: multiCount } = useSelectionState()
+  const showBooleanOperations = multiCount >= 2
+  const { getCommand } = useEditorCommands()
+  const goToMainComponent = getCommand('selection.goToMainComponent')
+  const detachInstance = getCommand('selection.detachInstance')
+  const isComponentType = useMemo(() => {
+    const type = node?.type
+    return type ? COMPONENT_TYPES.has(type) : false
+  }, [node?.type])
+  const SelectedIcon = useMemo(() => (node ? nodeIcon(node) : undefined), [node])
+  const { panels } = useI18n()
 
-const variablesOpen = ref(false)
-const { selectedNode: node, selectedCount: multiCount } = useSelectionState()
-const showBooleanOperations = computed(() => multiCount.value >= 2)
-const { getCommand } = useEditorCommands()
-const goToMainComponent = getCommand('selection.goToMainComponent')
-const detachInstance = getCommand('selection.detachInstance')
-const isComponentType = computed(() => {
-  const type = node.value?.type
-  return type ? COMPONENT_TYPES.has(type) : false
+  if (multiCount > 1) {
+    return (
+      <>
+        <div
+          data-test-id="design-panel-multi"
+          className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+        >
+          <PanelHeader
+            icon={<IconLucideLayers3 className="size-3.5" aria-hidden="true" />}
+            actions={<SelectionActionsControl showBooleanOperations={showBooleanOperations} />}
+          >
+            <span role="heading" aria-level={2}>
+              {panels.layersCount({ count: String(multiCount) })}
+            </span>
+          </PanelHeader>
+          <ComponentPropertiesSection />
+          <PositionSection />
+          <ConstraintsSection />
+          <AppearanceSection />
+          <FillSection />
+          <StrokeSection />
+          <EffectsSection />
+          <ExportSection />
+        </div>
+        <VariablesDialog open={variablesOpen} onOpenChange={setVariablesOpen} />
+      </>
+    )
+  }
+
+  if (node) {
+    return (
+      <>
+        <div
+          data-test-id="design-panel-single"
+          className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+        >
+          <PanelHeader
+            component={isComponentType}
+            icon={
+              SelectedIcon ? (
+                <Tip label={node.type}>
+                  <span role="img" aria-label={node.type} className="contents">
+                    <SelectedIcon className="size-3.5" />
+                  </span>
+                </Tip>
+              ) : null
+            }
+            actions={<SelectionActionsControl />}
+          >
+            <span role="heading" aria-level={2}>
+              {node.name}
+            </span>
+          </PanelHeader>
+
+          {node.type === 'INSTANCE' ? (
+            <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
+              <button
+                type="button"
+                className="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
+                onClick={() => goToMainComponent.run()}
+              >
+                {panels.goToMainComponent}
+              </button>
+              <button
+                type="button"
+                className="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
+                onClick={() => detachInstance.run()}
+              >
+                {panels.detachInstance}
+              </button>
+            </div>
+          ) : null}
+
+          {node.type === 'INSTANCE' ? <ComponentPropertiesSection /> : null}
+          <PositionSection />
+          <ConstraintsSection />
+          <LayoutSection />
+          <AppearanceSection />
+          <MaskSection />
+          {node.type === 'TEXT' ? <TypographySection /> : null}
+          <FillSection />
+          <StrokeSection />
+          <EffectsSection />
+          <ExportSection />
+        </div>
+        <VariablesDialog open={variablesOpen} onOpenChange={setVariablesOpen} />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div
+        data-test-id="design-panel-empty"
+        className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+      >
+        <PageSection />
+        <VariablesSection onOpenDialog={() => setVariablesOpen(true)} />
+        <ExportSection />
+      </div>
+      <VariablesDialog open={variablesOpen} onOpenChange={setVariablesOpen} />
+    </>
+  )
 })
-const selectedIcon = computed(() => (node.value ? nodeIcon(node.value) : undefined))
-const { panels } = useI18n()
-</script>
 
-<template>
-  <!-- Multi-select summary -->
-  <div
-    v-if="multiCount > 1"
-    data-test-id="design-panel-multi"
-    class="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
-  >
-    <PanelHeader>
-      <template #icon>
-        <icon-lucide-layers-3 class="size-3.5" aria-hidden="true" />
-      </template>
-      <span role="heading" aria-level="2">
-        {{ panels.layersCount({ count: String(multiCount) }) }}
-      </span>
-      <template #actions>
-        <SelectionActionsControl :show-boolean-operations="showBooleanOperations" />
-      </template>
-    </PanelHeader>
-    <ComponentPropertiesSection />
-    <PositionSection />
-    <ConstraintsSection />
-    <AppearanceSection />
-    <FillSection />
-    <StrokeSection />
-    <EffectsSection />
-    <ExportSection />
-  </div>
-
-  <!-- Single selection -->
-  <div
-    v-else-if="node"
-    data-test-id="design-panel-single"
-    class="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
-  >
-    <PanelHeader :component="isComponentType">
-      <template #icon>
-        <Tip :label="node.type">
-          <span role="img" :aria-label="node.type" class="contents">
-            <component :is="selectedIcon" class="size-3.5" />
-          </span>
-        </Tip>
-      </template>
-      <span role="heading" aria-level="2">{{ node.name }}</span>
-      <template #actions>
-        <SelectionActionsControl />
-      </template>
-    </PanelHeader>
-
-    <!-- Component actions -->
-    <div
-      v-if="node.type === 'INSTANCE'"
-      class="flex flex-col gap-1 border-b border-border px-3 py-2"
-    >
-      <button
-        type="button"
-        class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
-        @click="goToMainComponent.run()"
-      >
-        {{ panels.goToMainComponent }}
-      </button>
-      <button
-        type="button"
-        class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
-        @click="detachInstance.run()"
-      >
-        {{ panels.detachInstance }}
-      </button>
-    </div>
-
-    <ComponentPropertiesSection v-if="node.type === 'INSTANCE'" />
-
-    <PositionSection />
-    <ConstraintsSection />
-    <LayoutSection />
-    <AppearanceSection />
-    <MaskSection />
-    <TypographySection v-if="node.type === 'TEXT'" />
-    <FillSection />
-    <StrokeSection />
-    <EffectsSection />
-
-    <ExportSection />
-  </div>
-
-  <div
-    v-else
-    data-test-id="design-panel-empty"
-    class="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
-  >
-    <PageSection />
-    <VariablesSection @open-dialog="variablesOpen = true" />
-    <ExportSection />
-  </div>
-
-  <VariablesDialog v-model:open="variablesOpen" />
-</template>
+DesignPanel.displayName = 'DesignPanel'
+export default DesignPanel

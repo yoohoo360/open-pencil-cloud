@@ -8,7 +8,7 @@ description: Erstellen Sie Ihre eigene Editor-Shell mit provideEditor, CanvasRoo
 Eine typische OpenPencil Vue-App hat drei Schichten:
 
 1. `@open-pencil/core` erstellt den Editor
-2. `@open-pencil/vue` passt ihn in Vue Composables und headless Primitive an
+2. `@open-pencil/react` passt ihn in Vue Composables und headless Primitive an
 3. Ihre App rendert die Shell, das Styling und die produkt-spezifische UX
 
 ## Warum das wichtig ist
@@ -41,7 +41,7 @@ import {
   ToolbarRoot,
   PageListRoot,
   LayerTreeRoot,
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const editor = createEditor({ width: 1440, height: 900 })
 provideEditor(editor)

@@ -1,18 +1,31 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-const { ui } = defineProps<{
+export interface AppBadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  children: ReactNode
   ui?: {
     base?: string
   }
-}>()
+}
 
-const cls = computed(() =>
-  twMerge('shrink-0 rounded bg-accent/10 px-1 py-px text-[9px] text-accent', ui?.base)
-)
-</script>
+export const AppBadge = memo(function AppBadge({ children, className, ui, ...props }: AppBadgeProps) {
+  const classes = useMemo(
+    () =>
+      twMerge(
+        'shrink-0 rounded bg-accent/10 px-1 py-px text-[9px] text-accent',
+        ui?.base,
+        className
+      ),
+    [className, ui?.base]
+  )
 
-<template>
-  <span :class="cls"><slot /></span>
-</template>
+  return (
+    <span {...props} className={classes}>
+      {children}
+    </span>
+  )
+})
+
+AppBadge.displayName = 'AppBadge'
+
+export default AppBadge

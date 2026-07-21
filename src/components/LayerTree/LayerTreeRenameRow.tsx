@@ -1,59 +1,69 @@
-<script setup lang="ts">
-import { computed, useTemplateRef, watch } from 'vue'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { tv } from 'tailwind-variants'
-import { nodeIcon } from '@/app/editor/icons'
-import LayerTreeDisclosure from './LayerTreeDisclosure.vue'
-import { useLayerTreeUI } from './ui'
 
+import type { LayerNode } from '@open-pencil/react'
+import { nodeIcon } from '@/app/editor/icons'
+import LayerTreeDisclosure from '@/components/LayerTree/LayerTreeDisclosure'
+import type { LayerRenameControls, LayerTreeItemActions } from '@/components/LayerTree/types'
+import { useLayerTreeUI } from '@/components/LayerTree/ui'
 import layerTreeTheme from '@/theme/layer-tree'
 
-import type { LayerNode } from '@open-pencil/vue'
-import type { LayerRenameControls, LayerTreeItemActions } from './types'
-
-const { renameControls, expanded } = defineProps<{
+export type LayerTreeRenameRowProps = {
   node: LayerNode
   hasChildren: boolean
   padLeft: string
   expanded: boolean
   actions: LayerTreeItemActions
   renameControls: LayerRenameControls
-}>()
+}
 
-const renameInput = useTemplateRef<HTMLInputElement>('renameInput')
-const ui = useLayerTreeUI()
-const layerTree = tv(layerTreeTheme)
-const styles = computed(() => layerTree({ expanded }))
+export const LayerTreeRenameRow = memo(function LayerTreeRenameRow({
+  node,
+  hasChildren,
+  padLeft,
+  expanded,
+  actions,
+  renameControls
+}: LayerTreeRenameRowProps) {
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const ui = useLayerTreeUI()
+  const layerTree = tv(layerTreeTheme)
+  const styles = useMemo(() => layerTree({ expanded }), [expanded, layerTree])
+  const NodeIcon = nodeIcon(node)
 
-watch(renameInput, (input) => {
-  if (input) void renameControls.focusInput(input)
+  useEffect(() => {
+    const input = renameInputRef.current
+    if (input) void renameControls.focusInput(input)
+  }, [renameControls])
+
+  return (
+    <div
+      data-slot="rename-row"
+      className={styles.renameRow({ class: ui?.renameRow })}
+      style={{ paddingLeft: padLeft }}
+    >
+      <LayerTreeDisclosure
+        expanded={expanded}
+        visible={hasChildren}
+        onToggle={actions.toggleExpand}
+      />
+      <NodeIcon data-slot="rename-icon" className={styles.renameIcon({ class: ui?.renameIcon })} />
+      <input
+        ref={renameInputRef}
+        data-layer-edit
+        data-test-id="layers-item-input"
+        data-slot="rename-input"
+        className={styles.renameInput({ class: ui?.renameInput })}
+        defaultValue={node.name}
+        onBlur={(event) => renameControls.commit(node.id, event)}
+        onKeyDown={(event) => {
+          event.stopPropagation()
+          renameControls.onKeydown(event)
+        }}
+      />
+    </div>
+  )
 })
-</script>
 
-<template>
-  <div
-    data-slot="rename-row"
-    :class="styles.renameRow({ class: ui?.renameRow })"
-    :style="{ paddingLeft: padLeft }"
-  >
-    <LayerTreeDisclosure
-      :expanded="expanded"
-      :visible="hasChildren"
-      @toggle="actions.toggleExpand"
-    />
-    <component
-      :is="nodeIcon(node)"
-      data-slot="rename-icon"
-      :class="styles.renameIcon({ class: ui?.renameIcon })"
-    />
-    <input
-      ref="renameInput"
-      data-layer-edit
-      data-test-id="layers-item-input"
-      data-slot="rename-input"
-      :class="styles.renameInput({ class: ui?.renameInput })"
-      :value="node.name"
-      @blur="renameControls.commit(node.id, $event)"
-      @keydown.stop="renameControls.onKeydown"
-    />
-  </div>
-</template>
+LayerTreeRenameRow.displayName = 'LayerTreeRenameRow'
+export default LayerTreeRenameRow

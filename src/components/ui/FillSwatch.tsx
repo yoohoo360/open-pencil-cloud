@@ -1,55 +1,50 @@
-<script lang="ts">
-import type { VNode } from 'vue'
-
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
+import { FillSwatch as FillSwatchPrimitive, type FillSwatchSlotProps } from '@open-pencil/react'
 import type { Fill } from '@open-pencil/scene-graph'
-import type { FillSwatchSlotProps } from '@open-pencil/vue'
+
 import type { ComponentUI } from '@/components/ui/types'
-import type theme from '@/theme/fill-swatch'
+import fillSwatchTheme from '@/theme/fill-swatch'
 
-export type FillSwatchUI = ComponentUI<typeof theme>
+export type FillSwatchUI = ComponentUI<typeof fillSwatchTheme>
 
-export interface FillSwatchProps {
+export type FillSwatchProps = {
   fill: Fill
   label?: string
   ui?: FillSwatchUI
-}
+  className?: ClassValue
+  children?: ReactNode | ((props: FillSwatchSlotProps) => ReactNode)
+} & Omit<HTMLAttributes<HTMLSpanElement>, 'className' | 'children'>
 
-export interface FillSwatchSlots {
-  default?(props: FillSwatchSlotProps): VNode[]
-}
-</script>
+export const FillSwatch = memo(function FillSwatch({
+  fill,
+  label,
+  ui,
+  className,
+  children,
+  ...rest
+}: FillSwatchProps) {
+  const styles = useMemo(() => tv(fillSwatchTheme)(), [])
 
-<script setup lang="ts">
-import { computed, normalizeClass, useAttrs } from 'vue'
-import { tv } from 'tailwind-variants'
-import { FillSwatch as FillSwatchPrimitive } from '@open-pencil/vue'
-
-import fillSwatchTheme from '@/theme/fill-swatch'
-
-const { fill, label, ui } = defineProps<FillSwatchProps>()
-const attrs = useAttrs()
-const styles = computed(() => tv(fillSwatchTheme)())
-const forwardedAttrs = computed(() => {
-  const { class: _class, ...rest } = attrs
-  return rest
+  return (
+    <FillSwatchPrimitive
+      {...rest}
+      fill={fill}
+      label={label}
+      className={styles.root({ class: [ui?.root, className] })}
+    >
+      {typeof children === 'function'
+        ? children
+        : children ??
+          ((swatch: FillSwatchSlotProps) => (
+            <span
+              className={styles.preview({ class: ui?.preview })}
+              style={{ background: swatch.background }}
+            />
+          ))}
+    </FillSwatchPrimitive>
+  )
 })
-defineSlots<FillSwatchSlots>()
-defineOptions({ inheritAttrs: false })
-</script>
 
-<template>
-  <FillSwatchPrimitive
-    v-slot="swatch"
-    v-bind="forwardedAttrs"
-    :fill="fill"
-    :label="label"
-    :class="styles.root({ class: [ui?.root, normalizeClass(attrs.class)] })"
-  >
-    <slot v-bind="swatch">
-      <span
-        :class="styles.preview({ class: ui?.preview })"
-        :style="{ background: swatch.background }"
-      />
-    </slot>
-  </FillSwatchPrimitive>
-</template>
+FillSwatch.displayName = 'FillSwatch'
+export default FillSwatch

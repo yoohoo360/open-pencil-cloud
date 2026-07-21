@@ -1,8 +1,6 @@
-<script setup lang="ts">
-import { promiseTimeout } from '@vueuse/core'
-import { computed, onMounted, ref } from 'vue'
+import { memo, useEffect, useMemo, useState } from 'react'
 
-import AppGroupedSelect from '@/components/ui/AppGroupedSelect.vue'
+import { promiseTimeout } from '#react/shared/dom/hooks'
 import {
   ACP_AGENTS,
   AI_PROVIDERS,
@@ -10,50 +8,10 @@ import {
   IS_TAURI
 } from '@open-pencil/core/constants'
 import { useAIChat } from '@/app/ai/chat/use'
+import AppGroupedSelect from '@/components/ui/AppGroupedSelect'
+import { useVueRefValue } from '@/shared/useVueRefValue'
 
-const { providerID, providerDef } = useAIChat()
-
-const mcpAvailable = ref(false)
-
-async function checkMCPHealth(retries = 3, delayMs = 1000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`, {
-        signal: AbortSignal.timeout(2000)
-      })
-      if (res.ok) {
-        mcpAvailable.value = true
-        return
-      }
-    } catch (e) {
-      console.error(
-        '[MCP] health check failed (attempt',
-        i + 1,
-        '):',
-        e instanceof Error ? e.message : e
-      )
-      if (i < retries - 1) await promiseTimeout(delayMs)
-    }
-  }
-}
-
-if (IS_TAURI) {
-  onMounted(() => {
-    void checkMCPHealth()
-  })
-}
-
-const acpAgents = computed(() => (IS_TAURI && mcpAvailable.value ? ACP_AGENTS : []))
-
-const displayName = computed(() => {
-  if (providerID.value.startsWith('acp:')) {
-    const agentId = providerID.value.replace('acp:', '')
-    return ACP_AGENTS.find((a) => a.id === agentId)?.name ?? providerID.value
-  }
-  return providerDef.value.name
-})
-
-interface ProviderSelectProps {
+export type ProviderSelectProps = {
   ui?: {
     trigger?: string
     content?: string
@@ -63,33 +21,90 @@ interface ProviderSelectProps {
   }
 }
 
-const { ui } = defineProps<ProviderSelectProps>()
+export const ProviderSelect = memo(function ProviderSelect({ ui }: ProviderSelectProps) {
+  const { providerID: providerIDRef, providerDef: providerDefRef } = useAIChat()
+  const providerID = useVueRefValue(providerIDRef)
+  const providerDef = useVueRefValue(providerDefRef)
+  const [mcpAvailable, setMcpAvailable] = useState(false)
 
-const groups = computed(() => {
-  const result: Array<{ label?: string; items: Array<{ value: string; label: string }> }> = []
+  useEffect(() => {
+    if (!IS_TAURI) return
+    let cancelled = false
 
-  if (acpAgents.value.length) {
+    async function checkMCPHealth(retries = 3, delayMs = 1000) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const res = await fetch(`http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`, {
+            signal: AbortSignal.timeout(2000)
+          })
+          if (res.ok) {
+            if (!cancelled) setMcpAvailable(true)
+            return
+          }
+        } catch (error) {
+          console.error(
+            '[MCP] health check failed (attempt',
+            i + 1,
+            '):',
+            error instanceof Error ? error.message : error
+          )
+          if (i < retries - 1) await promiseTimeout(delayMs)
+        }
+      }
+    }
+
+    void checkMCPHealth()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const acpAgents = IS_TAURI && mcpAvailable ? ACP_AGENTS : []
+
+  const displayName = useMemo(() => {
+    if (providerID.startsWith('acp:')) {
+      const agentId = providerID.replace('acp:', '')
+      return ACP_AGENTS.find((a) => a.id === agentId)?.name ?? providerID
+    }
+    return providerDef.name
+  }, [providerDef.name, providerID])
+
+  const groups = useMemo(() => {
+    const result: Array<{ label?: string; items: Array<{ value: string; label: string }> }> = []
+
+    if (acpAgents.length) {
+      result.push({
+        label: 'Your agents',
+        items: acpAgents.map((agent) => ({
+          value: `acp:${agent.id}`,
+          label: agent.name
+        }))
+      })
+    }
+
     result.push({
-      label: 'Your agents',
-      items: acpAgents.value.map((agent) => ({
-        value: `acp:${agent.id}`,
-        label: agent.name
+      label: acpAgents.length ? 'API key' : undefined,
+      items: AI_PROVIDERS.map((provider) => ({
+        value: provider.id,
+        label: provider.name
       }))
     })
-  }
 
-  result.push({
-    label: acpAgents.value.length ? 'API key' : undefined,
-    items: AI_PROVIDERS.map((provider) => ({
-      value: provider.id,
-      label: provider.name
-    }))
-  })
+    return result
+  }, [acpAgents])
 
-  return result
+  return (
+    <AppGroupedSelect
+      value={providerID}
+      onValueChange={(value) => {
+        providerIDRef.value = value
+      }}
+      groups={groups}
+      displayValue={displayName}
+      ui={ui}
+    />
+  )
 })
-</script>
 
-<template>
-  <AppGroupedSelect v-model="providerID" :groups="groups" :display-value="displayName" :ui="ui" />
-</template>
+ProviderSelect.displayName = 'ProviderSelect'
+export default ProviderSelect

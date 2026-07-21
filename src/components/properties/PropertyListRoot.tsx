@@ -1,52 +1,60 @@
-<script setup lang="ts" generic="K extends PropertyListKey">
 import {
   PropertyListRoot as HeadlessPropertyListRoot,
-  useEditorPropertyList
-} from '@open-pencil/vue'
+  useEditorPropertyList,
+  type PropertyListKey,
+  type PropertyListRootSlotProps
+} from '@open-pencil/react'
+import { memo, type ReactNode } from 'react'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
-import type { PropertyListKey, PropertyListRootSlotProps } from '@open-pencil/vue'
-import type { VNode } from 'vue'
 
-const { propKey, label } = defineProps<{
+export type PropertyListRootProps<K extends PropertyListKey> = {
   propKey: K
   label?: string
-}>()
-defineSlots<{
-  default?(
+  children?: (
     props: PropertyListRootSlotProps<K> & {
       isMulti: boolean
       activeNode: SceneNode | null
       selectedNodeIds: string[]
       flush: () => void
     }
-  ): VNode[]
-}>()
+  ) => ReactNode
+}
 
-const context = useEditorPropertyList(propKey)
-</script>
+export const PropertyListRoot = memo(function PropertyListRoot<K extends PropertyListKey>({
+  propKey,
+  label,
+  children
+}: PropertyListRootProps<K>) {
+  const context = useEditorPropertyList(propKey)
 
-<template>
-  <HeadlessPropertyListRoot
-    v-if="context.active.value"
-    v-slot="slotProps"
-    :prop-key="propKey"
-    :label="label"
-    :items="context.items.value"
-    :mixed="context.isMixed.value"
-    @add="context.actions.add"
-    @remove="context.actions.remove"
-    @update="context.actions.update"
-    @patch="context.actions.patch"
-    @toggle-visibility="context.actions.toggleVisibility"
-    @reorder="context.actions.reorder"
-  >
-    <slot
-      v-bind="slotProps"
-      :is-multi="context.isMulti.value"
-      :active-node="context.activeNode.value"
-      :selected-node-ids="context.selectedNodeIds.value"
-      :flush="context.flush"
-    />
-  </HeadlessPropertyListRoot>
-</template>
+  if (!context.active()) return null
+
+  return (
+    <HeadlessPropertyListRoot
+      propKey={propKey}
+      label={label}
+      items={context.items}
+      mixed={context.isMixed()}
+      onAdd={context.actions.add}
+      onRemove={context.actions.remove}
+      onUpdate={context.actions.update}
+      onPatch={context.actions.patch}
+      onToggleVisibility={context.actions.toggleVisibility}
+      onReorder={context.actions.reorder}
+    >
+      {(slotProps) =>
+        children?.({
+          ...slotProps,
+          isMulti: context.isMulti(),
+          activeNode: context.activeNode,
+          selectedNodeIds: context.selectedNodeIds(),
+          flush: context.flush
+        })
+      }
+    </HeadlessPropertyListRoot>
+  )
+}) as <K extends PropertyListKey>(props: PropertyListRootProps<K>) => ReactNode
+
+PropertyListRoot.displayName = 'PropertyListRoot'
+export default PropertyListRoot

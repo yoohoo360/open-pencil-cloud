@@ -4,7 +4,7 @@ description: Accessible scalar channel slider for OkHCL controls.
 ---
 
 <script setup lang="ts">
-import ColorFillDemo from '#vue/primitives/Fill/demo/ColorFillDemo.vue'
+import ColorFillDemo from '#react/primitives/Fill/demo/ColorFillDemo.vue'
 import { data } from './channel-slider.data'
 </script>
 
@@ -33,7 +33,7 @@ import {
   ChannelSliderRoot,
   ChannelSliderThumb,
   ChannelSliderTrack
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const chroma = ref(0.16)
 </script>

@@ -1,42 +1,52 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-
-import { inputValue, useColorModel } from '@open-pencil/vue'
+import { inputValue, useColorModel } from '@open-pencil/react'
+import { memo, useMemo } from 'react'
 
 import { BindingPill } from '@/components/ui/binding'
 
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-const { color, resolvedColor, variableName, label } = defineProps<{
+export type PaintValueProps = {
   color: Color
   resolvedColor?: Color
   variableName?: string
   label: string
-}>()
-const emit = defineEmits<{ update: [color: Color] }>()
+  onUpdate?: (color: Color) => void
+}
 
-const displayColor = computed(() => resolvedColor ?? color)
-const model = useColorModel({
-  color: displayColor,
-  onUpdate: (updated) => emit('update', updated)
+export const PaintValue = memo(function PaintValue({
+  color,
+  resolvedColor,
+  variableName,
+  label,
+  onUpdate
+}: PaintValueProps) {
+  const displayColor = useMemo(() => resolvedColor ?? color, [color, resolvedColor])
+  const model = useColorModel({
+    color: displayColor,
+    onUpdate: (updated) => onUpdate?.(updated)
+  })
+  const tooltip = useMemo(
+    () => (variableName ? `${variableName} · #${model.hex}` : undefined),
+    [model.hex, variableName]
+  )
+
+  if (variableName) {
+    return (
+      <BindingPill className="min-w-0 flex-1" label={variableName} tooltip={tooltip} />
+    )
+  }
+
+  return (
+    <input
+      aria-label={label}
+      data-property="color-hex"
+      className="min-w-0 flex-1 border-none bg-transparent font-mono text-xs text-surface outline-none"
+      value={model.hex}
+      maxLength={6}
+      onChange={(event) => model.updateHex(inputValue(event.nativeEvent))}
+    />
+  )
 })
-const tooltip = computed(() => (variableName ? `${variableName} · #${model.hex.value}` : undefined))
-</script>
 
-<template>
-  <BindingPill
-    v-if="variableName"
-    class="min-w-0 flex-1"
-    :label="variableName"
-    :tooltip="tooltip"
-  />
-  <input
-    v-else
-    :aria-label="label"
-    data-property="color-hex"
-    class="min-w-0 flex-1 border-none bg-transparent font-mono text-xs text-surface outline-none"
-    :value="model.hex.value"
-    maxlength="6"
-    @change="model.updateHex(inputValue($event))"
-  />
-</template>
+PaintValue.displayName = 'PaintValue'
+export default PaintValue

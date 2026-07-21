@@ -1,21 +1,12 @@
-<script setup lang="ts">
-import { templateRef } from '@vueuse/core'
-import { watchEffect } from 'vue'
+import { forwardRef, useImperativeHandle, type CanvasHTMLAttributes } from 'react'
 
-import { useCanvasContext } from '#vue/canvas/context'
+import { useCanvasContext } from '#react/canvas/context'
 
-const { canvasRef } = useCanvasContext()
-const surfaceRef = templateRef<HTMLCanvasElement>('surfaceRef')
-
-watchEffect(() => {
-  canvasRef.value = surfaceRef.value
-})
-</script>
-
-<template>
-  <canvas ref="surfaceRef" v-bind="$attrs" />
-</template>
-
-<script lang="ts">
-export default { inheritAttrs: false }
-</script>
+/** Canvas element connected to the nearest {@link CanvasRoot}. */
+export const CanvasSurface = forwardRef<HTMLCanvasElement, CanvasHTMLAttributes<HTMLCanvasElement>>(
+  function CanvasSurface(props, forwardedRef) {
+    const { canvasRef } = useCanvasContext()
+    useImperativeHandle(forwardedRef, () => canvasRef.current as HTMLCanvasElement, [canvasRef])
+    return <canvas {...props} ref={canvasRef} />
+  }
+)

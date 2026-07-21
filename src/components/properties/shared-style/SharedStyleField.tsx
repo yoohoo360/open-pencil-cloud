@@ -1,59 +1,67 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { MIXED, useI18n, useSharedStyleBinding } from '@open-pencil/react'
+import { memo, useCallback, useMemo } from 'react'
 
-import { MIXED, useI18n, useSharedStyleBinding } from '@open-pencil/vue'
-
-import AppSelect from '@/components/ui/AppSelect.vue'
-import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup.vue'
-import PanelGrid from '@/components/ui/panel/PanelGrid.vue'
+import AppSelect from '@/components/ui/AppSelect'
+import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup'
+import PanelGrid from '@/components/ui/panel/PanelGrid'
 
 import type { SharedStyleKind } from '@open-pencil/scene-graph'
 
-interface SharedStyleFieldProps {
+export type SharedStyleFieldProps = {
   kind: SharedStyleKind
   label: string
 }
 
-const { kind, label } = defineProps<SharedStyleFieldProps>()
-const { panels } = useI18n()
-const binding = useSharedStyleBinding(kind)
-const { active, styleId, styles } = binding
-const visible = computed(
-  () =>
-    active.value && (styles.value.length > 0 || styleId.value === MIXED || styleId.value !== null)
-)
-const options = computed(() => {
-  const result: Array<{ value: string; label: string }> = [
-    { value: 'NONE', label: panels.value.none }
-  ]
-  if (styleId.value === MIXED) result.unshift({ value: 'MIXED', label: panels.value.mixed })
-  for (const style of styles.value) result.push({ value: style.id, label: style.name })
-  if (
-    typeof styleId.value === 'string' &&
-    !styles.value.some((style) => style.id === styleId.value)
-  ) {
-    result.push({ value: styleId.value, label: panels.value.missingStyle({ id: styleId.value }) })
-  }
-  return result
+export const SharedStyleField = memo(function SharedStyleField({
+  kind,
+  label
+}: SharedStyleFieldProps) {
+  const { panels } = useI18n()
+  const binding = useSharedStyleBinding(kind)
+  const { active, styleId, styles } = binding
+
+  const visible = useMemo(
+    () => active && (styles.length > 0 || styleId === MIXED || styleId !== null),
+    [active, styleId, styles.length]
+  )
+
+  const options = useMemo(() => {
+    const result: Array<{ value: string; label: string }> = [
+      { value: 'NONE', label: panels.none }
+    ]
+    if (styleId === MIXED) result.unshift({ value: 'MIXED', label: panels.mixed })
+    for (const style of styles) result.push({ value: style.id, label: style.name })
+    if (typeof styleId === 'string' && !styles.some((style) => style.id === styleId)) {
+      result.push({ value: styleId, label: panels.missingStyle({ id: styleId }) })
+    }
+    return result
+  }, [panels, styleId, styles])
+
+  const update = useCallback(
+    (value: string) => {
+      if (value === 'MIXED') return
+      if (value === 'NONE') binding.unbind()
+      else binding.bind(value)
+    },
+    [binding]
+  )
+
+  if (!visible) return null
+
+  return (
+    <PanelGrid columns="fill" className="mb-1.5">
+      <PanelFieldGroup label={label}>
+        <AppSelect
+          value={styleId === MIXED ? 'MIXED' : (styleId ?? 'NONE')}
+          options={options}
+          label={label}
+          data-property={`${kind}-style`}
+          onValueChange={update}
+        />
+      </PanelFieldGroup>
+    </PanelGrid>
+  )
 })
 
-function update(value: string) {
-  if (value === 'MIXED') return
-  if (value === 'NONE') binding.unbind()
-  else binding.bind(value)
-}
-</script>
-
-<template>
-  <PanelGrid v-if="visible" columns="fill" class="mb-1.5">
-    <PanelFieldGroup :label="label">
-      <AppSelect
-        :model-value="styleId === MIXED ? 'MIXED' : (styleId ?? 'NONE')"
-        :options="options"
-        :label="label"
-        :data-property="`${kind}-style`"
-        @update:model-value="update"
-      />
-    </PanelFieldGroup>
-  </PanelGrid>
-</template>
+SharedStyleField.displayName = 'SharedStyleField'
+export default SharedStyleField

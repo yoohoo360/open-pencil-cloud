@@ -1,228 +1,257 @@
-<script setup lang="ts">
-import { ScrollAreaRoot, ScrollAreaScrollbar, ScrollAreaThumb, ScrollAreaViewport } from 'reka-ui'
-import { refAutoReset, useClipboard } from '@vueuse/core'
-import { computed, markRaw, nextTick, ref, watch } from 'vue'
+import type { Chat } from '@ai-sdk/react'
+import IconLucideBug from '~icons/lucide/bug'
+import IconLucideCheck from '~icons/lucide/check'
+import IconLucideClipboardCopy from '~icons/lucide/clipboard-copy'
+import IconLucideMessageCircle from '~icons/lucide/message-circle'
+import IconLucidePlay from '~icons/lucide/play'
+import IconLucideTrash2 from '~icons/lucide/trash-2'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { UIMessage } from 'ai'
+import type { JsonObject } from '@open-pencil/scene-graph/primitives'
+import { useI18n } from '@open-pencil/react'
+import { useClipboard } from '#react/shared/dom/hooks'
 import { getAcpDebugText, clearAcpDebugLog, hasAcpDebugEntries } from '@/app/ai/acp/transport'
 import { copyChatLog } from '@/app/ai/debug'
 import { clearToolLogEntries, didHitStepLimit } from '@/app/ai/tools'
-import { activeTab } from '@/app/tabs'
-import AcpPermissionDialog from '@/components/chat/AcpPermissionDialog.vue'
-import ChatInput from '@/components/chat/ChatInput.vue'
-import ChatMessage from '@/components/chat/ChatMessage.vue'
-import AppTextButton from '@/components/ui/AppTextButton.vue'
-import ProviderSetup from '@/components/chat/ProviderSetup.vue'
 import { useAIChat } from '@/app/ai/chat/use'
+import { subscribe } from '@/app/tabs'
 import { toast } from '@/app/shell/ui'
-import { useI18n } from '@open-pencil/vue'
-
-import type { Chat } from '@ai-sdk/vue'
-import type { UIMessage } from 'ai'
-import type { JsonObject } from '@open-pencil/scene-graph/primitives'
+import AcpPermissionDialog from '@/components/chat/AcpPermissionDialog'
+import ChatInput from '@/components/chat/ChatInput'
+import ChatMessage from '@/components/chat/ChatMessage'
+import ProviderSetup from '@/components/chat/ProviderSetup'
+import AppTextButton from '@/components/ui/AppTextButton'
+import { useVueRefValue } from '@/shared/useVueRefValue'
 
 const IS_DEV = import.meta.env.DEV
 
-const { isConfigured, ensureChat, resetChat } = useAIChat()
-const { copy } = useClipboard()
-const { dialogs } = useI18n()
+function useChatRuntime(chat: Chat<UIMessage> | null) {
+  const [messages, setMessages] = useState<UIMessage[]>(() => chat?.messages ?? [])
+  const [status, setStatus] = useState(() => chat?.status ?? 'ready')
+  const [error, setError] = useState<Error | undefined>(() => chat?.error)
 
-const chat = ref<Chat<UIMessage> | null>(null)
+  useEffect(() => {
+    if (!chat) {
+      setMessages([])
+      setStatus('ready')
+      setError(undefined)
+      return
+    }
 
-void ensureChat()
-  .then((c) => {
-    if (c) chat.value = markRaw(c)
-    return undefined
-  })
-  .catch((error: unknown) => {
-    toast.error(error instanceof Error ? error.message : 'Failed to initialize chat')
-  })
-const messagesEnd = ref<HTMLDivElement>()
-const debugCopied = refAutoReset(false, 1500)
-const acpLogCopied = refAutoReset(false, 1500)
+    setMessages(chat.messages)
+    setStatus(chat.status)
+    setError(chat.error)
 
-const messages = computed(() => chat.value?.messages ?? [])
-const status = computed(() => chat.value?.status ?? 'ready')
-const isThinking = computed(() => {
-  const s = status.value
-  if (s !== 'submitted' && s !== 'streaming') return false
-  if (messages.value.length === 0) return true
-  const last = messages.value[messages.value.length - 1]
-  if (last.role !== 'assistant') return true
-  const parts = last.parts
-  if (parts.length === 0) return true
-  const lastPart = parts[parts.length - 1] as JsonObject
-  if (lastPart.type === 'step-start') return true
-  if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
-  if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
-  return s === 'submitted'
-})
+    const unsubMessages = chat['~registerMessagesCallback'](() => {
+      setMessages([...chat.messages])
+    })
+    const unsubStatus = chat['~registerStatusCallback'](() => {
+      setStatus(chat.status)
+    })
+    const unsubError = chat['~registerErrorCallback'](() => {
+      setError(chat.error)
+    })
 
-const showContinue = computed(() => {
-  if (status.value !== 'ready') return false
-  if (messages.value.length === 0) return false
-  const last = messages.value[messages.value.length - 1]
-  return last.role === 'assistant' && didHitStepLimit()
-})
+    return () => {
+      unsubMessages()
+      unsubStatus()
+      unsubError()
+    }
+  }, [chat])
 
-function scrollToBottom() {
-  nextTick(() => {
-    messagesEnd.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  })
+  return { messages, status, error }
 }
 
-watch(messages, scrollToBottom, { deep: true })
-watch(
-  () => chat.value?.error,
-  (error) => {
+export const ChatPanel = memo(function ChatPanel() {
+  const { isConfigured, ensureChat, resetChat } = useAIChat()
+  const isConfiguredValue = useVueRefValue(isConfigured)
+  const { copy } = useClipboard()
+  const { dialogs } = useI18n()
+  const [chat, setChat] = useState<Chat<UIMessage> | null>(null)
+  const [debugCopied, setDebugCopied] = useState(false)
+  const [acpLogCopied, setAcpLogCopied] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { messages, status, error } = useChatRuntime(chat)
+
+  useEffect(() => {
+    void ensureChat()
+      .then((nextChat) => setChat(nextChat))
+      .catch((err: unknown) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to initialize chat')
+      })
+  }, [ensureChat])
+
+  useEffect(() => {
     if (error) toast.error(error.message)
+  }, [error])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages])
+
+  useEffect(() => {
+    const unsub = subscribe(async () => {
+      const nextChat = await ensureChat()
+      setChat(nextChat)
+    })
+    return () => {
+      unsub()
+    }
+  }, [ensureChat])
+
+  const isThinking = useMemo(() => {
+    if (status !== 'submitted' && status !== 'streaming') return false
+    if (messages.length === 0) return true
+    const last = messages[messages.length - 1]
+    if (last.role !== 'assistant') return true
+    const parts = last.parts
+    if (parts.length === 0) return true
+    const lastPart = parts[parts.length - 1] as JsonObject
+    if (lastPart.type === 'step-start') return true
+    if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
+    if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
+    return status === 'submitted'
+  }, [messages, status])
+
+  const showContinue = useMemo(() => {
+    if (status !== 'ready') return false
+    if (messages.length === 0) return false
+    const last = messages[messages.length - 1]
+    return last.role === 'assistant' && didHitStepLimit()
+  }, [messages, status])
+
+  const handleSubmit = useCallback(
+    async (text: string) => {
+      if (status === 'streaming' || status === 'submitted') return
+      try {
+        const nextChat = await ensureChat()
+        if (nextChat) setChat(nextChat)
+        nextChat?.sendMessage({ text }).catch((err: unknown) => {
+          console.error('Chat error:', err)
+          toast.error(err instanceof Error ? err.message : String(err))
+        })
+      } catch (err) {
+        console.error('Failed to initialize chat:', err)
+        toast.error(err instanceof Error ? err.message : String(err))
+      }
+    },
+    [ensureChat, status]
+  )
+
+  const handleStop = useCallback(() => {
+    chat?.stop()
+  }, [chat])
+
+  const handleCopyDebug = useCallback(async () => {
+    await copyChatLog(messages)
+    setDebugCopied(true)
+    window.setTimeout(() => setDebugCopied(false), 1500)
+  }, [messages])
+
+  const handleCopyAcpLog = useCallback(async () => {
+    const text = getAcpDebugText()
+    if (!text) return
+    await copy(text)
+    setAcpLogCopied(true)
+    window.setTimeout(() => setAcpLogCopied(false), 1500)
+  }, [copy])
+
+  const handleClearChat = useCallback(() => {
+    setChat(null)
+    resetChat()
+    clearToolLogEntries()
+    clearAcpDebugLog()
+  }, [resetChat])
+
+  if (!isConfiguredValue) {
+    return (
+      <div data-test-id="chat-panel" className="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
+        <ProviderSetup />
+      </div>
+    )
   }
-)
-watch(
-  () => activeTab.value?.id,
-  async () => {
-    const nextChat = await ensureChat()
-    chat.value = nextChat ? markRaw(nextChat) : null
-  }
-)
 
-async function handleSubmit(text: string) {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  try {
-    const c = await ensureChat()
-    if (c) chat.value = markRaw(c)
-  } catch (e) {
-    console.error('Failed to initialize chat:', e)
-    toast.error(e instanceof Error ? e.message : String(e))
-    return
-  }
-  chat.value?.sendMessage({ text }).catch((e: unknown) => {
-    console.error('Chat error:', e)
-    toast.error(e instanceof Error ? e.message : String(e))
-  })
-}
-
-function handleStop() {
-  chat.value?.stop()
-}
-
-async function handleCopyDebug() {
-  await copyChatLog(messages.value)
-  debugCopied.value = true
-}
-
-async function handleCopyAcpLog() {
-  const text = getAcpDebugText()
-  if (!text) return
-  await copy(text)
-  acpLogCopied.value = true
-}
-
-function handleClearChat() {
-  chat.value = null
-  resetChat()
-  clearToolLogEntries()
-  clearAcpDebugLog()
-}
-</script>
-
-<template>
-  <div data-test-id="chat-panel" class="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
-    <ProviderSetup v-if="!isConfigured" />
-
-    <template v-else>
-      <ScrollAreaRoot class="min-h-0 flex-1">
-        <ScrollAreaViewport class="h-full px-3 py-3 [&>div]:h-full">
-          <!-- Empty state -->
+  return (
+    <div data-test-id="chat-panel" className="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        {messages.length === 0 ? (
           <div
-            v-if="messages.length === 0"
             data-test-id="chat-empty-state"
-            class="flex h-full flex-col items-center justify-center gap-3 text-muted"
+            className="flex h-full flex-col items-center justify-center gap-3 text-muted"
           >
-            <icon-lucide-message-circle class="size-8 opacity-50" />
-            <p class="text-center text-xs">{{ dialogs.describeCreateOrChange }}</p>
+            <IconLucideMessageCircle className="size-8 opacity-50" />
+            <p className="text-center text-xs">{dialogs.describeCreateOrChange}</p>
           </div>
-
-          <!-- Messages -->
-          <div v-else data-test-id="chat-messages" class="flex flex-col gap-3">
-            <ChatMessage v-for="msg in messages" :key="msg.id" :message="msg" />
-
-            <!-- Thinking indicator: shown when AI is working but no visible activity -->
-            <div v-if="isThinking" data-test-id="chat-typing-indicator" class="flex gap-2">
-              <div
-                class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/20 text-[10px] font-bold text-muted"
-              >
-                AI
+        ) : (
+          <div data-test-id="chat-messages" className="flex flex-col gap-3">
+            {messages.map((msg) => (
+              <ChatMessage key={msg.id} message={msg} />
+            ))}
+            {isThinking ? (
+              <div data-test-id="chat-typing-indicator" className="flex gap-2">
+                <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/20 text-[10px] font-bold text-muted">
+                  AI
+                </div>
+                <div className="flex items-center gap-1 py-2">
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted" style={{ animationDelay: '0ms' }} />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted" style={{ animationDelay: '150ms' }} />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted" style={{ animationDelay: '300ms' }} />
+                </div>
               </div>
-              <div class="flex items-center gap-1 py-2">
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 0ms"
-                />
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 150ms"
-                />
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 300ms"
-                />
+            ) : null}
+            {showContinue ? (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-full bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+                  onClick={() => void handleSubmit('Continue where you left off')}
+                >
+                  <IconLucidePlay className="size-3" />
+                  Continue
+                </button>
               </div>
-            </div>
-
-            <!-- Continue button when step limit reached -->
-            <div v-if="showContinue" class="flex justify-center py-2">
-              <button
-                class="flex items-center gap-1.5 rounded-full bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
-                @click="handleSubmit('Continue where you left off')"
-              >
-                <icon-lucide-play class="size-3" />
-                Continue
-              </button>
-            </div>
-
-            <div ref="messagesEnd" />
+            ) : null}
+            <div ref={messagesEndRef} />
           </div>
-        </ScrollAreaViewport>
-        <ScrollAreaScrollbar orientation="vertical" class="flex w-1.5 touch-none p-px select-none">
-          <ScrollAreaThumb class="relative flex-1 rounded-full bg-muted/30" />
-        </ScrollAreaScrollbar>
-      </ScrollAreaRoot>
-
-      <!-- Chat toolbar -->
-      <div
-        v-if="messages.length > 0"
-        class="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1"
-      >
-        <AppTextButton
-          v-if="IS_DEV"
-          :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }"
-          @click="handleCopyDebug"
-        >
-          <icon-lucide-clipboard-copy v-if="!debugCopied" class="size-3" />
-          <icon-lucide-check v-else class="size-3 text-green-400" />
-          {{ debugCopied ? 'Copied' : 'Copy log' }}
-        </AppTextButton>
-        <AppTextButton
-          v-if="IS_DEV && hasAcpDebugEntries()"
-          :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }"
-          @click="handleCopyAcpLog"
-        >
-          <icon-lucide-bug v-if="!acpLogCopied" class="size-3" />
-          <icon-lucide-check v-else class="size-3 text-green-400" />
-          {{ acpLogCopied ? 'Copied' : 'ACP log' }}
-        </AppTextButton>
-        <AppTextButton
-          :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }"
-          @click="handleClearChat"
-        >
-          <icon-lucide-trash-2 class="size-3" />
-          Clear
-        </AppTextButton>
+        )}
       </div>
 
-      <ChatInput :status="status" @submit="handleSubmit" @stop="handleStop" />
+      {messages.length > 0 ? (
+        <div className="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1">
+          {IS_DEV ? (
+            <AppTextButton
+              ui={{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }}
+              onClick={() => void handleCopyDebug()}
+            >
+              {!debugCopied ? <IconLucideClipboardCopy className="size-3" /> : <IconLucideCheck className="size-3 text-green-400" />}
+              {debugCopied ? 'Copied' : 'Copy log'}
+            </AppTextButton>
+          ) : null}
+          {IS_DEV && hasAcpDebugEntries() ? (
+            <AppTextButton
+              ui={{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }}
+              onClick={() => void handleCopyAcpLog()}
+            >
+              {!acpLogCopied ? <IconLucideBug className="size-3" /> : <IconLucideCheck className="size-3 text-green-400" />}
+              {acpLogCopied ? 'Copied' : 'ACP log'}
+            </AppTextButton>
+          ) : null}
+          <AppTextButton
+            ui={{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover' }}
+            onClick={handleClearChat}
+          >
+            <IconLucideTrash2 className="size-3" />
+            Clear
+          </AppTextButton>
+        </div>
+      ) : null}
 
+      <ChatInput status={status} onSubmit={handleSubmit} onStop={handleStop} />
       <AcpPermissionDialog />
-    </template>
-  </div>
-</template>
+    </div>
+  )
+})
+
+ChatPanel.displayName = 'ChatPanel'
+export default ChatPanel

@@ -1,7 +1,7 @@
-import { tryOnScopeDispose } from '@vueuse/core'
+import { useEffect } from 'react'
 
-import { useEditorCommands, useI18n } from '@open-pencil/vue'
-import type { EditorCommandId } from '@open-pencil/vue'
+import { useEditorCommands, useI18n } from '@open-pencil/react'
+import type { EditorCommandId } from '@open-pencil/react'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { pasteClipboardToReplace } from '@/app/editor/clipboard/paste-to-replace'
@@ -10,7 +10,7 @@ import { createSharedEditorMenuActions } from '@/app/shell/menu/editor-actions'
 import { importFileDialog, openFileDialog } from '@/app/shell/menu/files'
 import { useAppTheme } from '@/app/shell/theme'
 import { checkForAppUpdate } from '@/app/shell/updater'
-import { createTab, closeTab, activeTab } from '@/app/tabs'
+import { createTab, closeTab, getActiveTab } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
 
 const store = useEditorStore()
@@ -44,8 +44,6 @@ export { importFileDialog, openFileDialog }
 export { openFileFromPath } from '@/app/shell/menu/files'
 
 export function useMenu() {
-  if (!isTauri()) return
-
   let unlisten: (() => void) | undefined
   const { setTheme } = useAppTheme()
   const { dialogs } = useI18n()
@@ -55,7 +53,8 @@ export function useMenu() {
     new: () => createTab(),
     open: () => void openFileDialog(),
     close: () => {
-      if (activeTab.value) closeTab(activeTab.value.id)
+      const activeTab = getActiveTab()
+      if (activeTab) closeTab(activeTab.id)
     },
     save: () => void store.saveFigFile(),
     'save-as': () => void store.saveFigFileAs(),
@@ -82,18 +81,25 @@ export function useMenu() {
     ...createSharedEditorMenuActions(setTheme)
   }
 
-  void import('@tauri-apps/api/event').then(({ listen }) => {
-    return listen<string>('menu-event', (event) => {
-      if (COMMAND_MENU_IDS.has(event.payload)) {
-        runCommand(event.payload as EditorCommandId)
-        return
-      }
-      actions[event.payload]?.()
-    }).then((fn) => {
-      unlisten = fn
-      return undefined
+  useEffect(() => {
+    if (!isTauri()) return
+    let disposed = false
+    void import('@tauri-apps/api/event').then(({ listen }) => {
+      return listen<string>('menu-event', (event) => {
+        if (COMMAND_MENU_IDS.has(event.payload)) {
+          runCommand(event.payload as EditorCommandId)
+          return
+        }
+        actions[event.payload]?.()
+      }).then((fn) => {
+        if (disposed) fn()
+        else unlisten = fn
+        return undefined
+      })
     })
-  })
-
-  tryOnScopeDispose(() => unlisten?.())
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [actions, runCommand])
 }

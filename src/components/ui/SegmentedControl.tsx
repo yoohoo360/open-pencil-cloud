@@ -1,10 +1,12 @@
-<script lang="ts">
-import type { VNode } from 'vue'
+import { memo, useCallback, useMemo, type ReactNode } from 'react'
+import { tv } from 'tailwind-variants'
+import { SegmentedControlItem, SegmentedControlRoot } from '@open-pencil/react'
 
 import type { ComponentUI } from '@/components/ui/types'
 import type { SegmentedControlTheme } from '@/theme/segmented-control'
+import theme from '@/theme/segmented-control'
 
-export interface SegmentedControlOption {
+export type SegmentedControlOption = {
   value: string
   label: string
   disabled?: boolean
@@ -12,58 +14,65 @@ export interface SegmentedControlOption {
 
 export type SegmentedControlUI = ComponentUI<SegmentedControlTheme>
 
-export interface SegmentedControlProps {
+export type SegmentedControlProps = {
+  value: string
+  onValueChange: (value: string) => void
   options: SegmentedControlOption[]
   label?: string
   size?: keyof SegmentedControlTheme['variants']['size']
   ui?: SegmentedControlUI
+  onChange?: (value: string) => void
+  renderOption?: (props: { option: SegmentedControlOption; selected: boolean }) => ReactNode
 }
 
-export interface SegmentedControlSlots {
-  option?(props: { option: SegmentedControlOption; selected: boolean }): VNode[]
-}
-</script>
+export const SegmentedControl = memo(function SegmentedControl({
+  value,
+  onValueChange,
+  options,
+  label,
+  size = 'sm',
+  ui,
+  onChange,
+  renderOption
+}: SegmentedControlProps) {
+  const styles = useMemo(() => tv(theme)({ size }), [size])
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import { tv } from 'tailwind-variants'
-import { SegmentedControlItem, SegmentedControlRoot } from '@open-pencil/vue'
+  const select = useCallback(
+    (next: string | string[] | undefined) => {
+      if (typeof next !== 'string') return
+      onValueChange(next)
+      onChange?.(next)
+    },
+    [onChange, onValueChange]
+  )
 
-import theme from '@/theme/segmented-control'
-
-const { options, label, size = 'sm', ui } = defineProps<SegmentedControlProps>()
-defineSlots<SegmentedControlSlots>()
-const modelValue = defineModel<string>({ required: true })
-const emit = defineEmits<{ change: [value: string] }>()
-
-const styles = computed(() => tv(theme)({ size }))
-
-function select(value: string | string[] | undefined) {
-  if (typeof value !== 'string') return
-  modelValue.value = value
-  emit('change', value)
-}
-</script>
-
-<template>
-  <SegmentedControlRoot
-    :model-value="modelValue"
-    :aria-label="label"
-    :class="styles.root({ class: ui?.root })"
-    @update:model-value="select"
-  >
-    <SegmentedControlItem
-      v-for="option in options"
-      :key="option.value"
-      v-slot="{ selected }"
-      :value="option.value"
-      :aria-label="option.label"
-      :disabled="option.disabled"
-      :class="styles.item({ class: ui?.item })"
+  return (
+    <SegmentedControlRoot
+      modelValue={value}
+      aria-label={label}
+      className={styles.root({ class: ui?.root })}
+      onValueChange={select}
     >
-      <slot name="option" :option="option" :selected="selected">
-        <span class="truncate">{{ option.label }}</span>
-      </slot>
-    </SegmentedControlItem>
-  </SegmentedControlRoot>
-</template>
+      {options.map((option) => (
+        <SegmentedControlItem
+          key={option.value}
+          value={option.value}
+          aria-label={option.label}
+          disabled={option.disabled}
+          className={styles.item({ class: ui?.item })}
+        >
+          {({ selected }) =>
+            renderOption ? (
+              renderOption({ option, selected })
+            ) : (
+              <span className="truncate">{option.label}</span>
+            )
+          }
+        </SegmentedControlItem>
+      ))}
+    </SegmentedControlRoot>
+  )
+})
+
+SegmentedControl.displayName = 'SegmentedControl'
+export default SegmentedControl

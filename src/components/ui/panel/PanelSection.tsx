@@ -1,29 +1,11 @@
-<script lang="ts">
-import type { VNode } from 'vue'
-import type { ClassValue } from 'tailwind-variants'
-
-import type { ComponentUI } from '@/components/ui/types'
-import type { PanelSectionTheme } from '@/theme/panel/section'
-
-export interface PanelSectionProps {
-  label: string
-  open?: boolean
-  defaultOpen?: boolean
-  empty?: boolean
-  class?: ClassValue
-  ui?: ComponentUI<PanelSectionTheme>
-}
-
-export interface PanelSectionSlots {
-  default(): VNode[]
-  actions?(): VNode[]
-  emptyAction?(): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { computed, getCurrentInstance } from 'vue'
-import { tv } from 'tailwind-variants'
+import {
+  memo,
+  useCallback,
+  useMemo,
+  type HTMLAttributes,
+  type ReactNode
+} from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 import {
   PropertySectionActions,
   PropertySectionContent,
@@ -31,49 +13,79 @@ import {
   PropertySectionHeader,
   PropertySectionRoot,
   PropertySectionTitle
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
+import type { ComponentUI } from '@/components/ui/types'
+import type { PanelSectionTheme } from '@/theme/panel/section'
 import theme from '@/theme/panel/section'
 
-const {
+export type PanelSectionProps = {
+  label: string
+  open?: boolean
+  defaultOpen?: boolean
+  empty?: boolean
+  className?: ClassValue
+  ui?: ComponentUI<PanelSectionTheme>
+  children?: ReactNode
+  actions?: ReactNode
+  emptyAction?: ReactNode
+  onOpenChange?: (open: boolean) => void
+} & Omit<HTMLAttributes<HTMLElement>, 'className' | 'children'>
+
+export const PanelSection = memo(function PanelSection({
   label,
   open,
   defaultOpen = true,
   empty = false,
-  class: className,
-  ui
-} = defineProps<PanelSectionProps>()
-const vnodeProps = getCurrentInstance()?.vnode.props
-const controlled = vnodeProps ? Object.hasOwn(vnodeProps, 'open') : false
-const emit = defineEmits<{ 'update:open': [open: boolean] }>()
-const slots = defineSlots<PanelSectionSlots>()
+  className,
+  ui,
+  children,
+  actions,
+  emptyAction,
+  onOpenChange,
+  ...rest
+}: PanelSectionProps) {
+  const controlled = open !== undefined
+  const styles = useMemo(() => tv(theme)({ actions: Boolean(actions) }), [actions])
 
-const styles = computed(() => tv(theme)({ actions: Boolean(slots.actions) }))
-</script>
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      onOpenChange?.(next)
+    },
+    [onOpenChange]
+  )
 
-<template>
-  <PropertySectionRoot
-    as="section"
-    v-bind="controlled ? { open } : {}"
-    :default-open="defaultOpen"
-    :empty="empty"
-    :aria-label="label"
-    :class="styles.root({ class: [ui?.root, className] })"
-    @update:open="emit('update:open', $event)"
-  >
-    <PropertySectionHeader :class="styles.header({ class: ui?.header })">
-      <PropertySectionTitle :class="styles.title({ class: ui?.title })">
-        <span role="heading" aria-level="3">{{ label }}</span>
-      </PropertySectionTitle>
-      <PropertySectionActions v-if="slots.actions" :class="styles.actions({ class: ui?.actions })">
-        <slot name="actions" />
-      </PropertySectionActions>
-    </PropertySectionHeader>
-    <PropertySectionContent :class="styles.body({ class: ui?.body })">
-      <slot />
-      <PropertySectionEmptyAction v-if="slots.emptyAction" as-child>
-        <slot name="emptyAction" />
-      </PropertySectionEmptyAction>
-    </PropertySectionContent>
-  </PropertySectionRoot>
-</template>
+  return (
+    <PropertySectionRoot
+      {...rest}
+      {...(controlled ? { open } : {})}
+      defaultOpen={defaultOpen}
+      empty={empty}
+      aria-label={label}
+      className={styles.root({ class: [ui?.root, className] })}
+      onOpenChange={handleOpenChange}
+    >
+      <PropertySectionHeader className={styles.header({ class: ui?.header })}>
+        <PropertySectionTitle className={styles.title({ class: ui?.title })}>
+          <span role="heading" aria-level={3}>
+            {label}
+          </span>
+        </PropertySectionTitle>
+        {actions ? (
+          <PropertySectionActions className={styles.actions({ class: ui?.actions })}>
+            {actions}
+          </PropertySectionActions>
+        ) : null}
+      </PropertySectionHeader>
+      <PropertySectionContent className={styles.body({ class: ui?.body })}>
+        {children}
+        {emptyAction ? (
+          <PropertySectionEmptyAction asChild>{emptyAction}</PropertySectionEmptyAction>
+        ) : null}
+      </PropertySectionContent>
+    </PropertySectionRoot>
+  )
+})
+
+PanelSection.displayName = 'PanelSection'
+export default PanelSection

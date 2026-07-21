@@ -5,7 +5,7 @@ description: Headless-структурный примитив для тулба�
 
 # ToolbarRoot
 
-`ToolbarRoot` — headless-примитив тулбара из `@open-pencil/vue`.
+`ToolbarRoot` — headless-примитив тулбара из `@open-pencil/react`.
 
 Используйте его, когда нужна переиспользуемая структура тулбара и контекст с собственными кнопками, стилями и макетом.
 

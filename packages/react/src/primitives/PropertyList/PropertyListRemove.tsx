@@ -1,39 +1,45 @@
-<script setup lang="ts" generic="K extends PropertyListKey">
-import { computed } from 'vue'
-import { Primitive } from 'reka-ui'
+import { usePropertyListPart } from '#react/primitives/PropertyList/context'
+import { Slot } from '@radix-ui/react-slot'
+import { createElement, memo, useMemo, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import type * as React from 'react'
 
-import { usePropertyListPart } from '#vue/primitives/PropertyList/context'
 import type { PropertyListKey, PropertyListPartProps } from './types'
 
-const {
+export type PropertyListRemoveProps<K extends PropertyListKey> = PropertyListPartProps<K> &
+  ComponentPropsWithoutRef<'button'> & {
+    index: number
+    children?: ReactNode
+    onRemove?: (index: number) => void
+  }
+
+export const PropertyListRemove = memo(function PropertyListRemove<K extends PropertyListKey>({
   propKey,
   index,
-  as = 'button',
+  as: As = 'button',
   asChild = false,
-  disabled: disabledProp = false
-} = defineProps<PropertyListPartProps<K> & { index: number }>()
-const emit = defineEmits<{ remove: [index: number] }>()
-const context = usePropertyListPart(propKey)
-const disabled = computed(() => disabledProp || context.disabled.value)
-defineOptions({ inheritAttrs: false })
-
-function remove() {
-  if (disabled.value) return
-  emit('remove', index)
-  context.actions.remove(index)
-}
-</script>
-
-<template>
-  <Primitive
-    v-bind="$attrs"
-    :as="as"
-    :as-child="asChild"
-    :type="!asChild && as === 'button' ? 'button' : undefined"
-    :disabled="disabled"
-    data-slot="remove"
-    @click="remove"
-  >
-    <slot />
-  </Primitive>
-</template>
+  disabled: disabledProp = false,
+  onClick,
+  onRemove,
+  children,
+  ...props
+}: PropertyListRemoveProps<K>) {
+  const context = usePropertyListPart(propKey)
+  const disabled = disabledProp || context.disabled
+  const attributes = useMemo(
+    () => ({
+      ...props,
+      type: !asChild && As === 'button' ? ('button' as const) : undefined,
+      disabled,
+      'data-slot': 'remove',
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        onClick?.(event)
+        if (!event.defaultPrevented && !disabled) {
+          onRemove?.(index)
+          context.actions.remove(index)
+        }
+      }
+    }),
+    [As, asChild, context.actions, disabled, index, onClick, onRemove, props]
+  )
+  return asChild ? <Slot {...attributes}>{children}</Slot> : createElement(As, attributes, children)
+}) as <K extends PropertyListKey>(props: PropertyListRemoveProps<K>) => ReactNode

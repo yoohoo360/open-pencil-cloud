@@ -1,6 +1,6 @@
 ---
 title: API-Referenz
-description: Referenzdokumentation für @open-pencil/vue Komponenten, Composables und erweiterte APIs.
+description: Referenzdokumentation für @open-pencil/react Komponenten, Composables und erweiterte APIs.
 ---
 
 # API-Referenz

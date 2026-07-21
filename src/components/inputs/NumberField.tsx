@@ -1,53 +1,48 @@
-<script lang="ts">
-import type {
-  NumberExpressionError,
-  NumberFieldEditPolicy,
-  NumberFieldSlotProps
-} from '@open-pencil/vue'
-import type { VNode } from 'vue'
+import {
+  NumberFieldInput,
+  NumberFieldRoot,
+  NumberFieldValue,
+  type NumberExpressionError,
+  type NumberFieldEditPolicy,
+  type NumberFieldMutationSource
+} from '@open-pencil/react'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 
+import { useEditorStore } from '@/app/editor/active-store'
 import type { ComponentUI } from '@/components/ui/types'
 import type { NumberFieldTheme } from '@/theme/number-field'
+import theme from '@/theme/number-field'
 
 export type NumberFieldUI = ComponentUI<NumberFieldTheme>
 
-export interface NumberFieldProps {
-  modelValue: number | symbol
+export type NumberFieldProps = {
+  value: number | symbol
   min?: number
   max?: number
   step?: number
-  icon?: string
+  icon?: ReactNode
   label?: string
   suffix?: string
   sensitivity?: number
   placeholder?: string
   disabled?: boolean
   bound?: boolean
+  boundContent?: ReactNode
+  suffixContent?: ReactNode
   editPolicy?: NumberFieldEditPolicy
   ui?: NumberFieldUI
-}
+  className?: ClassValue
+  'aria-label'?: string
+  onValueChange?: (value: number) => void
+  onCommit?: (value: number, previous: number) => void
+  onEditingChange?: (editing: boolean) => void
+  onInvalid?: (expression: string, reason: NumberExpressionError) => void
+  onDetachRequest?: (source: NumberFieldMutationSource) => void
+} & Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
 
-export interface NumberFieldSlots {
-  icon?(): VNode[]
-  suffix?(): VNode[]
-  display?(props: NumberFieldSlotProps & { value: string }): VNode[]
-  bound?(props: NumberFieldSlotProps & { value: string }): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { computed, normalizeClass, useAttrs } from 'vue'
-import { tv } from 'tailwind-variants'
-import { NumberFieldRoot, NumberFieldInput, NumberFieldValue } from '@open-pencil/vue'
-import { useEditorStore } from '@/app/editor/active-store'
-import theme from '@/theme/number-field'
-
-const attrs = useAttrs()
-const slots = defineSlots<NumberFieldSlots>()
-const store = useEditorStore()
-
-const {
-  modelValue,
+export const NumberField = memo(function NumberField({
+  value,
   min,
   max,
   step,
@@ -58,88 +53,93 @@ const {
   placeholder,
   disabled,
   bound,
+  boundContent,
+  suffixContent,
   editPolicy,
-  ui
-} = defineProps<NumberFieldProps>()
-const accessibleLabel = computed(() => {
-  const ariaLabel = attrs['aria-label']
-  return typeof ariaLabel === 'string' ? ariaLabel : (label ?? icon)
-})
-const styles = computed(() => tv(theme)({ suffix: Boolean(slots.suffix) }))
+  ui,
+  className,
+  'aria-label': ariaLabel,
+  onValueChange,
+  onCommit,
+  onEditingChange,
+  onInvalid,
+  onDetachRequest,
+  ...rest
+}: NumberFieldProps) {
+  const store = useEditorStore()
+  const accessibleLabel = ariaLabel ?? label ?? (typeof icon === 'string' ? icon : undefined)
+  const styles = useMemo(() => tv(theme)({ suffix: Boolean(suffix) }), [suffix])
 
-const emit = defineEmits<{
-  'update:modelValue': [value: number]
-  'editing-change': [editing: boolean]
-  commit: [value: number, previous: number]
-  invalid: [expression: string, reason: NumberExpressionError]
-  'detach-request': [source: 'edit' | 'scrub' | 'step']
-}>()
-
-defineOptions({ inheritAttrs: false })
-</script>
-
-<template>
-  <NumberFieldRoot
-    v-slot="{ editing, actions, attrs: rootAttrs, placeholder: ph }"
-    :model-value="modelValue"
-    :min="min"
-    :max="max"
-    :step="step"
-    :sensitivity="sensitivity"
-    :placeholder="placeholder"
-    :aria-label="accessibleLabel"
-    :disabled="disabled"
-    :bound="bound"
-    :edit-policy="editPolicy"
-    @update:model-value="emit('update:modelValue', $event)"
-    @commit="(val: number, prev: number) => emit('commit', val, prev)"
-    @invalid="
-      (expression: string, reason: NumberExpressionError) => emit('invalid', expression, reason)
-    "
-    @detach-request="emit('detach-request', $event)"
-    @editing-change="
-      (editing: boolean) => {
+  return (
+    <NumberFieldRoot
+      modelValue={value}
+      min={min}
+      max={max}
+      step={step}
+      sensitivity={sensitivity}
+      placeholder={placeholder}
+      ariaLabel={accessibleLabel}
+      disabled={disabled}
+      bound={bound}
+      editPolicy={editPolicy}
+      onValueChange={onValueChange}
+      onCommit={onCommit}
+      onInvalid={onInvalid}
+      onDetachRequest={onDetachRequest}
+      onEditingChange={(editing) => {
         store.state.numberFieldFocused = editing
-        emit('editing-change', editing)
-      }
-    "
-  >
-    <div
-      v-bind="{ ...attrs, ...rootAttrs }"
-      data-slot="root"
-      :class="styles.root({ class: [ui?.root, normalizeClass(attrs.class)] })"
-      @pointerdown="
-        !editing &&
-        !($event.target as HTMLElement)?.closest?.('button') &&
-        actions.startScrub($event)
-      "
+        onEditingChange?.(editing)
+      }}
     >
-      <span :class="styles.leading({ class: ui?.leading })">
-        <slot name="icon">
-          <span v-if="icon" class="text-[11px] leading-none">{{ icon }}</span>
-        </slot>
-        <span v-if="label" class="text-[11px] leading-none">{{ label }}</span>
-      </span>
-      <NumberFieldInput :class="styles.field({ class: ui?.field })" />
-      <slot v-if="editing" name="suffix" />
-      <NumberFieldValue :class="styles.display({ class: ui?.display })">
-        <template #default="display">
-          <slot name="display" v-bind="display">
-            <slot v-if="display.bound" name="bound" v-bind="display">
-              <span :class="styles.value({ class: ui?.value })">{{ display.value }}</span>
-              <span v-if="suffix" :class="styles.suffix({ class: ui?.suffix })">{{ suffix }}</span>
-            </slot>
-            <span v-else-if="display.isMixed" :class="styles.mixed({ class: ui?.mixed })">
-              {{ ph }}
-            </span>
-            <template v-else>
-              <span :class="styles.value({ class: ui?.value })">{{ display.value }}</span>
-              <span v-if="suffix" :class="styles.suffix({ class: ui?.suffix })">{{ suffix }}</span>
-            </template>
-          </slot>
-          <slot name="suffix" />
-        </template>
-      </NumberFieldValue>
-    </div>
-  </NumberFieldRoot>
-</template>
+      {({ editing, actions, attrs: rootAttrs, placeholder: ph }) => (
+        <div
+          {...rest}
+          {...rootAttrs}
+          data-slot="root"
+          className={styles.root({ class: [ui?.root, className] })}
+          onPointerDown={(event) => {
+            if (
+              !editing &&
+              !(event.target as HTMLElement | null)?.closest?.('button')
+            ) {
+              actions.startScrub(event.nativeEvent)
+            }
+          }}
+        >
+          <span className={styles.leading({ class: ui?.leading })}>
+            {icon ?? null}
+            {label ? <span className="text-[11px] leading-none">{label}</span> : null}
+          </span>
+          <NumberFieldInput className={styles.field({ class: ui?.field })} />
+          <NumberFieldValue className={styles.display({ class: ui?.display })}>
+            {(display) =>
+              display.bound && boundContent ? (
+                boundContent
+              ) : display.bound ? (
+                <>
+                  <span className={styles.value({ class: ui?.value })}>{display.value}</span>
+                  {suffix ? (
+                    <span className={styles.suffix({ class: ui?.suffix })}>{suffix}</span>
+                  ) : null}
+                </>
+              ) : display.isMixed ? (
+                <span className={styles.mixed({ class: ui?.mixed })}>{ph}</span>
+              ) : (
+                <>
+                  <span className={styles.value({ class: ui?.value })}>{display.value}</span>
+                  {suffix ? (
+                    <span className={styles.suffix({ class: ui?.suffix })}>{suffix}</span>
+                  ) : null}
+                </>
+              )
+            }
+          </NumberFieldValue>
+          {suffixContent}
+        </div>
+      )}
+    </NumberFieldRoot>
+  )
+})
+
+NumberField.displayName = 'NumberField'
+export default NumberField

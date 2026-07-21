@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { Fill } from '@open-pencil/core'
-import { applySolidFillColor, applySolidStrokeColor } from '@open-pencil/vue'
+import { applySolidFillColor, applySolidStrokeColor } from '@open-pencil/react'
 
 describe('solid color commit helpers', () => {
   test('syncs fill opacity with color alpha', () => {

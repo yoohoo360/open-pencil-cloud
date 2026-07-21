@@ -1,41 +1,17 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-import { FontPickerRoot } from '@open-pencil/vue'
+import IconLucideCheck from '~icons/lucide/check'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
+import { FontPickerRoot, type FontPickerUI } from '@open-pencil/react'
+import { memo, useEffect, useMemo } from 'react'
 
-import { useSelectUI } from '@/components/ui/select'
-import { usePopoverUI } from '@/components/ui/popover'
+import { WEB_FONT_PROVIDER_IDS } from '@open-pencil/core/text'
 import {
   listFamilies,
   loadFont,
   localFontAccessState,
   requestLocalFontAccess
 } from '@/app/editor/fonts'
-
-import { WEB_FONT_PROVIDER_IDS } from '@open-pencil/core/text'
-
-import type { FontPickerUI } from '@open-pencil/vue'
-
-const { label = 'Font family' } = defineProps<{ label?: string }>()
-const modelValue = defineModel<string>({ required: true })
-const emit = defineEmits<{ select: [family: string] }>()
-
-const cls = usePopoverUI({
-  content: 'w-[var(--reka-combobox-trigger-width)] min-w-56 overflow-hidden p-0'
-})
-const selectCls = useSelectUI({
-  trigger: 'w-full rounded px-2 py-1 text-xs',
-  item: 'w-full gap-2 px-3 py-2.5 text-sm leading-tight'
-})
-
-const ui = computed<FontPickerUI>(() => ({
-  trigger: selectCls.trigger,
-  content: cls.content,
-  item: selectCls.item,
-  search:
-    'w-full border-b border-border bg-transparent px-3 py-2 text-sm text-surface outline-none placeholder:text-muted',
-  empty: 'px-2 py-3 text-center text-xs text-muted',
-  emptyAction: 'mt-2 rounded bg-accent px-2 py-1 text-xs font-medium text-white disabled:opacity-50'
-}))
+import { usePopoverUI } from '@/components/ui/popover'
+import { useSelectUI } from '@/components/ui/select'
 
 const previewFontLoads = new Set<string>()
 
@@ -50,47 +26,97 @@ function loadPreviewFont(family: string, source: string) {
   previewFontLoads.add(family)
   void loadFont(family)
 }
-</script>
 
-<template>
-  <FontPickerRoot
-    v-model="modelValue"
-    data-test-id="font-picker-root"
-    :list-families="listFamilies"
-    :local-font-access="localFontAccess"
-    :ui="ui"
-    empty-fonts-hint="Use the desktop app or Chrome/Edge to access system fonts."
-    @select="emit('select', $event)"
-  >
-    <template #trigger>
-      <button
-        type="button"
-        data-test-id="font-picker-trigger"
-        :aria-label="label"
-        :class="selectCls.trigger"
-      >
-        <span class="truncate">{{ modelValue }}</span>
-        <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
-      </button>
-    </template>
+function FontPickerItem({
+  family,
+  source,
+  selected
+}: {
+  family: string
+  source: string
+  selected: boolean
+}) {
+  useEffect(() => {
+    loadPreviewFont(family, source)
+  }, [family, source])
 
-    <template #item="{ family, selected, source }">
-      <div
-        data-test-id="font-picker-item"
-        class="flex min-w-0 flex-1 items-center gap-2"
-        @vue:mounted="loadPreviewFont(family, source)"
-      >
-        <icon-lucide-check v-if="selected" class="size-3 shrink-0 text-accent" />
-        <span v-else class="size-3 shrink-0" />
-        <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }">{{
-          family
-        }}</span>
-        <span
-          class="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"
-        >
-          {{ source }}
-        </span>
-      </div>
-    </template>
-  </FontPickerRoot>
-</template>
+  return (
+    <div data-test-id="font-picker-item" className="flex min-w-0 flex-1 items-center gap-2">
+      {selected ? <IconLucideCheck className="size-3 shrink-0 text-accent" /> : <span className="size-3 shrink-0" />}
+      <span className="truncate" style={{ fontFamily: `'${family}', sans-serif` }}>
+        {family}
+      </span>
+      <span className="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted">
+        {source}
+      </span>
+    </div>
+  )
+}
+
+export type FontPickerProps = {
+  value: string
+  label?: string
+  className?: string
+  onValueChange?: (family: string) => void
+  onSelect?: (family: string) => void
+}
+
+export const FontPicker = memo(function FontPicker({
+  value,
+  label = 'Font family',
+  className,
+  onValueChange,
+  onSelect
+}: FontPickerProps) {
+  const cls = usePopoverUI({
+    content: 'w-[var(--radix-popover-trigger-width)] min-w-56 overflow-hidden p-0'
+  })
+  const selectCls = useSelectUI({
+    trigger: 'w-full rounded px-2 py-1 text-xs',
+    item: 'w-full gap-2 px-3 py-2.5 text-sm leading-tight'
+  })
+
+  const ui = useMemo<FontPickerUI>(
+    () => ({
+      trigger: selectCls.trigger,
+      content: cls.content,
+      item: selectCls.item,
+      search:
+        'w-full border-b border-border bg-transparent px-3 py-2 text-sm text-surface outline-none placeholder:text-muted',
+      empty: 'px-2 py-3 text-center text-xs text-muted',
+      emptyAction: 'mt-2 rounded bg-accent px-2 py-1 text-xs font-medium text-white disabled:opacity-50'
+    }),
+    [cls.content, selectCls.item, selectCls.trigger]
+  )
+
+  return (
+    <div className={className}>
+      <FontPickerRoot
+        value={value}
+        listFamilies={listFamilies}
+        localFontAccess={localFontAccess}
+        ui={ui}
+        emptyFontsHint="Use the desktop app or Chrome/Edge to access system fonts."
+        onValueChange={onValueChange}
+        onSelect={onSelect}
+        trigger={
+          <button
+            type="button"
+            data-test-id="font-picker-trigger"
+            aria-label={label}
+            className={selectCls.trigger}
+          >
+            <span className="truncate">{value}</span>
+            <IconLucideChevronDown className="size-3 shrink-0 text-muted" />
+          </button>
+        }
+        item={({ family, source, selected }) => (
+          <FontPickerItem family={family} source={source} selected={selected} />
+        )}
+      />
+    </div>
+  )
+})
+
+FontPicker.displayName = 'FontPicker'
+export default FontPicker

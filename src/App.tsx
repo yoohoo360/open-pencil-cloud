@@ -1,31 +1,41 @@
-<script setup lang="ts">
-import { onMounted } from 'vue'
-import { useHead } from '@unhead/vue'
-import { TooltipProvider } from 'reka-ui'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { memo, useEffect, type ReactNode } from 'react'
+import { Outlet } from 'react-router'
 
-import { provideEditor, useI18n } from '@open-pencil/vue'
-import AppToast from '@/components/Shell/AppToast.vue'
+import { EditorProvider, useI18n } from '@open-pencil/react'
 import { useEditorStore } from '@/app/editor/active-store'
 import { toast } from '@/app/shell/ui'
 import { useAppTheme } from '@/app/shell/theme'
 import { scheduleStartupUpdateCheck } from '@/app/shell/updater'
+import AppToast from '@/components/Shell/AppToast'
 
-useHead({ titleTemplate: (title) => (title ? `${title} — OpenPencil` : 'OpenPencil') })
+export const App = memo(function App() {
+  const store = useEditorStore()
+  const { dialogs } = useI18n()
+  useAppTheme()
 
-const store = useEditorStore()
-const { dialogs } = useI18n()
-provideEditor(store)
-useAppTheme()
+  useEffect(() => {
+    document.title = 'OpenPencil'
+  }, [])
 
-onMounted(() => {
-  toast.setupGlobalErrorHandler()
-  scheduleStartupUpdateCheck(dialogs)
+  useEffect(() => {
+    toast.setupGlobalErrorHandler()
+    scheduleStartupUpdateCheck(dialogs)
+  }, [dialogs])
+
+  return (
+    <EditorProvider editor={store}>
+      <Tooltip.Provider delayDuration={400}>
+        <Outlet />
+        <AppToast />
+      </Tooltip.Provider>
+    </EditorProvider>
+  )
 })
-</script>
 
-<template>
-  <TooltipProvider :delay-duration="400">
-    <RouterView />
-    <AppToast />
-  </TooltipProvider>
-</template>
+App.displayName = 'App'
+
+export default App
+
+// Keep a typed children helper for storybook/wrappers.
+export type AppShellProps = { children?: ReactNode }

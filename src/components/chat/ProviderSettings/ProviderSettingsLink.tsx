@@ -1,12 +1,23 @@
-<script setup lang="ts">
+import { memo } from 'react'
+
 import { openExternalLink } from '@/app/shell/ui'
-import AppTextButton from '@/components/ui/AppTextButton.vue'
+import AppTextButton from '@/components/ui/AppTextButton'
 
-const { href } = defineProps<{ href: string }>()
-</script>
+export type ProviderSettingsLinkProps = {
+  href: string
+  children: React.ReactNode
+}
 
-<template>
-  <AppTextButton size="xs" underline @click="openExternalLink(href)">
-    <slot />
-  </AppTextButton>
-</template>
+export const ProviderSettingsLink = memo(function ProviderSettingsLink({
+  href,
+  children
+}: ProviderSettingsLinkProps) {
+  return (
+    <AppTextButton size="xs" underline onClick={() => openExternalLink(href)}>
+      {children}
+    </AppTextButton>
+  )
+})
+
+ProviderSettingsLink.displayName = 'ProviderSettingsLink'
+export default ProviderSettingsLink

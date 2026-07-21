@@ -1,296 +1,335 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import IconLucideALargeSmall from '~icons/lucide/a-large-small'
+import IconLucideAlertTriangle from '~icons/lucide/alert-triangle'
+import IconLucideAlignCenter from '~icons/lucide/align-center'
+import IconLucideAlignJustify from '~icons/lucide/align-justify'
+import IconLucideAlignLeft from '~icons/lucide/align-left'
+import IconLucideAlignRight from '~icons/lucide/align-right'
+import IconLucideAlignVerticalJustifyCenter from '~icons/lucide/align-vertical-justify-center'
+import IconLucideAlignVerticalJustifyEnd from '~icons/lucide/align-vertical-justify-end'
+import IconLucideAlignVerticalJustifyStart from '~icons/lucide/align-vertical-justify-start'
+import IconLucideBaseline from '~icons/lucide/baseline'
+import IconLucideBold from '~icons/lucide/bold'
+import IconLucideItalic from '~icons/lucide/italic'
+import IconLucideStrikethrough from '~icons/lucide/strikethrough'
+import IconLucideUnderline from '~icons/lucide/underline'
+import { TypographyControlsRoot, useI18n } from '@open-pencil/react'
+import { memo, useMemo } from 'react'
 
-import { TypographyControlsRoot, useI18n } from '@open-pencil/vue'
-
-import FontPicker from '@/components/font-picker/FontPicker.vue'
-import FontSettingsPopover from '@/components/FontSettings/FontSettingsPopover.vue'
-import NumberField from '@/components/inputs/NumberField.vue'
-import SharedStyleField from '@/components/properties/shared-style/SharedStyleField.vue'
-import VariableNumberField from '@/components/properties/VariableNumberField.vue'
-import AppSelect from '@/components/ui/AppSelect.vue'
-import AppSwitch from '@/components/ui/AppSwitch.vue'
-import IconButton from '@/components/ui/IconButton.vue'
-import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup.vue'
-import PanelGrid from '@/components/ui/panel/PanelGrid.vue'
-import PanelSection from '@/components/ui/panel/PanelSection.vue'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
-import Tip from '@/components/ui/Tip.vue'
 import { loadFont } from '@/app/editor/fonts'
 import { appMenuShortcutLabel } from '@/app/shell/menu/shortcut'
+import FontPicker from '@/components/font-picker/FontPicker'
+import FontSettingsPopover from '@/components/FontSettings/FontSettingsPopover'
+import NumberField from '@/components/inputs/NumberField'
+import SharedStyleField from '@/components/properties/shared-style/SharedStyleField'
+import VariableNumberField from '@/components/properties/VariableNumberField'
+import AppSelect from '@/components/ui/AppSelect'
+import AppSwitch from '@/components/ui/AppSwitch'
+import IconButton from '@/components/ui/IconButton'
+import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup'
+import PanelGrid from '@/components/ui/panel/PanelGrid'
+import PanelSection from '@/components/ui/panel/PanelSection'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import Tip from '@/components/ui/Tip'
 
-const { panels, menu } = useI18n()
 const fontLoader = { load: loadFont }
-const alignmentOptions = computed(() => [
-  { value: 'LEFT', label: panels.value.alignLeft },
-  { value: 'CENTER', label: panels.value.alignCenterHorizontally },
-  { value: 'RIGHT', label: panels.value.alignRight },
-  { value: 'JUSTIFIED', label: panels.value.textAlignment }
-])
-const verticalAlignmentOptions = computed(() => [
-  { value: 'TOP', label: panels.value.alignTop },
-  { value: 'CENTER', label: panels.value.alignCenterVertically },
-  { value: 'BOTTOM', label: panels.value.alignBottom }
-])
-const textCaseOptions = computed(() => [
-  { value: 'ORIGINAL', label: panels.value.textCaseOriginal },
-  { value: 'UPPER', label: panels.value.textCaseUpper },
-  { value: 'LOWER', label: panels.value.textCaseLower },
-  { value: 'TITLE', label: panels.value.textCaseTitle }
-])
-const truncationOptions = computed(() => [
-  { value: 'DISABLED', label: panels.value.truncationDisabled },
-  { value: 'ENDING', label: panels.value.truncationEnding }
-])
-const commonFeatures = computed(() => [
-  { tag: 'LIGA', label: panels.value.standardLigatures },
-  { tag: 'CALT', label: panels.value.contextualAlternates },
-  { tag: 'KERN', label: panels.value.kerning }
-])
 
 function featureEnabled(features: Array<{ tag: string; enabled: boolean }>, tag: string) {
   return features.find((feature) => feature.tag === tag)?.enabled ?? true
 }
-</script>
 
-<template>
-  <TypographyControlsRoot v-slot="ctx" :font-loader="fontLoader">
-    <PanelSection v-if="ctx.node.value" :label="panels.typography">
-      <SharedStyleField kind="text" :label="panels.textStyle" />
+export const TypographySection = memo(function TypographySection() {
+  const { panels, menu } = useI18n()
 
-      <div class="mb-1.5 flex min-w-0 items-center gap-1.5">
-        <FontPicker
-          class="min-w-0 flex-1"
-          :model-value="ctx.node.value.fontFamily"
-          :label="panels.fontFamily"
-          @select="ctx.actions.setFamily"
-        />
-        <FontSettingsPopover />
-        <Tip
-          v-if="ctx.hasMissingFonts.value"
-          :label="
-            'Missing font' +
-            (ctx.missingFonts.value.length > 1 ? 's' : '') +
-            ': ' +
-            ctx.missingFonts.value.join(', ')
-          "
-        >
-          <icon-lucide-alert-triangle
-            role="img"
-            :aria-label="
-              'Missing font' +
-              (ctx.missingFonts.value.length > 1 ? 's' : '') +
-              ': ' +
-              ctx.missingFonts.value.join(', ')
-            "
-            class="size-3.5 shrink-0 text-[var(--color-warning-action)]"
-          />
-        </Tip>
-      </div>
+  const alignmentOptions = useMemo(
+    () => [
+      { value: 'LEFT', label: panels.alignLeft },
+      { value: 'CENTER', label: panels.alignCenterHorizontally },
+      { value: 'RIGHT', label: panels.alignRight },
+      { value: 'JUSTIFIED', label: panels.textAlignment }
+    ],
+    [panels.alignCenterHorizontally, panels.alignLeft, panels.alignRight, panels.textAlignment]
+  )
 
-      <PanelGrid columns="two" class="mb-3">
-        <PanelFieldGroup :label="panels.fontWeight">
-          <AppSelect
-            :label="panels.fontWeight"
-            :model-value="ctx.node.value.fontWeight"
-            :options="ctx.weights"
-            @update:model-value="ctx.actions.setWeight(+$event)"
-          />
-        </PanelFieldGroup>
-        <PanelFieldGroup :label="panels.fontSize">
-          <VariableNumberField
-            :model-value="ctx.node.value.fontSize"
-            :aria-label="panels.fontSize"
-            :min="1"
-            :max="1000"
-            :node-id="ctx.node.value.id"
-            binding-path="fontSize"
-            @update:model-value="ctx.actions.updateProp('fontSize', $event)"
-            @commit="(v: number, p: number) => ctx.actions.commitProp('fontSize', v, p)"
-          />
-        </PanelFieldGroup>
-      </PanelGrid>
+  const verticalAlignmentOptions = useMemo(
+    () => [
+      { value: 'TOP', label: panels.alignTop },
+      { value: 'CENTER', label: panels.alignCenterVertically },
+      { value: 'BOTTOM', label: panels.alignBottom }
+    ],
+    [panels.alignBottom, panels.alignCenterVertically, panels.alignTop]
+  )
 
-      <PanelGrid columns="two" class="mb-3">
-        <PanelFieldGroup :label="panels.lineHeight">
-          <VariableNumberField
-            :model-value="
-              ctx.node.value.lineHeight ?? Math.round((ctx.node.value.fontSize || 14) * 1.2)
-            "
-            :aria-label="panels.lineHeight"
-            :min="0"
-            :node-id="ctx.node.value.id"
-            binding-path="lineHeight"
-            @update:model-value="ctx.actions.updateProp('lineHeight', $event)"
-            @commit="(v: number, p: number) => ctx.actions.commitProp('lineHeight', v, p)"
-          >
-            <template #icon>
-              <icon-lucide-baseline class="size-3" />
-            </template>
-          </VariableNumberField>
-        </PanelFieldGroup>
-        <PanelFieldGroup :label="panels.letterSpacing">
-          <VariableNumberField
-            suffix="%"
-            :model-value="ctx.node.value.letterSpacing"
-            :aria-label="panels.letterSpacing"
-            :node-id="ctx.node.value.id"
-            binding-path="letterSpacing"
-            @update:model-value="ctx.actions.updateProp('letterSpacing', $event)"
-            @commit="(v: number, p: number) => ctx.actions.commitProp('letterSpacing', v, p)"
-          >
-            <template #icon>
-              <icon-lucide-a-large-small class="size-3" />
-            </template>
-          </VariableNumberField>
-        </PanelFieldGroup>
-      </PanelGrid>
+  const textCaseOptions = useMemo(
+    () => [
+      { value: 'ORIGINAL', label: panels.textCaseOriginal },
+      { value: 'UPPER', label: panels.textCaseUpper },
+      { value: 'LOWER', label: panels.textCaseLower },
+      { value: 'TITLE', label: panels.textCaseTitle }
+    ],
+    [panels.textCaseLower, panels.textCaseOriginal, panels.textCaseTitle, panels.textCaseUpper]
+  )
 
-      <PanelFieldGroup :label="panels.direction" class="mb-3">
-        <AppSelect
-          :label="panels.direction"
-          :model-value="ctx.node.value.textDirection"
-          :options="[
-            { value: 'AUTO', label: panels.auto },
-            { value: 'LTR', label: 'LTR' },
-            { value: 'RTL', label: 'RTL' }
-          ]"
-          @update:model-value="ctx.actions.setDirection($event as 'AUTO' | 'LTR' | 'RTL')"
-        />
-      </PanelFieldGroup>
+  const truncationOptions = useMemo(
+    () => [
+      { value: 'DISABLED', label: panels.truncationDisabled },
+      { value: 'ENDING', label: panels.truncationEnding }
+    ],
+    [panels.truncationDisabled, panels.truncationEnding]
+  )
 
-      <PanelFieldGroup :label="panels.textAlignment" class="mb-3">
-        <SegmentedControl
-          :model-value="ctx.node.value.textAlignHorizontal"
-          :options="alignmentOptions"
-          :label="panels.textAlignment"
-          @change="ctx.actions.align($event as 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED')"
-        >
-          <template #option="{ option }">
-            <icon-lucide-align-left v-if="option.value === 'LEFT'" class="size-3.5" />
-            <icon-lucide-align-center v-else-if="option.value === 'CENTER'" class="size-3.5" />
-            <icon-lucide-align-right v-else-if="option.value === 'RIGHT'" class="size-3.5" />
-            <icon-lucide-align-justify v-else class="size-3.5" />
-          </template>
-        </SegmentedControl>
-      </PanelFieldGroup>
+  const commonFeatures = useMemo(
+    () => [
+      { tag: 'LIGA', label: panels.standardLigatures },
+      { tag: 'CALT', label: panels.contextualAlternates },
+      { tag: 'KERN', label: panels.kerning }
+    ],
+    [panels.contextualAlternates, panels.kerning, panels.standardLigatures]
+  )
 
-      <PanelFieldGroup :label="panels.verticalTextAlignment" class="mb-3">
-        <SegmentedControl
-          :model-value="ctx.node.value.textAlignVertical"
-          :options="verticalAlignmentOptions"
-          :label="panels.verticalTextAlignment"
-          @change="ctx.actions.setVerticalAlign($event as 'TOP' | 'CENTER' | 'BOTTOM')"
-        >
-          <template #option="{ option }">
-            <icon-lucide-align-vertical-justify-start
-              v-if="option.value === 'TOP'"
-              class="size-3.5"
-            />
-            <icon-lucide-align-vertical-justify-center
-              v-else-if="option.value === 'CENTER'"
-              class="size-3.5"
-            />
-            <icon-lucide-align-vertical-justify-end v-else class="size-3.5" />
-          </template>
-        </SegmentedControl>
-      </PanelFieldGroup>
+  return (
+    <TypographyControlsRoot fontLoader={fontLoader}>
+      {(ctx) =>
+        ctx.node ? (
+          <PanelSection label={panels.typography}>
+            <SharedStyleField kind="text" label={panels.textStyle} />
 
-      <PanelFieldGroup :label="panels.textFormatting" class="mb-3" :ui="{ container: 'flex-row gap-1.5' }">
-        <div
-          class="inline-flex items-center gap-0.5 rounded bg-panel-field p-0.5 hover:bg-panel-field-hover"
-          role="toolbar"
-          :aria-label="panels.textFormatting"
-        >
-          <IconButton
-            :label="`${menu.bold} (${appMenuShortcutLabel('text.bold')})`"
-            size="md"
-            :active="ctx.activeFormatting.value.includes('bold')"
-            @click="ctx.actions.toggleBold"
-          >
-            <icon-lucide-bold class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="`${menu.italic} (${appMenuShortcutLabel('text.italic')})`"
-            size="md"
-            :active="ctx.activeFormatting.value.includes('italic')"
-            @click="ctx.actions.toggleItalic"
-          >
-            <icon-lucide-italic class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="`${menu.underline} (${appMenuShortcutLabel('text.underline')})`"
-            size="md"
-            :active="ctx.activeFormatting.value.includes('underline')"
-            @click="ctx.actions.toggleDecoration('UNDERLINE')"
-          >
-            <icon-lucide-underline class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="menu.strikethrough"
-            size="md"
-            :active="ctx.activeFormatting.value.includes('strikethrough')"
-            @click="ctx.actions.toggleDecoration('STRIKETHROUGH')"
-          >
-            <icon-lucide-strikethrough class="size-3.5" />
-          </IconButton>
-        </div>
-      </PanelFieldGroup>
+            <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
+              <FontPicker
+                className="min-w-0 flex-1"
+                value={ctx.node.fontFamily}
+                label={panels.fontFamily}
+                onSelect={ctx.actions.setFamily}
+                onValueChange={ctx.actions.setFamily}
+              />
+              <FontSettingsPopover />
+              {ctx.hasMissingFonts ? (
+                <Tip
+                  label={`Missing font${ctx.missingFonts.length > 1 ? 's' : ''}: ${ctx.missingFonts.join(', ')}`}
+                >
+                  <IconLucideAlertTriangle
+                    role="img"
+                    aria-label={`Missing font${ctx.missingFonts.length > 1 ? 's' : ''}: ${ctx.missingFonts.join(', ')}`}
+                    className="size-3.5 shrink-0 text-[var(--color-warning-action)]"
+                  />
+                </Tip>
+              ) : null}
+            </div>
 
-      <PanelGrid columns="two" class="mb-3">
-        <PanelFieldGroup :label="panels.textCase">
-          <AppSelect
-            :label="panels.textCase"
-            :model-value="ctx.node.value.textCase"
-            :options="textCaseOptions"
-            @update:model-value="
-              ctx.actions.setTextCase($event as 'ORIGINAL' | 'UPPER' | 'LOWER' | 'TITLE')
-            "
-          />
-        </PanelFieldGroup>
-        <PanelFieldGroup :label="panels.truncation">
-          <AppSelect
-            :label="panels.truncation"
-            :model-value="ctx.node.value.textTruncation"
-            :options="truncationOptions"
-            @update:model-value="ctx.actions.setTruncation($event as 'DISABLED' | 'ENDING')"
-          />
-        </PanelFieldGroup>
-      </PanelGrid>
+            <PanelGrid columns="two" className="mb-3">
+              <PanelFieldGroup label={panels.fontWeight}>
+                <AppSelect
+                  label={panels.fontWeight}
+                  value={ctx.node.fontWeight}
+                  options={ctx.weights}
+                  onValueChange={(value) => ctx.actions.setWeight(Number(value))}
+                />
+              </PanelFieldGroup>
+              <PanelFieldGroup label={panels.fontSize}>
+                <VariableNumberField
+                  value={ctx.node.fontSize}
+                  aria-label={panels.fontSize}
+                  min={1}
+                  max={1000}
+                  nodeId={ctx.node.id}
+                  bindingPath="fontSize"
+                  onValueChange={(value) => ctx.actions.updateProp('fontSize', value)}
+                  onCommit={(value, previous) => ctx.actions.commitProp('fontSize', value, previous)}
+                />
+              </PanelFieldGroup>
+            </PanelGrid>
 
-      <PanelFieldGroup
-        v-if="ctx.node.value.textTruncation === 'ENDING'"
-        :label="panels.maxLines"
-        class="mb-3"
-      >
-        <NumberField
-          :model-value="ctx.node.value.maxLines ?? 1"
-          :aria-label="panels.maxLines"
-          :min="1"
-          :step="1"
-          data-property="max-lines"
-          @update:model-value="ctx.actions.updateProp('maxLines', Math.max(1, Math.round($event)))"
-          @commit="
-            (value: number, previous: number) => ctx.actions.commitProp('maxLines', value, previous)
-          "
-        />
-      </PanelFieldGroup>
+            <PanelGrid columns="two" className="mb-3">
+              <PanelFieldGroup label={panels.lineHeight}>
+                <VariableNumberField
+                  value={ctx.node.lineHeight ?? Math.round((ctx.node.fontSize || 14) * 1.2)}
+                  aria-label={panels.lineHeight}
+                  min={0}
+                  nodeId={ctx.node.id}
+                  bindingPath="lineHeight"
+                  icon={<IconLucideBaseline className="size-3" />}
+                  onValueChange={(value) => ctx.actions.updateProp('lineHeight', value)}
+                  onCommit={(value, previous) => ctx.actions.commitProp('lineHeight', value, previous)}
+                />
+              </PanelFieldGroup>
+              <PanelFieldGroup label={panels.letterSpacing}>
+                <VariableNumberField
+                  suffix="%"
+                  value={ctx.node.letterSpacing}
+                  aria-label={panels.letterSpacing}
+                  nodeId={ctx.node.id}
+                  bindingPath="letterSpacing"
+                  icon={<IconLucideALargeSmall className="size-3" />}
+                  onValueChange={(value) => ctx.actions.updateProp('letterSpacing', value)}
+                  onCommit={(value, previous) =>
+                    ctx.actions.commitProp('letterSpacing', value, previous)
+                  }
+                />
+              </PanelFieldGroup>
+            </PanelGrid>
 
-      <div class="mb-3 grid gap-2.5">
-        <label
-          v-for="feature in commonFeatures"
-          :key="feature.tag"
-          class="flex items-center justify-between gap-1.5 text-[11px] text-muted/70"
-        >
-          <span>{{ feature.label }}</span>
-          <AppSwitch
-            :model-value="featureEnabled(ctx.node.value.fontFeatures, feature.tag)"
-            :label="feature.label"
-            :data-property="`font-feature-${feature.tag.toLowerCase()}`"
-            @update:model-value="ctx.actions.setFontFeature(feature.tag, $event)"
-          />
-        </label>
-      </div>
-    </PanelSection>
-  </TypographyControlsRoot>
-</template>
+            <PanelFieldGroup label={panels.direction} className="mb-3">
+              <AppSelect
+                label={panels.direction}
+                value={ctx.node.textDirection}
+                options={[
+                  { value: 'AUTO', label: panels.auto },
+                  { value: 'LTR', label: 'LTR' },
+                  { value: 'RTL', label: 'RTL' }
+                ]}
+                onValueChange={(value) =>
+                  ctx.actions.setDirection(value as 'AUTO' | 'LTR' | 'RTL')
+                }
+              />
+            </PanelFieldGroup>
+
+            <PanelFieldGroup label={panels.textAlignment} className="mb-3">
+              <SegmentedControl
+                value={ctx.node.textAlignHorizontal}
+                options={alignmentOptions}
+                label={panels.textAlignment}
+                onValueChange={(value) =>
+                  ctx.actions.align(value as 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED')
+                }
+                onChange={(value) =>
+                  ctx.actions.align(value as 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED')
+                }
+                renderOption={({ option }) =>
+                  option.value === 'LEFT' ? (
+                    <IconLucideAlignLeft className="size-3.5" />
+                  ) : option.value === 'CENTER' ? (
+                    <IconLucideAlignCenter className="size-3.5" />
+                  ) : option.value === 'RIGHT' ? (
+                    <IconLucideAlignRight className="size-3.5" />
+                  ) : (
+                    <IconLucideAlignJustify className="size-3.5" />
+                  )
+                }
+              />
+            </PanelFieldGroup>
+
+            <PanelFieldGroup label={panels.verticalTextAlignment} className="mb-3">
+              <SegmentedControl
+                value={ctx.node.textAlignVertical}
+                options={verticalAlignmentOptions}
+                label={panels.verticalTextAlignment}
+                onValueChange={(value) =>
+                  ctx.actions.setVerticalAlign(value as 'TOP' | 'CENTER' | 'BOTTOM')
+                }
+                onChange={(value) => ctx.actions.setVerticalAlign(value as 'TOP' | 'CENTER' | 'BOTTOM')}
+                renderOption={({ option }) =>
+                  option.value === 'TOP' ? (
+                    <IconLucideAlignVerticalJustifyStart className="size-3.5" />
+                  ) : option.value === 'CENTER' ? (
+                    <IconLucideAlignVerticalJustifyCenter className="size-3.5" />
+                  ) : (
+                    <IconLucideAlignVerticalJustifyEnd className="size-3.5" />
+                  )
+                }
+              />
+            </PanelFieldGroup>
+
+            <PanelFieldGroup label={panels.textFormatting} className="mb-3" ui={{ container: 'flex-row gap-1.5' }}>
+              <div
+                className="inline-flex items-center gap-0.5 rounded bg-panel-field p-0.5 hover:bg-panel-field-hover"
+                role="toolbar"
+                aria-label={panels.textFormatting}
+              >
+                <IconButton
+                  label={`${menu.bold} (${appMenuShortcutLabel('text.bold')})`}
+                  size="md"
+                  active={ctx.activeFormatting.includes('bold')}
+                  onClick={ctx.actions.toggleBold}
+                >
+                  <IconLucideBold className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={`${menu.italic} (${appMenuShortcutLabel('text.italic')})`}
+                  size="md"
+                  active={ctx.activeFormatting.includes('italic')}
+                  onClick={ctx.actions.toggleItalic}
+                >
+                  <IconLucideItalic className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={`${menu.underline} (${appMenuShortcutLabel('text.underline')})`}
+                  size="md"
+                  active={ctx.activeFormatting.includes('underline')}
+                  onClick={() => ctx.actions.toggleDecoration('UNDERLINE')}
+                >
+                  <IconLucideUnderline className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={menu.strikethrough}
+                  size="md"
+                  active={ctx.activeFormatting.includes('strikethrough')}
+                  onClick={() => ctx.actions.toggleDecoration('STRIKETHROUGH')}
+                >
+                  <IconLucideStrikethrough className="size-3.5" />
+                </IconButton>
+              </div>
+            </PanelFieldGroup>
+
+            <PanelGrid columns="two" className="mb-3">
+              <PanelFieldGroup label={panels.textCase}>
+                <AppSelect
+                  label={panels.textCase}
+                  value={ctx.node.textCase}
+                  options={textCaseOptions}
+                  onValueChange={(value) =>
+                    ctx.actions.setTextCase(value as 'ORIGINAL' | 'UPPER' | 'LOWER' | 'TITLE')
+                  }
+                />
+              </PanelFieldGroup>
+              <PanelFieldGroup label={panels.truncation}>
+                <AppSelect
+                  label={panels.truncation}
+                  value={ctx.node.textTruncation}
+                  options={truncationOptions}
+                  onValueChange={(value) =>
+                    ctx.actions.setTruncation(value as 'DISABLED' | 'ENDING')
+                  }
+                />
+              </PanelFieldGroup>
+            </PanelGrid>
+
+            {ctx.node.textTruncation === 'ENDING' ? (
+              <PanelFieldGroup label={panels.maxLines} className="mb-3">
+                <NumberField
+                  value={ctx.node.maxLines ?? 1}
+                  aria-label={panels.maxLines}
+                  min={1}
+                  step={1}
+                  data-property="max-lines"
+                  onValueChange={(value) =>
+                    ctx.actions.updateProp('maxLines', Math.max(1, Math.round(value)))
+                  }
+                  onCommit={(value, previous) => ctx.actions.commitProp('maxLines', value, previous)}
+                />
+              </PanelFieldGroup>
+            ) : null}
+
+            <div className="mb-3 grid gap-2.5">
+              {commonFeatures.map((feature) => (
+                <label
+                  key={feature.tag}
+                  className="flex items-center justify-between gap-1.5 text-[11px] text-muted/70"
+                >
+                  <span>{feature.label}</span>
+                  <AppSwitch
+                    checked={featureEnabled(ctx.node?.fontFeatures ?? [], feature.tag)}
+                    label={feature.label}
+                    data-property={`font-feature-${feature.tag.toLowerCase()}`}
+                    onCheckedChange={(enabled) => ctx.actions.setFontFeature(feature.tag, enabled)}
+                  />
+                </label>
+              ))}
+            </div>
+          </PanelSection>
+        ) : null
+      }
+    </TypographyControlsRoot>
+  )
+})
+
+TypographySection.displayName = 'TypographySection'
+export default TypographySection

@@ -1,20 +1,18 @@
-<script setup lang="ts">
+import { memo } from 'react'
+
 import { useMobileHudContext } from '@/components/MobileHud/context'
 
-const hud = useMobileHudContext()
-</script>
+export const MobileActionToast = memo(function MobileActionToast() {
+  const hud = useMobileHudContext()
 
-<template>
-  <Transition
-    enter-active-class="animate-in fade-in duration-150"
-    leave-active-class="animate-out fade-out duration-200"
-  >
-    <div
-      v-if="hud.actionToast"
-      :key="hud.actionToast"
-      class="flex h-8 items-center rounded-full border border-accent/20 bg-panel/70 px-3 shadow-md backdrop-blur-xl"
-    >
-      <span class="text-xs whitespace-nowrap text-accent">{{ hud.actionToast }}</span>
+  if (!hud.actionToast) return null
+
+  return (
+    <div className="flex h-8 animate-in fade-in items-center rounded-full border border-accent/20 bg-panel/70 px-3 shadow-md backdrop-blur-xl duration-150">
+      <span className="text-xs whitespace-nowrap text-accent">{hud.actionToast}</span>
     </div>
-  </Transition>
-</template>
+  )
+})
+
+MobileActionToast.displayName = 'MobileActionToast'
+export default MobileActionToast

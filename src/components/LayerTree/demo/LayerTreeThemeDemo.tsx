@@ -1,12 +1,11 @@
-<script setup lang="ts">
-import LayerTreeNodeRow from '../LayerTreeNodeRow.vue'
-import LayerTreeRenameRow from '../LayerTreeRenameRow.vue'
-import { provideLayerTreeUI } from '../ui'
+import { memo } from 'react'
 
-import type { LayerNode } from '@open-pencil/vue'
-import type { LayerRenameControls, LayerTreeChrome, LayerTreeItemActions } from '../types'
+import type { LayerNode } from '@open-pencil/react'
 
-provideLayerTreeUI(() => undefined)
+import LayerTreeNodeRow from '@/components/LayerTree/LayerTreeNodeRow'
+import LayerTreeRenameRow from '@/components/LayerTree/LayerTreeRenameRow'
+import type { LayerRenameControls, LayerTreeChrome, LayerTreeItemActions } from '@/components/LayerTree/types'
+import { LayerTreeUIProvider } from '@/components/LayerTree/ui'
 
 function noop() {
   return undefined
@@ -19,6 +18,7 @@ const actions: LayerTreeItemActions = {
   toggleLock: noop,
   rename: noop
 }
+
 const renameControls: LayerRenameControls = {
   commit: noop,
   onKeydown: noop,
@@ -106,36 +106,45 @@ const states = [
     })
   }
 ]
-</script>
 
-<template>
-  <div class="w-72 rounded-lg border border-border bg-panel p-2 shadow-lg">
-    <div class="mb-2 text-[11px] font-semibold tracking-wider text-muted uppercase">
-      Layer Tree states
-    </div>
-    <div class="space-y-1">
-      <div v-for="state in states" :key="state.label" :aria-label="state.label">
-        <LayerTreeNodeRow
-          :node="state.node"
-          :level="1"
-          has-children
-          :selected="state.selected"
-          pad-left="8px"
-          :expanded="state.label === 'Normal'"
-          :actions="actions"
-          :chrome="state.chrome"
-        />
+export const LayerTreeThemeDemo = memo(function LayerTreeThemeDemo() {
+  return (
+    <LayerTreeUIProvider>
+      <div className="w-72 rounded-lg border border-border bg-panel p-2 shadow-lg">
+        <div className="mb-2 text-[11px] font-semibold tracking-wider text-muted uppercase">
+          Layer Tree states
+        </div>
+        <div className="space-y-1">
+          {states.map((state) => (
+            <div key={state.label} aria-label={state.label}>
+              <LayerTreeNodeRow
+                node={state.node}
+                level={1}
+                hasChildren
+                selected={state.selected}
+                padLeft="8px"
+                expanded={state.label === 'Normal'}
+                actions={actions}
+                chrome={state.chrome}
+                onRenameStart={noop}
+              />
+            </div>
+          ))}
+          <div aria-label="Rename">
+            <LayerTreeRenameRow
+              node={node('Rename')}
+              hasChildren={false}
+              padLeft="8px"
+              expanded={false}
+              actions={actions}
+              renameControls={renameControls}
+            />
+          </div>
+        </div>
       </div>
-      <div aria-label="Rename">
-        <LayerTreeRenameRow
-          :node="node('Rename')"
-          :has-children="false"
-          pad-left="8px"
-          :expanded="false"
-          :actions="actions"
-          :rename-controls="renameControls"
-        />
-      </div>
-    </div>
-  </div>
-</template>
+    </LayerTreeUIProvider>
+  )
+})
+
+LayerTreeThemeDemo.displayName = 'LayerTreeThemeDemo'
+export default LayerTreeThemeDemo

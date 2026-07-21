@@ -3,4 +3,4 @@ export {
   toolbarFlyoutTestId,
   toolbarToolTestId,
   variablesAddTestId
-} from '#vue/testing/test-id'
+} from '#react/testing/test-id'

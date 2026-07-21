@@ -1,6 +1,3 @@
-import { useLocalStorage } from '@vueuse/core'
-import { computed, watch } from 'vue'
-
 import {
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
@@ -10,6 +7,13 @@ import {
 } from '@open-pencil/core/constants'
 import type { AIProviderID } from '@open-pencil/core/constants'
 import { setPexelsApiKey, setUnsplashAccessKey } from '@open-pencil/core/tools'
+
+import {
+  createComputedValue,
+  createPersistedValue,
+  watchValues,
+  type MutableValue
+} from '@/shared/persistedValue'
 
 const STORAGE_PREFIX = 'open-pencil:'
 const LEGACY_KEY_STORAGE = `${STORAGE_PREFIX}openrouter-api-key`
@@ -31,30 +35,55 @@ function migrateLegacyStorage() {
 
 if (IS_BROWSER) migrateLegacyStorage()
 
-export const providerID = useLocalStorage<AIProviderID>(
+export const providerID = createPersistedValue<AIProviderID>(
   `${STORAGE_PREFIX}ai-provider`,
   DEFAULT_AI_PROVIDER
 )
-const apiKeyStorageKey = computed(() => keyStorageKey(providerID.value))
-export const apiKey = useLocalStorage(apiKeyStorageKey, '')
-export const modelID = useLocalStorage(`${STORAGE_PREFIX}ai-model`, DEFAULT_AI_MODEL)
-export const customBaseURL = useLocalStorage(`${STORAGE_PREFIX}ai-base-url`, '')
-export const customModelID = useLocalStorage(`${STORAGE_PREFIX}ai-custom-model`, '')
-export const customAPIType = useLocalStorage<'completions' | 'responses'>(
+
+const apiKeyListeners = new Set<() => void>()
+
+export const apiKey: MutableValue<string> & { subscribe: (listener: () => void) => () => void } = {
+  get value() {
+    return readApiKey(providerID.value)
+  },
+  set value(key: string) {
+    writeApiKey(providerID.value, key)
+    for (const listener of apiKeyListeners) listener()
+  },
+  subscribe(listener: () => void) {
+    apiKeyListeners.add(listener)
+    return () => apiKeyListeners.delete(listener)
+  }
+}
+
+function readApiKey(id: AIProviderID): string {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(keyStorageKey(id)) ?? ''
+}
+
+function writeApiKey(id: AIProviderID, key: string): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(keyStorageKey(id), key)
+}
+
+export const modelID = createPersistedValue(`${STORAGE_PREFIX}ai-model`, DEFAULT_AI_MODEL)
+export const customBaseURL = createPersistedValue(`${STORAGE_PREFIX}ai-base-url`, '')
+export const customModelID = createPersistedValue(`${STORAGE_PREFIX}ai-custom-model`, '')
+export const customAPIType = createPersistedValue<'completions' | 'responses'>(
   `${STORAGE_PREFIX}ai-api-type`,
   'completions'
 )
-export const maxOutputTokens = useLocalStorage(`${STORAGE_PREFIX}ai-max-output-tokens`, 16384)
-export const pexelsApiKey = useLocalStorage(`${STORAGE_PREFIX}pexels-api-key`, '')
-export const unsplashAccessKey = useLocalStorage(`${STORAGE_PREFIX}unsplash-access-key`, '')
+export const maxOutputTokens = createPersistedValue(`${STORAGE_PREFIX}ai-max-output-tokens`, 16384)
+export const pexelsApiKey = createPersistedValue(`${STORAGE_PREFIX}pexels-api-key`, '')
+export const unsplashAccessKey = createPersistedValue(`${STORAGE_PREFIX}unsplash-access-key`, '')
 
-export const providerDef = computed(
-  () => AI_PROVIDERS.find((p) => p.id === providerID.value) ?? AI_PROVIDERS[0]
+export const providerDef = createComputedValue(
+  () => AI_PROVIDERS.find((provider) => provider.id === providerID.value) ?? AI_PROVIDERS[0]
 )
 
-export const isACPProvider = computed(() => providerID.value.startsWith('acp:'))
+export const isACPProvider = createComputedValue(() => providerID.value.startsWith('acp:'))
 
-export const isConfigured = computed(() => {
+export const isConfigured = createComputedValue(() => {
   if (isACPProvider.value) return IS_TAURI
   if (!apiKey.value) return false
   const needsBaseURL =
@@ -68,33 +97,28 @@ export function setAPIKey(key: string) {
 }
 
 export function registerAIChatEffects(markTransportDirty: () => void) {
-  watch(
+  setPexelsApiKey(pexelsApiKey.value || null)
+  setUnsplashAccessKey(unsplashAccessKey.value || null)
+
+  const unwatch = watchValues(markTransportDirty, [
     pexelsApiKey,
-    (key) => {
-      setPexelsApiKey(key || null)
-    },
-    { immediate: true }
-  )
-
-  watch(
     unsplashAccessKey,
-    (key) => {
-      setUnsplashAccessKey(key || null)
-    },
-    { immediate: true }
-  )
+    providerID,
+    modelID,
+    customModelID,
+    customAPIType,
+    customBaseURL,
+    maxOutputTokens,
+    apiKey
+  ])
 
-  watch(providerID, (id) => {
-    const def = AI_PROVIDERS.find((p) => p.id === id)
-    if (def?.defaultModel) {
-      modelID.value = def.defaultModel
-    }
-    markTransportDirty()
+  const unsubProvider = providerID.subscribe(() => {
+    const def = AI_PROVIDERS.find((provider) => provider.id === providerID.value)
+    if (def?.defaultModel) modelID.value = def.defaultModel
   })
 
-  watch(modelID, markTransportDirty)
-  watch(customModelID, markTransportDirty)
-  watch(customAPIType, markTransportDirty)
-  watch(apiKey, markTransportDirty)
-  watch(customBaseURL, markTransportDirty)
+  return () => {
+    unwatch()
+    unsubProvider()
+  }
 }

@@ -1,13 +1,17 @@
-<script setup lang="ts">
-import { SliderTrack } from 'reka-ui'
+import type { ChannelSliderPartProps } from '#react/primitives/ChannelSlider/types'
+import { memo, type ReactNode } from 'react'
 
-import type { ChannelSliderPartProps } from '#vue/primitives/ChannelSlider/types'
+export type ChannelSliderTrackProps = ChannelSliderPartProps & { children?: ReactNode }
 
-const { as = 'span', asChild = false } = defineProps<ChannelSliderPartProps>()
-</script>
+export const ChannelSliderTrack = memo(function ChannelSliderTrack({
+  children,
+  ...props
+}: ChannelSliderTrackProps) {
+  return (
+    <span {...props} data-slot="track">
+      {children}
+    </span>
+  )
+})
 
-<template>
-  <SliderTrack :as="as" :as-child="asChild" data-slot="track">
-    <slot />
-  </SliderTrack>
-</template>
+ChannelSliderTrack.displayName = 'ChannelSliderTrack'

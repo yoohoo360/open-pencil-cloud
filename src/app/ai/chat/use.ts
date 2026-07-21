@@ -1,5 +1,3 @@
-import { ref } from 'vue'
-
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
 import {
@@ -22,7 +20,7 @@ import { createChatSessionManager } from '@/app/ai/chat/transports'
 import { exposeChatTransportOverride } from '@/app/browser-bridge'
 import { getActiveEditorStore } from '@/app/editor/active-store'
 
-const activeTab = ref<'design' | 'code' | 'ai'>('design')
+const activeTab = { value: 'design' as 'design' | 'code' | 'ai' }
 
 const chatSession = createChatSessionManager({
   isConfigured,

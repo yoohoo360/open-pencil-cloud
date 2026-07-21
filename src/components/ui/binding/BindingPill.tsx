@@ -1,53 +1,50 @@
-<script lang="ts">
-import type { HTMLAttributes } from 'vue'
+import { memo, useMemo, type HTMLAttributes } from 'react'
+import { twMerge } from 'tailwind-merge'
 
-import type { BindingFieldUI } from './ui'
+import Tip from '@/components/ui/Tip'
+import { useBindingFieldUI, type BindingFieldUI } from '@/components/ui/binding/ui'
 
-export interface BindingPillProps {
+export type BindingPillProps = {
   label: string
   tooltip?: string
   disabled?: boolean
   derived?: boolean
-  class?: HTMLAttributes['class']
+  className?: string
   ui?: BindingFieldUI
-}
-</script>
+} & Omit<HTMLAttributes<HTMLSpanElement>, 'children'>
 
-<script setup lang="ts">
-import { computed, normalizeClass } from 'vue'
-
-import Tip from '@/components/ui/Tip.vue'
-import { useBindingFieldUI } from '@/components/ui/binding/ui'
-
-const {
+export const BindingPill = memo(function BindingPill({
   label,
   tooltip,
   disabled = false,
   derived = false,
-  class: className,
-  ui
-} = defineProps<BindingPillProps>()
-
-const styles = computed(() =>
-  useBindingFieldUI(
-    { state: 'bound', disabled, derived },
-    { ...ui, pill: [ui?.pill, normalizeClass(className)].filter(Boolean).join(' ') }
+  className,
+  ui,
+  ...rest
+}: BindingPillProps) {
+  const styles = useMemo(
+    () =>
+      useBindingFieldUI(
+        { state: 'bound', disabled, derived },
+        { ...ui, pill: twMerge(ui?.pill, className) }
+      ),
+    [className, derived, disabled, ui]
   )
-)
 
-defineOptions({ inheritAttrs: false })
-</script>
+  return (
+    <Tip label={tooltip} disabled={!tooltip}>
+      <span
+        {...rest}
+        className={styles.pill}
+        data-disabled={disabled ? '' : undefined}
+        data-derived={derived ? '' : undefined}
+        data-slot="pill"
+      >
+        <span className={styles.pillLabel}>{label}</span>
+      </span>
+    </Tip>
+  )
+})
 
-<template>
-  <Tip :label="tooltip" :disabled="!tooltip">
-    <span
-      v-bind="$attrs"
-      :class="styles.pill"
-      :data-disabled="disabled ? '' : undefined"
-      :data-derived="derived ? '' : undefined"
-      data-slot="pill"
-    >
-      <span :class="styles.pillLabel">{{ label }}</span>
-    </span>
-  </Tip>
-</template>
+BindingPill.displayName = 'BindingPill'
+export default BindingPill

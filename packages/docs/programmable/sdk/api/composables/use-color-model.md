@@ -16,7 +16,7 @@ Pass callbacks to connect it to your own state or persistence layer.
 
 ```ts
 import { ref } from 'vue'
-import { useColorModel } from '@open-pencil/vue'
+import { useColorModel } from '@open-pencil/react'
 import type { Color } from '@open-pencil/scene-graph'
 
 const color = ref<Color>({ r: 0.25, g: 0.5, b: 0.9, a: 1 })

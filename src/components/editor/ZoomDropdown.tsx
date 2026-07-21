@@ -1,73 +1,13 @@
-<script setup lang="ts">
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from 'reka-ui'
-import { nextTick, ref, watch } from 'vue'
+import IconLucideCheck from '~icons/lucide/check'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useEditorCommands, useI18n, formatShortcut } from '@open-pencil/vue'
-import AppShortcutText from '@/components/ui/AppShortcutText.vue'
-import { menuItem, useMenuUI } from '@/components/ui/menu'
+import { formatShortcut, useEditorCommands, useI18n } from '@open-pencil/react'
+
 import { useEditorStore } from '@/app/editor/active-store'
 import { appMenuShortcut, appMenuShortcutLabel } from '@/app/shell/menu/shortcut'
-
-const store = useEditorStore()
-const { getCommand } = useEditorCommands()
-const { menu: menuText, commands, panels } = useI18n()
-
-const open = ref(false)
-const editing = ref(false)
-const inputRef = ref<HTMLInputElement | null>()
-const inputValue = ref('')
-
-const menuCls = useMenuUI({ content: 'min-w-52' })
-const itemCls = menuItem({ justify: 'start', class: 'relative pl-7' })
-
-function zoomPercent() {
-  return Math.round(store.state.zoom * 100)
-}
-
-function startEditing() {
-  editing.value = true
-  inputValue.value = String(zoomPercent())
-  void nextTick(() => inputRef.value?.select())
-}
-
-function commitInput() {
-  const parsed = Number.parseInt(inputValue.value, 10)
-  if (!Number.isNaN(parsed) && parsed > 0) {
-    store.zoomToLevel(parsed / 100)
-  }
-  editing.value = false
-}
-
-function cancelInput() {
-  editing.value = false
-}
-
-function toggleRulers() {
-  store.state.showRulers = !store.state.showRulers
-  store.requestRepaint()
-}
-
-function toggleRemoteCursors() {
-  store.state.showRemoteCursors = !store.state.showRemoteCursors
-  store.requestRepaint()
-}
-
-function zoomIn() {
-  const center = store.viewportScreenCenter()
-  store.applyZoom(-100, center.x, center.y)
-}
-
-function zoomOut() {
-  const center = store.viewportScreenCenter()
-  store.applyZoom(100, center.x, center.y)
-}
+import AppShortcutText from '@/components/ui/AppShortcutText'
+import { menuItem, useMenuUI } from '@/components/ui/menu'
 
 const ZOOM_PRESETS: ReadonlyArray<{ label: string; level: number; shortcut?: string }> = [
   { label: '50%', level: 0.5 },
@@ -75,96 +15,173 @@ const ZOOM_PRESETS: ReadonlyArray<{ label: string; level: number; shortcut?: str
   { label: '200%', level: 2 }
 ]
 
-function isActivePreset(level: number) {
-  return Math.abs(store.state.zoom - level) < 0.005
-}
+export const ZoomDropdown = memo(function ZoomDropdown() {
+  const store = useEditorStore()
+  const { getCommand } = useEditorCommands()
+  const { menu: menuText, commands, panels } = useI18n()
 
-watch(open, (v) => {
-  if (!v) editing.value = false
-})
-</script>
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [inputValue, setInputValue] = useState('')
 
-<template>
-  <DropdownMenuRoot v-model:open="open">
-    <DropdownMenuTrigger as-child>
-      <button
-        data-test-id="zoom-dropdown-trigger"
-        class="ml-auto cursor-pointer rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hover"
-      >
-        {{ zoomPercent() }}%
-      </button>
-    </DropdownMenuTrigger>
+  const menuCls = useMenuUI({ content: 'min-w-52' })
+  const itemCls = menuItem({ justify: 'start', class: 'relative pl-7' })
 
-    <DropdownMenuPortal>
-      <DropdownMenuContent
-        side="bottom"
-        :side-offset="4"
-        align="end"
-        :class="menuCls.content"
-        @escape-key-down="cancelInput"
-      >
-        <div class="px-1 py-1">
-          <input
-            v-if="editing"
-            ref="inputRef"
-            v-model="inputValue"
-            data-test-id="zoom-input"
-            class="w-full rounded border border-accent bg-input px-2 py-1 text-xs text-surface outline-none"
-            @blur="commitInput"
-            @keydown.enter="commitInput"
-            @keydown.escape.stop="cancelInput"
-          />
-          <button
-            v-else
-            data-test-id="zoom-input-trigger"
-            class="w-full cursor-pointer rounded border border-border bg-input px-2 py-1 text-left text-xs text-surface hover:border-muted"
-            @click="startEditing"
-          >
-            {{ zoomPercent() }}%
-          </button>
-        </div>
+  const zoomPercent = useCallback(() => Math.round(store.state.zoom * 100), [store.state.zoom])
 
-        <DropdownMenuSeparator :class="menuCls.separator" />
+  const startEditing = useCallback(() => {
+    setEditing(true)
+    setInputValue(String(zoomPercent()))
+  }, [zoomPercent])
 
-        <DropdownMenuItem :class="itemCls" @select="zoomIn">
-          <span class="flex-1">{{ menuText.zoomIn }}</span>
-          <AppShortcutText>{{ appMenuShortcutLabel('zoom-in') }}</AppShortcutText>
-        </DropdownMenuItem>
-        <DropdownMenuItem :class="itemCls" @select="zoomOut">
-          <span class="flex-1">{{ menuText.zoomOut }}</span>
-          <AppShortcutText>{{ appMenuShortcutLabel('zoom-out') }}</AppShortcutText>
-        </DropdownMenuItem>
-        <DropdownMenuItem :class="itemCls" @select="getCommand('view.zoomFit').run()">
-          <span class="flex-1">{{ commands.zoomToFit }}</span>
-          <AppShortcutText>{{ appMenuShortcutLabel('view.zoomFit') }}</AppShortcutText>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          v-for="preset in ZOOM_PRESETS"
-          :key="preset.level"
-          :class="itemCls"
-          @select="store.zoomToLevel(preset.level)"
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  const commitInput = useCallback(() => {
+    const parsed = Number.parseInt(inputValue, 10)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      store.zoomToLevel(parsed / 100)
+    }
+    setEditing(false)
+  }, [inputValue, store])
+
+  const cancelInput = useCallback(() => {
+    setEditing(false)
+  }, [])
+
+  useEffect(() => {
+    if (!open) setEditing(false)
+  }, [open])
+
+  const toggleRulers = useCallback(() => {
+    store.state.showRulers = !store.state.showRulers
+    store.requestRepaint()
+  }, [store])
+
+  const toggleRemoteCursors = useCallback(() => {
+    store.state.showRemoteCursors = !store.state.showRemoteCursors
+    store.requestRepaint()
+  }, [store])
+
+  const zoomIn = useCallback(() => {
+    const center = store.viewportScreenCenter()
+    store.applyZoom(-100, center.x, center.y)
+  }, [store])
+
+  const zoomOut = useCallback(() => {
+    const center = store.viewportScreenCenter()
+    store.applyZoom(100, center.x, center.y)
+  }, [store])
+
+  const isActivePreset = useCallback(
+    (level: number) => Math.abs(store.state.zoom - level) < 0.005,
+    [store.state.zoom]
+  )
+
+  const percent = useMemo(() => zoomPercent(), [zoomPercent])
+
+  return (
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          data-test-id="zoom-dropdown-trigger"
+          className="ml-auto cursor-pointer rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hover"
         >
-          <icon-lucide-check v-if="isActivePreset(preset.level)" class="absolute left-2 size-3.5" />
-          <span class="flex-1">{{ preset.label }}</span>
-          <AppShortcutText v-if="preset.shortcut">{{
-            formatShortcut(preset.shortcut)
-          }}</AppShortcutText>
-        </DropdownMenuItem>
+          {percent}%
+        </button>
+      </DropdownMenu.Trigger>
 
-        <DropdownMenuSeparator :class="menuCls.separator" />
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          side="bottom"
+          sideOffset={4}
+          align="end"
+          className={menuCls.content}
+          onEscapeKeyDown={cancelInput}
+        >
+          <div className="px-1 py-1">
+            {editing ? (
+              <input
+                ref={inputRef}
+                value={inputValue}
+                data-test-id="zoom-input"
+                className="w-full rounded border border-accent bg-input px-2 py-1 text-xs text-surface outline-none"
+                onBlur={commitInput}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') commitInput()
+                  if (event.key === 'Escape') {
+                    event.stopPropagation()
+                    cancelInput()
+                  }
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                data-test-id="zoom-input-trigger"
+                className="w-full cursor-pointer rounded border border-border bg-input px-2 py-1 text-left text-xs text-surface hover:border-muted"
+                onClick={startEditing}
+              >
+                {percent}%
+              </button>
+            )}
+          </div>
 
-        <DropdownMenuItem :class="itemCls" @select.prevent="toggleRulers">
-          <icon-lucide-check v-if="store.state.showRulers" class="absolute left-2 size-3.5" />
-          <span class="flex-1">{{ panels.rulers }}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem :class="itemCls" @select.prevent="toggleRemoteCursors">
-          <icon-lucide-check
-            v-if="store.state.showRemoteCursors"
-            class="absolute left-2 size-3.5"
-          />
-          <span class="flex-1">{{ panels.multiplayerCursors }}</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenuPortal>
-  </DropdownMenuRoot>
-</template>
+          <DropdownMenu.Separator className={menuCls.separator} />
+
+          <DropdownMenu.Item className={itemCls} onSelect={zoomIn}>
+            <span className="flex-1">{menuText.zoomIn}</span>
+            <AppShortcutText>{appMenuShortcutLabel('zoom-in')}</AppShortcutText>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={itemCls} onSelect={zoomOut}>
+            <span className="flex-1">{menuText.zoomOut}</span>
+            <AppShortcutText>{appMenuShortcutLabel('zoom-out')}</AppShortcutText>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={itemCls} onSelect={() => getCommand('view.zoomFit').run()}>
+            <span className="flex-1">{commands.zoomToFit}</span>
+            <AppShortcutText>{appMenuShortcutLabel('view.zoomFit')}</AppShortcutText>
+          </DropdownMenu.Item>
+          {ZOOM_PRESETS.map((preset) => (
+            <DropdownMenu.Item
+              key={preset.level}
+              className={itemCls}
+              onSelect={() => store.zoomToLevel(preset.level)}
+            >
+              {isActivePreset(preset.level) ? (
+                <IconLucideCheck className="absolute left-2 size-3.5" />
+              ) : null}
+              <span className="flex-1">{preset.label}</span>
+              {preset.shortcut ? (
+                <AppShortcutText>{formatShortcut(preset.shortcut)}</AppShortcutText>
+              ) : null}
+            </DropdownMenu.Item>
+          ))}
+
+          <DropdownMenu.Separator className={menuCls.separator} />
+
+          <DropdownMenu.Item className={itemCls} onSelect={(event) => event.preventDefault()} onClick={toggleRulers}>
+            {store.state.showRulers ? <IconLucideCheck className="absolute left-2 size-3.5" /> : null}
+            <span className="flex-1">{panels.rulers}</span>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className={itemCls}
+            onSelect={(event) => event.preventDefault()}
+            onClick={toggleRemoteCursors}
+          >
+            {store.state.showRemoteCursors ? (
+              <IconLucideCheck className="absolute left-2 size-3.5" />
+            ) : null}
+            <span className="flex-1">{panels.multiplayerCursors}</span>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+})
+
+ZoomDropdown.displayName = 'ZoomDropdown'
+export default ZoomDropdown

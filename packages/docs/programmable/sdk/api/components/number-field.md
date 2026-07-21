@@ -4,7 +4,7 @@ description: Headless numeric field primitives with scrubbing, expressions, and 
 ---
 
 <script setup lang="ts">
-import NumberFieldDemo from '#vue/primitives/NumberField/demo/NumberFieldDemo.vue'
+import NumberFieldDemo from '#react/primitives/NumberField/demo/NumberFieldDemo.vue'
 import { data } from './number-field.data'
 </script>
 
@@ -52,7 +52,7 @@ import {
   NumberFieldRoot,
   NumberFieldUnit,
   NumberFieldValue
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const width = ref(120)
 //    ^?

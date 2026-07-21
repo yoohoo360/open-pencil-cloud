@@ -1,6 +1,3 @@
-import { useLocalStorage } from '@vueuse/core'
-import { watch } from 'vue'
-
 import {
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
   WEB_FONT_PROVIDER_IDS,
@@ -12,7 +9,7 @@ import {
   type WebFontProviderId
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
-import { dialogMessages } from '@open-pencil/vue'
+import { dialogMessages } from '@open-pencil/react'
 
 import {
   clearDownloadedFontCache as clearTauriDownloadedFontCache,
@@ -22,6 +19,7 @@ import {
 import { toast } from '@/app/shell/ui'
 import { isTauri } from '@/app/tauri/env'
 import { tauriFetch } from '@/app/tauri/http'
+import { createPersistedValue } from '@/shared/persistedValue'
 
 if (typeof navigator !== 'undefined') {
   fontManager.setFallbackUserAgent(navigator.userAgent)
@@ -29,28 +27,25 @@ if (typeof navigator !== 'undefined') {
 
 export type FontProviderSettings = Record<WebFontProviderId, boolean>
 
-export const onlineFontsEnabled = useLocalStorage('op-online-fonts-enabled', true)
-export const fontProviderSettings = useLocalStorage<FontProviderSettings>(
+export const onlineFontsEnabled = createPersistedValue('op-online-fonts-enabled', true)
+export const fontProviderSettings = createPersistedValue<FontProviderSettings>(
   'op-font-providers',
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS
 )
 
-watch(
-  [onlineFontsEnabled, fontProviderSettings],
-  () => {
-    fontManager.setOnlineFontProviders(
-      onlineFontsEnabled.value
-        ? Object.fromEntries(
-            WEB_FONT_PROVIDER_IDS.map((provider) => [
-              provider,
-              fontProviderSettings.value[provider]
-            ])
-          )
-        : {}
-    )
-  },
-  { deep: true, immediate: true }
-)
+function syncFontProviders() {
+  fontManager.setOnlineFontProviders(
+    onlineFontsEnabled.value
+      ? Object.fromEntries(
+          WEB_FONT_PROVIDER_IDS.map((provider) => [provider, fontProviderSettings.value[provider]])
+        )
+      : {}
+  )
+}
+
+syncFontProviders()
+onlineFontsEnabled.subscribe(syncFontProviders)
+fontProviderSettings.subscribe(syncFontProviders)
 
 let tauriFontCacheConfigured = false
 let webFontUnavailableToastShown = false

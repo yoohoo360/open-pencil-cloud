@@ -4,7 +4,7 @@ description: Binding-aware semantic preview for solid, gradient, and image fills
 ---
 
 <script setup lang="ts">
-import ColorFillDemo from '#vue/primitives/Fill/demo/ColorFillDemo.vue'
+import ColorFillDemo from '#react/primitives/Fill/demo/ColorFillDemo.vue'
 import { data } from './fill-swatch.data'
 </script>
 
@@ -21,7 +21,7 @@ Consumers can place a checkerboard below the slot's `background` value for trans
 ```vue twoslash
 <script setup lang="ts">
 import type { Fill } from '@open-pencil/scene-graph'
-import { FillSwatch } from '@open-pencil/vue'
+import { FillSwatch } from '@open-pencil/react'
 
 const fill: Fill = {
   type: 'SOLID',

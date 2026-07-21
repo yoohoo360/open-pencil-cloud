@@ -1,69 +1,87 @@
-<script setup lang="ts">
-import VariableNumberField from '@/components/properties/VariableNumberField.vue'
-import { useLayoutControlsContext } from '@open-pencil/vue'
+import IconLucidePanelBottom from '~icons/lucide/panel-bottom'
+import IconLucidePanelLeft from '~icons/lucide/panel-left'
+import IconLucidePanelRight from '~icons/lucide/panel-right'
+import IconLucidePanelTop from '~icons/lucide/panel-top'
+import IconLucideSeparatorHorizontal from '~icons/lucide/separator-horizontal'
+import IconLucideSeparatorVertical from '~icons/lucide/separator-vertical'
+import { memo } from 'react'
 
-import type { PaddingProp } from '@/components/properties/LayoutSection/types'
+import { useLayoutContext, type PaddingProp } from '@/components/properties/LayoutSection/types'
+import VariableNumberField from '@/components/properties/VariableNumberField'
 
-const ctx = useLayoutControlsContext()
-
-const paddingSides: Array<{ prop: PaddingProp; icon: string }> = [
+const paddingSides: Array<{ prop: PaddingProp; icon: 'top' | 'right' | 'bottom' | 'left' }> = [
   { prop: 'paddingTop', icon: 'top' },
   { prop: 'paddingRight', icon: 'right' },
   { prop: 'paddingBottom', icon: 'bottom' },
   { prop: 'paddingLeft', icon: 'left' }
 ]
-</script>
 
-<template>
-  <div
-    v-if="!ctx.showIndividualPadding && ctx.hasSymmetricPadding"
-    class="mt-1.5 grid grid-cols-2 gap-1.5"
-  >
-    <VariableNumberField
-      data-test-id="layout-horizontal-padding-input"
-      :model-value="Math.round(ctx.node.paddingLeft)"
-      :min="0"
-      :node-id="ctx.node.id"
-      binding-path="paddingLeft"
-      @update:model-value="ctx.setHorizontalPadding"
-      @commit="ctx.commitHorizontalPadding"
-    >
-      <template #icon>
-        <icon-lucide-separator-vertical class="size-3.5" />
-      </template>
-    </VariableNumberField>
-    <VariableNumberField
-      data-test-id="layout-vertical-padding-input"
-      :model-value="Math.round(ctx.node.paddingTop)"
-      :min="0"
-      :node-id="ctx.node.id"
-      binding-path="paddingTop"
-      @update:model-value="ctx.setVerticalPadding"
-      @commit="ctx.commitVerticalPadding"
-    >
-      <template #icon>
-        <icon-lucide-separator-horizontal class="size-3.5" />
-      </template>
-    </VariableNumberField>
-  </div>
+function paddingIcon(icon: (typeof paddingSides)[number]['icon']) {
+  switch (icon) {
+    case 'top':
+      return <IconLucidePanelTop className="size-3.5" />
+    case 'right':
+      return <IconLucidePanelRight className="size-3.5" />
+    case 'bottom':
+      return <IconLucidePanelBottom className="size-3.5" />
+    default:
+      return <IconLucidePanelLeft className="size-3.5" />
+  }
+}
 
-  <div v-else-if="ctx.isGrid || ctx.isFlex" class="mt-1.5 grid grid-cols-2 gap-1.5">
-    <VariableNumberField
-      v-for="side in paddingSides"
-      :key="side.prop"
-      :model-value="Math.round(ctx.node[side.prop])"
-      :min="0"
-      :node-id="ctx.node.id"
-      :binding-path="side.prop"
-      @update:model-value="ctx.updateProp(side.prop, $event)"
-      @commit="(v: number, p: number) => ctx.commitProp(side.prop, v, p)"
-    >
-      <template #icon>
-        <icon-lucide-panel-top v-if="side.icon === 'top'" class="size-3.5" />
-        <icon-lucide-panel-right v-else-if="side.icon === 'right'" class="size-3.5" />
-        <icon-lucide-panel-bottom v-else-if="side.icon === 'bottom'" class="size-3.5" />
-        <icon-lucide-panel-left v-else class="size-3.5" />
-      </template>
-    </VariableNumberField>
-  </div>
-</template>
+export const PaddingControls = memo(function PaddingControls() {
+  const ctx = useLayoutContext()
+
+  if (!ctx.showIndividualPadding && ctx.hasSymmetricPadding) {
+    return (
+      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+        <VariableNumberField
+          data-test-id="layout-horizontal-padding-input"
+          className="min-w-0"
+          value={Math.round(ctx.node.paddingLeft)}
+          min={0}
+          nodeId={ctx.node.id}
+          bindingPath="paddingLeft"
+          icon={<IconLucideSeparatorVertical className="size-3.5" />}
+          onValueChange={ctx.setHorizontalPadding}
+          onCommit={ctx.commitHorizontalPadding}
+        />
+        <VariableNumberField
+          data-test-id="layout-vertical-padding-input"
+          className="min-w-0"
+          value={Math.round(ctx.node.paddingTop)}
+          min={0}
+          nodeId={ctx.node.id}
+          bindingPath="paddingTop"
+          icon={<IconLucideSeparatorHorizontal className="size-3.5" />}
+          onValueChange={ctx.setVerticalPadding}
+          onCommit={ctx.commitVerticalPadding}
+        />
+      </div>
+    )
+  }
+
+  if (ctx.isGrid || ctx.isFlex) {
+    return (
+      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+        {paddingSides.map((side) => (
+          <VariableNumberField
+            key={side.prop}
+            value={Math.round(ctx.node[side.prop])}
+            min={0}
+            nodeId={ctx.node.id}
+            bindingPath={side.prop}
+            icon={paddingIcon(side.icon)}
+            onValueChange={(value) => ctx.updateProp(side.prop, value)}
+            onCommit={(value, previous) => ctx.commitProp(side.prop, value, previous)}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return null
+})
+
+PaddingControls.displayName = 'PaddingControls'
+export default PaddingControls

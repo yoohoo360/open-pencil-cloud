@@ -1,7 +1,7 @@
-import { useActiveElement } from '@vueuse/core'
-import { computed } from 'vue'
+import { useActiveElement } from '#react/shared/dom/hooks'
+import { useEffect, useMemo } from 'react'
 
-import { useEditorCommands, useViewportKind } from '@open-pencil/vue'
+import { useEditorCommands, useViewportKind } from '@open-pencil/react'
 
 import { useAIChat } from '@/app/ai/chat/use'
 import { useEditorStore } from '@/app/editor/active-store'
@@ -11,7 +11,7 @@ import { isInputElement } from '@/app/shell/keyboard/focus'
 import { bindNudgeKeys } from '@/app/shell/keyboard/nudging'
 import { registerKeyboardShortcuts } from '@/app/shell/keyboard/registry'
 import { openFileDialog } from '@/app/shell/menu/use'
-import { closeTab, createTab, activeTab as activeTabRef } from '@/app/tabs'
+import { closeTab, createTab, getActiveTab } from '@/app/tabs'
 
 export function useKeyboard() {
   const { activeTab } = useAIChat()
@@ -19,7 +19,14 @@ export function useKeyboard() {
   const { isMobile } = useViewportKind()
   const { runCommand, setOpacityTarget } = useEditorCommands()
   const activeElement = useActiveElement()
-  const inputFocused = computed(() => isInputElement(activeElement.value))
+  const inputFocused = useMemo(
+    () => ({
+      get value() {
+        return isInputElement(activeElement)
+      }
+    }),
+    [activeElement]
+  )
 
   const actions = createKeyboardActions({
     store,
@@ -29,20 +36,27 @@ export function useKeyboard() {
     setOpacityTarget
   })
 
-  bindEditorClipboard(store)
-  bindNudgeKeys(store)
-
-  registerKeyboardShortcuts({
-    inputFocused,
-    store,
-    runCommand,
-    actions,
-    openFileDialog: () => {
-      void openFileDialog()
-    },
-    closeActiveTab: () => {
-      if (activeTabRef.value) closeTab(activeTabRef.value.id)
-    },
-    createTab: () => createTab()
-  })
+  useEffect(() => {
+    const unbindClipboard = bindEditorClipboard(store)
+    const unbindNudge = bindNudgeKeys(store)
+    const unbindShortcuts = registerKeyboardShortcuts({
+      inputFocused,
+      store,
+      runCommand,
+      actions,
+      openFileDialog: () => {
+        void openFileDialog()
+      },
+      closeActiveTab: () => {
+        const activeTab = getActiveTab()
+        if (activeTab) closeTab(activeTab.id)
+      },
+      createTab: () => createTab()
+    })
+    return () => {
+      unbindClipboard()
+      unbindNudge()
+      unbindShortcuts()
+    }
+  }, [actions, inputFocused, runCommand, store])
 }

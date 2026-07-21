@@ -1,230 +1,249 @@
-<script setup lang="ts">
-import { AppearanceControlsRoot, MIXED, useI18n } from '@open-pencil/vue'
+import IconLucideBlend from '~icons/lucide/blend'
+import IconLucideEye from '~icons/lucide/eye'
+import IconLucideEyeOff from '~icons/lucide/eye-off'
+import IconLucideSquareRoundCorner from '~icons/lucide/square-round-corner'
+import IconLucideSquircle from '~icons/lucide/squircle'
+import { AppearanceControlsRoot, MIXED, useI18n } from '@open-pencil/react'
+import { memo, useCallback } from 'react'
 
-import NumberField from '@/components/inputs/NumberField.vue'
-import VariableNumberField from '@/components/properties/VariableNumberField.vue'
+import NumberField from '@/components/inputs/NumberField'
 import { useBlendModeOptions } from '@/components/properties/blend-mode/use'
-import AppSelect from '@/components/ui/AppSelect.vue'
-import IconButton from '@/components/ui/IconButton.vue'
-import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup.vue'
-import PanelGrid from '@/components/ui/panel/PanelGrid.vue'
-import PanelRail from '@/components/ui/panel/PanelRail.vue'
-import PanelSection from '@/components/ui/panel/PanelSection.vue'
+import VariableNumberField from '@/components/properties/VariableNumberField'
+import AppSelect from '@/components/ui/AppSelect'
+import IconButton from '@/components/ui/IconButton'
+import PanelFieldGroup from '@/components/ui/panel/PanelFieldGroup'
+import PanelGrid from '@/components/ui/panel/PanelGrid'
+import PanelRail from '@/components/ui/panel/PanelRail'
+import PanelSection from '@/components/ui/panel/PanelSection'
 
 import type { BlendMode } from '@open-pencil/scene-graph'
 
-const { panels } = useI18n()
 type BlendModeSelectValue = BlendMode | 'MIXED'
 
-const baseBlendModeOptions = useBlendModeOptions(true)
+export const AppearanceSection = memo(function AppearanceSection() {
+  const { panels } = useI18n()
+  const baseBlendModeOptions = useBlendModeOptions(true)
 
-function blendModeOptions(value: BlendMode | typeof MIXED) {
-  return value === MIXED
-    ? [{ value: 'MIXED' as const, label: panels.value.mixed }, ...baseBlendModeOptions.value]
-    : baseBlendModeOptions.value
-}
-</script>
+  const blendModeOptions = useCallback(
+    (value: BlendMode | typeof MIXED) =>
+      value === MIXED
+        ? [{ value: 'MIXED' as const, label: panels.mixed }, ...baseBlendModeOptions]
+        : baseBlendModeOptions,
+    [baseBlendModeOptions, panels.mixed]
+  )
 
-<template>
-  <AppearanceControlsRoot
-    v-slot="{
-      node,
-      isMulti,
-      active,
-      hasCornerRadius,
-      independentCorners,
-      showIndependentCorners,
-      cornerRadiusValue,
-      cornerSmoothingPercent,
-      opacityPercent,
-      blendModeValue,
-      visibilityState,
-      actions
-    }"
-  >
-    <PanelSection v-if="active" :label="panels.appearance">
-      <template #actions>
-        <IconButton
-          :label="panels.toggleVisibility"
-          :active="visibilityState === 'hidden'"
-          @click="actions.toggleVisibility"
-        >
-          <icon-lucide-eye v-if="visibilityState === 'visible'" class="size-3.5" />
-          <icon-lucide-eye-off v-else-if="visibilityState === 'hidden'" class="size-3.5" />
-          <icon-lucide-eye v-else class="size-3.5 opacity-50" />
-        </IconButton>
-      </template>
+  return (
+    <AppearanceControlsRoot>
+      {({
+        node,
+        isMulti,
+        active,
+        hasCornerRadius,
+        independentCorners,
+        showIndependentCorners,
+        cornerRadiusValue,
+        cornerSmoothingPercent,
+        opacityPercent,
+        blendModeValue,
+        visibilityState,
+        actions
+      }) =>
+        active ? (
+          <PanelSection
+            label={panels.appearance}
+            actions={
+              <IconButton
+                label={panels.toggleVisibility}
+                active={visibilityState === 'hidden'}
+                onClick={actions.toggleVisibility}
+              >
+                {visibilityState === 'visible' ? (
+                  <IconLucideEye className="size-3.5" />
+                ) : visibilityState === 'hidden' ? (
+                  <IconLucideEyeOff className="size-3.5" />
+                ) : (
+                  <IconLucideEye className="size-3.5 opacity-50" />
+                )}
+              </IconButton>
+            }
+          >
+            <PanelGrid columns="appearance">
+              <PanelFieldGroup label={panels.blendMode}>
+                <AppSelect
+                  value={blendModeValue === MIXED ? 'MIXED' : blendModeValue}
+                  className="w-full"
+                  label={panels.blendMode}
+                  options={blendModeOptions(blendModeValue)}
+                  onValueChange={(value: BlendModeSelectValue) =>
+                    value !== 'MIXED' && actions.setBlendMode(value)
+                  }
+                />
+              </PanelFieldGroup>
 
-      <PanelGrid columns="appearance">
-        <PanelFieldGroup :label="panels.blendMode">
-          <AppSelect
-            :model-value="blendModeValue === MIXED ? 'MIXED' : blendModeValue"
-            class="w-full"
-            :label="panels.blendMode"
-            :options="blendModeOptions(blendModeValue)"
-            @update:model-value="
-              (value: BlendModeSelectValue) => value !== 'MIXED' && actions.setBlendMode(value)
-            "
-          />
-        </PanelFieldGroup>
+              <PanelFieldGroup label={panels.opacity}>
+                {node && !isMulti ? (
+                  <VariableNumberField
+                    suffix="%"
+                    aria-label={panels.opacity}
+                    value={opacityPercent}
+                    min={0}
+                    max={100}
+                    nodeId={node.id}
+                    bindingPath="opacity"
+                    icon={<IconLucideBlend className="size-3" />}
+                    onValueChange={(next) => actions.updateProp('opacity', next / 100)}
+                    onCommit={(next, previous) =>
+                      actions.commitProp('opacity', next / 100, previous / 100)
+                    }
+                  />
+                ) : (
+                  <NumberField
+                    suffix="%"
+                    data-property="opacity"
+                    aria-label={panels.opacity}
+                    value={opacityPercent}
+                    min={0}
+                    max={100}
+                    icon={<IconLucideBlend className="size-3" />}
+                    onValueChange={(next) => actions.updateProp('opacity', next / 100)}
+                    onCommit={(next, previous) =>
+                      actions.commitProp('opacity', next / 100, previous / 100)
+                    }
+                  />
+                )}
+              </PanelFieldGroup>
+            </PanelGrid>
 
-        <PanelFieldGroup :label="panels.opacity">
-          <VariableNumberField
-            v-if="node && !isMulti"
-            suffix="%"
-            :aria-label="panels.opacity"
-            :model-value="opacityPercent"
-            :min="0"
-            :max="100"
-            :node-id="node.id"
-            binding-path="opacity"
-            @update:model-value="actions.updateProp('opacity', $event / 100)"
-            @commit="(v: number, p: number) => actions.commitProp('opacity', v / 100, p / 100)"
-          >
-            <template #icon>
-              <icon-lucide-blend class="size-3" />
-            </template>
-          </VariableNumberField>
-          <NumberField
-            v-else
-            suffix="%"
-            data-property="opacity"
-            :aria-label="panels.opacity"
-            :model-value="opacityPercent"
-            :min="0"
-            :max="100"
-            @update:model-value="actions.updateProp('opacity', $event / 100)"
-            @commit="(v: number, p: number) => actions.commitProp('opacity', v / 100, p / 100)"
-          >
-            <template #icon>
-              <icon-lucide-blend class="size-3" />
-            </template>
-          </NumberField>
-        </PanelFieldGroup>
-      </PanelGrid>
+            {hasCornerRadius && !showIndependentCorners ? (
+              <PanelGrid columns="fill-rail" className="mt-1.5">
+                <PanelFieldGroup label={panels.radius}>
+                  {node && !isMulti ? (
+                    <VariableNumberField
+                      aria-label={panels.radius}
+                      value={cornerRadiusValue}
+                      min={0}
+                      nodeId={node.id}
+                      bindingPath="cornerRadius"
+                      icon={<IconLucideSquareRoundCorner className="size-3" />}
+                      onValueChange={(next) => actions.updateProp('cornerRadius', next)}
+                      onCommit={(next, previous) =>
+                        actions.commitProp('cornerRadius', next, previous)
+                      }
+                    />
+                  ) : (
+                    <NumberField
+                      data-property="cornerRadius"
+                      aria-label={panels.radius}
+                      value={cornerRadiusValue}
+                      min={0}
+                      icon={<IconLucideSquareRoundCorner className="size-3" />}
+                      onValueChange={(next) => actions.updateProp('cornerRadius', next)}
+                      onCommit={(next, previous) =>
+                        actions.commitProp('cornerRadius', next, previous)
+                      }
+                    />
+                  )}
+                </PanelFieldGroup>
+                <PanelRail>
+                  <IconButton
+                    label={panels.independentCornerRadii}
+                    size="md"
+                    active={independentCorners === true}
+                    onClick={actions.toggleIndependentCorners}
+                  >
+                    <IconLucideSquareRoundCorner className="size-3" />
+                  </IconButton>
+                </PanelRail>
+              </PanelGrid>
+            ) : null}
 
-      <PanelGrid
-        v-if="hasCornerRadius && !showIndependentCorners"
-        columns="fill-rail"
-        class="mt-1.5"
-      >
-        <PanelFieldGroup :label="panels.radius">
-          <VariableNumberField
-            v-if="node && !isMulti"
-            :aria-label="panels.radius"
-            :model-value="cornerRadiusValue"
-            :min="0"
-            :node-id="node.id"
-            binding-path="cornerRadius"
-            @update:model-value="actions.updateProp('cornerRadius', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('cornerRadius', v, p)"
-          >
-            <template #icon>
-              <icon-lucide-square-round-corner class="size-3" />
-            </template>
-          </VariableNumberField>
-          <NumberField
-            v-else
-            data-property="cornerRadius"
-            :aria-label="panels.radius"
-            :model-value="cornerRadiusValue"
-            :min="0"
-            @update:model-value="actions.updateProp('cornerRadius', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('cornerRadius', v, p)"
-          >
-            <template #icon>
-              <icon-lucide-square-round-corner class="size-3" />
-            </template>
-          </NumberField>
-        </PanelFieldGroup>
-        <PanelRail>
-          <IconButton
-            :label="panels.independentCornerRadii"
-            size="md"
-            :active="independentCorners === true"
-            @click="actions.toggleIndependentCorners"
-          >
-            <icon-lucide-square-round-corner class="size-3" />
-          </IconButton>
-        </PanelRail>
-      </PanelGrid>
+            {hasCornerRadius && !isMulti && node ? (
+              <PanelGrid columns="two-rail" className="mt-1.5" data-corner-grid>
+                <VariableNumberField
+                  label="TL"
+                  value={node.topLeftRadius}
+                  min={0}
+                  nodeId={node.id}
+                  bindingPath="topLeftRadius"
+                  onValueChange={(next) => actions.updateCornerProp('topLeftRadius', next)}
+                  onCommit={(next, previous) =>
+                    actions.commitCornerProp('topLeftRadius', next, previous)
+                  }
+                />
+                <VariableNumberField
+                  label="TR"
+                  value={node.topRightRadius}
+                  min={0}
+                  nodeId={node.id}
+                  bindingPath="topRightRadius"
+                  onValueChange={(next) => actions.updateCornerProp('topRightRadius', next)}
+                  onCommit={(next, previous) =>
+                    actions.commitCornerProp('topRightRadius', next, previous)
+                  }
+                />
+                <PanelRail>
+                  <IconButton
+                    label={panels.independentCornerRadii}
+                    size="md"
+                    active
+                    onClick={actions.toggleIndependentCorners}
+                  >
+                    <IconLucideSquareRoundCorner className="size-3" />
+                  </IconButton>
+                </PanelRail>
+                <VariableNumberField
+                  label="BL"
+                  value={node.bottomLeftRadius}
+                  min={0}
+                  nodeId={node.id}
+                  bindingPath="bottomLeftRadius"
+                  onValueChange={(next) => actions.updateCornerProp('bottomLeftRadius', next)}
+                  onCommit={(next, previous) =>
+                    actions.commitCornerProp('bottomLeftRadius', next, previous)
+                  }
+                />
+                <VariableNumberField
+                  label="BR"
+                  value={node.bottomRightRadius}
+                  min={0}
+                  nodeId={node.id}
+                  bindingPath="bottomRightRadius"
+                  onValueChange={(next) => actions.updateCornerProp('bottomRightRadius', next)}
+                  onCommit={(next, previous) =>
+                    actions.commitCornerProp('bottomRightRadius', next, previous)
+                  }
+                />
+                <PanelRail />
+              </PanelGrid>
+            ) : null}
 
-      <PanelGrid
-        v-else-if="hasCornerRadius && !isMulti && node"
-        columns="two-rail"
-        class="mt-1.5"
-        data-corner-grid
-      >
-        <VariableNumberField
-          label="TL"
-          :model-value="node.topLeftRadius"
-          :min="0"
-          :node-id="node.id"
-          binding-path="topLeftRadius"
-          @update:model-value="actions.updateCornerProp('topLeftRadius', $event)"
-          @commit="(v: number, p: number) => actions.commitCornerProp('topLeftRadius', v, p)"
-        />
-        <VariableNumberField
-          label="TR"
-          :model-value="node.topRightRadius"
-          :min="0"
-          :node-id="node.id"
-          binding-path="topRightRadius"
-          @update:model-value="actions.updateCornerProp('topRightRadius', $event)"
-          @commit="(v: number, p: number) => actions.commitCornerProp('topRightRadius', v, p)"
-        />
-        <PanelRail>
-          <IconButton
-            :label="panels.independentCornerRadii"
-            size="md"
-            active
-            @click="actions.toggleIndependentCorners"
-          >
-            <icon-lucide-square-round-corner class="size-3" />
-          </IconButton>
-        </PanelRail>
-        <VariableNumberField
-          label="BL"
-          :model-value="node.bottomLeftRadius"
-          :min="0"
-          :node-id="node.id"
-          binding-path="bottomLeftRadius"
-          @update:model-value="actions.updateCornerProp('bottomLeftRadius', $event)"
-          @commit="(v: number, p: number) => actions.commitCornerProp('bottomLeftRadius', v, p)"
-        />
-        <VariableNumberField
-          label="BR"
-          :model-value="node.bottomRightRadius"
-          :min="0"
-          :node-id="node.id"
-          binding-path="bottomRightRadius"
-          @update:model-value="actions.updateCornerProp('bottomRightRadius', $event)"
-          @commit="(v: number, p: number) => actions.commitCornerProp('bottomRightRadius', v, p)"
-        />
-        <PanelRail />
-      </PanelGrid>
+            {hasCornerRadius ? (
+              <PanelGrid columns="fill" className="mt-1.5">
+                <PanelFieldGroup label={panels.cornerSmoothing}>
+                  <NumberField
+                    suffix="%"
+                    value={cornerSmoothingPercent}
+                    min={0}
+                    max={100}
+                    aria-label={panels.cornerSmoothing}
+                    data-property="corner-smoothing"
+                    icon={<IconLucideSquircle className="size-3" />}
+                    onValueChange={(next) =>
+                      actions.updateCornerProp('cornerSmoothing', next / 100)
+                    }
+                    onCommit={(next, previous) =>
+                      actions.commitCornerProp('cornerSmoothing', next / 100, previous / 100)
+                    }
+                  />
+                </PanelFieldGroup>
+              </PanelGrid>
+            ) : null}
+          </PanelSection>
+        ) : null
+      }
+    </AppearanceControlsRoot>
+  )
+})
 
-      <PanelGrid v-if="hasCornerRadius" columns="fill" class="mt-1.5">
-        <PanelFieldGroup :label="panels.cornerSmoothing">
-          <NumberField
-            suffix="%"
-            :model-value="cornerSmoothingPercent"
-            :min="0"
-            :max="100"
-            :aria-label="panels.cornerSmoothing"
-            data-property="corner-smoothing"
-            @update:model-value="actions.updateCornerProp('cornerSmoothing', $event / 100)"
-            @commit="
-              (v: number, p: number) =>
-                actions.commitCornerProp('cornerSmoothing', v / 100, p / 100)
-            "
-          >
-            <template #icon>
-              <icon-lucide-squircle class="size-3" />
-            </template>
-          </NumberField>
-        </PanelFieldGroup>
-      </PanelGrid>
-    </PanelSection>
-  </AppearanceControlsRoot>
-</template>
+AppearanceSection.displayName = 'AppearanceSection'
+export default AppearanceSection

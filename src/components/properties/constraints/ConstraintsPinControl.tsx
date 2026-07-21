@@ -1,10 +1,9 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useCallback, useMemo, type MouseEvent } from 'react'
 import { tv } from 'tailwind-variants'
 
-import { constraintPins, useI18n } from '@open-pencil/vue'
+import { constraintPins, useI18n } from '@open-pencil/react'
 
-import Tip from '@/components/ui/Tip.vue'
+import Tip from '@/components/ui/Tip'
 import constraintsTheme from '@/theme/constraints'
 
 import type {
@@ -12,9 +11,10 @@ import type {
   ConstraintAxis,
   ConstraintEdge,
   ConstraintValue
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 type PinPosition = keyof (typeof constraintsTheme)['variants']['pinPosition']
+
 type PinItem = {
   axis: ConstraintAxis
   edge: ConstraintEdge | 'center'
@@ -23,102 +23,122 @@ type PinItem = {
   active: boolean
 }
 
-const { horizontal, vertical, actions } = defineProps<{
+export type ConstraintsPinControlProps = {
   horizontal: ConstraintValue
   vertical: ConstraintValue
   actions: ConstraintsControlActions
-}>()
-
-const { panels } = useI18n()
-const constraintStyles = tv(constraintsTheme)
-const horizontalPins = computed(() => constraintPins(horizontal))
-const verticalPins = computed(() => constraintPins(vertical))
-const diagramStyles = computed(() =>
-  constraintStyles({ scale: horizontal === 'SCALE' || vertical === 'SCALE' })
-)
-const pins = computed<PinItem[]>(() => [
-  {
-    axis: 'horizontal',
-    edge: 'leading',
-    position: 'horizontalLeading',
-    label: panels.value.constraintLeft,
-    active: horizontalPins.value.leading
-  },
-  {
-    axis: 'horizontal',
-    edge: 'trailing',
-    position: 'horizontalTrailing',
-    label: panels.value.constraintRight,
-    active: horizontalPins.value.trailing
-  },
-  {
-    axis: 'vertical',
-    edge: 'leading',
-    position: 'verticalLeading',
-    label: panels.value.constraintTop,
-    active: verticalPins.value.leading
-  },
-  {
-    axis: 'vertical',
-    edge: 'trailing',
-    position: 'verticalTrailing',
-    label: panels.value.constraintBottom,
-    active: verticalPins.value.trailing
-  },
-  {
-    axis: 'horizontal',
-    edge: 'center',
-    position: 'horizontalCenter',
-    label: panels.value.constraintHorizontalCenter,
-    active: horizontalPins.value.center
-  },
-  {
-    axis: 'vertical',
-    edge: 'center',
-    position: 'verticalCenter',
-    label: panels.value.constraintVerticalCenter,
-    active: verticalPins.value.center
-  }
-])
-
-function pinStyles(pin: PinItem) {
-  return constraintStyles({ active: pin.active, pinPosition: pin.position })
 }
 
-function activate(pin: PinItem, event: MouseEvent) {
-  if (pin.edge === 'center') actions.setCenter(pin.axis)
-  else actions.togglePin(pin.axis, pin.edge, event.shiftKey)
-}
-</script>
+export const ConstraintsPinControl = memo(function ConstraintsPinControl({
+  horizontal,
+  vertical,
+  actions
+}: ConstraintsPinControlProps) {
+  const { panels } = useI18n()
+  const constraintStyles = useMemo(() => tv(constraintsTheme), [])
+  const horizontalPins = useMemo(() => constraintPins(horizontal), [horizontal])
+  const verticalPins = useMemo(() => constraintPins(vertical), [vertical])
+  const diagramStyles = useMemo(
+    () => constraintStyles({ scale: horizontal === 'SCALE' || vertical === 'SCALE' }),
+    [constraintStyles, horizontal, vertical]
+  )
 
-<template>
-  <div
-    role="group"
-    :aria-label="panels.constraints"
-    data-slot="diagram"
-    :data-scale="horizontal === 'SCALE' || vertical === 'SCALE' || undefined"
-    :class="diagramStyles.diagram()"
-  >
-    <Tip v-for="pin in pins" :key="pin.position" :label="pin.label">
-      <button
-        type="button"
-        data-slot="pin"
-        :data-axis="pin.axis"
-        :data-edge="pin.edge"
-        :aria-label="pin.label"
-        :aria-pressed="pin.active"
-        :class="pinStyles(pin).pin()"
-        @click="activate(pin, $event)"
-      >
-        <span :class="pinStyles(pin).pinMark()" />
-      </button>
-    </Tip>
-    <span
-      v-if="horizontalPins.scale || verticalPins.scale"
-      data-slot="scale-badge"
-      :class="diagramStyles.scaleBadge()"
+  const pins = useMemo<PinItem[]>(
+    () => [
+      {
+        axis: 'horizontal',
+        edge: 'leading',
+        position: 'horizontalLeading',
+        label: panels.constraintLeft,
+        active: horizontalPins.leading
+      },
+      {
+        axis: 'horizontal',
+        edge: 'trailing',
+        position: 'horizontalTrailing',
+        label: panels.constraintRight,
+        active: horizontalPins.trailing
+      },
+      {
+        axis: 'vertical',
+        edge: 'leading',
+        position: 'verticalLeading',
+        label: panels.constraintTop,
+        active: verticalPins.leading
+      },
+      {
+        axis: 'vertical',
+        edge: 'trailing',
+        position: 'verticalTrailing',
+        label: panels.constraintBottom,
+        active: verticalPins.trailing
+      },
+      {
+        axis: 'horizontal',
+        edge: 'center',
+        position: 'horizontalCenter',
+        label: panels.constraintHorizontalCenter,
+        active: horizontalPins.center
+      },
+      {
+        axis: 'vertical',
+        edge: 'center',
+        position: 'verticalCenter',
+        label: panels.constraintVerticalCenter,
+        active: verticalPins.center
+      }
+    ],
+    [horizontalPins, panels, verticalPins]
+  )
+
+  const pinStyles = useCallback(
+    (pin: PinItem) => constraintStyles({ active: pin.active, pinPosition: pin.position }),
+    [constraintStyles]
+  )
+
+  const activate = useCallback(
+    (pin: PinItem, event: MouseEvent<HTMLButtonElement>) => {
+      if (pin.edge === 'center') actions.setCenter(pin.axis)
+      else actions.togglePin(pin.axis, pin.edge, event.shiftKey)
+    },
+    [actions]
+  )
+
+  return (
+    <div
+      role="group"
+      aria-label={panels.constraints}
+      data-slot="diagram"
+      data-scale={horizontal === 'SCALE' || vertical === 'SCALE' || undefined}
+      className={diagramStyles.diagram()}
     >
-      {{ panels.constraintScale }}
-    </span>
-  </div>
-</template>
+      {pins.map((pin) => {
+        const styles = pinStyles(pin)
+        return (
+          <Tip key={pin.position} label={pin.label}>
+            <button
+              type="button"
+              data-slot="pin"
+              data-axis={pin.axis}
+              data-edge={pin.edge}
+              aria-label={pin.label}
+              aria-pressed={pin.active}
+              className={styles.pin()}
+              onClick={(event) => activate(pin, event)}
+            >
+              <span className={styles.pinMark()} />
+            </button>
+          </Tip>
+        )
+      })}
+      {horizontalPins.scale || verticalPins.scale ? (
+        <span data-slot="scale-badge" className={diagramStyles.scaleBadge()}>
+          {panels.constraintScale}
+        </span>
+      ) : null}
+    </div>
+  )
+})
+
+ConstraintsPinControl.displayName = 'ConstraintsPinControl'
+export default ConstraintsPinControl

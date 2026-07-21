@@ -1,52 +1,64 @@
-<script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useI18n } from '@open-pencil/vue'
+import { memo, useCallback, useState } from 'react'
 
+import { useI18n } from '@open-pencil/react'
 import { listProviderModels } from '@/app/ai/chat/provider-models'
-import AppComboboxInput from '@/components/ui/AppComboboxInput.vue'
-import ProviderSettingsField from '@/components/chat/ProviderSettings/ProviderSettingsField.vue'
-import ProviderSettingsInput from '@/components/chat/ProviderSettings/ProviderSettingsInput.vue'
+import AppComboboxInput from '@/components/ui/AppComboboxInput'
+import ProviderSettingsField from '@/components/chat/ProviderSettings/ProviderSettingsField'
+import ProviderSettingsInput from '@/components/chat/ProviderSettings/ProviderSettingsInput'
 import { useProviderSettingsContext } from '@/components/chat/ProviderSettings/context'
 
-const ctx = useProviderSettingsContext()
-const { dialogs } = useI18n()
-const suggestedModels = ref<Array<{ id: string; name: string }>>([])
-const showModelSuggestions = computed(() => ctx.providerID === 'openrouter')
+export const CustomEndpointSection = memo(function CustomEndpointSection() {
+  const ctx = useProviderSettingsContext()
+  const { dialogs } = useI18n()
+  const [suggestedModels, setSuggestedModels] = useState<Array<{ id: string; name: string }>>([])
+  const showModelSuggestions = ctx.providerID === 'openrouter'
 
-async function loadModelSuggestions() {
-  if (!showModelSuggestions.value || suggestedModels.value.length) return
-  suggestedModels.value = await listProviderModels(ctx.providerID)
-}
-</script>
+  const loadModelSuggestions = useCallback(async () => {
+    if (!showModelSuggestions || suggestedModels.length) return
+    setSuggestedModels(await listProviderModels(ctx.providerID))
+  }, [ctx.providerID, showModelSuggestions, suggestedModels.length])
 
-<template>
-  <template v-if="!ctx.isACP">
-    <ProviderSettingsField v-if="ctx.providerDef.supportsCustomBaseURL" :label="dialogs.baseURL">
-      <ProviderSettingsInput
-        v-model="ctx.baseURLInput"
-        data-test-id="provider-settings-base-url"
-        placeholder="http://localhost:11434/v1"
-        @change="ctx.save"
-      />
-    </ProviderSettingsField>
+  if (ctx.isACP) return null
 
-    <ProviderSettingsField v-if="ctx.providerDef.supportsCustomModel" :label="dialogs.modelID">
-      <AppComboboxInput
-        v-if="showModelSuggestions"
-        v-model="ctx.customModelInput"
-        data-test-id="provider-settings-custom-model"
-        :options="suggestedModels.map((model) => ({ value: model.id, label: model.name }))"
-        placeholder="e.g. meta-llama/llama-3.3-70b-instruct"
-        @focusin="loadModelSuggestions"
-        @update:model-value="ctx.save"
-      />
-      <ProviderSettingsInput
-        v-else
-        v-model="ctx.customModelInput"
-        data-test-id="provider-settings-custom-model"
-        placeholder="e.g. llama-3.3-70b"
-        @change="ctx.save"
-      />
-    </ProviderSettingsField>
-  </template>
-</template>
+  return (
+    <>
+      {ctx.providerDef.supportsCustomBaseURL ? (
+        <ProviderSettingsField label={dialogs.baseURL}>
+          <ProviderSettingsInput
+            value={ctx.baseURLInput}
+            onValueChange={ctx.setBaseURLInput}
+            placeholder="http://localhost:11434/v1"
+            onChangeCommit={ctx.save}
+          />
+        </ProviderSettingsField>
+      ) : null}
+
+      {ctx.providerDef.supportsCustomModel ? (
+        <ProviderSettingsField label={dialogs.modelID}>
+          {showModelSuggestions ? (
+            <AppComboboxInput
+              value={ctx.customModelInput}
+              onValueChange={(value) => {
+                ctx.setCustomModelInput(value)
+                ctx.save()
+              }}
+              options={suggestedModels.map((model) => ({ value: model.id, label: model.name }))}
+              placeholder="e.g. meta-llama/llama-3.3-70b-instruct"
+              onFocus={loadModelSuggestions}
+            />
+          ) : (
+            <ProviderSettingsInput
+              value={ctx.customModelInput}
+              onValueChange={ctx.setCustomModelInput}
+              placeholder="e.g. llama-3.3-70b"
+              onChangeCommit={ctx.save}
+            />
+          )}
+        </ProviderSettingsField>
+      ) : null}
+    </>
+  )
+})
+
+CustomEndpointSection.displayName = 'CustomEndpointSection'
+export default CustomEndpointSection

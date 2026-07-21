@@ -1,5 +1,4 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk'
-import { computed, shallowRef } from 'vue'
 
 import { ACP_PERMISSION_TIMEOUT_MS } from '@/constants'
 
@@ -9,8 +8,12 @@ export interface PendingPermission {
   timer: ReturnType<typeof setTimeout>
 }
 
-export const permissionQueue = shallowRef<PendingPermission[]>([])
-export const currentPermission = computed(() => permissionQueue.value[0] ?? null)
+export const permissionQueue = { value: [] as PendingPermission[] }
+export const currentPermission = {
+  get value() {
+    return permissionQueue.value[0] ?? null
+  }
+}
 
 function findRejectOption(request: RequestPermissionRequest): string {
   const reject = request.options.find((o) => o.kind.startsWith('reject'))

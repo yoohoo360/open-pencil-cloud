@@ -3,7 +3,7 @@ import ts from 'typescript'
 const roots = [
   'src',
   'packages/core/src',
-  'packages/vue/src',
+  'packages/react/src',
   'packages/cli/src',
   'packages/mcp/src',
   'tests',

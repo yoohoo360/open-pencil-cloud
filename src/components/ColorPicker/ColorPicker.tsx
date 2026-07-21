@@ -1,41 +1,48 @@
-<script setup lang="ts">
-import { ColorPickerRoot } from '@open-pencil/vue'
+import { ColorPickerRoot } from '@open-pencil/react'
+import { memo, type CSSProperties, type ReactNode } from 'react'
 
-import ColorPickerPanel from '@/components/color-picker-panel/ColorPickerPanel.vue'
+import ColorPickerPanel from '@/components/color-picker-panel/ColorPickerPanel'
 import { usePopoverUI } from '@/components/ui/popover'
 
 import type { Color } from '@open-pencil/scene-graph/primitives'
-import type { OkHCLControls } from '@open-pencil/vue'
-import type { VNode } from 'vue'
+import type { OkHCLControls } from '@open-pencil/react'
 
-const { color, okhcl = null } = defineProps<{ color: Color; okhcl?: OkHCLControls | null }>()
-defineSlots<{
-  trigger?(props: { style: { background: string } }): VNode[]
-}>()
-const emit = defineEmits<{
-  update: [color: Color]
-  openChange: [open: boolean]
-  cancel: []
-}>()
-const cls = usePopoverUI({ content: 'w-56 p-2' })
-</script>
+export type ColorPickerProps = {
+  color: Color
+  okhcl?: OkHCLControls | null
+  trigger?: ReactNode | ((props: { style: CSSProperties }) => ReactNode)
+  onUpdate?: (color: Color) => void
+  onOpenChange?: (open: boolean) => void
+  onCancel?: () => void
+}
 
-<template>
-  <ColorPickerRoot
-    :color="color"
-    :ui="{
-      content: cls.content,
-      swatch: 'size-5 shrink-0 cursor-pointer rounded border border-border p-0'
-    }"
-    @update="emit('update', $event)"
-    @open-change="emit('openChange', $event)"
-    @cancel="emit('cancel')"
-  >
-    <template v-if="$slots.trigger" #trigger="trigger">
-      <slot name="trigger" v-bind="trigger" />
-    </template>
-    <template #default="{ color: currentColor }">
-      <ColorPickerPanel :color="currentColor" :okhcl="okhcl" @update="emit('update', $event)" />
-    </template>
-  </ColorPickerRoot>
-</template>
+export const ColorPicker = memo(function ColorPicker({
+  color,
+  okhcl = null,
+  trigger,
+  onUpdate,
+  onOpenChange,
+  onCancel
+}: ColorPickerProps) {
+  const cls = usePopoverUI({ content: 'w-56 p-2' })
+
+  return (
+    <ColorPickerRoot
+      color={color}
+      ui={{
+        content: cls.content,
+        swatch: 'size-5 shrink-0 cursor-pointer rounded border border-border p-0'
+      }}
+      trigger={trigger}
+      onOpenChange={onOpenChange}
+      onCancel={onCancel}
+    >
+      {(slot) => (
+        <ColorPickerPanel color={slot.color} okhcl={okhcl} onUpdate={(next) => onUpdate?.(next)} />
+      )}
+    </ColorPickerRoot>
+  )
+})
+
+ColorPicker.displayName = 'ColorPicker'
+export default ColorPicker

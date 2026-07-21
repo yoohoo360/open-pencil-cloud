@@ -1,9 +1,8 @@
 import { tinykeys } from 'tinykeys'
 import type { KeyBindingMap } from 'tinykeys'
-import { onScopeDispose } from 'vue'
 
-import { editorCommandMetadata } from '@open-pencil/vue'
-import type { EditorCommandId } from '@open-pencil/vue'
+import { editorCommandMetadata } from '@open-pencil/react'
+import type { EditorCommandId } from '@open-pencil/react'
 
 import { TOOL_SHORTCUTS } from '@/app/editor/session'
 import { isEditing } from '@/app/shell/keyboard/focus'
@@ -192,5 +191,8 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
     { capture: true }
   )
 
-  onScopeDispose(unsubscribe)
+  return () => {
+    unsubscribe()
+    spaceTool.dispose()
+  }
 }

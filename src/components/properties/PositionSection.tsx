@@ -1,159 +1,177 @@
-<script setup lang="ts">
-import { PositionControlsRoot, useI18n } from '@open-pencil/vue'
+import IconLucideAlignCenterHorizontal from '~icons/lucide/align-center-horizontal'
+import IconLucideAlignCenterVertical from '~icons/lucide/align-center-vertical'
+import IconLucideAlignEndHorizontal from '~icons/lucide/align-end-horizontal'
+import IconLucideAlignEndVertical from '~icons/lucide/align-end-vertical'
+import IconLucideAlignStartHorizontal from '~icons/lucide/align-start-horizontal'
+import IconLucideAlignStartVertical from '~icons/lucide/align-start-vertical'
+import IconLucideFlipHorizontal2 from '~icons/lucide/flip-horizontal-2'
+import IconLucideFlipVertical2 from '~icons/lucide/flip-vertical-2'
+import IconLucideRotateCw from '~icons/lucide/rotate-cw'
+import IconLucideRotateCwSquare from '~icons/lucide/rotate-cw-square'
+import { memo, useCallback } from 'react'
 
+import { PositionControlsRoot, useI18n } from '@open-pencil/react'
 import { useEditorStore } from '@/app/editor/active-store'
-import NumberField from '@/components/inputs/NumberField.vue'
-import IconButton from '@/components/ui/IconButton.vue'
-import PanelGrid from '@/components/ui/panel/PanelGrid.vue'
-import PanelSection from '@/components/ui/panel/PanelSection.vue'
-import Tip from '@/components/ui/Tip.vue'
+import NumberField from '@/components/inputs/NumberField'
+import IconButton from '@/components/ui/IconButton'
+import PanelGrid from '@/components/ui/panel/PanelGrid'
+import PanelSection from '@/components/ui/panel/PanelSection'
+import Tip from '@/components/ui/Tip'
 
-const { panels } = useI18n()
-const store = useEditorStore()
+export const PositionSection = memo(function PositionSection() {
+  const { panels } = useI18n()
+  const store = useEditorStore()
 
-function handleAlign(
-  nodeAlign: (axis: 'horizontal' | 'vertical', pos: 'min' | 'center' | 'max') => void,
-  axis: 'horizontal' | 'vertical',
-  pos: 'min' | 'center' | 'max'
-) {
-  const editState = store.state.nodeEditState
-  if (editState && editState.selectedVertexIndices.size >= 2) {
-    store.nodeEditAlignVertices(axis, pos)
-  } else {
-    nodeAlign(axis, pos)
-  }
-}
-</script>
+  const handleAlign = useCallback(
+    (
+      nodeAlign: (axis: 'horizontal' | 'vertical', pos: 'min' | 'center' | 'max') => void,
+      axis: 'horizontal' | 'vertical',
+      pos: 'min' | 'center' | 'max'
+    ) => {
+      const editState = store.state.nodeEditState
+      if (editState && editState.selectedVertexIndices.size >= 2) {
+        store.nodeEditAlignVertices(axis, pos)
+      } else {
+        nodeAlign(axis, pos)
+      }
+    },
+    [store]
+  )
 
-<template>
-  <PositionControlsRoot
-    v-slot="{ active, isMulti, xValue, yValue, wValue, hValue, rotationValue, actions }"
-  >
-    <PanelSection v-if="active" :label="panels.position">
-      <div role="toolbar" :aria-label="panels.position" class="mb-1.5 flex justify-between">
-        <div class="flex gap-0.5">
-          <IconButton
-            :label="panels.alignLeft"
-            size="md"
-            @click="handleAlign(actions.align, 'horizontal', 'min')"
-          >
-            <icon-lucide-align-start-vertical class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="panels.alignCenterHorizontally"
-            size="md"
-            @click="handleAlign(actions.align, 'horizontal', 'center')"
-          >
-            <icon-lucide-align-center-vertical class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="panels.alignRight"
-            size="md"
-            @click="handleAlign(actions.align, 'horizontal', 'max')"
-          >
-            <icon-lucide-align-end-vertical class="size-3.5" />
-          </IconButton>
-        </div>
-        <div class="flex gap-0.5">
-          <IconButton
-            :label="panels.alignTop"
-            size="md"
-            @click="handleAlign(actions.align, 'vertical', 'min')"
-          >
-            <icon-lucide-align-start-horizontal class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="panels.alignCenterVertically"
-            size="md"
-            @click="handleAlign(actions.align, 'vertical', 'center')"
-          >
-            <icon-lucide-align-center-horizontal class="size-3.5" />
-          </IconButton>
-          <IconButton
-            :label="panels.alignBottom"
-            size="md"
-            @click="handleAlign(actions.align, 'vertical', 'max')"
-          >
-            <icon-lucide-align-end-horizontal class="size-3.5" />
-          </IconButton>
-        </div>
-      </div>
+  return (
+    <PositionControlsRoot>
+      {({ active, isMulti, xValue, yValue, wValue, hValue, rotationValue, actions }) =>
+        active ? (
+          <PanelSection label={panels.position}>
+            <div role="toolbar" aria-label={panels.position} className="mb-1.5 flex justify-between">
+              <div className="flex gap-0.5">
+                <IconButton
+                  label={panels.alignLeft}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'horizontal', 'min')}
+                >
+                  <IconLucideAlignStartVertical className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={panels.alignCenterHorizontally}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'horizontal', 'center')}
+                >
+                  <IconLucideAlignCenterVertical className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={panels.alignRight}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'horizontal', 'max')}
+                >
+                  <IconLucideAlignEndVertical className="size-3.5" />
+                </IconButton>
+              </div>
+              <div className="flex gap-0.5">
+                <IconButton
+                  label={panels.alignTop}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'vertical', 'min')}
+                >
+                  <IconLucideAlignStartHorizontal className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={panels.alignCenterVertically}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'vertical', 'center')}
+                >
+                  <IconLucideAlignCenterHorizontal className="size-3.5" />
+                </IconButton>
+                <IconButton
+                  label={panels.alignBottom}
+                  size="md"
+                  onClick={() => handleAlign(actions.align, 'vertical', 'max')}
+                >
+                  <IconLucideAlignEndHorizontal className="size-3.5" />
+                </IconButton>
+              </div>
+            </div>
 
-      <PanelGrid columns="two">
-        <Tip :label="panels.xAxis">
-          <NumberField
-            icon="X"
-            data-property="x"
-            :aria-label="panels.xAxis"
-            :model-value="xValue"
-            @update:model-value="actions.updateProp('x', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('x', v, p)"
-          />
-        </Tip>
-        <Tip :label="panels.yAxis">
-          <NumberField
-            icon="Y"
-            data-property="y"
-            :aria-label="panels.yAxis"
-            :model-value="yValue"
-            @update:model-value="actions.updateProp('y', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('y', v, p)"
-          />
-        </Tip>
-      </PanelGrid>
+            <PanelGrid columns="two">
+              <Tip label={panels.xAxis}>
+                <NumberField
+                  icon="X"
+                  data-property="x"
+                  aria-label={panels.xAxis}
+                  value={xValue}
+                  onValueChange={(value) => actions.updateProp('x', value)}
+                  onCommit={(value, previous) => actions.commitProp('x', value, previous)}
+                />
+              </Tip>
+              <Tip label={panels.yAxis}>
+                <NumberField
+                  icon="Y"
+                  data-property="y"
+                  aria-label={panels.yAxis}
+                  value={yValue}
+                  onValueChange={(value) => actions.updateProp('y', value)}
+                  onCommit={(value, previous) => actions.commitProp('y', value, previous)}
+                />
+              </Tip>
+            </PanelGrid>
 
-      <PanelGrid v-if="isMulti" columns="two" class="mt-1.5">
-        <Tip :label="panels.width">
-          <NumberField
-            icon="W"
-            data-property="width"
-            :aria-label="panels.width"
-            :model-value="wValue"
-            :min="1"
-            @update:model-value="actions.updateProp('width', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('width', v, p)"
-          />
-        </Tip>
-        <Tip :label="panels.height">
-          <NumberField
-            icon="H"
-            data-property="height"
-            :aria-label="panels.height"
-            :model-value="hValue"
-            :min="1"
-            @update:model-value="actions.updateProp('height', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('height', v, p)"
-          />
-        </Tip>
-      </PanelGrid>
+            {isMulti ? (
+              <PanelGrid columns="two" className="mt-1.5">
+                <Tip label={panels.width}>
+                  <NumberField
+                    icon="W"
+                    data-property="width"
+                    aria-label={panels.width}
+                    value={wValue}
+                    min={1}
+                    onValueChange={(value) => actions.updateProp('width', value)}
+                    onCommit={(value, previous) => actions.commitProp('width', value, previous)}
+                  />
+                </Tip>
+                <Tip label={panels.height}>
+                  <NumberField
+                    icon="H"
+                    data-property="height"
+                    aria-label={panels.height}
+                    value={hValue}
+                    min={1}
+                    onValueChange={(value) => actions.updateProp('height', value)}
+                    onCommit={(value, previous) => actions.commitProp('height', value, previous)}
+                  />
+                </Tip>
+              </PanelGrid>
+            ) : null}
 
-      <div class="mt-1.5 grid grid-cols-[minmax(0,1fr)_repeat(3,24px)] gap-0.5">
-        <Tip :label="panels.rotation">
-          <NumberField
-            suffix="°"
-            data-property="rotation"
-            :aria-label="panels.rotation"
-            :model-value="rotationValue"
-            :min="-360"
-            :max="360"
-            @update:model-value="actions.updateProp('rotation', $event)"
-            @commit="(v: number, p: number) => actions.commitProp('rotation', v, p)"
-          >
-            <template #icon>
-              <icon-lucide-rotate-cw class="size-3" />
-            </template>
-          </NumberField>
-        </Tip>
-        <IconButton :label="panels.flipHorizontal" size="md" @click="actions.flip('horizontal')">
-          <icon-lucide-flip-horizontal-2 class="size-3.5" />
-        </IconButton>
-        <IconButton :label="panels.flipVertical" size="md" @click="actions.flip('vertical')">
-          <icon-lucide-flip-vertical-2 class="size-3.5" />
-        </IconButton>
-        <IconButton :label="panels.rotate90" size="md" @click="actions.rotate(90)">
-          <icon-lucide-rotate-cw-square class="size-3.5" />
-        </IconButton>
-      </div>
-    </PanelSection>
-  </PositionControlsRoot>
-</template>
+            <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_repeat(3,24px)] gap-0.5">
+              <Tip label={panels.rotation}>
+                <NumberField
+                  suffix="°"
+                  data-property="rotation"
+                  aria-label={panels.rotation}
+                  value={rotationValue}
+                  min={-360}
+                  max={360}
+                  onValueChange={(value) => actions.updateProp('rotation', value)}
+                  onCommit={(value, previous) => actions.commitProp('rotation', value, previous)}
+                  icon={<IconLucideRotateCw className="size-3" />}
+                />
+              </Tip>
+              <IconButton label={panels.flipHorizontal} size="md" onClick={() => actions.flip('horizontal')}>
+                <IconLucideFlipHorizontal2 className="size-3.5" />
+              </IconButton>
+              <IconButton label={panels.flipVertical} size="md" onClick={() => actions.flip('vertical')}>
+                <IconLucideFlipVertical2 className="size-3.5" />
+              </IconButton>
+              <IconButton label={panels.rotate90} size="md" onClick={() => actions.rotate(90)}>
+                <IconLucideRotateCwSquare className="size-3.5" />
+              </IconButton>
+            </div>
+          </PanelSection>
+        ) : null
+      }
+    </PositionControlsRoot>
+  )
+})
+
+PositionSection.displayName = 'PositionSection'
+export default PositionSection

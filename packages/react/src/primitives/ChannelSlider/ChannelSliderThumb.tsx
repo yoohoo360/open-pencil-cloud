@@ -1,32 +1,26 @@
-<script setup lang="ts">
-import { SliderThumb } from 'reka-ui'
-
-import { useChannelSlider } from '#vue/primitives/ChannelSlider/context'
+import { useChannelSlider } from '#react/primitives/ChannelSlider/context'
 import type {
   ChannelSliderPartProps,
   ChannelSliderThumbSlotProps
-} from '#vue/primitives/ChannelSlider/types'
+} from '#react/primitives/ChannelSlider/types'
+import { memo, type ReactNode } from 'react'
 
-const { as = 'span', asChild = false } = defineProps<ChannelSliderPartProps>()
-const context = useChannelSlider()
+export type ChannelSliderThumbProps = ChannelSliderPartProps & {
+  children?: ReactNode | ((props: ChannelSliderThumbSlotProps) => ReactNode)
+}
 
-defineSlots<{
-  default?: (props: ChannelSliderThumbSlotProps) => unknown
-}>()
-</script>
+export const ChannelSliderThumb = memo(function ChannelSliderThumb({
+  children,
+  ...props
+}: ChannelSliderThumbProps) {
+  const { label, value, valueText } = useChannelSlider()
+  const slotProps = { label, value, valueText }
 
-<template>
-  <SliderThumb
-    :as="as"
-    :as-child="asChild"
-    :aria-label="context.label.value"
-    :aria-valuetext="context.valueText.value"
-    data-slot="thumb"
-  >
-    <slot
-      :value="context.value.value"
-      :value-text="context.valueText.value"
-      :label="context.label.value"
-    />
-  </SliderThumb>
-</template>
+  return (
+    <span {...props} aria-label={label} aria-valuetext={valueText} data-slot="thumb">
+      {typeof children === 'function' ? children(slotProps) : children}
+    </span>
+  )
+})
+
+ChannelSliderThumb.displayName = 'ChannelSliderThumb'

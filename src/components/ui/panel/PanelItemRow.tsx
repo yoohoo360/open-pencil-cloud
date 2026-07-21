@@ -1,41 +1,40 @@
-<script lang="ts">
-import type { ClassValue } from 'tailwind-variants'
-import type { VNode } from 'vue'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 
 import type { ComponentUI } from '@/components/ui/types'
-import type theme from '@/theme/panel/item-row'
-
-export type PanelItemRowUI = ComponentUI<typeof theme>
-
-export interface PanelItemRowProps {
-  class?: ClassValue
-  ui?: PanelItemRowUI
-}
-
-export interface PanelItemRowSlots {
-  default(): VNode[]
-  rail?(props: { removeClass: string }): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { computed } from 'vue'
-import { tv } from 'tailwind-variants'
-
 import itemRowTheme from '@/theme/panel/item-row'
 
-const { class: className, ui } = defineProps<PanelItemRowProps>()
-defineSlots<PanelItemRowSlots>()
-const styles = computed(() => tv(itemRowTheme)())
-</script>
+export type PanelItemRowUI = ComponentUI<typeof itemRowTheme>
 
-<template>
-  <div data-slot="item-row" :class="styles.root({ class: [ui?.root, className] })">
-    <div :class="styles.content({ class: ui?.content })" data-slot="content">
-      <slot />
+export type PanelItemRowProps = {
+  className?: ClassValue
+  ui?: PanelItemRowUI
+  children?: ReactNode
+  rail?: (props: { removeClass: string }) => ReactNode
+} & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>
+
+export const PanelItemRow = memo(function PanelItemRow({
+  className,
+  ui,
+  children,
+  rail,
+  ...rest
+}: PanelItemRowProps) {
+  const styles = useMemo(() => tv(itemRowTheme)(), [])
+
+  return (
+    <div {...rest} data-slot="item-row" className={styles.root({ class: [ui?.root, className] })}>
+      <div className={styles.content({ class: ui?.content })} data-slot="content">
+        {children}
+      </div>
+      {rail ? (
+        <div className={styles.rail({ class: ui?.rail })} data-slot="rail">
+          {rail({ removeClass: styles.remove({ class: ui?.remove }) })}
+        </div>
+      ) : null}
     </div>
-    <div v-if="$slots.rail" :class="styles.rail({ class: ui?.rail })" data-slot="rail">
-      <slot name="rail" :remove-class="styles.remove({ class: ui?.remove })" />
-    </div>
-  </div>
-</template>
+  )
+})
+
+PanelItemRow.displayName = 'PanelItemRow'
+export default PanelItemRow

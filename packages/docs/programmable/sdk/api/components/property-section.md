@@ -4,7 +4,7 @@ description: Headless collapsible anatomy for property-panel sections.
 ---
 
 <script setup lang="ts">
-import PropertyPrimitivesDemo from '#vue/primitives/PropertySection/demo/PropertyPrimitivesDemo.vue'
+import PropertyPrimitivesDemo from '#react/primitives/PropertySection/demo/PropertyPrimitivesDemo.vue'
 import { data } from './property-section.data'
 </script>
 
@@ -31,7 +31,7 @@ import {
   PropertySectionHeader,
   PropertySectionRoot,
   PropertySectionTitle
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 </script>
 
 <template>

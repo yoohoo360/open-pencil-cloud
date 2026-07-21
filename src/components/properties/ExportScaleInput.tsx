@@ -1,106 +1,127 @@
-<script setup lang="ts">
-import { ref, watch } from 'vue'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import IconLucideCheck from '~icons/lucide/check'
+import IconLucideChevronDown from '~icons/lucide/chevron-down'
 import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuTrigger
-} from 'reka-ui'
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type KeyboardEvent
+} from 'react'
 
 import { useInputUI } from '@/components/ui/input'
 import { menuItem, useMenuUI } from '@/components/ui/menu'
-import Tip from '@/components/ui/Tip.vue'
+import Tip from '@/components/ui/Tip'
 
-interface ExportScaleInputProps {
+export type ExportScaleInputProps = {
   presets: readonly number[]
   clamp: (scale: number) => number
   label?: string
-}
+  value: number
+  onValueChange: (value: number) => void
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>
 
-defineOptions({ inheritAttrs: false })
+export const ExportScaleInput = memo(function ExportScaleInput({
+  presets,
+  clamp,
+  label,
+  value,
+  onValueChange,
+  ...inputAttrs
+}: ExportScaleInputProps) {
+  const [open, setOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [text, setText] = useState(() => `${value}x`)
 
-const { presets, clamp, label } = defineProps<ExportScaleInputProps>()
+  useEffect(() => {
+    setText(`${value}x`)
+  }, [value])
 
-const modelValue = defineModel<number>({ required: true })
+  const inputClass = useInputUI({
+    size: 'sm',
+    ui: { base: 'min-w-0 flex-1 rounded-none border-0 bg-transparent focus:border-transparent' }
+  }).base
+  const menuCls = useMenuUI({ content: 'min-w-[7rem]' })
+  const itemCls = menuItem({ justify: 'between' })
 
-const open = ref(false)
-const inputRef = ref<HTMLInputElement | null>(null)
-const text = ref('')
+  const commit = useCallback(() => {
+    const parsed = Number.parseFloat(text.replace(/[^0-9.]/g, ''))
+    const next = Number.isFinite(parsed) && parsed > 0 ? clamp(parsed) : value
+    onValueChange(next)
+    setText(`${next}x`)
+  }, [clamp, onValueChange, text, value])
 
-// Keep the editable text in sync with the committed scale (e.g. 1.5 -> "1.5x").
-watch(modelValue, (value) => (text.value = `${value}x`), { immediate: true })
+  const pick = useCallback(
+    (scale: number) => {
+      onValueChange(scale)
+      setOpen(false)
+    },
+    [onValueChange]
+  )
 
-const inputClass = useInputUI({
-  size: 'sm',
-  ui: { base: 'min-w-0 flex-1 rounded-none border-0 bg-transparent focus:border-transparent' }
-}).base
-const menuCls = useMenuUI({ content: 'min-w-[7rem]' })
-const itemCls = menuItem({ justify: 'between' })
+  const isActive = useCallback((scale: number) => Math.abs(value - scale) < 1e-9, [value])
 
-function commit() {
-  const parsed = Number.parseFloat(text.value.replace(/[^0-9.]/g, ''))
-  if (Number.isFinite(parsed) && parsed > 0) modelValue.value = clamp(parsed)
-  // Reformat from the resulting value: normalizes "9" -> "9x", reverts invalid
-  // input, and reflects clamping (e.g. "9999999" -> "1024x").
-  text.value = `${modelValue.value}x`
-}
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        inputRef.current?.blur()
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setText(`${value}x`)
+        inputRef.current?.blur()
+      }
+    },
+    [value]
+  )
 
-function pick(scale: number) {
-  modelValue.value = scale
-  open.value = false
-}
-
-function isActive(scale: number) {
-  return Math.abs(modelValue.value - scale) < 1e-9
-}
-</script>
-
-<template>
-  <Tip :label="label" :disabled="!label">
-    <div
-      class="flex min-w-0 flex-1 overflow-hidden rounded border border-border bg-input focus-within:border-accent"
-    >
-      <input
-        ref="inputRef"
-        v-model="text"
-        v-bind="$attrs"
-        type="text"
-        :aria-label="label"
-        :class="inputClass"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-        @focus="inputRef?.select()"
-        @blur="commit"
-        @keydown.enter.prevent="inputRef?.blur()"
-        @keydown.escape.prevent="((text = `${modelValue}x`), inputRef?.blur())"
-      />
-      <DropdownMenuRoot v-model:open="open">
-        <DropdownMenuTrigger as-child>
-          <button
-            type="button"
-            :aria-label="label"
-            class="flex shrink-0 cursor-pointer items-center border-l border-border px-1.5 text-surface hover:bg-hover"
-          >
-            <icon-lucide-chevron-down class="size-3 text-muted" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent side="bottom" align="end" :side-offset="4" :class="menuCls.content">
-            <DropdownMenuItem
-              v-for="scale in presets"
-              :key="scale"
-              :class="itemCls"
-              @select="pick(scale)"
+  return (
+    <Tip label={label} disabled={!label}>
+      <div className="flex min-w-0 flex-1 overflow-hidden rounded border border-border bg-input focus-within:border-accent">
+        <input
+          {...inputAttrs}
+          ref={inputRef}
+          value={text}
+          type="text"
+          aria-label={label}
+          className={inputClass}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          onFocus={(event) => event.currentTarget.select()}
+          onBlur={commit}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              aria-label={label}
+              className="flex shrink-0 cursor-pointer items-center border-l border-border px-1.5 text-surface hover:bg-hover"
             >
-              <span>{{ scale }}x</span>
-              <icon-lucide-check v-if="isActive(scale)" class="size-3 text-accent" />
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenuRoot>
-    </div>
-  </Tip>
-</template>
+              <IconLucideChevronDown className="size-3 text-muted" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content side="bottom" align="end" sideOffset={4} className={menuCls.content}>
+              {presets.map((scale) => (
+                <DropdownMenu.Item key={scale} className={itemCls} onSelect={() => pick(scale)}>
+                  <span>{scale}x</span>
+                  {isActive(scale) ? <IconLucideCheck className="size-3 text-accent" /> : null}
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
+    </Tip>
+  )
+})
+
+ExportScaleInput.displayName = 'ExportScaleInput'
+export default ExportScaleInput

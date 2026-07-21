@@ -1,246 +1,196 @@
-<script setup lang="ts" generic="V">
-import { computed, onBeforeUnmount, ref } from 'vue'
-
-import { useBindingProvider } from '#vue/controls/binding-provider/context'
-import type {
-  BindingMutationSource,
-  BindingProvider,
-  BindingTarget
-} from '#vue/controls/binding-provider/types'
-import { provideBindableValue } from '#vue/primitives/BindableValue/context'
+import { useBindingProvider } from '#react/controls/binding-provider/context'
+import { BindableValueProvider } from '#react/primitives/BindableValue/context'
 import type {
   BindableValueActions,
   BindableValueContext,
   BindableValueRootProps,
-  BindableValueRootSlots,
   BindableValueSlotProps,
   BindableValueStateAttrs
-} from '#vue/primitives/BindableValue/types'
+} from '#react/primitives/BindableValue/types'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-const {
+export type BindableValueRootComponentProps<V> = BindableValueRootProps<V> & {
+  children?: ReactNode | ((props: BindableValueSlotProps<V>) => ReactNode)
+}
+
+export const BindableValueRoot = memo(function BindableValueRoot<V>({
   provider: providerProp,
-  targets: targetsProp,
-  value: valueProp,
-  policy: policyProp = 'detach-on-edit',
-  batchLabel = 'Edit bound value'
-} = defineProps<BindableValueRootProps<V>>()
-
-defineSlots<BindableValueRootSlots<V>>()
-
-const injectedProvider = useBindingProvider<V>()
-const resolvedProvider = providerProp ?? injectedProvider
-if (!resolvedProvider) {
-  throw new Error(
-    '[open-pencil] BindableValueRoot requires a provider prop or provideBindingProvider()'
-  )
-}
-const provider: BindingProvider<V> = resolvedProvider
-const beginProviderBatch = provider.beginBatch
-const commitProviderBatch = provider.commitBatch
-const rollbackProviderBatch = provider.rollbackBatch
-const supportsInteractionBatch =
-  beginProviderBatch !== undefined &&
-  commitProviderBatch !== undefined &&
-  rollbackProviderBatch !== undefined
-
-const targets = computed(() => targetsProp)
-const value = computed(() => valueProp)
-const policy = computed(() => policyProp)
-const open = ref(false)
-const searchTerm = ref('')
-const state = computed(() => {
-  void provider.revision?.value
-  return provider.getState(targets.value)
-})
-const variable = computed(() => {
-  const target = targets.value[0]
-  return state.value === 'bound' && target ? provider.getBound(target) : undefined
-})
-const resolvedValue = computed(() => {
-  void provider.revision?.value
-  const current = variable.value
-  return current ? provider.resolve(current.id) : undefined
-})
-const variables = computed(() => {
-  void provider.revision?.value
-  return provider.filterVariables(searchTerm.value)
-})
-const stateAttrs = computed<BindableValueStateAttrs>(() => ({
-  'data-unbound': state.value === 'unbound' ? '' : undefined,
-  'data-bound': state.value === 'bound' ? '' : undefined,
-  'data-mixed': state.value === 'mixed' ? '' : undefined,
-  'data-picker-open': open.value ? '' : undefined,
-  'data-policy': policy.value
-}))
-
-let interactionActive = false
-let detachedForInteraction = false
-let bindingSnapshot = new Map<BindingTarget, string>()
-let resolvedSnapshot: V | undefined
-
-function runImmediate(label: string, action: () => void) {
-  if (provider.runBatch) provider.runBatch(label, action)
-  else action()
-}
-
-function bind(variableId: string) {
-  runImmediate('Bind variable', () => {
-    for (const target of targets.value) provider.bind(target, variableId)
-  })
-  open.value = false
-}
-
-function unbind() {
-  runImmediate('Unbind variable', () => {
-    for (const target of targets.value) provider.unbind(target)
-  })
-}
-
-function create(name: string) {
-  const target = targets.value[0]
-  if (!target || !provider.create) return
-  runImmediate('Create and bind variable', () => provider.create?.(target, value.value, name))
-  open.value = false
-}
-
-function openPicker() {
-  open.value = true
-}
-
-function closePicker() {
-  open.value = false
-}
-
-function togglePicker() {
-  open.value = !open.value
-}
-
-function setSearchTerm(term: string) {
-  searchTerm.value = term
-}
-
-function snapshotBindings() {
-  bindingSnapshot = new Map()
-  for (const target of targets.value) {
-    const current = provider.getBound(target)
-    if (current) bindingSnapshot.set(target, current.id)
-  }
-}
-
-function beginMutation(source: BindingMutationSource): boolean {
-  if (interactionActive) return true
-  const startedUnbound = state.value === 'unbound'
-  const startedMixed = state.value === 'mixed'
-  if (!startedUnbound && !startedMixed && policy.value === 'readonly-when-bound') return false
-  if (
-    !startedUnbound &&
-    !startedMixed &&
-    policy.value === 'edit-variable' &&
-    (!variable.value || !provider.setValue)
-  ) {
-    return false
-  }
-
-  interactionActive = true
-  void source
-  if (!startedUnbound) snapshotBindings()
-  resolvedSnapshot = resolvedValue.value
-  if (supportsInteractionBatch) beginProviderBatch(batchLabel)
-
-  if (startedMixed || (!startedUnbound && policy.value === 'detach-on-edit')) {
-    detachedForInteraction = true
-    for (const target of targets.value) provider.unbind(target)
-  }
-  return true
-}
-
-function applyValue(nextValue: V): boolean {
-  if (policy.value !== 'edit-variable' || !interactionActive) return false
-  const current = variable.value
-  if (!current || !provider.setValue) return false
-  provider.setValue(current.id, nextValue)
-  return true
-}
-
-function resetInteraction() {
-  interactionActive = false
-  detachedForInteraction = false
-  bindingSnapshot.clear()
-  resolvedSnapshot = undefined
-}
-
-function commitMutation() {
-  if (!interactionActive) return
-  if (supportsInteractionBatch) commitProviderBatch()
-  resetInteraction()
-}
-
-function restoreWithoutRollback() {
-  if (detachedForInteraction) {
-    for (const [target, variableId] of bindingSnapshot) provider.bind(target, variableId)
-  } else if (
-    policy.value === 'edit-variable' &&
-    variable.value &&
-    resolvedSnapshot !== undefined &&
-    provider.setValue
-  ) {
-    provider.setValue(variable.value.id, resolvedSnapshot)
-  }
-}
-
-function cancelMutation() {
-  if (!interactionActive) return
-  if (supportsInteractionBatch) rollbackProviderBatch()
-  else restoreWithoutRollback()
-  resetInteraction()
-}
-
-const actions: BindableValueActions<V> = {
-  bind,
-  unbind,
-  create,
-  openPicker,
-  closePicker,
-  togglePicker,
-  setSearchTerm,
-  beginMutation,
-  applyValue,
-  commitMutation,
-  cancelMutation
-}
-
-const slotProps = computed<BindableValueSlotProps<V>>(() => ({
-  state: state.value,
-  variable: variable.value,
-  resolvedValue: resolvedValue.value,
-  policy: policy.value,
-  open: open.value,
-  searchTerm: searchTerm.value,
-  variables: variables.value,
-  stateAttrs: stateAttrs.value,
-  actions
-}))
-
-const context: BindableValueContext<V> = {
-  provider,
   targets,
   value,
-  state,
-  variable,
-  resolvedValue,
-  policy,
-  open,
-  searchTerm,
-  variables,
-  stateAttrs,
-  slotProps,
-  actions
-}
-
-provideBindableValue(context)
-onBeforeUnmount(cancelMutation)
-</script>
-
-<template>
-  <slot v-bind="slotProps" />
-</template>
+  policy = 'detach-on-edit',
+  batchLabel = 'Edit bound value',
+  children
+}: BindableValueRootComponentProps<V>) {
+  const injectedProvider = useBindingProvider<V>()
+  const provider = providerProp ?? injectedProvider
+  if (!provider)
+    throw new Error('[open-pencil] BindableValueRoot requires a provider prop or BindingProvider')
+  const [, rerender] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const interaction = useRef({
+    active: false,
+    detached: false,
+    bindings: new Map<(typeof targets)[number], string>(),
+    resolved: undefined as V | undefined
+  })
+  useEffect(() => provider.subscribe?.(() => rerender((revision) => revision + 1)), [provider])
+  const state = provider.getState(targets)
+  const variable = state === 'bound' && targets[0] ? provider.getBound(targets[0]) : undefined
+  const resolvedValue = variable ? provider.resolve(variable.id) : undefined
+  const variables = provider.filterVariables(searchTerm)
+  const stateAttrs = useMemo<BindableValueStateAttrs>(
+    () => ({
+      'data-unbound': state === 'unbound' ? '' : undefined,
+      'data-bound': state === 'bound' ? '' : undefined,
+      'data-mixed': state === 'mixed' ? '' : undefined,
+      'data-picker-open': open ? '' : undefined,
+      'data-policy': policy
+    }),
+    [open, policy, state]
+  )
+  const reset = useCallback(() => {
+    interaction.current = {
+      active: false,
+      detached: false,
+      bindings: new Map(),
+      resolved: undefined
+    }
+  }, [])
+  const beginMutation = useCallback(
+    (source: 'edit' | 'scrub' | 'step') => {
+      if (interaction.current.active) return true
+      if (state === 'bound' && policy === 'readonly-when-bound') return false
+      if (state === 'bound' && policy === 'edit-variable' && (!variable || !provider.setValue))
+        return false
+      interaction.current.active = true
+      void source
+      if (state !== 'unbound') {
+        for (const target of targets) {
+          const current = provider.getBound(target)
+          if (current) interaction.current.bindings.set(target, current.id)
+        }
+      }
+      interaction.current.resolved = resolvedValue
+      provider.beginBatch?.(batchLabel)
+      if (state === 'mixed' || (state === 'bound' && policy === 'detach-on-edit')) {
+        interaction.current.detached = true
+        for (const target of targets) provider.unbind(target)
+      }
+      return true
+    },
+    [batchLabel, policy, provider, resolvedValue, state, targets, variable]
+  )
+  const actions = useMemo<BindableValueActions<V>>(
+    () => ({
+      bind: (variableId) => {
+        const bindTargets = () => targets.forEach((target) => provider.bind(target, variableId))
+        if (provider.runBatch) provider.runBatch('Bind variable', bindTargets)
+        else bindTargets()
+        setOpen(false)
+      },
+      unbind: () => {
+        const unbindTargets = () => targets.forEach((target) => provider.unbind(target))
+        if (provider.runBatch) provider.runBatch('Unbind variable', unbindTargets)
+        else unbindTargets()
+      },
+      create: (name) => {
+        if (targets[0] && provider.create) {
+          const createVariable = () => provider.create?.(targets[0], value, name)
+          if (provider.runBatch) provider.runBatch('Create and bind variable', createVariable)
+          else createVariable()
+        }
+        setOpen(false)
+      },
+      openPicker: () => setOpen(true),
+      closePicker: () => setOpen(false),
+      togglePicker: () => setOpen((current) => !current),
+      setSearchTerm,
+      beginMutation,
+      applyValue: (nextValue) => {
+        if (
+          policy !== 'edit-variable' ||
+          !interaction.current.active ||
+          !variable ||
+          !provider.setValue
+        )
+          return false
+        provider.setValue(variable.id, nextValue)
+        return true
+      },
+      commitMutation: () => {
+        if (!interaction.current.active) return
+        provider.commitBatch?.()
+        reset()
+      },
+      cancelMutation: () => {
+        if (!interaction.current.active) return
+        if (provider.rollbackBatch) provider.rollbackBatch()
+        else if (interaction.current.detached)
+          for (const [target, variableId] of interaction.current.bindings)
+            provider.bind(target, variableId)
+        else if (
+          policy === 'edit-variable' &&
+          variable &&
+          interaction.current.resolved !== undefined &&
+          provider.setValue
+        )
+          provider.setValue(variable.id, interaction.current.resolved)
+        reset()
+      }
+    }),
+    [beginMutation, policy, provider, reset, targets, value, variable]
+  )
+  useEffect(() => () => actions.cancelMutation(), [actions])
+  const slotProps = useMemo<BindableValueSlotProps<V>>(
+    () => ({
+      state,
+      variable,
+      resolvedValue,
+      policy,
+      open,
+      searchTerm,
+      variables,
+      stateAttrs,
+      actions
+    }),
+    [actions, open, policy, resolvedValue, searchTerm, state, stateAttrs, variable, variables]
+  )
+  const context = useMemo<BindableValueContext<V>>(
+    () => ({
+      provider,
+      targets,
+      value,
+      state,
+      variable,
+      resolvedValue,
+      policy,
+      open,
+      searchTerm,
+      variables,
+      stateAttrs,
+      slotProps,
+      actions
+    }),
+    [
+      actions,
+      open,
+      policy,
+      provider,
+      resolvedValue,
+      searchTerm,
+      slotProps,
+      state,
+      stateAttrs,
+      targets,
+      value,
+      variable,
+      variables
+    ]
+  )
+  return (
+    <BindableValueProvider value={context}>
+      {typeof children === 'function' ? children(slotProps) : children}
+    </BindableValueProvider>
+  )
+}) as <V>(props: BindableValueRootComponentProps<V>) => ReactNode

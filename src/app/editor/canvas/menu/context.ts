@@ -1,6 +1,4 @@
-import { computed, type Ref } from 'vue'
-
-import { formatShortcut, type Editor, type MenuEntry } from '@open-pencil/vue'
+import { formatShortcut, type Editor, type MenuEntry } from '@open-pencil/react'
 
 import type { createCanvasMenuActions } from '@/app/editor/canvas/menu/actions'
 import {
@@ -12,6 +10,7 @@ import {
 const STATIC_SELECTION_COMMAND_IDS = new Set(['selection.duplicate', 'selection.delete'])
 
 type CanvasMenuActions = ReturnType<typeof createCanvasMenuActions>
+type Value<T> = { value: T }
 
 type CanvasCopyLabels = {
   copyPasteAs: string
@@ -81,15 +80,17 @@ function copyPasteAsEntry(
 }
 
 export function useCanvasContextMenu(
-  baseEntries: Ref<MenuEntry[]>,
-  hasSelection: Ref<boolean>,
+  baseEntries: Value<MenuEntry[]>,
+  hasSelection: Value<boolean>,
   editor: Editor,
   actions: CanvasMenuActions,
-  labels: Ref<CanvasCopyLabels>
+  labels: Value<CanvasCopyLabels>
 ) {
-  return computed<MenuEntry[]>(() => {
-    const entries = withoutStaticSelectionCommands(baseEntries.value)
-    if (!hasSelection.value) return entries
-    return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels.value)]
-  })
+  return {
+    get value(): MenuEntry[] {
+      const entries = withoutStaticSelectionCommands(baseEntries.value)
+      if (!hasSelection.value) return entries
+      return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels.value)]
+    }
+  }
 }

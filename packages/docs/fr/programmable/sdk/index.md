@@ -5,7 +5,7 @@ description: Créez des éditeurs propulsés par OpenPencil avec des composables
 
 # Vue SDK
 
-`@open-pencil/vue` existe pour qu'OpenPencil puisse être bien plus qu'une application de design autonome.
+`@open-pencil/react` existe pour qu'OpenPencil puisse être bien plus qu'une application de design autonome.
 
 L'objectif est de faire d'OpenPencil une boîte à outils intégrable dans d'autres produits, outils internes, et éditeurs spécialisés — pas seulement une interface par défaut.
 
@@ -40,7 +40,7 @@ Le SDK est la couche qui rend tout cela possible.
 
 - **Headless en priorité** : logique et structure, sans style applicatif
 - **Composables plutôt que wrappers** : utiliser des composables quand il n'y a pas de coordination structurelle significative
-- **API publique intentionnelle** : exports stables depuis `packages/vue/src/index.ts`
+- **API publique intentionnelle** : exports stables depuis `packages/react/src/index.ts`
 - **Intégration framework** : intégration Vue au-dessus de `@open-pencil/core`
 
 ## Comment penser ce package

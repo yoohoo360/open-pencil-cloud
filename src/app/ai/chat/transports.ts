@@ -1,7 +1,6 @@
-import { Chat } from '@ai-sdk/vue'
+import { Chat } from '@ai-sdk/react'
 import { DirectChatTransport, stepCountIs, ToolLoopAgent } from 'ai'
 import type { ChatTransport, UIMessage } from 'ai'
-import type { ComputedRef, Ref } from 'vue'
 
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 import type { ACPAgentID, AIProviderID } from '@open-pencil/core/constants'
@@ -12,17 +11,18 @@ import { MAX_AGENT_STEPS, createAITools, recordStepUsage, resetRunSteps } from '
 import type { getActiveEditorStore } from '@/app/editor/active-store'
 
 type EditorStore = ReturnType<typeof getActiveEditorStore>
+type Value<T> = { value: T }
 
 type ChatSessionOptions = {
-  isConfigured: ComputedRef<boolean>
-  isACPProvider: ComputedRef<boolean>
-  providerID: Ref<AIProviderID>
-  apiKey: Ref<string>
-  modelID: Ref<string>
-  customModelID: Ref<string>
-  customBaseURL: Ref<string>
-  customAPIType: Ref<'completions' | 'responses'>
-  maxOutputTokens: Ref<number>
+  isConfigured: Value<boolean>
+  isACPProvider: Value<boolean>
+  providerID: Value<AIProviderID>
+  apiKey: Value<string>
+  modelID: Value<string>
+  customModelID: Value<string>
+  customBaseURL: Value<string>
+  customAPIType: Value<'completions' | 'responses'>
+  maxOutputTokens: Value<number>
   getActiveEditorStore: () => EditorStore
 }
 

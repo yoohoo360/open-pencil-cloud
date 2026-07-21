@@ -1,77 +1,65 @@
-<script setup lang="ts">
-import { computed, getCurrentInstance, ref } from 'vue'
-import { CollapsibleRoot } from 'reka-ui'
+import { memo, useCallback, useMemo, useState, type HTMLAttributes, type ReactNode } from 'react'
 
-import { providePropertySection } from '#vue/primitives/PropertySection/context'
+import { PropertySectionProvider } from '#react/primitives/PropertySection/context'
 import type {
   PropertySectionActionAPI,
   PropertySectionRootProps,
-  PropertySectionRootSlots,
   PropertySectionSlotProps,
   PropertySectionStateAttrs
-} from '#vue/primitives/PropertySection/types'
+} from '#react/primitives/PropertySection/types'
 
-const {
+export type PropertySectionRootComponentProps = PropertySectionRootProps &
+  Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+    children?: ReactNode | ((props: PropertySectionSlotProps) => ReactNode)
+    onOpenChange?: (open: boolean) => void
+  }
+
+export const PropertySectionRoot = memo(function PropertySectionRoot({
   open: openProp,
   defaultOpen = true,
-  empty: emptyProp = false,
-  disabled: disabledProp = false,
-  unmountOnHide = false
-} = defineProps<PropertySectionRootProps>()
+  empty = false,
+  disabled = false,
+  unmountOnHide = false,
+  children,
+  onOpenChange,
+  ...props
+}: PropertySectionRootComponentProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
+  const open = openProp ?? uncontrolledOpen
+  const setOpen = useCallback(
+    (value: boolean) => {
+      if (disabled) return
+      if (openProp === undefined) setUncontrolledOpen(value)
+      onOpenChange?.(value)
+    },
+    [disabled, onOpenChange, openProp]
+  )
+  const actions = useMemo<PropertySectionActionAPI>(
+    () => ({ open: () => setOpen(true), close: () => setOpen(false), toggle: () => setOpen(!open) }),
+    [open, setOpen]
+  )
+  const stateAttrs = useMemo<PropertySectionStateAttrs>(
+    () => ({
+      'data-state': open ? 'open' : 'closed',
+      'data-empty': empty ? '' : undefined,
+      'data-disabled': disabled ? '' : undefined
+    }),
+    [disabled, empty, open]
+  )
+  const slotProps = useMemo<PropertySectionSlotProps>(
+    () => ({ open, empty, stateAttrs, actions }),
+    [actions, empty, open, stateAttrs]
+  )
+  const context = useMemo(
+    () => ({ open, empty, disabled, unmountOnHide, stateAttrs, slotProps, actions }),
+    [actions, disabled, empty, open, stateAttrs, slotProps, unmountOnHide]
+  )
 
-const emit = defineEmits<{
-  'update:open': [open: boolean]
-}>()
-defineSlots<PropertySectionRootSlots>()
-defineOptions({ inheritAttrs: false })
-
-const vnodeProps = getCurrentInstance()?.vnode.props
-const controlled = vnodeProps ? Object.hasOwn(vnodeProps, 'open') : false
-const uncontrolledOpen = ref(defaultOpen)
-const open = computed({
-  get: () => (controlled ? openProp : uncontrolledOpen.value),
-  set: (value: boolean) => {
-    if (!controlled) uncontrolledOpen.value = value
-    emit('update:open', value)
-  }
+  return (
+    <PropertySectionProvider value={context}>
+      <div {...props} {...stateAttrs}>{typeof children === 'function' ? children(slotProps) : children}</div>
+    </PropertySectionProvider>
+  )
 })
-const empty = computed(() => emptyProp)
-const disabled = computed(() => disabledProp)
-const stateAttrs = computed<PropertySectionStateAttrs>(() => ({
-  'data-state': open.value ? 'open' : 'closed',
-  'data-empty': empty.value ? '' : undefined,
-  'data-disabled': disabled.value ? '' : undefined
-}))
 
-const actions: PropertySectionActionAPI = {
-  open: () => {
-    if (!disabled.value) open.value = true
-  },
-  close: () => {
-    if (!disabled.value) open.value = false
-  },
-  toggle: () => {
-    if (!disabled.value) open.value = !open.value
-  }
-}
-const slotProps = computed<PropertySectionSlotProps>(() => ({
-  open: open.value,
-  empty: empty.value,
-  stateAttrs: stateAttrs.value,
-  actions
-}))
-
-providePropertySection({ open, empty, disabled, stateAttrs, slotProps, actions })
-</script>
-
-<template>
-  <CollapsibleRoot
-    v-bind="{ ...$attrs, ...stateAttrs }"
-    :open="open"
-    :disabled="disabled"
-    :unmount-on-hide="unmountOnHide"
-    @update:open="open = $event"
-  >
-    <slot v-bind="slotProps" />
-  </CollapsibleRoot>
-</template>
+PropertySectionRoot.displayName = 'PropertySectionRoot'

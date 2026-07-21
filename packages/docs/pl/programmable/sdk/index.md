@@ -5,7 +5,7 @@ description: Buduj edytory oparte na OpenPencil z bezstanowymi kompozytami i pry
 
 # Vue SDK
 
-`@open-pencil/vue` istnieje po to, by OpenPencil mógł być czymś więcej niż samodzielną aplikacją do projektowania.
+`@open-pencil/react` istnieje po to, by OpenPencil mógł być czymś więcej niż samodzielną aplikacją do projektowania.
 
 Celem jest uczynienie OpenPencil zestawem narzędzi, który można wbudować w inne produkty, narzędzia wewnętrzne i edytory dopasowane do konkretnych przepływów pracy — a nie tylko jednym domyślnym interfejsem.
 
@@ -40,7 +40,7 @@ SDK to warstwa, która to umożliwia.
 
 - **Headless na pierwszym miejscu**: logika i struktura, bez stylowania aplikacji
 - **Kompozyty zamiast opakowań**: używaj kompozytów, gdy nie ma znaczącej koordynacji strukturalnej
-- **Przemyślane publiczne API**: stabilne eksporty z `packages/vue/src/index.ts`
+- **Przemyślane publiczne API**: stabilne eksporty z `packages/react/src/index.ts`
 - **Świadomość frameworka**: integracja Vue nad `@open-pencil/core`
 
 ## Jak myśleć o pakiecie

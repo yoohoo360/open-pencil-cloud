@@ -1,65 +1,89 @@
-<script setup lang="ts">
-import { LayoutControlsRoot, useI18n } from '@open-pencil/vue'
+import IconLucideMinus from '~icons/lucide/minus'
+import IconLucidePlus from '~icons/lucide/plus'
+import { memo } from 'react'
 
-import AutoLayoutControls from '@/components/properties/LayoutSection/AutoLayoutControls.vue'
-import ClipContentControl from '@/components/properties/LayoutSection/ClipContentControl.vue'
-import FlexControls from '@/components/properties/LayoutSection/FlexControls.vue'
-import GridControls from '@/components/properties/LayoutSection/GridControls.vue'
-import LayoutGridSection from '@/components/properties/LayoutSection/LayoutGridSection.vue'
-import IconButton from '@/components/ui/IconButton.vue'
-import PaddingControls from '@/components/properties/LayoutSection/PaddingControls.vue'
-import SizeControls from '@/components/properties/LayoutSection/size/SizeControls.vue'
-import TextResizingControl from '@/components/properties/LayoutSection/TextResizingControl.vue'
-import SharedStyleField from '@/components/properties/shared-style/SharedStyleField.vue'
-import PanelSection from '@/components/ui/panel/PanelSection.vue'
+import { LayoutControlsRoot, useI18n } from '@open-pencil/react'
 
-const { panels } = useI18n()
+import AutoLayoutControls from '@/components/properties/LayoutSection/AutoLayoutControls'
+import ClipContentControl from '@/components/properties/LayoutSection/ClipContentControl'
+import FlexControls from '@/components/properties/LayoutSection/FlexControls'
+import GridControls from '@/components/properties/LayoutSection/GridControls'
+import LayoutGridSection from '@/components/properties/LayoutSection/LayoutGridSection'
+import PaddingControls from '@/components/properties/LayoutSection/PaddingControls'
+import SizeControls from '@/components/properties/LayoutSection/size/SizeControls'
+import TextResizingControl from '@/components/properties/LayoutSection/TextResizingControl'
+import SharedStyleField from '@/components/properties/shared-style/SharedStyleField'
+import type { LayoutControlsApi } from '@/components/properties/LayoutSection/types'
+import IconButton from '@/components/ui/IconButton'
+import PanelSection from '@/components/ui/panel/PanelSection'
 
 const CONTAINER_TYPES = ['FRAME', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE']
-</script>
 
-<template>
-  <LayoutControlsRoot v-slot="ctx">
-    <template v-if="ctx.node">
-      <PanelSection :label="panels.layout">
-        <SharedStyleField kind="grid" :label="panels.gridStyle" />
-        <TextResizingControl v-if="ctx.node.type === 'TEXT'" />
-        <SizeControls />
-      </PanelSection>
+export const LayoutSection = memo(function LayoutSection() {
+  const { panels } = useI18n()
 
-      <template v-if="CONTAINER_TYPES.includes(ctx.node.type)">
-        <PanelSection :label="panels.autoLayout">
-          <template #actions>
-            <IconButton
-              v-if="ctx.node.layoutMode === 'NONE'"
-              :label="panels.addAutoLayout"
-              @click="ctx.editor.setLayoutMode(ctx.node.id, 'VERTICAL')"
-            >
-              <icon-lucide-plus class="size-3.5" />
-            </IconButton>
-            <IconButton
-              v-else
-              :label="panels.removeAutoLayout"
-              @click="ctx.editor.setLayoutMode(ctx.node.id, 'NONE')"
-            >
-              <icon-lucide-minus class="size-3.5" />
-            </IconButton>
-          </template>
+  return (
+    <LayoutControlsRoot>
+      {(ctx) => {
+        const layout = ctx as unknown as LayoutControlsApi
+        if (!layout.node) return null
+        const { node } = layout
 
-          <AutoLayoutControls />
+        return (
+          <>
+            <PanelSection label={panels.layout}>
+              <SharedStyleField kind="grid" label={panels.gridStyle} />
+              {node.type === 'TEXT' ? <TextResizingControl /> : null}
+              <SizeControls />
+            </PanelSection>
 
-          <template v-if="ctx.node.layoutMode !== 'NONE'">
-            <FlexControls v-if="ctx.isFlex" />
-            <template v-if="ctx.isGrid">
-              <GridControls />
-              <PaddingControls />
-              <ClipContentControl />
-            </template>
-          </template>
-        </PanelSection>
+            {CONTAINER_TYPES.includes(node.type) ? (
+              <>
+                <PanelSection
+                  label={panels.autoLayout}
+                  actions={
+                    node.layoutMode === 'NONE' ? (
+                      <IconButton
+                        label={panels.addAutoLayout}
+                        onClick={() => layout.editor.setLayoutMode(node.id, 'VERTICAL')}
+                      >
+                        <IconLucidePlus className="size-3.5" />
+                      </IconButton>
+                    ) : (
+                      <IconButton
+                        label={panels.removeAutoLayout}
+                        onClick={() => layout.editor.setLayoutMode(node.id, 'NONE')}
+                      >
+                        <IconLucideMinus className="size-3.5" />
+                      </IconButton>
+                    )
+                  }
+                >
+                  <AutoLayoutControls />
 
-        <LayoutGridSection />
-      </template>
-    </template>
-  </LayoutControlsRoot>
-</template>
+                  {node.layoutMode !== 'NONE' ? (
+                    <>
+                      {layout.isFlex ? <FlexControls /> : null}
+                      {layout.isGrid ? (
+                        <>
+                          <GridControls />
+                          <PaddingControls />
+                          <ClipContentControl />
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                </PanelSection>
+
+                <LayoutGridSection />
+              </>
+            ) : null}
+          </>
+        )
+      }}
+    </LayoutControlsRoot>
+  )
+})
+
+LayoutSection.displayName = 'LayoutSection'
+export default LayoutSection

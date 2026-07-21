@@ -1,217 +1,142 @@
-<script setup lang="ts">
-import { useAttrs } from 'vue'
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import { memo, useCallback, useMemo, type FocusEvent, type HTMLAttributes, type MouseEvent } from 'react'
 import { tv } from 'tailwind-variants'
+
 import {
-  TreeItem,
-  TreeVirtualizer,
-  ContextMenuRoot,
-  ContextMenuTrigger,
-  ContextMenuPortal
-} from 'reka-ui'
-
-import { LayerTreeRoot, LayerTreeItem, useInlineRename } from '@open-pencil/vue'
-import type {
-  LayerDragInstruction,
-  LayerNode,
-  LayerSelectionMode,
-  LayerTreeVirtualizer
-} from '@open-pencil/vue'
+  LayerTreeItem,
+  LayerTreeRoot,
+  useInlineRename,
+  type LayerDragInstruction
+} from '@open-pencil/react'
 import { useEditorStore } from '@/app/editor/active-store'
-import CanvasMenu from '../canvas/CanvasMenu.vue'
-import LayerTreeNodeRow from './LayerTreeNodeRow.vue'
-import LayerTreeRenameRow from './LayerTreeRenameRow.vue'
-import { provideLayerTreeUI } from './ui'
-
+import CanvasMenu from '@/components/canvas/CanvasMenu'
+import LayerTreeNodeRow from '@/components/LayerTree/LayerTreeNodeRow'
+import LayerTreeRenameRow from '@/components/LayerTree/LayerTreeRenameRow'
+import { LayerTreeUIProvider, type LayerTreeUI } from '@/components/LayerTree/ui'
 import layerTreeTheme from '@/theme/layer-tree'
 
-import type { LayerTreeUI } from './ui'
-
-interface LayerTreeRootActions {
-  select: (id: string, selection: boolean | LayerSelectionMode) => void
-  toggleExpand: (id: string) => void
-  setFocused: (focused: boolean) => void
-  setVirtualizer: (virtualizer: LayerTreeVirtualizer) => void
-}
-
-interface LayerTreeSlotScope {
-  actions: LayerTreeRootActions
-  draggingId: string | null
-  instruction: LayerDragInstruction | null
-  instructionTargetId: string | null
-  focused: boolean
-}
-
-defineOptions({ inheritAttrs: false })
-
-const { ui } = defineProps<{ ui?: LayerTreeUI }>()
-
 const INDENT = 16
-const attrs = useAttrs()
-const styles = tv(layerTreeTheme)()
-provideLayerTreeUI(() => ui)
-const store = useEditorStore()
-const rename = useInlineRename((id, name) => store.renameNode(id, name))
-const renameControls = {
-  commit: rename.commit,
-  onKeydown: rename.onKeydown,
-  focusInput: rename.focusInput
+
+export type LayerTreeProps = HTMLAttributes<HTMLDivElement> & {
+  ui?: LayerTreeUI
 }
 
-function onLayerRightClick(e: MouseEvent) {
-  const row = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]')
-  if (!row?.dataset.nodeId) return
-  if (!store.state.selectedIds.has(row.dataset.nodeId)) store.select([row.dataset.nodeId])
-}
-
-function layerSelectionMode(e: CustomEvent): LayerSelectionMode {
-  const mouseEvent = e.detail?.originalEvent as MouseEvent | undefined
-  return {
-    additive: !!(mouseEvent?.metaKey || mouseEvent?.ctrlKey),
-    range: !!mouseEvent?.shiftKey
-  }
-}
-
-function onTreeSelect(
-  e: CustomEvent,
-  id: string,
-  select: (id: string, selection: boolean | LayerSelectionMode) => void
-) {
-  e.preventDefault()
-  select(id, layerSelectionMode(e))
-}
-
-function isLayerNode(value: unknown): value is LayerNode {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    'name' in value &&
-    'type' in value &&
-    'layoutMode' in value &&
-    'visible' in value &&
-    'locked' in value &&
-    typeof value.id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.type === 'string' &&
-    typeof value.layoutMode === 'string' &&
-    typeof value.visible === 'boolean' &&
-    typeof value.locked === 'boolean'
+export const LayerTree = memo(function LayerTree({ ui, className, ...props }: LayerTreeProps) {
+  const styles = useMemo(() => tv(layerTreeTheme)(), [])
+  const store = useEditorStore()
+  const rename = useInlineRename((id, name) => store.renameNode(id, name))
+  const renameControls = useMemo(
+    () => ({
+      commit: rename.commit,
+      onKeydown: rename.onKeydown,
+      focusInput: rename.focusInput
+    }),
+    [rename.commit, rename.focusInput, rename.onKeydown]
   )
-}
 
-function toLayerNode(value: unknown): LayerNode {
-  if (isLayerNode(value)) return value
-  throw new Error('[open-pencil] Invalid layer tree item')
-}
+  const onLayerRightClick = useCallback(
+    (event: MouseEvent) => {
+      const row = (event.target as HTMLElement).closest<HTMLElement>('[data-node-id]')
+      if (!row?.dataset.nodeId) return
+      if (!store.state.selectedIds.has(row.dataset.nodeId)) store.select([row.dataset.nodeId])
+    },
+    [store]
+  )
 
-function layerTextContent(value: unknown): string {
-  return toLayerNode(value).name
-}
+  const onFocusOut = useCallback((event: FocusEvent<HTMLDivElement>, setFocused: (focused: boolean) => void) => {
+    const next = event.relatedTarget
+    if (
+      next instanceof Node &&
+      event.currentTarget instanceof Node &&
+      event.currentTarget.contains(next)
+    ) {
+      return
+    }
+    setFocused(false)
+  }, [])
 
-function chrome(scope: Omit<LayerTreeSlotScope, 'actions'>) {
-  return {
-    draggingId: scope.draggingId,
-    instruction: scope.instruction,
-    instructionTargetId: scope.instructionTargetId,
-    focused: scope.focused,
-    indent: INDENT
-  }
-}
+  const chrome = useCallback(
+    (scope: {
+      draggingId: string | null
+      instruction: LayerDragInstruction | null
+      instructionTargetId: string | null
+      focused: boolean
+    }) => ({
+      draggingId: scope.draggingId,
+      instruction: scope.instruction,
+      instructionTargetId: scope.instructionTargetId,
+      focused: scope.focused,
+      indent: INDENT
+    }),
+    []
+  )
 
-function registerVirtualizer(
-  actions: LayerTreeRootActions,
-  virtualizer: LayerTreeVirtualizer
-): boolean {
-  actions.setVirtualizer(virtualizer)
-  return true
-}
-
-function onFocusOut(event: FocusEvent, actions: LayerTreeRootActions) {
-  const next = event.relatedTarget
-  if (
-    next instanceof Node &&
-    event.currentTarget instanceof Node &&
-    event.currentTarget.contains(next)
-  ) {
-    return
-  }
-  actions.setFocused(false)
-}
-</script>
-
-<template>
-  <LayerTreeRoot v-slot="scope" :indent-per-level="INDENT">
-    <ContextMenuRoot :modal="false">
-      <div
-        v-bind="attrs"
-        class="relative min-h-0 flex-1 overflow-hidden"
-        @focusin="scope.actions.setFocused(true)"
-        @focusout="onFocusOut($event, scope.actions)"
-      >
-        <ContextMenuTrigger as-child @contextmenu="onLayerRightClick">
-          <div
-            data-test-id="layers-scroll"
-            data-slot="viewport"
-            :class="styles.viewport({ class: ui?.viewport })"
-          >
-            <TreeVirtualizer
-              v-slot="{ item, virtualizer }"
-              :estimate-size="24"
-              :text-content="layerTextContent"
+  return (
+    <LayerTreeUIProvider ui={ui}>
+      <LayerTreeRoot indentPerLevel={INDENT}>
+        {(scope) => (
+          <ContextMenu.Root modal={false}>
+            <div
+              {...props}
+              className={className ?? 'relative min-h-0 flex-1 overflow-hidden'}
+              onFocusCapture={() => scope.actions.setFocused(true)}
+              onBlurCapture={(event) => onFocusOut(event, scope.actions.setFocused)}
             >
-              <template v-if="registerVirtualizer(scope.actions, virtualizer)">
-                <TreeItem
-                  v-slot="{ isExpanded }"
-                  v-bind="item.bind"
-                  as-child
-                  @select="
-                    (e: CustomEvent) =>
-                      onTreeSelect(e, toLayerNode(item.value).id, scope.actions.select)
-                  "
-                  @toggle="
-                    (e: CustomEvent) => {
-                      if (e.detail.originalEvent?.type === 'click') e.preventDefault()
-                    }
-                  "
+              <ContextMenu.Trigger asChild onContextMenu={onLayerRightClick}>
+                <div
+                  data-test-id="layers-scroll"
+                  data-slot="viewport"
+                  className={styles.viewport({ class: ui?.viewport })}
                 >
-                  <LayerTreeItem
-                    v-slot="{ node, isSelected, padLeft, actions }"
-                    :node="toLayerNode(item.value)"
-                    :level="item.level"
-                    :has-children="item.hasChildren"
-                  >
-                    <LayerTreeRenameRow
-                      v-if="rename.editingId.value === node.id"
-                      :node="node"
-                      :has-children="item.hasChildren"
-                      :pad-left="padLeft"
-                      :expanded="isExpanded"
-                      :actions="actions"
-                      :rename-controls="renameControls"
-                    />
+                  {scope.visibleRows.map((row) => {
+                    const expanded = scope.expanded.has(row.node.id)
+                    const isSelected = scope.selectedIds.has(row.node.id)
+                    return (
+                      <LayerTreeItem
+                        key={row.node.id}
+                        node={row.node}
+                        level={row.level}
+                        hasChildren={row.hasChildren}
+                      >
+                        {(item) =>
+                          rename.editingId === row.node.id ? (
+                            <LayerTreeRenameRow
+                              node={row.node}
+                              hasChildren={row.hasChildren}
+                              padLeft={item.padLeft}
+                              expanded={expanded}
+                              actions={item.actions}
+                              renameControls={renameControls}
+                            />
+                          ) : (
+                            <LayerTreeNodeRow
+                              node={row.node}
+                              level={row.level}
+                              hasChildren={row.hasChildren}
+                              selected={isSelected}
+                              padLeft={item.padLeft}
+                              expanded={expanded}
+                              actions={item.actions}
+                              chrome={chrome(scope)}
+                              onRenameStart={rename.start}
+                            />
+                          )
+                        }
+                      </LayerTreeItem>
+                    )
+                  })}
+                </div>
+              </ContextMenu.Trigger>
+            </div>
+            <ContextMenu.Portal>
+              <CanvasMenu />
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
+        )}
+      </LayerTreeRoot>
+    </LayerTreeUIProvider>
+  )
+})
 
-                    <LayerTreeNodeRow
-                      v-else
-                      :node="node"
-                      :level="item.level"
-                      :has-children="item.hasChildren"
-                      :selected="isSelected"
-                      :pad-left="padLeft"
-                      :expanded="isExpanded"
-                      :actions="actions"
-                      :chrome="chrome(scope)"
-                      @rename-start="rename.start"
-                    />
-                  </LayerTreeItem>
-                </TreeItem>
-              </template>
-            </TreeVirtualizer>
-          </div>
-        </ContextMenuTrigger>
-      </div>
-      <ContextMenuPortal>
-        <CanvasMenu />
-      </ContextMenuPortal>
-    </ContextMenuRoot>
-  </LayerTreeRoot>
-</template>
+LayerTree.displayName = 'LayerTree'
+export default LayerTree

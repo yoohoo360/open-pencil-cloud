@@ -1,7 +1,7 @@
-import { computed } from 'vue'
+import { useMemo } from 'react'
 
 import type { BlendMode } from '@open-pencil/scene-graph'
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
 
 export function commitDiscretePropertyListChange(flush: () => void, update: () => void): void {
   update()
@@ -13,27 +13,30 @@ export interface BlendModeOption {
   label: string
 }
 
-export function useBlendModeOptions(includePassThrough = false) {
+export function useBlendModeOptions(includePassThrough = false): BlendModeOption[] {
   const { panels } = useI18n()
-  return computed<BlendModeOption[]>(() => [
-    ...(includePassThrough
-      ? [{ value: 'PASS_THROUGH' as const, label: panels.value.blendModePassThrough }]
-      : []),
-    { value: 'NORMAL', label: panels.value.blendModeNormal },
-    { value: 'DARKEN', label: panels.value.blendModeDarken },
-    { value: 'MULTIPLY', label: panels.value.blendModeMultiply },
-    { value: 'COLOR_BURN', label: panels.value.blendModeColorBurn },
-    { value: 'LIGHTEN', label: panels.value.blendModeLighten },
-    { value: 'SCREEN', label: panels.value.blendModeScreen },
-    { value: 'COLOR_DODGE', label: panels.value.blendModeColorDodge },
-    { value: 'OVERLAY', label: panels.value.blendModeOverlay },
-    { value: 'SOFT_LIGHT', label: panels.value.blendModeSoftLight },
-    { value: 'HARD_LIGHT', label: panels.value.blendModeHardLight },
-    { value: 'DIFFERENCE', label: panels.value.blendModeDifference },
-    { value: 'EXCLUSION', label: panels.value.blendModeExclusion },
-    { value: 'HUE', label: panels.value.blendModeHue },
-    { value: 'SATURATION', label: panels.value.blendModeSaturation },
-    { value: 'COLOR', label: panels.value.blendModeColor },
-    { value: 'LUMINOSITY', label: panels.value.blendModeLuminosity }
-  ])
+  return useMemo(
+    () => [
+      ...(includePassThrough
+        ? [{ value: 'PASS_THROUGH' as const, label: panels.blendModePassThrough }]
+        : []),
+      { value: 'NORMAL', label: panels.blendModeNormal },
+      { value: 'DARKEN', label: panels.blendModeDarken },
+      { value: 'MULTIPLY', label: panels.blendModeMultiply },
+      { value: 'COLOR_BURN', label: panels.blendModeColorBurn },
+      { value: 'LIGHTEN', label: panels.blendModeLighten },
+      { value: 'SCREEN', label: panels.blendModeScreen },
+      { value: 'COLOR_DODGE', label: panels.blendModeColorDodge },
+      { value: 'OVERLAY', label: panels.blendModeOverlay },
+      { value: 'SOFT_LIGHT', label: panels.blendModeSoftLight },
+      { value: 'HARD_LIGHT', label: panels.blendModeHardLight },
+      { value: 'DIFFERENCE', label: panels.blendModeDifference },
+      { value: 'EXCLUSION', label: panels.blendModeExclusion },
+      { value: 'HUE', label: panels.blendModeHue },
+      { value: 'SATURATION', label: panels.blendModeSaturation },
+      { value: 'COLOR', label: panels.blendModeColor },
+      { value: 'LUMINOSITY', label: panels.blendModeLuminosity }
+    ],
+    [includePassThrough, panels]
+  )
 }

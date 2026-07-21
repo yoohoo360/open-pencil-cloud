@@ -26,7 +26,7 @@ export const UNIT_TEST_GROUPS = {
     'tests/engine/profiler',
     'tests/engine/tools',
     'tests/engine/vector',
-    'tests/engine/vue'
+    'tests/engine/react'
   ]
 } as const
 

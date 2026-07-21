@@ -1,16 +1,8 @@
-<script setup lang="ts">
-import { computed, ref } from 'vue'
-import {
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxPortal,
-  ComboboxRoot,
-  ComboboxViewport,
-  type AcceptableValue
-} from 'reka-ui'
+import * as Popover from '@radix-ui/react-popover'
+import { memo, useCallback, useMemo, useState, type InputHTMLAttributes } from 'react'
+import { twMerge } from 'tailwind-merge'
 
-import AppBadge from '@/components/ui/AppBadge.vue'
+import AppBadge from '@/components/ui/AppBadge'
 import { useInputUI } from '@/components/ui/input'
 import { useSelectUI } from '@/components/ui/select'
 
@@ -20,7 +12,9 @@ export type AppComboboxOption = {
   meta?: string
 }
 
-interface AppComboboxInputProps {
+export type AppComboboxInputProps = {
+  value: string
+  onValueChange: (value: string) => void
   options: AppComboboxOption[]
   placeholder?: string
   ui?: {
@@ -30,86 +24,106 @@ interface AppComboboxInputProps {
     viewport?: string
     empty?: string
   }
-}
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>
 
-defineOptions({ inheritAttrs: false })
+export const AppComboboxInput = memo(function AppComboboxInput({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  ui,
+  className,
+  ...rest
+}: AppComboboxInputProps) {
+  const [open, setOpen] = useState(false)
 
-const { options, placeholder, ui } = defineProps<AppComboboxInputProps>()
+  const select = useSelectUI({
+    content: ui?.content ?? 'max-h-56 min-w-[var(--radix-popover-trigger-width)]',
+    item: ui?.item ?? 'gap-2 rounded px-2 py-1.5 text-[11px]'
+  })
+  const inputClass = useMemo(
+    () => useInputUI({ size: 'sm', ui: { base: ui?.input } }).base,
+    [ui?.input]
+  )
+  const viewportClass = ui?.viewport ?? 'max-h-56 overflow-y-auto p-0.5'
+  const emptyClass = ui?.empty ?? 'px-2 py-2 text-[11px] text-muted'
 
-const modelValue = defineModel<string>({ required: true })
-const open = ref(false)
+  const filteredOptions = useMemo(() => {
+    const query = value.trim().toLowerCase()
+    if (!query) return options.slice(0, 50)
+    return options
+      .filter((option) => {
+        const optionValue = option.value.toLowerCase()
+        const label = option.label.toLowerCase()
+        return optionValue.includes(query) || label.includes(query)
+      })
+      .slice(0, 50)
+  }, [options, value])
 
-const select = useSelectUI({
-  content: ui?.content ?? 'max-h-56 min-w-[var(--reka-combobox-trigger-width)]',
-  item: ui?.item ?? 'gap-2 rounded px-2 py-1.5 text-[11px]'
-})
-const inputClass = computed(() => useInputUI({ size: 'sm', ui: { base: ui?.input } }).base)
-const viewportClass = ui?.viewport ?? 'max-h-56 overflow-y-auto p-0.5'
-const emptyClass = ui?.empty ?? 'px-2 py-2 text-[11px] text-muted'
+  const updateValue = useCallback(
+    (next: string) => {
+      onValueChange(next)
+    },
+    [onValueChange]
+  )
 
-const filteredOptions = computed(() => {
-  const query = modelValue.value.trim().toLowerCase()
-  if (!query) return options.slice(0, 50)
-  return options
-    .filter((option) => {
-      const value = option.value.toLowerCase()
-      const label = option.label.toLowerCase()
-      return value.includes(query) || label.includes(query)
-    })
-    .slice(0, 50)
-})
+  const showDropdown = open && (filteredOptions.length > 0 || options.length > 0)
 
-function updateValue(value: AcceptableValue) {
-  if (typeof value !== 'string') return
-  modelValue.value = value
-}
-</script>
-
-<template>
-  <ComboboxRoot
-    v-model:open="open"
-    :model-value="modelValue"
-    :ignore-filter="true"
-    open-on-focus
-    @update:model-value="updateValue"
-  >
-    <ComboboxInput
-      :model-value="modelValue"
-      :display-value="() => modelValue"
-      type="text"
-      v-bind="$attrs"
-      :placeholder="placeholder"
-      :class="inputClass"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-      spellcheck="false"
-      @update:model-value="updateValue"
-    />
-
-    <ComboboxPortal>
-      <ComboboxContent
-        v-if="filteredOptions.length || options.length"
-        position="popper"
-        :side-offset="2"
-        :class="select.content"
-      >
-        <ComboboxViewport :class="viewportClass">
-          <ComboboxItem
-            v-for="option in filteredOptions"
-            :key="option.value"
-            :value="option.value"
-            :class="select.item"
+  return (
+    <Popover.Root open={showDropdown} onOpenChange={setOpen}>
+      <Popover.Anchor asChild>
+        <input
+          {...rest}
+          value={value}
+          type="text"
+          placeholder={placeholder}
+          className={twMerge(inputClass, className)}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => updateValue(event.target.value)}
+        />
+      </Popover.Anchor>
+      <Popover.Portal>
+        {showDropdown ? (
+          <Popover.Content
+            side="bottom"
+            align="start"
+            sideOffset={2}
+            className={select.content}
+            onOpenAutoFocus={(event) => event.preventDefault()}
           >
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-surface">{{ option.label }}</div>
-              <div class="truncate font-mono text-[10px] text-muted">{{ option.value }}</div>
+            <div className={viewportClass}>
+              {filteredOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={twMerge(select.item, 'flex w-full text-left')}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    updateValue(option.value)
+                    setOpen(false)
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-surface">{option.label}</div>
+                    <div className="truncate font-mono text-[10px] text-muted">{option.value}</div>
+                  </div>
+                  {option.meta ? <AppBadge>{option.meta}</AppBadge> : null}
+                </button>
+              ))}
+              {filteredOptions.length === 0 ? (
+                <div className={emptyClass}>No matching models</div>
+              ) : null}
             </div>
-            <AppBadge v-if="option.meta">{{ option.meta }}</AppBadge>
-          </ComboboxItem>
-          <div v-if="filteredOptions.length === 0" :class="emptyClass">No matching models</div>
-        </ComboboxViewport>
-      </ComboboxContent>
-    </ComboboxPortal>
-  </ComboboxRoot>
-</template>
+          </Popover.Content>
+        ) : null}
+      </Popover.Portal>
+    </Popover.Root>
+  )
+})
+
+AppComboboxInput.displayName = 'AppComboboxInput'
+export default AppComboboxInput

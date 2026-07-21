@@ -1,27 +1,31 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-
-import type { FillRootSlots } from './types'
-import { useFill } from './useFill'
+import { memo, useCallback, useMemo, type ReactNode } from 'react'
 
 import type { Fill } from '@open-pencil/scene-graph'
 
-const { fill } = defineProps<{ fill: Fill }>()
-const emit = defineEmits<{ update: [fill: Fill] }>()
-defineSlots<FillRootSlots>()
+import { useFill } from '#react/primitives/Fill/useFill'
+import type { FillRootSlotProps } from '#react/primitives/Fill/types'
 
-const model = useFill(
-  computed(() => fill),
-  (updated) => emit('update', updated)
-)
-</script>
+export type FillRootProps = {
+  fill: Fill
+  children?: ReactNode | ((props: FillRootSlotProps) => ReactNode)
+  onUpdate?: (fill: Fill) => void
+}
 
-<template>
-  <slot
-    :fill="fill"
-    :category="model.category.value"
-    :swatch-background="model.swatchBackground.value"
-    :transparent="model.transparent.value"
-    :actions="model.actions"
-  />
-</template>
+export const FillRoot = memo(function FillRoot({ fill, children, onUpdate }: FillRootProps) {
+  const update = useCallback((next: Fill) => onUpdate?.(next), [onUpdate])
+  const model = useFill(fill, update)
+  const slotProps = useMemo<FillRootSlotProps>(
+    () => ({
+      fill,
+      category: model.category,
+      swatchBackground: model.swatchBackground,
+      transparent: model.transparent,
+      actions: model.actions
+    }),
+    [fill, model.actions, model.category, model.swatchBackground, model.transparent]
+  )
+
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
+
+FillRoot.displayName = 'FillRoot'

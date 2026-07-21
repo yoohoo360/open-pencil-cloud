@@ -1,55 +1,53 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-import { Primitive } from 'reka-ui'
+import { Slot } from '@radix-ui/react-slot'
+import { createElement, memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
 
-import { useOptionalBindableValue } from '#vue/primitives/BindableValue/context'
-import type { FillSwatchProps, FillSwatchSlots } from './types'
-import { fillCategory, fillIsTransparent, fillSwatchBackground } from './useFill'
+import type { Fill } from '@open-pencil/scene-graph'
 
-import type { Color } from '@open-pencil/scene-graph/primitives'
+import { fillCategory, fillIsTransparent, fillSwatchBackground } from '#react/primitives/Fill/useFill'
+import type { FillSwatchSlotProps } from '#react/primitives/Fill/types'
 
-const { fill, label, as = 'span', asChild = false } = defineProps<FillSwatchProps>()
-defineSlots<FillSwatchSlots>()
-defineOptions({ inheritAttrs: false })
+export type FillSwatchProps = {
+  fill: Fill
+  label?: string
+  as?: keyof React.JSX.IntrinsicElements
+  asChild?: boolean
+  children?: ReactNode | ((props: FillSwatchSlotProps) => ReactNode)
+} & Omit<HTMLAttributes<HTMLElement>, 'children' | 'color'>
 
-const binding = useOptionalBindableValue<Color>()
-const bindingState = computed(() => binding?.state.value)
-const boundColor = computed(() =>
-  bindingState.value === 'bound' ? binding?.resolvedValue.value : undefined
-)
-const effectiveFill = computed(() =>
-  fill.type === 'SOLID' && boundColor.value ? { ...fill, color: boundColor.value } : fill
-)
-const category = computed(() => fillCategory(effectiveFill.value))
-const background = computed(() => fillSwatchBackground(effectiveFill.value))
-const transparent = computed(() => fillIsTransparent(effectiveFill.value))
-const accessibleLabel = computed(() => label ?? `${category.value.toLowerCase()} fill`)
-const stateAttrs = computed(() => binding?.stateAttrs.value)
-const slotProps = computed(() => ({
-  fill: effectiveFill.value,
-  color: effectiveFill.value.color,
-  category: category.value,
-  background: background.value,
-  transparent: transparent.value,
-  bindingState: bindingState.value,
-  stateAttrs: stateAttrs.value
-}))
-</script>
+export const FillSwatch = memo(function FillSwatch({
+  fill,
+  label,
+  as: As = 'span',
+  asChild = false,
+  children,
+  style,
+  ...props
+}: FillSwatchProps) {
+  const category = fillCategory(fill)
+  const background = fillSwatchBackground(fill)
+  const transparent = fillIsTransparent(fill)
+  const slotProps = useMemo<FillSwatchSlotProps>(
+    () => ({ fill, color: fill.color, category, background, transparent }),
+    [background, category, fill, transparent]
+  )
+  const content = typeof children === 'function' ? children(slotProps) : children
+  const attributes = {
+    ...props,
+    'aria-label': label ?? `${category.toLowerCase()} fill`,
+    'aria-roledescription': 'fill swatch',
+    'data-slot': 'swatch',
+    'data-fill-type': fill.type,
+    'data-fill-category': category,
+    'data-transparent': transparent ? '' : undefined,
+    role: 'img',
+    style: { ...style, '--open-pencil-fill-swatch-background': background } as React.CSSProperties
+  }
 
-<template>
-  <Primitive
-    v-bind="{ ...$attrs, ...stateAttrs }"
-    :as="as"
-    :as-child="asChild"
-    :aria-label="accessibleLabel"
-    :data-fill-type="effectiveFill.type"
-    :data-fill-category="category"
-    :data-transparent="transparent ? '' : undefined"
-    :style="{ '--open-pencil-fill-swatch-background': background }"
-    role="img"
-    aria-roledescription="fill swatch"
-    data-slot="swatch"
-  >
-    <slot v-bind="slotProps" />
-  </Primitive>
-</template>
+  return asChild ? (
+    <Slot {...attributes}>{content}</Slot>
+  ) : (
+    createElement(As, attributes, content)
+  )
+})
+
+FillSwatch.displayName = 'FillSwatch'

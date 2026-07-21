@@ -1,47 +1,51 @@
-<script lang="ts">
-import type { VNode } from 'vue'
-import type { ClassValue } from 'tailwind-variants'
+import { memo, useMemo, type HTMLAttributes, type ReactNode } from 'react'
+import { tv, type ClassValue } from 'tailwind-variants'
 
 import type { ComponentUI } from '@/components/ui/types'
 import type { PanelHeaderTheme } from '@/theme/panel/header'
-
-export interface PanelHeaderProps {
-  component?: boolean
-  class?: ClassValue
-  ui?: ComponentUI<PanelHeaderTheme>
-}
-
-export interface PanelHeaderSlots {
-  icon?(): VNode[]
-  default(): VNode[]
-  actions?(): VNode[]
-}
-</script>
-
-<script setup lang="ts">
-import { tv } from 'tailwind-variants'
-
 import theme from '@/theme/panel/header'
 
-const { component = false, class: className, ui } = defineProps<PanelHeaderProps>()
-const slots = defineSlots<PanelHeaderSlots>()
-const styles = tv(theme)({ component })
-</script>
+export type PanelHeaderProps = {
+  component?: boolean
+  className?: ClassValue
+  ui?: ComponentUI<PanelHeaderTheme>
+  icon?: ReactNode
+  actions?: ReactNode
+  children?: ReactNode
+} & Omit<HTMLAttributes<HTMLElement>, 'className' | 'children'>
 
-<template>
-  <header
-    data-slot="root"
-    :data-component="component ? '' : undefined"
-    :class="styles.root({ class: [ui?.root, className] })"
-  >
-    <div data-slot="icon" :class="styles.icon({ class: ui?.icon })">
-      <slot name="icon" />
-    </div>
-    <div data-slot="title" :class="styles.title({ class: ui?.title })">
-      <slot />
-    </div>
-    <div v-if="slots.actions" data-slot="actions" :class="styles.actions({ class: ui?.actions })">
-      <slot name="actions" />
-    </div>
-  </header>
-</template>
+export const PanelHeader = memo(function PanelHeader({
+  component = false,
+  className,
+  ui,
+  icon,
+  actions,
+  children,
+  ...rest
+}: PanelHeaderProps) {
+  const styles = useMemo(() => tv(theme)({ component }), [component])
+
+  return (
+    <header
+      {...rest}
+      data-slot="root"
+      data-component={component ? '' : undefined}
+      className={styles.root({ class: [ui?.root, className] })}
+    >
+      <div data-slot="icon" className={styles.icon({ class: ui?.icon })}>
+        {icon}
+      </div>
+      <div data-slot="title" className={styles.title({ class: ui?.title })}>
+        {children}
+      </div>
+      {actions ? (
+        <div data-slot="actions" className={styles.actions({ class: ui?.actions })}>
+          {actions}
+        </div>
+      ) : null}
+    </header>
+  )
+})
+
+PanelHeader.displayName = 'PanelHeader'
+export default PanelHeader

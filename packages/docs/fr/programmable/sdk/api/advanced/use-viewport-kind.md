@@ -12,7 +12,7 @@ Utilisez-le quand votre shell a besoin d'une légère abstraction au-dessus des 
 ## Utilisation
 
 ```ts
-import { useViewportKind } from '@open-pencil/vue'
+import { useViewportKind } from '@open-pencil/react'
 
 const { isMobile, isDesktop } = useViewportKind()
 ```

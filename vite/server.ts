@@ -1,6 +1,6 @@
 import { normalizePath, type ServerOptions } from 'vite'
 
-const WATCHED_MARKDOWN_ROOTS = ['/src/', '/packages/core/src/', '/packages/vue/src/']
+const WATCHED_MARKDOWN_ROOTS = ['/src/', '/packages/core/src/', '/packages/react/src/']
 
 function ignoreMarkdownOutsideSource(path: string): boolean {
   const normalized = normalizePath(path)

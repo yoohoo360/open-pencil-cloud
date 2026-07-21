@@ -1,13 +1,12 @@
-import type { Ref } from 'vue'
-
 import { opacityFromBuffer } from '@open-pencil/core/editor'
-import type { useEditorCommands, useViewportKind } from '@open-pencil/vue'
+import type { useEditorCommands, useViewportKind } from '@open-pencil/react'
 
 import type { EditorStore } from '@/app/editor/active-store'
+import type { Value } from '@/app/shell/keyboard/types'
 
 type KeyboardActionsOptions = {
   store: EditorStore
-  activeTab: Ref<'design' | 'code' | 'ai'>
+  activeTab: Value<'design' | 'code' | 'ai'>
   isMobile: ReturnType<typeof useViewportKind>['isMobile']
   runCommand: ReturnType<typeof useEditorCommands>['runCommand']
   setOpacityTarget: ReturnType<typeof useEditorCommands>['setOpacityTarget']

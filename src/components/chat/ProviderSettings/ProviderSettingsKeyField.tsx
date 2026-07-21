@@ -1,62 +1,69 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+import { memo, useMemo } from 'react'
 
-import { useI18n } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/react'
+import ProviderSettingsField from '@/components/chat/ProviderSettings/ProviderSettingsField'
+import ProviderSettingsInput from '@/components/chat/ProviderSettings/ProviderSettingsInput'
+import ProviderSettingsLink from '@/components/chat/ProviderSettings/ProviderSettingsLink'
 
-import ProviderSettingsField from '@/components/chat/ProviderSettings/ProviderSettingsField.vue'
-import ProviderSettingsInput from '@/components/chat/ProviderSettings/ProviderSettingsInput.vue'
-import ProviderSettingsLink from '@/components/chat/ProviderSettings/ProviderSettingsLink.vue'
-
-const { label, modelValue, saved, kind, placeholder, keyUrl, keyUrlLabel } = defineProps<{
+export type ProviderSettingsKeyFieldProps = {
   label: string
-  modelValue: string
+  value: string
+  onValueChange: (value: string) => void
   saved: boolean
   kind: 'api' | 'pexels' | 'unsplash'
   placeholder: string
   keyUrl?: string
   keyUrlLabel?: string
-}>()
+  onClear: () => void
+  onChangeCommit: () => void
+}
 
-const emit = defineEmits<{
-  'update:modelValue': [value: string]
-  change: []
-  clear: []
-}>()
+export const ProviderSettingsKeyField = memo(function ProviderSettingsKeyField({
+  label,
+  value,
+  onValueChange,
+  saved,
+  kind,
+  placeholder,
+  keyUrl,
+  keyUrlLabel,
+  onClear,
+  onChangeCommit
+}: ProviderSettingsKeyFieldProps) {
+  const { dialogs } = useI18n()
 
-const { dialogs } = useI18n()
+  const inputDataTestId = useMemo(() => {
+    if (kind === 'pexels') return 'provider-settings-pexels-key'
+    if (kind === 'unsplash') return 'provider-settings-unsplash-key'
+    return 'provider-settings-api-key'
+  }, [kind])
 
-const inputDataTestId = computed(() => {
-  if (kind === 'pexels') return 'provider-settings-pexels-key'
-  if (kind === 'unsplash') return 'provider-settings-unsplash-key'
-  return 'provider-settings-api-key'
+  const clearDataTestId = useMemo(() => {
+    if (kind === 'pexels') return 'provider-settings-clear-pexels-key'
+    if (kind === 'unsplash') return 'provider-settings-clear-unsplash-key'
+    return 'provider-settings-clear-key'
+  }, [kind])
+
+  return (
+    <ProviderSettingsField
+      label={label}
+      clearLabel={saved ? dialogs.clear : undefined}
+      onClear={onClear}
+    >
+      <ProviderSettingsInput
+        value={value}
+        onValueChange={onValueChange}
+        type="password"
+        placeholder={placeholder}
+        onChangeCommit={onChangeCommit}
+        {...{ 'data-test-id': inputDataTestId, 'data-testid': inputDataTestId }}
+      />
+      {keyUrl && keyUrlLabel ? (
+        <ProviderSettingsLink href={keyUrl}>{keyUrlLabel}</ProviderSettingsLink>
+      ) : null}
+    </ProviderSettingsField>
+  )
 })
 
-const clearDataTestId = computed(() => {
-  if (kind === 'pexels') return 'provider-settings-clear-pexels-key'
-  if (kind === 'unsplash') return 'provider-settings-clear-unsplash-key'
-  return 'provider-settings-clear-key'
-})
-</script>
-
-<template>
-  <ProviderSettingsField
-    :label="label"
-    :clear-label="saved ? dialogs.clear : undefined"
-    :data-test-id="clearDataTestId"
-    @clear="emit('clear')"
-  >
-    <ProviderSettingsInput
-      :model-value="modelValue"
-      type="password"
-      :data-test-id="inputDataTestId"
-      :placeholder="placeholder"
-      @update:model-value="emit('update:modelValue', String($event))"
-      @change="emit('change')"
-    />
-    <template #hint>
-      <ProviderSettingsLink v-if="keyUrl && keyUrlLabel" :href="keyUrl">
-        {{ keyUrlLabel }}
-      </ProviderSettingsLink>
-    </template>
-  </ProviderSettingsField>
-</template>
+ProviderSettingsKeyField.displayName = 'ProviderSettingsKeyField'
+export default ProviderSettingsKeyField

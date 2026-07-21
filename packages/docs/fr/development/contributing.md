@@ -72,7 +72,7 @@ Les développeurs et agents IA doivent lire `AGENTS.md` à la racine du repo ([v
 
 ## Fichiers clés
 
-Le code source du moteur core se trouve dans `packages/core/src/`. Le code propre à l'app pour l'éditeur, les documents, l'IA, la collaboration, le shell, les démos et l'automatisation vit sous `src/app/*`; le SDK Vue contient le code canvas et composable réutilisable dans `packages/vue/src/`.
+Le code source du moteur core se trouve dans `packages/core/src/`. Le code propre à l'app pour l'éditeur, les documents, l'IA, la collaboration, le shell, les démos et l'automatisation vit sous `src/app/*`; le SDK Vue contient le code canvas et composable réutilisable dans `packages/react/src/`.
 
 | Fichier | Objectif |
 |---------|----------|
@@ -91,6 +91,6 @@ Le code source du moteur core se trouve dans `packages/core/src/`. Le code propr
 | `packages/mcp/src/server.ts` | Factory du serveur MCP |
 | `packages/cli/src/commands/` | Commandes CLI (info, tree, find, export, eval, analyze) |
 | `src/app/editor/session/create.ts` | Editor session assembly |
-| `packages/vue/src/canvas/CanvasRoot.vue` | Composable de rendu du canevas |
-| `packages/vue/src/canvas/useCanvasInput.ts` | Gestion des entrées souris/touch |
+| `packages/react/src/canvas/CanvasRoot.vue` | Composable de rendu du canevas |
+| `packages/react/src/canvas/useCanvasInput.ts` | Gestion des entrées souris/touch |
 | `src/app/shell/keyboard/use.ts` | Gestion des raccourcis clavier |

@@ -1,55 +1,24 @@
-<script setup lang="ts">
-import { computed } from 'vue'
-
-import { useGradientStops } from '#vue/primitives/GradientEditor/useGradientStops'
+import { useGradientStops } from '#react/primitives/GradientEditor/useGradientStops'
+import { memo, useMemo, type ReactNode } from 'react'
 
 import type { Fill } from '@open-pencil/scene-graph'
 
-const { fill } = defineProps<{ fill: Fill }>()
-const emit = defineEmits<{ update: [fill: Fill] }>()
-
-const {
-  activeStopIndex,
-  stops,
-  subtype,
-  subtypes,
-  activeColor,
-  barBackground,
-  setSubtype,
-  selectStop,
-  addStop,
-  removeStop,
-  updateStopPosition,
-  updateStopColor,
-  updateStopOpacity,
-  updateActiveColor,
-  dragStop
-} = useGradientStops(
-  computed(() => fill),
-  (updated) => emit('update', updated)
-)
-
-const actions = {
-  setSubtype,
-  selectStop,
-  addStop,
-  removeStop,
-  updateStopPosition,
-  updateStopColor,
-  updateStopOpacity,
-  updateActiveColor,
-  dragStop
+export type GradientEditorRootSlotProps = ReturnType<typeof useGradientStops>
+export type GradientEditorRootProps = {
+  fill: Fill
+  children?: ReactNode | ((props: GradientEditorRootSlotProps) => ReactNode)
+  onUpdate?: (fill: Fill) => void
 }
-</script>
 
-<template>
-  <slot
-    :stops="stops"
-    :subtype="subtype"
-    :subtypes="subtypes"
-    :active-stop-index="activeStopIndex"
-    :active-color="activeColor"
-    :bar-background="barBackground"
-    :actions="actions"
-  />
-</template>
+export const GradientEditorRoot = memo(function GradientEditorRoot({
+  fill,
+  children,
+  onUpdate
+}: GradientEditorRootProps) {
+  const gradient = useGradientStops(fill, (nextFill) => onUpdate?.(nextFill))
+  const slotProps = useMemo(() => gradient, [gradient])
+
+  return <>{typeof children === 'function' ? children(slotProps) : children}</>
+})
+
+GradientEditorRoot.displayName = 'GradientEditorRoot'
