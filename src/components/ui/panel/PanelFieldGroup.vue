@@ -14,6 +14,7 @@ export interface PanelFieldGroupProps {
 
 export interface PanelFieldGroupSlots {
   default(): VNode[]
+  actions?(): VNode[]
 }
 </script>
 
@@ -33,14 +34,24 @@ const styles = tv(theme)()
     data-panel-field-group
     :class="styles.root({ class: [ui?.root, className] })"
   >
-    <label
-      v-if="label"
-      data-slot="label"
-      :for="labelFor"
-      :class="styles.label({ class: ui?.label })"
-    >
-      {{ label }}
-    </label>
+    <div class="flex items-center justify-between">
+      <label
+        v-if="label"
+        data-slot="label"
+        :for="labelFor"
+        :class="styles.label({ class: ui?.label })"
+      >
+        {{ label }}
+      </label>
+      <div
+        v-if="$slots.actions"
+        data-slot="actions"
+        :class="styles.actions({ class: ui?.actions })"
+      >
+        <slot name="actions" />
+      </div>
+    </div>
+
     <div data-slot="container" :class="styles.container({ class: ui?.container })">
       <slot />
     </div>

@@ -94,12 +94,13 @@ async function getTauriFonts(): Promise<TauriFontFamily[]> {
   return tauriFontsPromise
 }
 
-export function preloadFonts(): void {
+export async function preloadFonts() {
   configureTauriFontCache()
   if (isTauri()) {
-    void getTauriFonts().then(registerFontFaces)
+    await getTauriFonts().then(registerFontFaces)
     return
   }
+  await requestLocalFontAccess()
   if (onlineFontsEnabled.value) fontManager.preloadWebFontFamilies()
 }
 

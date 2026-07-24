@@ -9,7 +9,8 @@ import {
   shouldImportTextAsAutoSize,
   sortChildren,
   setVariableColorResolver,
-  VARIABLE_BINDING_FIELDS_INVERSE
+  VARIABLE_BINDING_FIELDS_INVERSE,
+  mergePropertyReferencesDefId
 } from '@open-pencil/fig/node-change'
 import type { NodeChange, VariableDataValuesEntry, Color, GUID } from '@open-pencil/kiwi/fig/codec'
 import { SceneGraph } from '@open-pencil/scene-graph'
@@ -472,6 +473,14 @@ export function importNodeChanges(
       createSceneNode(childId, node.id)
     }
   }
+
+  mergePropertyReferencesDefId(
+    created,
+    parentMap,
+    (id: string) => changeMap.get(id),
+    (id: string) => graph.getNode(id),
+    (id: string, changes: Partial<SceneNode>) => graph.updateNode(id, changes)
+  )
 
   importPages(graph, changeMap, parentMap, childrenMap, created, canvasIdToPageId, createSceneNode)
 

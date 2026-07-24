@@ -17,3 +17,5 @@ export * from './text-data-export'
 export * from './text-values'
 export * from './vector-geometry'
 export * from './vector-network'
+
+export { mergePropertyReferencesDefId } from './convert'

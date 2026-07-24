@@ -58,6 +58,8 @@ import type {
 } from '@open-pencil/scene-graph'
 import type { GUID } from '@open-pencil/scene-graph/primitives'
 
+import { KiwiNodeChange } from './export-node'
+
 export { guidToString, stringToGuid } from '@open-pencil/kiwi/fig/guid'
 
 export const VARIABLE_BINDING_FIELDS: Record<string, string> = {
@@ -589,8 +591,7 @@ export function nodeChangeToProps(
   const nodeType = resolveNodeType(nc)
 
   const vectorAndStrokeProps = convertVectorAndStrokeProps(nc, blobs)
-
-  return {
+  const node = {
     nodeType,
     name: nc.name ?? nodeType,
     source: extractSourceMetadata(nc, blobs),
@@ -644,6 +645,8 @@ export function nodeChangeToProps(
     componentPropertyValues: extractComponentPropertyValues(nc),
     ...extractComponentMetadata(nc)
   }
+
+  return node
 }
 
 const COMPONENT_PROP_TYPE_MAP: Record<string, ComponentPropertyType> = {
@@ -651,7 +654,8 @@ const COMPONENT_PROP_TYPE_MAP: Record<string, ComponentPropertyType> = {
   TEXT: 'TEXT',
   BOOL: 'BOOLEAN',
   BOOLEAN: 'BOOLEAN',
-  INSTANCE_SWAP: 'INSTANCE_SWAP'
+  INSTANCE_SWAP: 'INSTANCE_SWAP',
+  SLOT: 'SLOT'
 }
 
 function componentPropValueToString(value: unknown): string {
@@ -678,6 +682,17 @@ interface RawComponentPropDef {
     stringValues?: string[]
     instanceSwapValues?: Array<{ key?: string }>
   }
+  slotPropConfig?: {
+    allowPreferredValuesOnly?: boolean
+    displayByDefault?: boolean
+    maxChildren?: number
+    minChildren?: number
+    stretchChildOnInsert?: boolean
+  }
+}
+interface RawComponentSymbolPropDef {
+  id?: GUID
+  parentPropDefId?: GUID
 }
 
 interface RawComponentPropRef {
@@ -722,6 +737,7 @@ function extractComponentPropertyDefs(nc: NodeChange): ComponentPropertyDefiniti
       name: def.name,
       type: propType,
       defaultValue: componentPropValueToString(def.initialValue),
+      slotPropConfig: def?.slotPropConfig,
       variantOptions: propType === 'VARIANT' ? def.preferredValues?.stringValues : undefined,
       preferredValues:
         propType === 'INSTANCE_SWAP'
@@ -734,9 +750,62 @@ function extractComponentPropertyDefs(nc: NodeChange): ComponentPropertyDefiniti
   return result
 }
 
+function findParentSymbol(
+  curFigId: string,
+  parentMap: Map<string, string>,
+  getKiwiNode: (id: string) => KiwiNodeChange
+): KiwiNodeChange | undefined {
+  let result: KiwiNodeChange | undefined
+  let parentId = parentMap.get(curFigId)
+  while (!result && parentId) {
+    const node = getKiwiNode(parentId)
+    if (node && node.type === 'SYMBOL') {
+      result = node
+    }
+    parentId = parentMap.get(parentId)
+  }
+  return result
+}
+
+export function mergePropertyReferencesDefId(
+  created: Map<string, string>,
+  parentMap: Map<string, string>,
+  getKiwiNode: (id: string) => KiwiNodeChange,
+  getNode: (id: string) => SceneNode | undefined,
+  updateNode: (id: string, refs: Partial<SceneNode>) => void
+): void {
+  for (const [figmaId, ourId] of created) {
+    const node = getNode(ourId)
+    const formatRefs = node?.componentPropertyReferences
+    if (formatRefs?.length) {
+      const nc = findParentSymbol(figmaId, parentMap, getKiwiNode)
+      const refs = nc?.componentPropDefs as RawComponentSymbolPropDef[] | undefined
+
+      if (!refs?.length) {
+        return
+      }
+
+      const result = formatRefs?.map((it) => {
+        const find = refs.find((rawRef) => rawRef?.id && guidToString(rawRef.id) === it?.propertyId)
+        if (find?.parentPropDefId) {
+          return {
+            ...it,
+            defId: guidToString(find.parentPropDefId)
+          }
+        }
+        return it
+      })
+      updateNode(ourId, {
+        componentPropertyReferences: result
+      })
+    }
+  }
+}
 function extractComponentPropertyRefs(nc: NodeChange): ComponentPropertyReference[] {
   const refs = nc.componentPropRefs as RawComponentPropRef[] | undefined
+
   if (!refs?.length) return []
+
   const fieldMap: Record<string, ComponentPropertyReference['field'] | undefined> = {
     '0': 'VISIBLE',
     '1': 'TEXT',
@@ -745,6 +814,7 @@ function extractComponentPropertyRefs(nc: NodeChange): ComponentPropertyReferenc
     TEXT_DATA: 'TEXT',
     OVERRIDDEN_SYMBOL_ID: 'INSTANCE_SWAP'
   }
+
   return refs.flatMap((ref) => {
     const field = fieldMap[String(ref.componentPropNodeField)]
     return ref.defID && field && !ref.isDeleted

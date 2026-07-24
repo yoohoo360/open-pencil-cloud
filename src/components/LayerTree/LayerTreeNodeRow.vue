@@ -41,6 +41,16 @@ const styles = computed(() =>
       chrome.instructionTargetId === node.id && chrome.instruction?.type === 'make-child'
   })
 )
+
+const formatName = computed(() =>
+  node.name
+    ?.split(',')
+    .map((it) => {
+      const [name, value] = it.split('=')
+      return value || name
+    })
+    .join('/')
+)
 </script>
 
 <template>
@@ -67,7 +77,7 @@ const styles = computed(() =>
     />
 
     <component :is="nodeIcon(node)" data-slot="icon" :class="styles.icon({ class: ui?.icon })" />
-    <span data-slot="label" :class="styles.label({ class: ui?.label })">{{ node.name }}</span>
+    <span data-slot="label" :class="styles.label({ class: ui?.label })">{{ formatName }}</span>
 
     <LayerTreeActions
       :node="node"

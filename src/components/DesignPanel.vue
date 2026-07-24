@@ -22,6 +22,8 @@ import StrokeSection from './properties/StrokeSection.vue'
 import TypographySection from './properties/TypographySection.vue'
 import VariablesSection from './properties/VariablesSection.vue'
 import ComponentPropertiesSection from './properties/component-properties/ComponentPropertiesSection.vue'
+import ComponentProperties from './properties/ComponentProperties.vue'
+import TextProperties from './properties/TextProperties.vue'
 
 const variablesOpen = ref(false)
 const { selectedNode: node, selectedCount: multiCount } = useSelectionState()
@@ -79,35 +81,38 @@ const { panels } = useI18n()
           </span>
         </Tip>
       </template>
-      <span role="heading" aria-level="2">{{ node.name }}</span>
+      <span role="heading" aria-level="2">{{
+        node.type === 'TEXT' ? node.type.toLowerCase() : node.name
+      }}</span>
       <template #actions>
         <SelectionActionsControl />
       </template>
+      <template #content>
+        <!-- Component actions -->
+        <div
+          v-if="node.type === 'INSTANCE'"
+          class="flex flex-col gap-1 border-b border-border px-3 py-2"
+        >
+          <button
+            type="button"
+            class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
+            @click="goToMainComponent.run()"
+          >
+            {{ panels.goToMainComponent }}
+          </button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
+            @click="detachInstance.run()"
+          >
+            {{ panels.detachInstance }}
+          </button>
+        </div>
+        <ComponentProperties v-if="node.type === 'COMPONENT_SET'"></ComponentProperties>
+        <TextProperties v-else-if="node.type === 'TEXT'"></TextProperties>
+      </template>
     </PanelHeader>
-
-    <!-- Component actions -->
-    <div
-      v-if="node.type === 'INSTANCE'"
-      class="flex flex-col gap-1 border-b border-border px-3 py-2"
-    >
-      <button
-        type="button"
-        class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
-        @click="goToMainComponent.run()"
-      >
-        {{ panels.goToMainComponent }}
-      </button>
-      <button
-        type="button"
-        class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
-        @click="detachInstance.run()"
-      >
-        {{ panels.detachInstance }}
-      </button>
-    </div>
-
     <ComponentPropertiesSection v-if="node.type === 'INSTANCE'" />
-
     <PositionSection />
     <ConstraintsSection />
     <LayoutSection />

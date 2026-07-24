@@ -513,12 +513,13 @@ export interface SceneNode {
   figmaDerivedTextGlyphs: FigmaDerivedTextGlyph[] | null
 }
 
-export type ComponentPropertyType = 'VARIANT' | 'TEXT' | 'BOOLEAN' | 'INSTANCE_SWAP'
+export type ComponentPropertyType = 'VARIANT' | 'TEXT' | 'BOOLEAN' | 'INSTANCE_SWAP' | 'SLOT'
 
 export type ComponentPropertyReferenceField = 'VISIBLE' | 'TEXT' | 'INSTANCE_SWAP'
 
 export interface ComponentPropertyReference {
   propertyId: string
+  defId?: string
   field: ComponentPropertyReferenceField
 }
 

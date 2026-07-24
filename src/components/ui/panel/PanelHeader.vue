@@ -15,6 +15,7 @@ export interface PanelHeaderSlots {
   icon?(): VNode[]
   default(): VNode[]
   actions?(): VNode[]
+  content?(): VNode[]
 }
 </script>
 
@@ -42,6 +43,9 @@ const styles = tv(theme)({ component })
     </div>
     <div v-if="slots.actions" data-slot="actions" :class="styles.actions({ class: ui?.actions })">
       <slot name="actions" />
+    </div>
+    <div v-if="slots.content" data-slot="content" :class="styles.content({ class: ui?.content })">
+      <slot name="content" />
     </div>
   </header>
 </template>

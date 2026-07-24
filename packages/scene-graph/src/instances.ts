@@ -41,6 +41,19 @@ const INSTANCE_SYNC_PROPS: (keyof SceneNode)[] = [
   'boundVariables'
 ]
 
+const getDefOverrideKeys = (field: string) => {
+  switch (field) {
+    case 'TEXT':
+      return ['text']
+    case 'VISIBLE':
+      return ['visible']
+    case 'INSTANCE_SWAP':
+      return ['componentId', 'sourceComponentId']
+    default:
+      return []
+  }
+}
+
 function setSceneProp<K extends keyof SceneNode>(
   target: Partial<SceneNode>,
   key: K,
@@ -108,7 +121,7 @@ function syncChildren(
   for (const childId of instParent.childIds) {
     const child = graph.nodes.get(childId)
     if (!child) continue
-    const sourceComponentId = overrides[`${child.id}:sourceComponentId`]
+    const sourceComponentId = overrides[`${child.id}#sourceComponentId`]
     const mappedComponentId =
       typeof sourceComponentId === 'string' ? sourceComponentId : child.componentId
     if (mappedComponentId) instChildMap.set(mappedComponentId, child)
@@ -150,7 +163,7 @@ function syncChildren(
       copyProp(instChild, compChild, key)
     }
 
-    if (compChild.childIds.length > 0 && !(`${instChild.id}:componentId` in overrides)) {
+    if (compChild.childIds.length > 0 && !(`${instChild.id}#componentId` in overrides)) {
       syncChildren(graph, compChildId, instChild.id, overrides)
     }
   }
@@ -159,8 +172,8 @@ function syncChildren(
   instParent.childIds.sort((a, b) => {
     const nodeA = graph.nodes.get(a)
     const nodeB = graph.nodes.get(b)
-    const sourceA = nodeA ? overrides[`${nodeA.id}:sourceComponentId`] : undefined
-    const sourceB = nodeB ? overrides[`${nodeB.id}:sourceComponentId`] : undefined
+    const sourceA = nodeA ? overrides[`${nodeA.id}#sourceComponentId`] : undefined
+    const sourceB = nodeB ? overrides[`${nodeB.id}#sourceComponentId`] : undefined
     const mappedA = typeof sourceA === 'string' ? sourceA : nodeA?.componentId
     const mappedB = typeof sourceB === 'string' ? sourceB : nodeB?.componentId
     const idxA = mappedA ? compChildOrder.indexOf(mappedA) : -1
@@ -201,6 +214,27 @@ export function populateInstanceChildren(
   cloneChildrenWithMapping(graph, componentId, instanceId)
 }
 
+function swapInstanceOverrides(graph: SceneGraph, instance: SceneNode, component: SceneNode) {
+  if (!instance?.overrides) return {}
+  const overrides = {}
+  for (const key of Object.keys(instance.overrides)) {
+    const [_, field] = key.split('#')
+    const child = graph.findChildBy(component.id, (node, finish) => {
+      if (node.type === 'COMPONENT' || node.type === 'INSTANCE') finish()
+
+      return node?.componentPropertyReferences?.find((ref) => {
+        const list = getDefOverrideKeys(ref.field)
+        return list.includes(field)
+      })
+    })
+    if (child) {
+      overrides[`${child.id}#${field}`] = instance.overrides[key]
+      graph.updateNode(child.id, { [field]: instance.overrides[key] })
+    }
+  }
+  return overrides
+}
+
 export function swapInstanceComponent(
   graph: SceneGraph,
   instanceId: string,
@@ -211,11 +245,13 @@ export function swapInstanceComponent(
   if (!instance || component?.type !== 'COMPONENT' || instance.type !== 'INSTANCE') return
 
   const previousComponent = instance.componentId ? graph.nodes.get(instance.componentId) : undefined
-  const updates: Partial<SceneNode> = { componentId }
+  let updates: Partial<SceneNode> = { componentId }
   for (const key of INSTANCE_SYNC_PROPS) {
     if (key in instance.overrides) continue
     copyProp(updates, component, key)
   }
+
+  updates.overrides = swapInstanceOverrides(graph, instance, component)
   if (!previousComponent || instance.name === previousComponent.name) updates.name = component.name
 
   const childIds = Array.from(instance.childIds)

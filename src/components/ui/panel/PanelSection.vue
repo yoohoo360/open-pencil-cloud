@@ -6,7 +6,7 @@ import type { ComponentUI } from '@/components/ui/types'
 import type { PanelSectionTheme } from '@/theme/panel/section'
 
 export interface PanelSectionProps {
-  label: string
+  label?: string
   open?: boolean
   defaultOpen?: boolean
   empty?: boolean

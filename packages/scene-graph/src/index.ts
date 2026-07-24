@@ -380,6 +380,30 @@ export class SceneGraph {
         set.add(id)
       }
     }
+
+    if (node.type === 'COMPONENT' && 'name' in changes) {
+      const val = changes?.name?.split(',').reduce(
+        (acc, it) => {
+          const [key, value] = it.split('=')
+          acc[key] = value
+          return acc
+        },
+        {} as Record<string, string>
+      )
+      node.componentPropertyValues = val
+      const parent = this.getNode(node.parentId)
+      node.variantPropSpecs = node.variantPropSpecs.map((spec) => {
+        const def = parent?.componentPropertyDefinitions.find(
+          (defItem) => defItem.id === spec.propDefId
+        )
+        if (def && val?.[def.name]) {
+          spec.value = val?.[def.name]
+        }
+
+        return spec
+      })
+    }
+
     if (node.type === 'TEXT') {
       const textChanged = Object.keys(changes).some((k) => TEXT_PICTURE_KEYS.has(k))
       if (node.textPicture && textChanged) node.textPicture = null
@@ -399,6 +423,16 @@ export class SceneGraph {
     if (changes.fills) removeStaleBindings(node, 'fills', changes)
     if (changes.strokes) removeStaleBindings(node, 'strokes', changes)
     this.emitter.emit('node:updated', id, changes)
+  }
+
+  getParentComponent(node: SceneNode) {
+    while (node.parentId) {
+      const parent = this.getNode(node.parentId)
+      if (!parent) break
+      if (parent.type === 'COMPONENT') return parent
+      node = parent
+    }
+    return null
   }
 
   reparentNode(nodeId: string, newParentId: string): void {
@@ -569,6 +603,52 @@ export class SceneGraph {
 
   getInstances(componentId: string): SceneNode[] {
     return Instances.getInstances(this, componentId)
+  }
+
+  findParentBy(
+    id: string,
+    callback: (e: SceneNode, finish: () => void) => boolean
+  ): SceneNode | undefined {
+    const node = this.nodes.get(id)
+
+    if (!node?.parentId) return undefined
+
+    const parentNode = this.nodes.get(node?.parentId)
+
+    let end = false
+    const finish = () => {
+      end = true
+    }
+    if (parentNode && callback(parentNode, finish)) {
+      return parentNode
+    }
+    if (end) {
+      return undefined
+    }
+    return this.findParentBy(node?.parentId, callback)
+  }
+  findChildBy(
+    id: string,
+    callback: (e: SceneNode, finish: () => void) => boolean
+  ): SceneNode | undefined {
+    const node = this.nodes.get(id)
+    let end = false
+    const finish = () => {
+      end = true
+    }
+
+    const findId = node?.childIds.find((childId) => {
+      const child = this.nodes.get(childId)
+      if (child && callback(child, finish)) {
+        return true
+      }
+      if (end) {
+        return undefined
+      }
+      return this.findChildBy(childId, callback) !== undefined
+    })
+
+    return findId ? this.getNode(findId) : undefined
   }
 
   flattenTree(parentId?: string, depth = 0): Array<{ node: SceneNode; depth: number }> {

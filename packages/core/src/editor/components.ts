@@ -5,7 +5,7 @@ import { randomHex } from '#core/random'
 import { createComponentFocusActions } from './components/focus'
 import { createComponentInstanceActions } from './components/instances'
 import { createComponentPropertyActions } from './components/properties'
-import { createVariantActions } from './components/variants'
+import { createVariantActions, generateVariantName } from './components/variants'
 import type { EditorContext } from './types'
 
 export function createComponentActions(ctx: EditorContext) {
@@ -61,33 +61,37 @@ export function createComponentActions(ctx: EditorContext) {
     const containerId = wrapSelectionInContainer('COMPONENT_SET', selectedNodes)
     if (!containerId) return
 
-    const slashCounts = selectedNodes.map((n) => (n.name.match(/\//g) ?? []).length)
+    const properNameList = selectedNodes.map((n) => generateVariantName(n.name))
+
     const hasConsistentSlashes =
-      slashCounts.every((c) => c === slashCounts[0]) && slashCounts[0] > 0
+      properNameList[0].length &&
+      properNameList.every((c) => c.length === properNameList[0]?.length)
 
     if (hasConsistentSlashes) {
-      const propCount = slashCounts[0]
+      const propCount = properNameList[0]?.length ?? 0
       const propDefs: ComponentPropertyDefinition[] = []
       const propValues = new Map<string, Set<string>>()
 
       for (let i = 0; i < propCount; i++) {
         const propId = `prop:${randomHex(8)}`
-        const propName = i === 0 ? 'Variant' : `Property ${i + 1}`
+        const propName = properNameList[0][i].name
         propDefs.push({ id: propId, name: propName, type: 'VARIANT', defaultValue: '' })
         propValues.set(propName, new Set())
       }
 
       for (const node of selectedNodes) {
-        const parts = node.name.split('/').slice(1)
+        const properNameList = generateVariantName(node.name)
         const values: Record<string, string> = {}
-        for (let i = 0; i < propDefs.length; i++) {
-          const value = parts[i]?.trim() ?? ''
-          values[propDefs[i].name] = value
-          propValues.get(propDefs[i].name)?.add(value)
+        for (const defItem of propDefs) {
+          const value = properNameList.find((p) => p.name === defItem.name)?.value ?? ''
+          values[defItem.name] = value
+          propValues.get(defItem.name)?.add(value)
         }
         ctx.graph.updateNode(node.id, {
           componentPropertyValues: values,
-          name: Object.values(values).join(', ')
+          name: Object.values(values)
+            .map((it, idx) => `${propDefs[idx].name}=${it}`)
+            .join(', ')
         })
       }
 
