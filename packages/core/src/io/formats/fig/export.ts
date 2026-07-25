@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- FIG export orchestration keeps shared GUID state in one pipeline */
 import type { CanvasKit } from 'canvaskit-wasm'
 import { deflateSync, inflateSync } from 'fflate'
 
@@ -104,26 +105,55 @@ async function renderFigThumbnail(
   )
 }
 
+function assignVariableGuid(
+  id: string,
+  localIdCounter: { value: number },
+  assignedGuidValues: Set<string>,
+  nodeSourceGuidValues: Set<string>
+): GUID {
+  if (/^\d+:\d+$/.test(id) && !assignedGuidValues.has(id) && !nodeSourceGuidValues.has(id)) {
+    const guid = stringToGuid(id)
+    assignedGuidValues.add(id)
+    return guid
+  }
+  const guid = { sessionID: 0, localID: localIdCounter.value++ }
+  assignedGuidValues.add(`${guid.sessionID}:${guid.localID}`)
+  return guid
+}
+
 function assignVariableGuids(
   graph: SceneGraph,
   localIdCounter: { value: number },
   varIdToGuid: Map<string, GUID>,
   modeIdToGuid: Map<string, GUID>,
-  assignedGuidValues: Set<string>
+  assignedGuidValues: Set<string>,
+  nodeSourceGuidValues: Set<string>
 ): void {
   for (const [colId, col] of graph.variableCollections) {
-    const colGuid = { sessionID: 0, localID: localIdCounter.value++ }
+    const colGuid = assignVariableGuid(
+      colId,
+      localIdCounter,
+      assignedGuidValues,
+      nodeSourceGuidValues
+    )
     varIdToGuid.set(colId, colGuid)
-    assignedGuidValues.add(`${colGuid.sessionID}:${colGuid.localID}`)
     for (const mode of col.modes) {
-      const modeGuid = { sessionID: 0, localID: localIdCounter.value++ }
+      const modeGuid = assignVariableGuid(
+        mode.modeId,
+        localIdCounter,
+        assignedGuidValues,
+        nodeSourceGuidValues
+      )
       modeIdToGuid.set(mode.modeId, modeGuid)
-      assignedGuidValues.add(`${modeGuid.sessionID}:${modeGuid.localID}`)
     }
     for (const varId of col.variableIds) {
-      const varGuid = { sessionID: 0, localID: localIdCounter.value++ }
+      const varGuid = assignVariableGuid(
+        varId,
+        localIdCounter,
+        assignedGuidValues,
+        nodeSourceGuidValues
+      )
       varIdToGuid.set(varId, varGuid)
-      assignedGuidValues.add(`${varGuid.sessionID}:${varGuid.localID}`)
     }
   }
 }
@@ -334,7 +364,8 @@ function appendInternalResources(context: InternalResourceContext): void {
         context.glyphBlobMap,
         context.blobIndexByHex,
         context.assignedGuidValues,
-        context.componentPropertyDefinitionsById
+        context.componentPropertyDefinitionsById,
+        context.modeIdToGuid
       )
     )
   }
@@ -405,8 +436,10 @@ export async function exportFigFile(
   // node claims a new counter-based GUID — preventing collisions.
   let maxLocalId0 = localIdCounter.value - 1
   let maxLocalId1 = localIdCounter.value - 1
+  const nodeSourceGuidValues = new Set<string>()
   for (const node of graph.nodes.values()) {
     if (node.source.id) {
+      nodeSourceGuidValues.add(node.source.id)
       const g = stringToGuid(node.source.id)
       if (g.sessionID === 0 && g.localID > maxLocalId0) {
         maxLocalId0 = g.localID
@@ -429,7 +462,14 @@ export async function exportFigFile(
 
   // Assign variable GUIDs AFTER canvas entries so that source.id-derived
   // canvas GUIDs don't collide with generated variable GUIDs.
-  assignVariableGuids(graph, localIdCounter, varIdToGuid, modeIdToGuid, assignedGuidValues)
+  assignVariableGuids(
+    graph,
+    localIdCounter,
+    varIdToGuid,
+    modeIdToGuid,
+    assignedGuidValues,
+    nodeSourceGuidValues
+  )
 
   for (const entry of canvasEntries) nodeChanges.push(entry.canvasNc)
 
@@ -454,7 +494,8 @@ export async function exportFigFile(
           glyphBlobMap,
           blobIndexByHex,
           assignedGuidValues,
-          componentPropertyDefinitionsById
+          componentPropertyDefinitionsById,
+          modeIdToGuid
         )
       )
     }

@@ -113,6 +113,52 @@ describe('Variables', () => {
     expect(graph.resolveColorVariable('v1')).toEqual({ r: 0, g: 0, b: 0, a: 1 })
   })
 
+  test('node variable modes inherit from the nearest ancestor', () => {
+    const graph = new SceneGraph()
+    graph.addCollection({
+      id: 'col1',
+      name: 'Theme',
+      modes: [
+        { modeId: 'light', name: 'Light' },
+        { modeId: 'dark', name: 'Dark' }
+      ],
+      defaultModeId: 'light',
+      variableIds: []
+    })
+    graph.addVariable({
+      id: 'v1',
+      name: 'bg',
+      type: 'COLOR',
+      collectionId: 'col1',
+      valuesByMode: {
+        light: { r: 1, g: 1, b: 1, a: 1 },
+        dark: { r: 0, g: 0, b: 0, a: 1 }
+      },
+      description: '',
+      hiddenFromPublishing: false
+    })
+
+    const page = graph.addPage('Page')
+    const frame = graph.createNode('FRAME', page.id, { variableModes: { col1: 'dark' } })
+    const child = graph.createNode('RECTANGLE', frame.id)
+    const nestedOverride = graph.createNode('RECTANGLE', frame.id, {
+      variableModes: { col1: 'light' }
+    })
+
+    expect(graph.resolveColorVariableForNode(child.id, 'v1')).toEqual({
+      r: 0,
+      g: 0,
+      b: 0,
+      a: 1
+    })
+    expect(graph.resolveColorVariableForNode(nestedOverride.id, 'v1')).toEqual({
+      r: 1,
+      g: 1,
+      b: 1,
+      a: 1
+    })
+  })
+
   test('missing active mode falls back to default value', () => {
     const graph = new SceneGraph()
     graph.addCollection({

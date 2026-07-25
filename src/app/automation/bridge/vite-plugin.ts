@@ -8,7 +8,7 @@ export function automationPlugin(authToken: string | null, corsOrigin: string): 
 
   return {
     name: 'open-pencil-automation',
-    configureServer() {
+    configureServer(server) {
       if (child) return
 
       child = spawn('bun', ['run', 'packages/mcp/src/index.ts'], {
@@ -41,10 +41,11 @@ export function automationPlugin(authToken: string | null, corsOrigin: string): 
         }
         child = null
       })
-    },
-    buildEnd() {
-      child?.kill()
-      child = null
+
+      server.httpServer?.once('close', () => {
+        child?.kill()
+        child = null
+      })
     }
   }
 }

@@ -113,6 +113,20 @@ export function getActiveModeId(graph: SceneGraph, collectionId: string): string
   return collection?.defaultModeId ?? ''
 }
 
+export function getNodeVariableModeId(
+  graph: SceneGraph,
+  nodeId: string,
+  collectionId: string
+): string {
+  let node = graph.nodes.get(nodeId)
+  while (node) {
+    const modeId = node.variableModes[collectionId]
+    if (modeId) return modeId
+    node = node.parentId ? graph.nodes.get(node.parentId) : undefined
+  }
+  return getActiveModeId(graph, collectionId)
+}
+
 export function setActiveMode(graph: SceneGraph, collectionId: string, modeId: string): void {
   graph.activeMode.set(collectionId, modeId)
 }
@@ -211,6 +225,31 @@ export function resolveColorVariable(graph: SceneGraph, variableId: string): Col
 
 export function resolveNumberVariable(graph: SceneGraph, variableId: string): number | undefined {
   const value = resolveVariable(graph, variableId)
+  return typeof value === 'number' ? value : undefined
+}
+
+export function resolveColorVariableForNode(
+  graph: SceneGraph,
+  nodeId: string,
+  variableId: string
+): Color | undefined {
+  const variable = graph.variables.get(variableId)
+  if (!variable) return undefined
+  const modeId = getNodeVariableModeId(graph, nodeId, variable.collectionId)
+  const value = resolveVariable(graph, variableId, modeId)
+  if (value && typeof value === 'object' && 'r' in value) return value
+  return undefined
+}
+
+export function resolveNumberVariableForNode(
+  graph: SceneGraph,
+  nodeId: string,
+  variableId: string
+): number | undefined {
+  const variable = graph.variables.get(variableId)
+  if (!variable) return undefined
+  const modeId = getNodeVariableModeId(graph, nodeId, variable.collectionId)
+  const value = resolveVariable(graph, variableId, modeId)
   return typeof value === 'number' ? value : undefined
 }
 

@@ -5,18 +5,15 @@ import { getPageChildren, getSelectedNode } from '#tests/helpers/store'
 
 const editor = useEditorSetup()
 
-test('property sections collapse and reopen from their title', async () => {
+test('property sections are always expanded (no collapse on title click)', async () => {
   await editor.canvas.clearCanvas()
   await editor.canvas.drawRect(200, 200, 80, 80)
 
   const section = propertySection(editor.page, 'Appearance')
-  const title = section.getByRole('button', { name: 'Appearance' })
   const blendMode = section.getByRole('combobox', { name: 'Blend mode' })
   await expect(blendMode).toBeVisible()
-  await title.click()
-  await expect(blendMode).toBeHidden()
-  await expect(title).toHaveAttribute('data-state', 'closed')
-  await title.click()
+  // Section titles are static (Figma-like): clicking must not collapse.
+  await section.getByText('Appearance', { exact: true }).first().click()
   await expect(blendMode).toBeVisible()
 })
 

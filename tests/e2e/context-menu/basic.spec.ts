@@ -229,13 +229,15 @@ test('outline stroke is disabled for fill-only shapes', async () => {
 })
 
 test('Copy/Paste as submenu exists', async () => {
+  await editor.canvas.clearCanvas()
+  await editor.canvas.drawRect(200, 200, 120, 80)
+  await editor.canvas.waitForRender()
   await rightClickShape(250, 230)
 
   const submenuTrigger = contextItem('context-copy-paste-as')
   await expect(submenuTrigger).toBeVisible()
 
-  await submenuTrigger.hover()
-  await editor.page.waitForTimeout(300)
+  await submenuTrigger.click({ force: true })
 
   await expect(contextItem('context-copy-as-svg')).toBeVisible()
   await expect(contextItem('context-copy-as-jsx')).toBeVisible()

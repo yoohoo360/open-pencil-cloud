@@ -2,12 +2,14 @@ import type { OverrideContext } from './types'
 
 export function buildCloneIndex(ctx: OverrideContext): Map<string, string[]> {
   const clonesBySource = new Map<string, string[]>()
-  for (const node of ctx.graph.getAllNodes()) {
-    if (node.type !== 'INSTANCE' || !node.componentId) continue
-    if (ctx.activeNodeIds && !ctx.activeNodeIds.has(node.id)) continue
-    const clones = clonesBySource.get(node.componentId)
-    if (clones) clones.push(node.id)
-    else clonesBySource.set(node.componentId, [node.id])
+  for (const [sourceId, nodeIds] of ctx.graph.instanceIndex) {
+    for (const nodeId of nodeIds) {
+      if (ctx.activeNodeIds && !ctx.activeNodeIds.has(nodeId)) continue
+      if (ctx.graph.getNode(nodeId)?.type !== 'INSTANCE') continue
+      const clones = clonesBySource.get(sourceId)
+      if (clones) clones.push(nodeId)
+      else clonesBySource.set(sourceId, [nodeId])
+    }
   }
   return clonesBySource
 }

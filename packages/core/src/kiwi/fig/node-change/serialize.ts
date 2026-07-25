@@ -37,7 +37,8 @@ export function sceneNodeToKiwi(
   glyphBlobMap = new Map<string, number>(),
   blobIndexByHex?: Map<string, number>,
   assignedGuidValues?: Set<string>,
-  componentPropertyDefinitionsById?: ReadonlyMap<string, ComponentPropertyDefinition>
+  componentPropertyDefinitionsById?: ReadonlyMap<string, ComponentPropertyDefinition>,
+  modeIdToGuid?: Map<string, GUID>
 ): KiwiNodeChange[] {
   return sceneNodeToKiwiWithRuntime(
     node,
@@ -53,6 +54,7 @@ export function sceneNodeToKiwi(
     blobIndexByHex,
     assignedGuidValues,
     coreFigExportRuntime,
-    componentPropertyDefinitionsById
+    componentPropertyDefinitionsById,
+    modeIdToGuid
   )
 }

@@ -169,21 +169,9 @@ test('paint effect and export rows share compact visual anatomy', async () => {
   const exportSection = propertySection(editor.page, 'Export')
   await exportSection.getByRole('button', { name: 'Add export' }).click()
   await editor.canvas.waitForRender()
-
-  for (const sectionName of ['Position', 'Layout', 'Appearance']) {
-    await propertySection(editor.page, sectionName)
-      .getByRole('button', { name: sectionName })
-      .click()
-  }
   await editor.page.mouse.move(0, 0)
 
   await expect(designPanel()).toHaveScreenshot('design-panel-paint-effects-export.png')
-
-  for (const sectionName of ['Position', 'Layout', 'Appearance']) {
-    await propertySection(editor.page, sectionName)
-      .getByRole('button', { name: sectionName })
-      .click()
-  }
 })
 
 test('adding a second fill shows two fill items', async () => {

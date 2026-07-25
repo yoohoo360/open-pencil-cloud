@@ -7,6 +7,82 @@ import { expectDefined } from '#tests/helpers/assert'
 import { canvas, doc, node } from './helpers'
 
 describe('fig-import: variable asset refs', () => {
+  test('imports node-scoped modes and native paint aliases', () => {
+    const graph = importNodeChanges([
+      doc(),
+      canvas(),
+      {
+        ...node('VARIABLE_SET', 20, 1),
+        name: 'Theme',
+        variableSetModes: [
+          { id: { sessionID: 10, localID: 1 }, name: 'Light' },
+          { id: { sessionID: 10, localID: 2 }, name: 'Dark' }
+        ]
+      } as NodeChange,
+      {
+        ...node('VARIABLE', 21, 1),
+        name: 'Background',
+        variableSetID: { guid: { sessionID: 1, localID: 20 } },
+        variableResolvedType: 'COLOR',
+        variableDataValues: {
+          entries: [
+            {
+              modeID: { sessionID: 10, localID: 1 },
+              variableData: {
+                dataType: 'COLOR',
+                resolvedDataType: 'COLOR',
+                value: { colorValue: { r: 1, g: 1, b: 1, a: 1 } }
+              }
+            },
+            {
+              modeID: { sessionID: 10, localID: 2 },
+              variableData: {
+                dataType: 'COLOR',
+                resolvedDataType: 'COLOR',
+                value: { colorValue: { r: 0, g: 0, b: 0, a: 1 } }
+              }
+            }
+          ]
+        }
+      } as NodeChange,
+      node('FRAME', 30, 1, {
+        name: 'Dark scope',
+        variableModeBySetMap: {
+          entries: [
+            {
+              variableSetID: { guid: { sessionID: 1, localID: 20 } },
+              variableModeID: { sessionID: 10, localID: 2 }
+            }
+          ]
+        },
+        fillPaints: [
+          {
+            type: 'SOLID',
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            colorVar: {
+              value: { alias: { guid: { sessionID: 1, localID: 21 } } },
+              dataType: 'ALIAS',
+              resolvedDataType: 'COLOR'
+            }
+          }
+        ] as NodeChange['fillPaints']
+      })
+    ])
+
+    const frame = expectDefined(
+      [...graph.getAllNodes()].find((candidate) => candidate.name === 'Dark scope'),
+      'dark scope'
+    )
+    expect(frame.variableModes).toEqual({ '1:20': '10:2' })
+    expect(frame.boundVariables['fills/0/color']).toBe('1:21')
+    expect(graph.resolveColorVariableForNode(frame.id, '1:21')).toEqual({
+      r: 0,
+      g: 0,
+      b: 0,
+      a: 1
+    })
+  })
+
   test('resolves color variables and aliases by assetRef', () => {
     const graph = importNodeChanges([
       doc(),

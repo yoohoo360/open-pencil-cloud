@@ -8,7 +8,7 @@ async function dragSlider(
   testId: string,
   ratio: number
 ) {
-  const slider = page.getByTestId(testId).locator('input[type="range"]')
+  const slider = page.getByTestId(testId).getByRole('slider')
   const box = await slider.boundingBox()
   if (!box) throw new Error(`Missing slider: ${testId}`)
   const y = box.y + box.height / 2

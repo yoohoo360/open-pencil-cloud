@@ -23,11 +23,19 @@ describe('instance override clone sync', () => {
       componentId: targetComponent.id
     })
     graph.populateInstanceChildren(targetChild.id, targetComponent.id)
+    const previousTargetLabel = graph.getChildren(targetChild.id)[0]
+    const downstreamLabel = graph.createNode('TEXT', page.id, {
+      name: 'downstream label',
+      text: 'Target',
+      componentId: previousTargetLabel.id
+    })
 
     syncChildrenDeep(graph, sourceParent.id, targetParent.id, new Set())
 
     const syncedChild = graph.getNode(targetChild.id)
+    const syncedLabel = graph.getChildren(targetChild.id)[0]
     expect(syncedChild?.componentId).toBe(sourceComponent.id)
-    expect(graph.getChildren(targetChild.id).map((child) => child.text)).toEqual(['Source'])
+    expect(syncedLabel.text).toBe('Source')
+    expect(graph.getNode(downstreamLabel.id)?.componentId).toBe(syncedLabel.id)
   })
 })

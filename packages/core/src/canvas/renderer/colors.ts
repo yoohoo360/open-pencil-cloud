@@ -24,7 +24,7 @@ export function resolveFillColorInfo(
 ): ResolvedRenderColor {
   const varId = node.boundVariables[`fills/${fillIndex}/color`]
   if (varId) {
-    const resolved = graph.resolveColorVariable(varId)
+    const resolved = graph.resolveColorVariableForNode(node.id, varId)
     if (resolved) return resolvedVariableColor(resolved, graph)
   }
   return resolveNodeFillColor(fill, fillIndex, node, {
@@ -51,7 +51,7 @@ export function resolveStrokeColorInfo(
 ): ResolvedRenderColor {
   const varId = node.boundVariables[`strokes/${strokeIndex}/color`]
   if (varId) {
-    const resolved = graph.resolveColorVariable(varId)
+    const resolved = graph.resolveColorVariableForNode(node.id, varId)
     if (resolved) return resolvedVariableColor(resolved, graph)
   }
   return resolveNodeStrokeColor(stroke, strokeIndex, node, {

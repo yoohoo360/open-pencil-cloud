@@ -18,7 +18,12 @@ import { isEqual } from 'es-toolkit/predicate'
 
 import { guidToString } from '@open-pencil/fig/node-change'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
-import { copyFills, copyStyleRuns } from '@open-pencil/scene-graph/copy'
+import {
+  copyFills,
+  copyStyleRuns,
+  hasSameCopySource,
+  markCopySource
+} from '@open-pencil/scene-graph/copy'
 import type { JsonObject } from '@open-pencil/scene-graph/primitives'
 
 import { applyComponentProperties } from './component-props'
@@ -27,7 +32,8 @@ import { applyDerivedSymbolData } from './derived-symbol-data'
 import { populateInstances } from './populate'
 import { preComputeRoots } from './resolve'
 import { applySymbolOverrides } from './symbol/overrides'
-import { propagateOverridesTransitively } from './sync'
+import { propagateNodePropsTransitively, propagateOverridesTransitively } from './sync'
+import { indexCloneNodes } from './sync/sources'
 import type { InstanceNodeChange, OverrideContext, ComponentPropValue } from './types'
 
 /**
@@ -60,7 +66,9 @@ function buildKiwiPropertyNodes(
       (nc.cornerRadius !== undefined || nc.rectangleCornerRadiiIndependent !== undefined) &&
       node.cornerRadius !== comp.cornerRadius
     const hasDiffVisible = nc.visible === false && comp.visible
-    if (hasDiffRadius || hasDiffVisible) result.add(nodeId)
+    const hasDiffFills = nc.fillPaints !== undefined && !isEqual(node.fills, comp.fills)
+    const hasDiffStrokes = nc.strokePaints !== undefined && !isEqual(node.strokes, comp.strokes)
+    if (hasDiffRadius || hasDiffVisible || hasDiffFills || hasDiffStrokes) result.add(nodeId)
   }
   return result
 }
@@ -127,34 +135,57 @@ function propagateResolvedChildPlacementClones(graph: SceneGraph): void {
   }
 }
 
+function sameDerivedGlyphSource(
+  source: SceneNode['figmaDerivedTextGlyphs'],
+  target: SceneNode['figmaDerivedTextGlyphs']
+): boolean {
+  if (source === target) return true
+  if (!source || !target) return false
+  return hasSameCopySource(source, target)
+}
+
 function propagateResolvedTextClones(graph: SceneGraph): void {
-  for (let pass = 0; pass < 10; pass++) {
-    let changed = false
-    for (const node of graph.getAllNodes()) {
-      if (node.type !== 'TEXT' || !node.componentId) continue
-      const source = graph.getNode(node.componentId)
-      if (source?.type !== 'TEXT' || source.text !== node.text) continue
-      if (
-        source.width === node.width &&
-        source.height === node.height &&
-        isEqual(source.fills, node.fills) &&
-        isEqual(source.styleRuns, node.styleRuns) &&
-        isEqual(source.figmaDerivedTextGlyphs, node.figmaDerivedTextGlyphs)
-      ) {
-        continue
-      }
-      graph.updateNode(node.id, {
-        width: source.width,
-        height: source.height,
-        fills: copyFills(source.fills),
-        styleRuns: copyStyleRuns(source.styleRuns),
-        figmaDerivedTextGlyphs: source.figmaDerivedTextGlyphs
-          ? structuredClone(source.figmaDerivedTextGlyphs)
-          : undefined
-      })
-      changed = true
+  const ordered: SceneNode[] = []
+  const visited = new Set<string>()
+  const visiting = new Set<string>()
+  const visit = (node: SceneNode) => {
+    if (visited.has(node.id) || visiting.has(node.id)) return
+    visiting.add(node.id)
+    const source = node.componentId ? graph.getNode(node.componentId) : undefined
+    if (source?.type === 'TEXT') visit(source)
+    visiting.delete(node.id)
+    visited.add(node.id)
+    if (node.type === 'TEXT' && node.componentId) ordered.push(node)
+  }
+  for (const nodeId of graph.nodes.keys()) {
+    const node = graph.getNode(nodeId)
+    if (node?.type === 'TEXT' && node.componentId) visit(node)
+  }
+
+  for (const node of ordered) {
+    const source = node.componentId ? graph.getNode(node.componentId) : undefined
+    if (source?.type !== 'TEXT' || source.text !== node.text) continue
+    if (
+      source.width === node.width &&
+      source.height === node.height &&
+      isEqual(source.fills, node.fills) &&
+      isEqual(source.styleRuns, node.styleRuns) &&
+      sameDerivedGlyphSource(source.figmaDerivedTextGlyphs, node.figmaDerivedTextGlyphs)
+    ) {
+      continue
     }
-    if (!changed) return
+    graph.updateNode(node.id, {
+      width: source.width,
+      height: source.height,
+      fills: copyFills(source.fills),
+      styleRuns: copyStyleRuns(source.styleRuns),
+      figmaDerivedTextGlyphs: source.figmaDerivedTextGlyphs
+        ? markCopySource(
+            source.figmaDerivedTextGlyphs,
+            structuredClone(source.figmaDerivedTextGlyphs)
+          )
+        : undefined
+    })
   }
 }
 
@@ -205,6 +236,7 @@ function buildOverrideContext(
     propDefaults,
     propNames,
     preComputedRoot: new Map(),
+    preComputedClones: new Map(),
     componentIdRoot: new Map(),
     swappedInstances: new Set(),
     protectedFields: new Map(),
@@ -273,7 +305,10 @@ export function populateAndApplyOverrides(
 
   if (activeRootIds) {
     const populated = populateInstances(graph, activeRootIds)
-    if (populated) ctx.activeNodeIds = populated
+    if (populated) {
+      ctx.activeNodeIds = populated
+      indexCloneNodes(graph, populated, ctx.preComputedClones)
+    }
     const latePropModified = applyComponentProperties(ctx)
     const lateSeeds = new Set([...overriddenNodes, ...propModified, ...latePropModified])
     if (lateSeeds.size > 0) {
@@ -299,4 +334,16 @@ export function populateAndApplyOverrides(
   propagateResolvedTextClones(graph)
   applyConstraintScaling(ctx)
   applyComponentProperties(ctx)
+
+  // Final component-property swaps can replace descendants targeted by earlier
+  // symbol overrides. Replay property-only overrides against the final clone
+  // tree, then propagate those final targets without performing swaps again.
+  const replayedOverrides = applySymbolOverrides(ctx, true)
+  propagateNodePropsTransitively(
+    graph,
+    replayedOverrides,
+    ctx.activeNodeIds,
+    ctx.protectedFields,
+    ctx.preComputedClones
+  )
 }

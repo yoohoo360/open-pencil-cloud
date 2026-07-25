@@ -31,8 +31,8 @@
 @theme {
   --color-panel: #2a2a2a;
   --color-panel-secondary: #242424;
-  --color-panel-field: transparent;
-  --color-panel-field-hover: #383838;
+  --color-panel-field: #383838;
+  --color-panel-field-hover: #404040;
   --color-panel-focus: #3b82f6;
   --color-panel-selected: #2f6fdd;
   --color-panel-selected-muted: #3d4450;
@@ -68,8 +68,8 @@
 html[data-theme='light'] {
   --color-panel: #ffffff;
   --color-panel-secondary: #f7f8fa;
-  --color-panel-field: transparent;
-  --color-panel-field-hover: #eceef1;
+  --color-panel-field: #f0f1f3;
+  --color-panel-field-hover: #e4e7ea;
   --color-panel-focus: #2563eb;
   --color-panel-selected: #2563eb;
   --color-panel-selected-muted: #e5e7eb;

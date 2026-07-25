@@ -136,6 +136,17 @@ describe('FontManager loaded font cache', () => {
 
     manager.attachProvider(canvasKit, second.provider)
     expect(second.registrations).toEqual([{ family: 'ProviderLifecycle', byteLength: 12 }])
+
+    manager.markLoaded('SharedProviderLifecycle', 'Regular', new ArrayBuffer(16))
+    expect(first.registrations.at(-1)).toEqual({
+      family: 'SharedProviderLifecycle',
+      byteLength: 16
+    })
+    expect(second.registrations.at(-1)).toEqual({
+      family: 'SharedProviderLifecycle',
+      byteLength: 16
+    })
+
     manager.detachProvider(first.provider)
     expect(manager.provider()).toBe(second.provider)
 

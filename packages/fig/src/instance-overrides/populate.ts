@@ -48,7 +48,7 @@ export function populateInstances(
     }
 
     if (comp.childIds.length > 0 && node.childIds.length === 0) {
-      graph.populateInstanceChildren(nodeId, node.componentId)
+      graph.populateInstanceChildren(nodeId, node.componentId, 'fig-import')
     }
   }
 

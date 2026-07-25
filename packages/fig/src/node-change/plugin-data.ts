@@ -77,14 +77,14 @@ export function extractBoundVariables(nc: NodeChange): Record<string, string> {
     getOpenPencilPluginValue(nc, BOUND_VARIABLES_PLUGIN_KEY)
   )
   nc.fillPaints?.forEach((paint, i) => {
-    if (paint.colorVariableBinding) {
-      bindings[`fills/${i}/color`] = guidToString(paint.colorVariableBinding.variableID)
-    }
+    const variableGuid =
+      paint.colorVariableBinding?.variableID ?? paint.colorVar?.value?.alias?.guid
+    if (variableGuid) bindings[`fills/${i}/color`] = guidToString(variableGuid)
   })
   nc.strokePaints?.forEach((paint, i) => {
-    if (paint.colorVariableBinding) {
-      bindings[`strokes/${i}/color`] = guidToString(paint.colorVariableBinding.variableID)
-    }
+    const variableGuid =
+      paint.colorVariableBinding?.variableID ?? paint.colorVar?.value?.alias?.guid
+    if (variableGuid) bindings[`strokes/${i}/color`] = guidToString(variableGuid)
   })
   return bindings
 }

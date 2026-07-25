@@ -499,6 +499,7 @@ export interface SceneNode {
   variantPropSpecs: VariantPropSpec[]
 
   boundVariables: Record<string, string>
+  variableModes: VariableModeMap
   exportSettings: ExportSetting[]
 
   pluginData: PluginDataEntry[]
@@ -534,6 +535,7 @@ export interface ComponentPropertyDefinition {
 
 export type VariableType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN'
 export type VariableValue = Color | number | string | boolean | { aliasId: string }
+export type VariableModeMap = Record<string, string>
 
 export interface Variable {
   id: string

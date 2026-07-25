@@ -1,5 +1,25 @@
 import { BLACK, DEFAULT_FONT_FAMILY, DEFAULT_STROKE_MITER_LIMIT } from './constants'
-import type { NodeType, SceneNode } from './types'
+import type { NodeType, SceneNode, SourceMetadata } from './types'
+
+export function createDefaultSourceMetadata(): SourceMetadata {
+  return {
+    format: null,
+    id: null,
+    orderKey: null,
+    editedFields: [],
+    fig: {
+      rawSize: null,
+      rawTransform: null,
+      rawNodeFields: {},
+      layout: null,
+      symbolOverrides: [],
+      componentPropAssignments: [],
+      derivedSymbolData: [],
+      derivedSymbolDataLayoutVersion: null,
+      uniformScaleFactor: null
+    }
+  }
+}
 
 export function createDefaultNode(
   generateId: () => string,
@@ -17,23 +37,7 @@ export function createDefaultNode(
     width: 100,
     height: 100,
     rotation: 0,
-    source: {
-      format: null,
-      id: null,
-      orderKey: null,
-      editedFields: [],
-      fig: {
-        rawSize: null,
-        rawTransform: null,
-        rawNodeFields: {},
-        layout: null,
-        symbolOverrides: [],
-        componentPropAssignments: [],
-        derivedSymbolData: [],
-        derivedSymbolDataLayoutVersion: null,
-        uniformScaleFactor: null
-      }
-    },
+    source: createDefaultSourceMetadata(),
     figmaDerivedLayout: null,
     fills:
       type === 'TEXT' ? [{ type: 'SOLID' as const, color: BLACK, opacity: 1, visible: true }] : [],
@@ -151,6 +155,7 @@ export function createDefaultNode(
     symbolLinks: [],
     variantPropSpecs: [],
     boundVariables: {},
+    variableModes: {},
     exportSettings: [],
     pluginData: [],
     pluginRelaunchData: [],

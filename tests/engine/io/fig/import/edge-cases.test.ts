@@ -228,7 +228,9 @@ describe('edge cases', () => {
         type: 'SYMBOL',
         name: 'IconB',
         phase: 'CREATED',
-        size: { x: 24, y: 24 },
+        size: { x: 40, y: 40 },
+        cornerRadius: 12,
+        frameMaskDisabled: false,
         transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
       } as NodeChange,
       {
@@ -251,6 +253,16 @@ describe('edge cases', () => {
         size: { x: 24, y: 12 },
         transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
       } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 33 },
+        parentIndex: { guid: { sessionID: 1, localID: 3 }, position: '#' },
+        type: 'TEXT',
+        name: 'Icon label',
+        textData: { characters: 'Default' },
+        phase: 'CREATED',
+        size: { x: 24, y: 12 },
+        transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
+      } as NodeChange,
       // Button component with instance of IconA
       {
         guid: { sessionID: 1, localID: 5 },
@@ -263,14 +275,43 @@ describe('edge cases', () => {
         transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
       } as NodeChange,
       {
+        guid: { sessionID: 1, localID: 62 },
+        parentIndex: { guid: { sessionID: 1, localID: 5 }, position: '!' },
+        type: 'FRAME',
+        name: 'first icon wrapper',
+        phase: 'CREATED',
+        size: { x: 24, y: 24 },
+        transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 63 },
+        parentIndex: { guid: { sessionID: 1, localID: 5 }, position: '"' },
+        type: 'FRAME',
+        name: 'second icon wrapper',
+        phase: 'CREATED',
+        size: { x: 24, y: 24 },
+        transform: { m00: 1, m01: 0, m02: 24, m10: 0, m11: 1, m12: 0 }
+      } as NodeChange,
+      {
         guid: { sessionID: 1, localID: 6 },
         overrideKey: { sessionID: 90, localID: 6 },
-        parentIndex: { guid: { sessionID: 1, localID: 5 }, position: '!' },
+        parentIndex: { guid: { sessionID: 1, localID: 62 }, position: '!' },
         type: 'INSTANCE',
         name: 'icon',
         phase: 'CREATED',
         size: { x: 24, y: 24 },
         transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 },
+        symbolData: { symbolID: { sessionID: 1, localID: 1 } }
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 61 },
+        overrideKey: { sessionID: 90, localID: 61 },
+        parentIndex: { guid: { sessionID: 1, localID: 63 }, position: '!' },
+        type: 'INSTANCE',
+        name: 'icon',
+        phase: 'CREATED',
+        size: { x: 24, y: 24 },
+        transform: { m00: 1, m01: 0, m02: 24, m10: 0, m11: 1, m12: 0 },
         symbolData: { symbolID: { sessionID: 1, localID: 1 } }
       } as NodeChange,
       // Toolbar component with instance of Button, swapping icon to IconB
@@ -297,8 +338,34 @@ describe('edge cases', () => {
           symbolID: { sessionID: 1, localID: 5 },
           symbolOverrides: [
             {
-              guidPath: { guids: [{ sessionID: 90, localID: 6 }] },
+              guidPath: { guids: [{ sessionID: 90, localID: 61 }] },
               overriddenSymbolID: { sessionID: 1, localID: 3 }
+            },
+            {
+              guidPath: {
+                guids: [
+                  { sessionID: 90, localID: 61 },
+                  { sessionID: 90, localID: 31 }
+                ]
+              },
+              fillPaints: [
+                {
+                  type: 'SOLID',
+                  color: { r: 1, g: 1, b: 1, a: 1 },
+                  colorVar: {
+                    value: { alias: { guid: { sessionID: 2, localID: 5 } } }
+                  }
+                }
+              ]
+            },
+            {
+              guidPath: {
+                guids: [
+                  { sessionID: 90, localID: 61 },
+                  { sessionID: 1, localID: 33 }
+                ]
+              },
+              textData: { characters: 'Changed after swap' }
             }
           ]
         }
@@ -322,19 +389,108 @@ describe('edge cases', () => {
     const toolbarUse = graph.getChildren(page.id).find((n) => n.name === 'ToolbarUse')
     expect(toolbarUse).toBeDefined()
 
-    // ToolbarUse > btn clone > icon clone
+    // ToolbarUse > btn clone > second wrapped repeated icon clone
     const btnClone = graph.getChildren(toolbarUse?.id ?? '')[0]
     expect(btnClone).toBeDefined()
     expect(btnClone.name).toBe('btn')
 
-    const iconClone = graph.getChildren(btnClone.id)[0]
+    const buttonChildren = graph.getChildren(btnClone.id)
+    expect(buttonChildren.map((child) => child.name)).toEqual([
+      'first icon wrapper',
+      'second icon wrapper'
+    ])
+    const iconClone = graph.getChildren(buttonChildren[1].id)[0]
     expect(iconClone).toBeDefined()
     expect(iconClone.name).toBe('icon')
+    expect(iconClone.width).toBe(24)
+    expect(iconClone.height).toBe(24)
+    expect(iconClone.cornerRadius).toBe(12)
+    expect(iconClone.clipsContent).toBe(true)
 
-    // Icon should have IconB's 2 children, not IconA's 1 child
+    // Icon should have IconB's children, not IconA's child. The later text
+    // override must resolve through the same path prefix after the swap.
     const iconChildren = graph.getChildren(iconClone.id)
-    expect(iconChildren).toHaveLength(2)
-    expect(iconChildren.map((c) => c.name).sort()).toEqual(['PathB1', 'PathB2'])
+    expect(iconChildren).toHaveLength(3)
+    expect(iconChildren.map((c) => c.name).sort()).toEqual(['Icon label', 'PathB1', 'PathB2'])
+    expect(iconChildren.find((child) => child.name === 'PathB1')?.boundVariables).toMatchObject({
+      'fills/0/color': '2:5'
+    })
+    expect(iconChildren.find((child) => child.name === 'Icon label')?.text).toBe(
+      'Changed after swap'
+    )
+  })
+
+  test('component swaps use the component set name for variants', () => {
+    const graph = importNodeChanges([
+      {
+        guid: { sessionID: 0, localID: 0 },
+        type: 'DOCUMENT',
+        name: 'Document',
+        phase: 'CREATED'
+      } as NodeChange,
+      {
+        guid: { sessionID: 0, localID: 1 },
+        parentIndex: { guid: { sessionID: 0, localID: 0 }, position: '!' },
+        type: 'CANVAS',
+        name: 'Page',
+        phase: 'CREATED'
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 1 },
+        overrideKey: { sessionID: 90, localID: 1 },
+        parentIndex: { guid: { sessionID: 0, localID: 1 }, position: '!' },
+        type: 'SYMBOL',
+        name: 'Search',
+        phase: 'CREATED'
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 2 },
+        parentIndex: { guid: { sessionID: 0, localID: 1 }, position: '"' },
+        type: 'FRAME',
+        name: 'Avatar',
+        phase: 'CREATED',
+        componentPropDefs: [
+          {
+            id: { sessionID: 2, localID: 1 },
+            name: 'Type',
+            type: 'VARIANT',
+            initialValue: { textValue: 'Picture' }
+          }
+        ]
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 3 },
+        parentIndex: { guid: { sessionID: 1, localID: 2 }, position: '!' },
+        type: 'SYMBOL',
+        name: 'Type=Picture',
+        phase: 'CREATED'
+      } as NodeChange,
+      {
+        guid: { sessionID: 1, localID: 4 },
+        parentIndex: { guid: { sessionID: 0, localID: 1 }, position: '#' },
+        type: 'INSTANCE',
+        name: 'Search',
+        phase: 'CREATED',
+        size: { x: 50, y: 60 },
+        symbolData: {
+          symbolID: { sessionID: 1, localID: 1 },
+          symbolOverrides: [
+            {
+              guidPath: { guids: [{ sessionID: 90, localID: 1 }] },
+              overriddenSymbolID: { sessionID: 1, localID: 3 },
+              size: { x: 200, y: 200 }
+            }
+          ]
+        }
+      } as NodeChange
+    ])
+
+    const instance = graph
+      .getChildren(graph.getPages()[0].id)
+      .find((node) => node.type === 'INSTANCE')
+    expect(instance?.name).toBe('Avatar')
+    expect(instance?.width).toBe(50)
+    expect(instance?.height).toBe(60)
   })
 
   test('DSD propagates through intermediate clones that are also DSD-targeted', async () => {

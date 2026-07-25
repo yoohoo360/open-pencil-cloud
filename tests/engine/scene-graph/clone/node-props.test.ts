@@ -137,6 +137,40 @@ describe('cloneNodeProps deep-copies overrides values', () => {
   })
 })
 
+describe('cloneNodeProps fig import mode', () => {
+  test('shares immutable payloads while resetting provenance and mutable maps', () => {
+    const graph = new SceneGraph()
+    const node = graph.createNode('RECTANGLE', pageId(graph), {
+      name: 'Imported component child',
+      fills: [{ type: 'SOLID', color: { r: 1, g: 0, b: 0, a: 1 }, visible: true, opacity: 1 }],
+      boundVariables: { 'fills/0/color': 'v1' },
+      source: {
+        format: 'fig',
+        id: 'fig-source',
+        orderKey: 'a',
+        fig: {
+          rawSize: { x: 100, y: 40 },
+          rawTransform: null,
+          rawNodeFields: { derivedTextData: { large: true } },
+          layout: null,
+          symbolOverrides: [],
+          componentPropAssignments: [],
+          derivedSymbolData: [],
+          derivedSymbolDataLayoutVersion: null,
+          uniformScaleFactor: null
+        }
+      }
+    })
+
+    const cloneProps = cloneNodeProps(node, node.id, 'fig-import')
+
+    expect(cloneProps.fills).toBe(node.fills)
+    expect(cloneProps.boundVariables).not.toBe(node.boundVariables)
+    expect(cloneProps.source?.format).toBeNull()
+    expect(cloneProps.source?.fig.rawNodeFields).toEqual({})
+  })
+})
+
 describe('cloneNodeProps coverage guard', () => {
   test('cloneNodeProps does not crash when array fields are undefined', () => {
     const graph = new SceneGraph()

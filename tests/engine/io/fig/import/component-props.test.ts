@@ -105,6 +105,73 @@ describe('Figma component property import', () => {
     expect(unpopulatedInstance?.childIds).toEqual([])
   })
 
+  test('keeps same-name siblings without property references unchanged', () => {
+    const visibilityPropGuid = { sessionID: 3, localID: 3 }
+    const referencedIconGuid = { sessionID: 1, localID: 4 }
+    const plainIconGuid = { sessionID: 1, localID: 5 }
+    const nodeChanges: NodeChange[] = [
+      { guid: documentGuid, phase: 'CREATED', type: 'DOCUMENT', name: 'Document' },
+      {
+        guid: pageGuid,
+        phase: 'CREATED',
+        parentIndex: { guid: documentGuid, position: '!' },
+        type: 'CANVAS',
+        name: 'Page'
+      },
+      {
+        guid: componentGuid,
+        phase: 'CREATED',
+        parentIndex: { guid: pageGuid, position: '!' },
+        type: 'SYMBOL',
+        name: 'Control',
+        componentPropDefs: [
+          {
+            id: visibilityPropGuid,
+            name: 'Show leading icon',
+            type: 'BOOL',
+            initialValue: { boolValue: true }
+          }
+        ]
+      },
+      {
+        guid: referencedIconGuid,
+        phase: 'CREATED',
+        parentIndex: { guid: componentGuid, position: '!' },
+        type: 'FRAME',
+        name: 'Icon',
+        visible: true,
+        componentPropRefs: [{ defID: visibilityPropGuid, componentPropNodeField: 'VISIBLE' }]
+      },
+      {
+        guid: plainIconGuid,
+        phase: 'CREATED',
+        parentIndex: { guid: componentGuid, position: '"' },
+        type: 'FRAME',
+        name: 'Icon',
+        visible: true
+      },
+      {
+        guid: instanceGuid,
+        phase: 'CREATED',
+        parentIndex: { guid: pageGuid, position: '"' },
+        type: 'INSTANCE',
+        name: 'Control instance',
+        symbolData: { symbolID: componentGuid },
+        componentPropAssignments: [{ defID: visibilityPropGuid, value: { boolValue: false } }]
+      }
+    ]
+
+    const graph = importNodeChanges(nodeChanges, [], undefined, { populate: 'all' })
+    const instance = Array.from(graph.getAllNodes()).find(
+      (node) => node.name === 'Control instance'
+    )
+    expect(instance).toBeDefined()
+    expect(graph.getChildren(instance?.id ?? '').map((child) => child.visible)).toEqual([
+      false,
+      true
+    ])
+  })
+
   test('propagates nested instance swaps through clone chains', () => {
     const nodeChanges: NodeChange[] = [
       { guid: documentGuid, phase: 'CREATED', type: 'DOCUMENT', name: 'Document' },

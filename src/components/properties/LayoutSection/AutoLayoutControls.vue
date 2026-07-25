@@ -18,26 +18,9 @@ const layoutModes = computed<Array<{ mode: LayoutMode; label: string }>>(() => [
 </script>
 
 <template>
-  <div class="flex items-center gap-1.5">
-    <IconButton
-      v-if="ctx.node.layoutMode === 'NONE'"
-      :label="panels.addAutoLayout"
-      @click="ctx.editor.setLayoutMode(ctx.node.id, 'VERTICAL')"
-    >
-      <icon-lucide-plus class="size-3.5" />
-    </IconButton>
-    <IconButton
-      v-else
-      :label="panels.removeAutoLayout"
-      @click="ctx.editor.setLayoutMode(ctx.node.id, 'NONE')"
-    >
-      <icon-lucide-minus class="size-3.5" />
-    </IconButton>
-  </div>
-
   <div
     v-if="ctx.node.layoutMode !== 'NONE'"
-    class="mt-1.5 flex items-center gap-1"
+    class="flex items-center gap-1"
     role="toolbar"
     :aria-label="panels.flow"
   >

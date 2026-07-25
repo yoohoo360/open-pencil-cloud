@@ -1,8 +1,13 @@
 import { guidToString } from '@open-pencil/fig/node-change'
 import type { GUID } from '@open-pencil/kiwi/fig/codec'
-import type { SceneNode } from '@open-pencil/scene-graph'
+import { copyInstanceComponentProps, type SceneNode } from '@open-pencil/scene-graph'
 import { copyStrokes } from '@open-pencil/scene-graph/copy'
 
+import {
+  indexCloneSubtree,
+  remapRepopulatedChildSources,
+  snapshotChildSources
+} from './sync/sources'
 import type { InstanceNodeChange, OverrideContext } from './types'
 
 const MAX_CHAIN_DEPTH = 20
@@ -10,6 +15,8 @@ const siblingIndexCache = new WeakMap<OverrideContext, Map<string, number | null
 const siblingGroupCache = new WeakMap<OverrideContext, Map<string, string[]>>()
 const candidateCache = new WeakMap<OverrideContext, Map<string, string[]>>()
 const componentFindCache = new WeakMap<OverrideContext, Map<string, string | null>>()
+const sourcePathCache = new WeakMap<OverrideContext, Map<string, number[] | null>>()
+const overridePathTargetCache = new WeakMap<OverrideContext, Map<string, string>>()
 
 /**
  * Pre-compute componentId root for every node.
@@ -35,7 +42,11 @@ export function preComputeRoots(ctx: OverrideContext): void {
   }
 
   for (const node of ctx.graph.getAllNodes()) {
-    if (node.componentId) resolve(node.id)
+    if (!node.componentId) continue
+    resolve(node.id)
+    const clones = ctx.preComputedClones.get(node.componentId)
+    if (clones) clones.push(node.id)
+    else ctx.preComputedClones.set(node.componentId, [node.id])
   }
 }
 
@@ -140,6 +151,56 @@ function sourceSiblingIndex(ctx: OverrideContext, sourceId: string): number | nu
   const result = index !== -1 ? index : null
   cache.set(sourceId, result)
   return result
+}
+
+function sourcePathToNode(
+  ctx: OverrideContext,
+  sourceRootId: string,
+  targetId: string
+): number[] | null {
+  let cache = sourcePathCache.get(ctx)
+  if (!cache) {
+    cache = new Map()
+    sourcePathCache.set(ctx, cache)
+  }
+  const cacheKey = `${sourceRootId}\0${targetId}`
+  if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null
+
+  const visit = (nodeId: string, path: number[]): number[] | null => {
+    const node = ctx.graph.getNode(nodeId)
+    if (!node) return null
+    if (nodeId === targetId || node.componentId === targetId) return path
+    for (let index = 0; index < node.childIds.length; index++) {
+      const result = visit(node.childIds[index], [...path, index])
+      if (result) return result
+    }
+    return null
+  }
+
+  const result = visit(sourceRootId, [])
+  cache.set(cacheKey, result)
+  return result
+}
+
+function findNodeBySourcePath(
+  ctx: OverrideContext,
+  currentId: string,
+  targetId: string
+): string | null {
+  const current = ctx.graph.getNode(currentId)
+  if (!current?.componentId) return null
+  const path = sourcePathToNode(ctx, current.componentId, targetId)
+  if (!path) return null
+
+  let target = current
+  for (const index of path) {
+    const childId = target.childIds[index]
+    if (!childId) return null
+    const child = ctx.graph.getNode(childId)
+    if (!child) return null
+    target = child
+  }
+  return target.id
 }
 
 function findNodeByNameAndType(
@@ -281,6 +342,7 @@ function resolveOverrideStep(
   if (current?.componentId === remapped) return currentId
 
   return (
+    findNodeBySourcePath(ctx, currentId, remapped) ??
     findNodeByComponentId(ctx, currentId, remapped) ??
     findNodeBySourceSiblingIndex(ctx, currentId, remapped, sourceId) ??
     findNodeByNameAndType(ctx, currentId, targetNc?.name, targetNc?.type)
@@ -292,9 +354,25 @@ export function resolveOverrideTarget(
   instanceId: string,
   guids: GUID[]
 ): string | null {
+  let pathTargets = overridePathTargetCache.get(ctx)
+  if (!pathTargets) {
+    pathTargets = new Map()
+    overridePathTargetCache.set(ctx, pathTargets)
+  }
+
   let currentId = instanceId
+  const path: string[] = []
   for (let index = 0; index < guids.length; index++) {
     const key = guidToString(guids[index])
+    path.push(key)
+    const pathKey = `${instanceId}\0${path.join('/')}`
+    const cachedTarget = pathTargets.get(pathKey)
+    if (cachedTarget && ctx.graph.getNode(cachedTarget)) {
+      currentId = cachedTarget
+      continue
+    }
+    if (cachedTarget) pathTargets.delete(pathKey)
+
     const sourceId = ctx.overrideKeyToGuid.get(key) ?? key
     const targetNc = ctx.changeMap.get(sourceId)
     const symbolGuid = targetNc?.symbolData?.symbolID
@@ -305,6 +383,7 @@ export function resolveOverrideTarget(
     const resolved = resolveOverrideStep(ctx, currentId, sourceId, remapped, targetNc)
     if (resolved) {
       currentId = resolved
+      pathTargets.set(pathKey, resolved)
       continue
     }
 
@@ -312,6 +391,7 @@ export function resolveOverrideTarget(
     if (parent?.childIds.length === 1) {
       currentId = parent.childIds[0]
       index--
+      path.pop()
       continue
     }
 
@@ -362,24 +442,49 @@ function applyStrokeDescendants(
   visit(nodeId)
 }
 
+function componentInstanceName(ctx: OverrideContext, component: SceneNode | undefined): string {
+  if (!component) return ''
+  const parent = component.parentId ? ctx.graph.getNode(component.parentId) : undefined
+  return parent?.type === 'COMPONENT_SET' ? parent.name : component.name
+}
+
+function swappedRootProps(node: SceneNode, component: SceneNode): Partial<SceneNode> {
+  const props = copyInstanceComponentProps(component)
+  props.width = node.width
+  props.height = node.height
+  props.boundVariables = { ...props.boundVariables }
+  for (const field of ['width', 'height'] as const) {
+    const binding = node.boundVariables[field]
+    if (binding) props.boundVariables[field] = binding
+  }
+  return props
+}
+
 export function repopulateInstance(ctx: OverrideContext, nodeId: string, compId: string): void {
   const node = ctx.graph.getNode(nodeId)
   if (node?.type !== 'INSTANCE') return
 
   const previousStrokes = collectStyledStrokeDescendants(ctx, nodeId)
+  const previousSources = snapshotChildSources(ctx.graph, nodeId)
   const rootCompId = node.componentId ? getComponentRoot(ctx, node.componentId) : undefined
   const rootComp = rootCompId ? ctx.graph.getNode(rootCompId) : undefined
   for (const childId of Array.from(node.childIds)) ctx.graph.deleteNode(childId)
   const comp = ctx.graph.getNode(compId)
-  const updates: Partial<SceneNode> = { componentId: compId }
-  if (comp?.name && rootComp?.name && node.name === rootComp.name) {
-    updates.name = comp.name
+  const updates: Partial<SceneNode> = comp
+    ? { ...swappedRootProps(node, comp), componentId: compId }
+    : { componentId: compId }
+  const previousName = componentInstanceName(ctx, rootComp)
+  const nextName = componentInstanceName(ctx, comp)
+  if (nextName && previousName && (node.name === previousName || node.name === rootComp?.name)) {
+    updates.name = nextName
   }
   ctx.graph.preserveSourceMetadataDuring(() => ctx.graph.updateNode(nodeId, updates))
   if (comp && comp.childIds.length > 0) {
-    ctx.graph.populateInstanceChildren(nodeId, compId)
+    ctx.graph.populateInstanceChildren(nodeId, compId, 'fig-import')
+    indexCloneSubtree(ctx.graph, nodeId, ctx.preComputedClones)
     applyStrokeDescendants(ctx, nodeId, previousStrokes)
   }
+  remapRepopulatedChildSources(ctx.graph, nodeId, previousSources, ctx.preComputedClones)
   ctx.swappedInstances.add(nodeId)
   ctx.componentIdRoot.clear()
   candidateCache.delete(ctx)

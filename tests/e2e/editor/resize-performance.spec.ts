@@ -39,7 +39,7 @@ test('resizing uses repaint-only previews until mouseup', async ({ page }) => {
   })
   await canvas.waitForRender()
 
-  await page.evaluate(() => {
+  await page.evaluate((selectedId) => {
     const store = window.openPencil?.getStore?.()
     if (!store) throw new Error('OpenPencil store not initialized')
     const originalStoreUpdate = store.updateNode.bind(store)
@@ -48,11 +48,11 @@ test('resizing uses repaint-only previews until mouseup', async ({ page }) => {
     let graphUpdateCount = 0
     let repaintCount = 0
     store.updateNode = ((nodeId, changes) => {
-      storeUpdateCount++
+      if (nodeId === selectedId) storeUpdateCount++
       return originalStoreUpdate(nodeId, changes)
     }) as typeof store.updateNode
     store.graph.updateNode = ((nodeId, changes) => {
-      graphUpdateCount++
+      if (nodeId === selectedId) graphUpdateCount++
       return originalGraphUpdate(nodeId, changes)
     }) as typeof store.graph.updateNode
     store.onEditorEvent('repaint:requested', () => {
@@ -61,7 +61,7 @@ test('resizing uses repaint-only previews until mouseup', async ({ page }) => {
     Object.assign(window, {
       __openPencilResizeCounters: () => ({ storeUpdateCount, graphUpdateCount, repaintCount })
     })
-  })
+  }, id)
 
   await canvas.drag(340, 240, 420, 290, 12)
 

@@ -64,8 +64,8 @@ const SPECS: FixtureSpec[] = [
     thumbnailHeight: 239,
     imageCount: 3,
     figKiwiVersion: 101,
-    g1ExportSize: 595516,
-    g2ExportSize: 595516
+    g1ExportSize: 596973,
+    g2ExportSize: 596973
   }
 ]
 

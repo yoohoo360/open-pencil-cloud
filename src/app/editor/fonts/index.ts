@@ -208,7 +208,8 @@ async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayB
   if (!isTauri()) return null
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const data = await invoke<number[]>('load_system_font', { family, style })
+    const data = await invoke<number[] | null>('load_system_font', { family, style })
+    if (!data?.length) return null
     return new Uint8Array(data).buffer
   } catch {
     return null

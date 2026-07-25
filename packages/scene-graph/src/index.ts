@@ -1,5 +1,7 @@
+/* eslint-disable max-lines -- SceneGraph exposes a stable facade over domain modules */
 export * from './images'
 export * from './copy'
+export { copyInstanceComponentProps } from './instances'
 export * from './snap'
 export * from './export-scale'
 export * from './coordinate'
@@ -150,6 +152,10 @@ export class SceneGraph {
     return Variables.getActiveModeId(this, collectionId)
   }
 
+  getNodeVariableModeId(nodeId: string, collectionId: string): string {
+    return Variables.getNodeVariableModeId(this, nodeId, collectionId)
+  }
+
   setActiveMode(collectionId: string, modeId: string): void {
     Variables.setActiveMode(this, collectionId, modeId)
   }
@@ -184,6 +190,14 @@ export class SceneGraph {
 
   resolveNumberVariable(variableId: string): number | undefined {
     return Variables.resolveNumberVariable(this, variableId)
+  }
+
+  resolveColorVariableForNode(nodeId: string, variableId: string): Color | undefined {
+    return Variables.resolveColorVariableForNode(this, nodeId, variableId)
+  }
+
+  resolveNumberVariableForNode(nodeId: string, variableId: string): number | undefined {
+    return Variables.resolveNumberVariableForNode(this, nodeId, variableId)
   }
 
   getVariablesForCollection(collectionId: string): Variable[] {
@@ -581,8 +595,12 @@ export class SceneGraph {
     return Instances.createInstance(this, componentId, parentId, overrides)
   }
 
-  populateInstanceChildren(instanceId: string, componentId: string): void {
-    Instances.populateInstanceChildren(this, instanceId, componentId)
+  populateInstanceChildren(
+    instanceId: string,
+    componentId: string,
+    mode: Instances.NodeCloneMode = 'deep'
+  ): void {
+    Instances.populateInstanceChildren(this, instanceId, componentId, mode)
   }
 
   swapInstanceComponent(instanceId: string, componentId: string): void {

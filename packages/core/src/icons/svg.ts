@@ -153,19 +153,28 @@ export function buildIconData(
     name: iconName,
     width: size,
     height: size,
-    paths: pathInfos.map((path) => {
-      const scaledD =
-        scaleX === 1 && scaleY === 1
-          ? path.d
-          : svgpath(path.d).scale(scaleX, scaleY).round(2).toString()
-      return {
-        vectorNetwork: parseSVGPath(scaledD, path.fillRule),
-        fill: path.fill,
-        stroke: path.stroke,
-        strokeWidth: path.strokeWidth * Math.min(scaleX, scaleY),
-        strokeCap: path.strokeCap,
-        strokeJoin: path.strokeJoin
-      }
-    })
+    paths: scalePathInfos(pathInfos, scaleX, scaleY)
   }
+}
+
+/** Scale extracted SVG path info into IconData paths (shared by buildIconData and design-jsx <svg>). */
+export function scalePathInfos(
+  pathInfos: IconPathInfo[],
+  scaleX: number,
+  scaleY: number
+): IconData['paths'] {
+  return pathInfos.map((path) => {
+    const scaledD =
+      scaleX === 1 && scaleY === 1
+        ? path.d
+        : svgpath(path.d).scale(scaleX, scaleY).round(2).toString()
+    return {
+      vectorNetwork: parseSVGPath(scaledD, path.fillRule),
+      fill: path.fill,
+      stroke: path.stroke,
+      strokeWidth: path.strokeWidth * Math.min(scaleX, scaleY),
+      strokeCap: path.strokeCap,
+      strokeJoin: path.strokeJoin
+    }
+  })
 }
