@@ -13,6 +13,7 @@ import {
   pageMessages,
   dialogMessages
 } from '#vue/i18n/messages'
+import { authMessages } from '#vue/i18n/messages/auth'
 
 /**
  * Reactive i18n composable for OpenPencil Vue components.
@@ -63,7 +64,9 @@ export function usePageMessages() {
 export function useDialogMessages() {
   return useI18nNamespace(dialogMessages)
 }
-
+export function useAuthMessages() {
+  return useI18nNamespace(authMessages)
+}
 export function useI18n() {
   return {
     menu: useMenuMessages(),
@@ -73,6 +76,7 @@ export function useI18n() {
     variableTypes: useVariableTypeMessages(),
     pages: usePageMessages(),
     dialogs: useDialogMessages(),
+    auth: useAuthMessages(),
     locale: useStore(locale) as Ref<Locale>,
     availableLocales: AVAILABLE_LOCALES,
     localeLabels: LOCALE_LABELS,
