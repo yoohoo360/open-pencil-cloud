@@ -282,6 +282,13 @@ export interface PluginRelaunchData {
   isDeleted: boolean
 }
 
+export interface AssetRef {
+  key: string
+  version?: string
+}
+
+export type StyleReference = { guid: GUID; assetRef?: never } | { guid?: never; assetRef: AssetRef }
+
 export interface NodeChange {
   [key: string]: unknown
   guid?: GUID
@@ -385,9 +392,11 @@ export interface NodeChange {
     truncatedHeight?: number
   }
   styleType?: string
-  styleIdForText?: { guid?: GUID }
-  styleIdForFill?: { guid?: GUID }
-  styleIdForStrokeFill?: { guid?: GUID }
+  styleIdForText?: StyleReference
+  styleIdForFill?: StyleReference
+  styleIdForStrokeFill?: StyleReference
+  styleIdForEffect?: StyleReference
+  styleIdForGrid?: StyleReference
   textUserLayoutVersion?: number
   textExplicitLayoutVersion?: number
   textBidiVersion?: number

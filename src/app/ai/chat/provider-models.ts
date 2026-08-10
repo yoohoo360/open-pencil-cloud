@@ -7,6 +7,12 @@ type OpenRouterModel = {
   id?: unknown
   name?: unknown
   supported_parameters?: unknown
+  architecture?: {
+    input_modalities?: unknown
+  }
+  top_provider?: {
+    max_completion_tokens?: unknown
+  }
 }
 
 type OpenRouterModelsResponse = {
@@ -31,9 +37,20 @@ function isToolCapableOpenRouterModel(model: OpenRouterModel) {
 export function normalizeOpenRouterModel(model: OpenRouterModel): ModelOption | null {
   if (!isToolCapableOpenRouterModel(model)) return null
   if (typeof model.id !== 'string' || !model.id) return null
+  const inputModalities = model.architecture?.input_modalities
+  const maxOutputTokens = model.top_provider?.max_completion_tokens
   return {
     id: model.id,
-    name: typeof model.name === 'string' && model.name ? model.name : model.id
+    name: typeof model.name === 'string' && model.name ? model.name : model.id,
+    capabilities: [
+      'tools',
+      ...(Array.isArray(inputModalities) && inputModalities.includes('image')
+        ? (['vision'] as const)
+        : [])
+    ],
+    ...(typeof maxOutputTokens === 'number' && Number.isFinite(maxOutputTokens)
+      ? { recommendedMaxOutputTokens: Math.min(128_000, Math.max(1024, maxOutputTokens)) }
+      : {})
   }
 }
 

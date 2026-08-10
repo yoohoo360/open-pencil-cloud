@@ -223,7 +223,7 @@ export function mapArcData(data?: Partial<ArcData>): ArcData | null {
   }
 }
 
-function convertTransformProps(
+export function convertFigmaTransformProps(
   nc: NodeChange
 ): Pick<SceneNode, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX' | 'flipY'> {
   const width = nc.size?.x ?? 100
@@ -237,28 +237,23 @@ function convertTransformProps(
     const t = nc.transform
     const det = t.m00 * t.m11 - t.m01 * t.m10
     if (det < 0) flipX = true
-    const sx = flipX ? -1 : 1
-    rotation = Math.atan2(t.m10 * sx, t.m00 * sx) * (180 / Math.PI)
+    rotation = Math.atan2(t.m10, flipX ? t.m11 : t.m00) * (180 / Math.PI)
 
-    if (rotation !== 0 && !flipX) {
-      const radians = (rotation * Math.PI) / 180
-      const cos = Math.cos(radians)
-      const sin = Math.sin(radians)
-      x = t.m02 - (width / 2) * (1 - cos) - sin * (height / 2)
-      y = t.m12 - (height / 2) * (1 - cos) + sin * (width / 2)
-    } else {
-      const corners = [
-        { x: 0, y: 0 },
-        { x: width, y: 0 },
-        { x: 0, y: height },
-        { x: width, y: height }
-      ].map((point) => ({
-        x: t.m00 * point.x + t.m01 * point.y + t.m02,
-        y: t.m10 * point.x + t.m11 * point.y + t.m12
-      }))
-      x = Math.min(...corners.map((point) => point.x))
-      y = Math.min(...corners.map((point) => point.y))
-    }
+    // Scene nodes apply their reflection and rotation around the center. Decompose the Figma
+    // matrix into that same linear transform, then recover the node translation so recomposing
+    // it produces the original matrix. Reflected rotations need their angle read from the
+    // second row; treating them as ordinary rotations reverses connector instances by 180°.
+    const radians = (rotation * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    const centerX = width / 2
+    const centerY = height / 2
+    const m00 = flipX ? -cos : cos
+    const m01 = flipX ? sin : -sin
+    const m10 = sin
+    const m11 = cos
+    x = t.m02 - centerX + m00 * centerX + m01 * centerY
+    y = t.m12 - centerY + m10 * centerX + m11 * centerY
   }
 
   return { x, y, width, height, rotation, flipX, flipY: false }
@@ -587,7 +582,7 @@ export function nodeChangeToProps(
     nodeType,
     name: nc.name ?? nodeType,
     source: extractSourceMetadata(nc, blobs),
-    ...convertTransformProps(nc),
+    ...convertFigmaTransformProps(nc),
     opacity: nc.opacity ?? 1,
     visible: nc.visible ?? true,
     locked: nc.locked ?? false,

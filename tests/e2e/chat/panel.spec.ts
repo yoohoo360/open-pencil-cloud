@@ -242,6 +242,8 @@ test('OpenRouter accepts a custom model ID from provider settings', async () => 
   await page.keyboard.press('Escape')
   await page.getByTestId('provider-settings-trigger').click()
   await page.locator('[data-model-id]').first().click()
+  await page.getByLabel('Model ID').click()
+  await page.getByRole('option', { name: 'Custom model…' }).click()
   const customModelInput = page.getByTestId('provider-settings-custom-model')
   await expect(customModelInput).toBeVisible()
   await customModelInput.fill(customModel)
@@ -253,7 +255,10 @@ test('OpenRouter accepts a custom model ID from provider settings', async () => 
 
   await page.getByTestId('provider-settings-trigger').click()
   await page.locator('[data-model-id]').first().click()
-  await page.getByTestId('provider-settings-custom-model').fill('')
+  const savedCustomModelInput = page.getByTestId('provider-settings-custom-model')
+  await savedCustomModelInput.fill('')
+  await page.getByRole('combobox', { name: 'Model ID' }).click()
+  await page.getByRole('option', { name: /Claude Sonnet 4\.6/ }).click()
   await page.getByRole('button', { name: 'Save model' }).click()
   await page.getByTestId('app-settings-done').click()
 

@@ -23,6 +23,7 @@ import {
   makeDocumentNodeChange,
   makeCanvasNodeChange
 } from '#core/kiwi/fig/node-change/serialize'
+import { deserializeSceneGraph, serializeSceneGraph } from '#core/kiwi/fig/parse/transfer'
 
 const THUMBNAIL_1X1 = decodeBase64(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
@@ -379,12 +380,15 @@ function appendInternalResources(context: InternalResourceContext): void {
 }
 
 export async function exportFigFile(
-  graph: SceneGraph,
+  sourceGraph: SceneGraph,
   ck?: CanvasKit,
   renderer?: SkiaRenderer,
   pageId?: string,
   renderHeadlessThumbnail = false
 ): Promise<Uint8Array> {
+  // Lazy population synchronizes component trees and therefore mutates its graph. Saving must not
+  // rewrite the live editor document or restore component values over edits made by the user.
+  const graph = deserializeSceneGraph(structuredClone(serializeSceneGraph(sourceGraph)))
   populateAllLazyFigImportRoots(graph)
   await initCodec()
 

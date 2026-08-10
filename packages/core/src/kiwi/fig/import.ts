@@ -53,7 +53,7 @@ function buildAssetRefMap(changeMap: Map<string, NodeChange>): Map<string, strin
   const refs = new Map<string, string>()
   for (const [id, nc] of changeMap) {
     if (typeof nc.key !== 'string') continue
-    refs.set(nc.key, id)
+    if (typeof nc.version !== 'string' || !refs.has(nc.key)) refs.set(nc.key, id)
     if (typeof nc.version === 'string')
       refs.set(assetRefKey({ key: nc.key, version: nc.version }), id)
     if (typeof nc.userFacingVersion === 'string') {
@@ -383,8 +383,11 @@ function parseDocumentColorSpace(nodeChanges: NodeChange[]): 'srgb' | 'display-p
   return documentNode?.documentColorProfile === 'DISPLAY_P3' ? 'display-p3' : 'srgb'
 }
 
-function applyStyleRefs(changeMap: Map<string, NodeChange>): void {
-  for (const nc of changeMap.values()) applyStyleRefsToFields(changeMap, nc)
+function applyStyleRefs(
+  changeMap: Map<string, NodeChange>,
+  assetRefs: ReadonlyMap<string, string>
+): void {
+  for (const nc of changeMap.values()) applyStyleRefsToFields(changeMap, nc, assetRefs)
 }
 
 export interface FigImportOptions {
@@ -439,8 +442,8 @@ export function importNodeChanges(
   }
 
   const { changeMap, parentMap, childrenMap } = buildChangeMaps(nodeChanges)
-  applyStyleRefs(changeMap)
   const assetRefs = buildAssetRefMap(changeMap)
+  applyStyleRefs(changeMap, assetRefs)
   setVariableColorResolver(buildVariableColorResolver(changeMap, assetRefs))
 
   const canvasIdToPageId = new Map<string, string>()

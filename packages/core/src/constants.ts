@@ -188,6 +188,8 @@ export interface ModelOption {
   id: string
   name: string
   tag?: string
+  capabilities?: readonly ('tools' | 'vision')[]
+  recommendedMaxOutputTokens?: number
 }
 
 export interface AIProviderDef {

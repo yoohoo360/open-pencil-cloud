@@ -1,7 +1,13 @@
 import type { Canvas, Image as CKImage, Surface } from 'canvaskit-wasm'
 
-import type { SceneGraph } from '@open-pencil/scene-graph'
-import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
+import { getWorldMatrix, TransformMatrix, type SceneGraph } from '@open-pencil/scene-graph'
+import {
+  computeDescendantVisualBounds,
+  effectOverflow,
+  strokeOverflow,
+  unionVisualBounds,
+  type VisualBounds
+} from '@open-pencil/scene-graph/geometry'
 
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { clearSubtreePictureCache } from '#core/canvas/renderer/state'
@@ -227,6 +233,56 @@ function ensureSubtreePictureCacheScope(
   r.subtreePictureCacheFontGeneration = r.fontGeneration
 }
 
+/**
+ * Retained pictures are recorded in world coordinates, so their recording bounds must account for
+ * the complete ancestor transform chain. The regular visual-bounds helper intentionally accepts
+ * only an absolute origin and a node-local rotation; that is insufficient for descendants of
+ * reflected or rotated instances and can clip otherwise valid draw commands from the picture.
+ */
+export function computeRetainedSubtreeBounds(
+  graph: SceneGraph,
+  childId: string
+): VisualBounds | null {
+  const visualBounds = computeDescendantVisualBounds(
+    [childId],
+    (id) => graph.getNode(id),
+    (id) => graph.getAbsolutePosition(id)
+  )
+  let transformedBounds: VisualBounds | null = null
+  const pending = [childId]
+
+  while (pending.length > 0) {
+    const nodeId = pending.pop()
+    if (!nodeId) continue
+    const node = graph.getNode(nodeId)
+    if (!node?.visible) continue
+
+    const stroke = strokeOverflow(node.strokes)
+    const effects = effectOverflow(node.effects)
+    const points = TransformMatrix.mapPoints(getWorldMatrix(node, graph), [
+      -stroke - effects.left,
+      -stroke - effects.top,
+      node.width + stroke + effects.right,
+      -stroke - effects.top,
+      node.width + stroke + effects.right,
+      node.height + stroke + effects.bottom,
+      -stroke - effects.left,
+      node.height + stroke + effects.bottom
+    ])
+    const xs = [points[0], points[2], points[4], points[6]]
+    const ys = [points[1], points[3], points[5], points[7]]
+    transformedBounds = unionVisualBounds(transformedBounds, {
+      minX: Math.min(...xs),
+      minY: Math.min(...ys),
+      maxX: Math.max(...xs),
+      maxY: Math.max(...ys)
+    })
+    pending.push(...node.childIds)
+  }
+
+  return unionVisualBounds(visualBounds, transformedBounds)
+}
+
 function cachedSubtreePicture(
   r: SkiaRenderer,
   graph: SceneGraph,
@@ -246,11 +302,7 @@ function cachedSubtreePicture(
   }
 
   cached?.picture.delete()
-  const bounds = computeDescendantVisualBounds(
-    [childId],
-    (id) => graph.getNode(id),
-    (id) => graph.getAbsolutePosition(id)
-  )
+  const bounds = computeRetainedSubtreeBounds(graph, childId)
   if (!bounds) return null
 
   const recorder = new r.ck.PictureRecorder()

@@ -73,7 +73,14 @@ function buildKiwiPropertyNodes(
     const hasDiffVisible = nc.visible === false && comp.visible
     const hasDiffFills = nc.fillPaints !== undefined && !isEqual(node.fills, comp.fills)
     const hasDiffStrokes = nc.strokePaints !== undefined && !isEqual(node.strokes, comp.strokes)
-    if (hasDiffRadius || hasDiffVisible || hasDiffFills || hasDiffStrokes) result.add(nodeId)
+    const hasDiffText =
+      nc.textData !== undefined &&
+      node.type === 'TEXT' &&
+      comp.type === 'TEXT' &&
+      node.text !== comp.text
+    if (hasDiffRadius || hasDiffVisible || hasDiffFills || hasDiffStrokes || hasDiffText) {
+      result.add(nodeId)
+    }
   }
   return result
 }

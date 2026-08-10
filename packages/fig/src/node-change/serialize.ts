@@ -474,8 +474,8 @@ function computeExportTransform(node: SceneNode): Matrix {
   const sin = Math.sin((node.rotation * Math.PI) / 180)
 
   const m00 = cos * sx
-  const m01 = -sin
-  const m10 = sin * sx
+  const m01 = -sin * sx
+  const m10 = sin
   const m11 = cos
   const corners = [
     { x: 0, y: 0 },
