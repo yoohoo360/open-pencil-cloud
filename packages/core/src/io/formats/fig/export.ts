@@ -379,36 +379,12 @@ function appendInternalResources(context: InternalResourceContext): void {
   }
 }
 
-export async function exportFigFile(
-  sourceGraph: SceneGraph,
-  ck?: CanvasKit,
-  renderer?: SkiaRenderer,
-  pageId?: string,
-  renderHeadlessThumbnail = false
-): Promise<Uint8Array> {
+export async function initFigExportCodec(graph: SceneGraph, pageId?: string) {
   // Lazy population synchronizes component trees and therefore mutates its graph. Saving must not
   // rewrite the live editor document or restore component values over edits made by the user.
-  const graph = deserializeSceneGraph(structuredClone(serializeSceneGraph(sourceGraph)))
+
   populateAllLazyFigImportRoots(graph)
   await initCodec()
-
-  // When the document was imported from a .fig file, preserve the original
-  // kiwi schema for both encoding and embedding. For the current version of
-  // Figma, likely for quite some time, schema has more types/fields than our
-  // subset, and using our schema to encode would produce field IDs that don't
-  // align with the embedded schema. By compiling and using the original
-  // schema, we improve the roundtrip-ability... This requires further work.
-  let compiled: ReturnType<typeof getCompiledSchema>
-  let schemaDeflated: Uint8Array
-  if (graph.figSchemaDeflated) {
-    const schemaBytes = inflateSync(graph.figSchemaDeflated)
-    const figSchema = decodeBinarySchema(new ByteBuffer(schemaBytes))
-    compiled = compileSchema(figSchema) as ReturnType<typeof getCompiledSchema>
-    schemaDeflated = graph.figSchemaDeflated
-  } else {
-    compiled = getCompiledSchema()
-    schemaDeflated = deflateSync(getSchemaBytes())
-  }
 
   const docGuid = { sessionID: 0, localID: 0 }
   const localIdCounter = { value: 2 }
@@ -529,10 +505,36 @@ export async function exportFigFile(
   if (blobs.length > 0) {
     msg.blobs = blobs.map((bytes) => ({ bytes }))
   }
+  const currentPageId = pageId ?? pages[0]?.id
 
+  return {
+    msg,
+    currentPageId
+  }
+}
+
+export async function exportFigFile(
+  sourceGraph: SceneGraph,
+  ck?: CanvasKit,
+  renderer?: SkiaRenderer,
+  pageId?: string,
+  renderHeadlessThumbnail = false
+): Promise<Uint8Array> {
+  const graph = deserializeSceneGraph(structuredClone(serializeSceneGraph(sourceGraph)))
+  let compiled: ReturnType<typeof getCompiledSchema>
+  let schemaDeflated: Uint8Array
+  if (graph.figSchemaDeflated) {
+    const schemaBytes = inflateSync(graph.figSchemaDeflated)
+    const figSchema = decodeBinarySchema(new ByteBuffer(schemaBytes))
+    compiled = compileSchema(figSchema) as ReturnType<typeof getCompiledSchema>
+    schemaDeflated = graph.figSchemaDeflated
+  } else {
+    compiled = getCompiledSchema()
+    schemaDeflated = deflateSync(getSchemaBytes())
+  }
+  const { msg, currentPageId } = await initFigExportCodec(graph, pageId)
   const kiwiData = compiled.encodeMessage(msg)
 
-  const currentPageId = pageId ?? pages[0]?.id
   const thumbnailPng = await renderFigThumbnail(
     graph,
     currentPageId,

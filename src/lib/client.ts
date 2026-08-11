@@ -321,6 +321,7 @@ export const authApi = {
     try {
       const response = await apiClient.get<BackendCurrentUserResponse>('/auth/me')
 
+      console.log('=========response=======', response)
       return response.data
     } catch (error) {
       // 如果是 401 错误，清理 token 并跳转（拦截器会处理，这里只记录）
@@ -340,8 +341,15 @@ export const authApi = {
 }
 
 export const apiClient = {
-  get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<Response<T>> {
-    return _apiClient.get(url, config)
+  async get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<Response<T>> {
+    const res = await _apiClient.get(url, config)
+    if (res instanceof ArrayBuffer) {
+      return {
+        data: res,
+        success: true
+      }
+    }
+    return res
   },
 
   post<T = unknown>(

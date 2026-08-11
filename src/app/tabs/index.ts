@@ -19,6 +19,7 @@ import { getLocalCanvasStore } from '@/app/storage/local-store'
 import { seedStorageCanvasFromRemote } from '@/app/storage/sync/persist'
 import { createFileOpenCoordinator } from '@/app/tabs/open/coordinator'
 import { findTabByFileIdentity } from '@/app/tabs/open/identity'
+import apiClient from '@/lib/client.ts'
 
 export interface Tab {
   id: string
@@ -179,6 +180,57 @@ export async function openStorageDocumentInNewTab(document: StorageDocument): Pr
     store.replaceGraph(imported)
     store.undo.clear()
     store.setStorageDocumentSource({ providerId, documentId: document.id }, document.name)
+    store.clearSelection()
+    const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
+    await store.switchPage(pageId)
+    await store.fitCurrentPageToViewport()
+  } finally {
+    store.state.loading = false
+  }
+}
+
+export async function openHttpFileInNewTab(fileKey: string, store: EditorStore): Promise<void> {
+  const { data: documentMeta } = await apiClient.get('/document/' + fileKey)
+  const providerId = activeStorageProviderID.value
+  const existing = findStorageTab(providerId, fileKey)
+  if (existing) {
+    switchTab(existing.id)
+    return
+  }
+  const name = documentMeta?.name || 'Untitled'
+
+  store.state.documentName = name
+  store.state.loading = true
+  try {
+    const local = getLocalCanvasStore()
+    const localMetadata = await local.getMeta(fileKey)
+    const localBytes = localMetadata?.hasFig ? await local.readFig(fileKey) : null
+    const localIsAuthoritative =
+      localMetadata?.syncStatus !== 'synced' ||
+      !document.metadataAuthoritative ||
+      localMetadata.updatedAt >= document?.updated_at
+    let bytes = localBytes && localIsAuthoritative ? localBytes : null
+
+    if (!bytes) {
+      const figPath = documentMeta?.url
+      // 方式1：直接获取二进制数据
+      const res = await apiClient.get<ArrayBuffer>(`/oss/download?path=${figPath}`, {
+        responseType: 'arraybuffer' // 重要：指定响应类型为二进制
+      })
+      bytes = new Uint8Array(res.data)
+    }
+
+    const fileBytes = new Uint8Array(bytes.byteLength)
+    fileBytes.set(bytes)
+    const file = new File([fileBytes.buffer], `${name}.fig`, {
+      type: 'application/octet-stream'
+    })
+    const imported = await readFigFile(file, { populate: 'first-page' })
+    const firstPageId = imported.getPages()[0]?.id
+    if (firstPageId) computeAllLayouts(imported, firstPageId)
+    store.replaceGraph(imported)
+    store.undo.clear()
+    store.setStorageDocumentSource({ providerId, documentId: fileKey }, name)
     store.clearSelection()
     const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
     await store.switchPage(pageId)

@@ -4,9 +4,9 @@ import { watch } from 'vue'
 import {
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
   WEB_FONT_PROVIDER_IDS,
-  collectGraphFontRequirements,
   fontManager,
-  missingGraphFontScripts,
+  styleToWeight,
+  textNeededFallbackScripts,
   type FontFamilyOption,
   type LocalFontAccessState,
   type WebFontProviderId
@@ -67,7 +67,7 @@ function configureTauriFontCache() {
   tauriFontCacheConfigured = true
   fontManager.setDownloadedFontCache(createTauriDownloadedFontCache())
   fontManager.setWebFontFetch(tauriFetch)
-  fontManager.setHostFontLoader(loadSystemFont)
+  fontManager.setHostFallbackFontLoader(loadFont)
 }
 
 configureTauriFontCache()
@@ -100,6 +100,7 @@ export function preloadFonts(): void {
     void getTauriFonts().then(registerFontFaces)
     return
   }
+  void requestLocalFontAccess()
   if (onlineFontsEnabled.value) fontManager.preloadWebFontFamilies()
 }
 
@@ -161,67 +162,67 @@ export async function listFonts(): Promise<TauriFontFamily[]> {
   return []
 }
 
-interface FontRenderInvalidator {
-  invalidateAllPictures(): void
-}
-
-export async function ensureGraphFonts(
-  graph: SceneGraph,
-  nodeIds: string[],
-  renderer?: FontRenderInvalidator | null
-): Promise<boolean> {
-  fontManager.blockNodesUntilFontsResolve(nodeIds)
-  try {
-    const generationBefore = fontManager.generation()
-    const fontKeys = fontManager.collectFontKeys(graph, nodeIds)
-    const requirements = collectGraphFontRequirements(graph, nodeIds)
-    const { characters } = requirements
-    await Promise.all(fontKeys.map(([family, style]) => loadFont(family, style, characters)))
-    const fallbackScripts = missingGraphFontScripts(requirements)
-    if (fallbackScripts.length > 0) {
-      const fallbacks = await fontManager.ensureFallbackPack(fallbackScripts, characters)
-      if (Object.values(fallbacks).some((families) => families.length > 0)) {
-        clearTextPictures(graph, nodeIds)
-      }
-    } else if (fontManager.generation() !== generationBefore) {
-      clearTextPictures(graph, nodeIds)
-    }
-    return fontManager.generation() !== generationBefore || fallbackScripts.length > 0
-  } finally {
-    fontManager.unblockNodes(nodeIds)
-    renderer?.invalidateAllPictures()
+export async function ensureGraphFonts(graph: SceneGraph, nodeIds: string[]): Promise<boolean> {
+  const fontKeys = fontManager.collectFontKeys(graph, nodeIds)
+  const missing = fontKeys.filter(([family, style]) => !fontManager.isStyleLoaded(family, style))
+  const results = await Promise.all(missing.map(([family, style]) => loadFont(family, style)))
+  const loaded = results.some((result) => result !== null)
+  const fallbackScripts = neededFallbackScriptsForNodes(graph, nodeIds)
+  if (fallbackScripts.length > 0) {
+    const fallbacks = await fontManager.ensureFallbackPack(fallbackScripts)
+    if (Object.values(fallbacks).some((families) => families.length > 0)) clearTextPictures(graph)
+  } else if (loaded) {
+    clearTextPictures(graph)
   }
+  return loaded || fallbackScripts.length > 0
 }
 
-function clearTextPictures(graph: SceneGraph, nodeIds: string[]): void {
-  const clear = (id: string) => {
+function neededFallbackScriptsForNodes(graph: SceneGraph, nodeIds: string[]) {
+  const scripts = new Set<ReturnType<typeof textNeededFallbackScripts>[number]>()
+  const collect = (id: string) => {
     const node = graph.getNode(id)
     if (!node) return
+    if (node.type === 'TEXT') {
+      for (const script of textNeededFallbackScripts(node)) scripts.add(script)
+    }
+    for (const childId of node.childIds) collect(childId)
+  }
+  for (const id of nodeIds) collect(id)
+  return [...scripts]
+}
+
+function clearTextPictures(graph: SceneGraph): void {
+  for (const [, node] of graph.nodes) {
     if (node.type === 'TEXT') node.textPicture = null
-    for (const childId of node.childIds) clear(childId)
-  }
-  for (const id of nodeIds) clear(id)
-}
-
-async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
-  if (!isTauri()) return null
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const data = await invoke<number[] | null>('load_system_font', { family, style })
-    if (!data?.length) return null
-    return new Uint8Array(data).buffer
-  } catch {
-    return null
   }
 }
 
-export async function loadFont(
-  family: string,
-  style = 'Regular',
-  characters = ''
-): Promise<ArrayBuffer | null> {
+export async function loadFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
   configureTauriFontCache()
-  const loaded = await fontManager.loadFont(family, style, characters)
+  if (isTauri()) {
+    const cached = await fontManager.loadCachedFont(family, style)
+    if (cached) return cached
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const data = await invoke<number[]>('load_system_font', { family, style })
+      const buffer = new Uint8Array(data).buffer
+
+      fontManager.markLoaded(family, style, buffer)
+
+      const weight = styleToWeight(style)
+      const italic = style.toLowerCase().includes('italic') ? 'italic' : 'normal'
+      const face = new FontFace(family, buffer, { weight: String(weight), style: italic })
+      await face.load()
+      document.fonts.add(face)
+
+      return buffer
+    } catch {
+      return fontManager.loadFont(family, style)
+    }
+  }
+
+  const loaded = await fontManager.loadFont(family, style)
   if (!loaded) showWebFontUnavailableToast()
   return loaded
 }

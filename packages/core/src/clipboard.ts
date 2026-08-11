@@ -367,7 +367,7 @@ export async function buildFigmaClipboardHTML(
   if (blobs.length > 0) {
     msg.blobs = blobs.map((bytes) => ({ bytes }))
   }
-
+  console.log('=========msg=======', msg)
   const dataRaw = compiled.encodeMessage(msg)
   const figKiwiBinary = buildFigKiwi(schemaDeflated, dataRaw)
   const bufferB64 = encodeBase64(figKiwiBinary)

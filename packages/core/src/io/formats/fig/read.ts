@@ -87,3 +87,10 @@ export async function readFigFile(
 ): Promise<SceneGraph> {
   return parseFigFile(await file.arrayBuffer(), options)
 }
+
+export async function readFigFileBuffer(
+  buffer: ArrayBuffer,
+  options: ParseFigFileOptions = {}
+): Promise<SceneGraph> {
+  return parseFigFile(buffer, options)
+}

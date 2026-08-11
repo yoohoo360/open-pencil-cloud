@@ -434,3 +434,5 @@ export {
   getStockPhotoProviders
 } from './tools/stock-photo'
 export type { StockPhotoProvider, StockPhotoResult } from './tools/stock-photo'
+
+export { diffChangeNode } from './diff'
