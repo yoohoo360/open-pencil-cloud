@@ -3,6 +3,7 @@ import { inflateSync, deflateSync } from 'fflate'
 import { populateAndApplyOverrides } from '@open-pencil/fig/instance-overrides'
 import type { InstanceNodeChange } from '@open-pencil/fig/instance-overrides'
 import {
+  mergePropertyReferencesDefId,
   nodeChangeToProps,
   shouldImportTextAsAutoSize,
   sortChildren
@@ -291,6 +292,13 @@ export function importClipboardNodes(
   }
 
   detachOrphanedInstances(created, graph)
+  mergePropertyReferencesDefId(
+    created,
+    parentMap,
+    (id: string) => guidMap.get(id),
+    (id: string) => graph.getNode(id),
+    (id: string, refs: Partial<SceneNode>) => graph.updateNode(id, refs)
+  )
 
   return createdIds
 }

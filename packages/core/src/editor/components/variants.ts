@@ -3,7 +3,6 @@ import { omit } from 'es-toolkit/object'
 import type {
   ComponentPropertyDefinition,
   ComponentPropertyType,
-  SceneGraph,
   SceneNode
 } from '@open-pencil/scene-graph'
 import { buildVariantName, parseVariantName } from '@open-pencil/scene-graph/variant-name'
@@ -152,15 +151,12 @@ export function createVariantActions(ctx: EditorContext) {
     ctx.requestRender()
   }
 
-  function collectVariantOptions(
-    componentSetId: string,
-    graph: SceneGraph = ctx.graph
-  ): Map<string, Set<string>> {
-    const node = graph.getNode(componentSetId)
+  function collectVariantOptions(componentSetId: string): Map<string, Set<string>> {
+    const node = ctx.graph.getNode(componentSetId)
     if (node?.type !== 'COMPONENT_SET') return new Map()
     const options = new Map<string, Set<string>>()
     for (const childId of node.childIds) {
-      const child = graph.getNode(childId)
+      const child = ctx.graph.getNode(childId)
       if (child?.type !== 'COMPONENT') continue
       for (const [key, value] of Object.entries(child.componentPropertyValues)) {
         const set = options.get(key) ?? new Set()
@@ -171,24 +167,19 @@ export function createVariantActions(ctx: EditorContext) {
     return options
   }
 
-  function getComponentSetVariants(
-    componentSetId: string,
-    graph: SceneGraph = ctx.graph
-  ): SceneNode[] {
-    const node = graph.getNode(componentSetId)
+  function getComponentSetVariants(componentSetId: string): SceneNode[] {
+    const node = ctx.graph.getNode(componentSetId)
     if (node?.type !== 'COMPONENT_SET') return []
     return node.childIds
-      .map((id) => graph.getNode(id))
+      .map((id) => ctx.graph.getNode(id))
       .filter((child): child is SceneNode => child?.type === 'COMPONENT')
   }
 
   function findVariantByValues(
     componentSetId: string,
-    values: Record<string, string>,
-    graph?: SceneGraph
+    values: Record<string, string>
   ): SceneNode | undefined {
-    const childs = getComponentSetVariants(componentSetId, graph).sort(sortByCanvasPosition)
-    for (const child of childs) {
+    for (const child of getComponentSetVariants(componentSetId).sort(sortByCanvasPosition)) {
       const childValues = child.componentPropertyValues
       const matches = Object.entries(values).every(([k, v]) => childValues[k] === v)
       if (matches) return child
@@ -196,29 +187,25 @@ export function createVariantActions(ctx: EditorContext) {
     return undefined
   }
 
-  function getDefaultVariantForComponentSet(
-    componentSetId: string,
-    graph: SceneGraph = ctx.graph
-  ): SceneNode | undefined {
-    const node = graph.getNode(componentSetId)
+  function getDefaultVariantForComponentSet(componentSetId: string): SceneNode | undefined {
+    const node = ctx.graph.getNode(componentSetId)
     if (node?.type !== 'COMPONENT_SET') return undefined
+
     const defaultValues = Object.fromEntries(
       node.componentPropertyDefinitions
         .filter((def) => def.type === 'VARIANT' && def.defaultValue)
         .map((def) => [def.name, def.defaultValue])
     )
     if (Object.keys(defaultValues).length > 0) {
-      const explicitDefault = findVariantByValues(componentSetId, defaultValues, graph)
+      const explicitDefault = findVariantByValues(componentSetId, defaultValues)
       if (explicitDefault) return explicitDefault
     }
-    return getComponentSetVariants(componentSetId, graph).sort(sortByCanvasPosition)[0]
+
+    return getComponentSetVariants(componentSetId).sort(sortByCanvasPosition)[0]
   }
 
-  function getComponentSetVariantConflicts(
-    componentSetId: string,
-    graph: SceneGraph = ctx.graph
-  ): VariantConflict[] {
-    const node = graph.getNode(componentSetId)
+  function getComponentSetVariantConflicts(componentSetId: string): VariantConflict[] {
+    const node = ctx.graph.getNode(componentSetId)
     if (node?.type !== 'COMPONENT_SET') return []
 
     const propNames = node.componentPropertyDefinitions
@@ -294,34 +281,22 @@ export function createVariantActions(ctx: EditorContext) {
 
     const currentValues = { ...component.componentPropertyValues }
     currentValues[propertyName] = newValue
-    const remoteKey = componentSet.id.split(':')[0]
-    const graph = componentSet.remote ? ctx.graph.getLib(remoteKey)?.graph : ctx.graph
-    const target = findVariantByValues(componentSetId, currentValues, graph)
+    const target = findVariantByValues(componentSetId, currentValues)
     if (!target || target.id === instance.componentId) return
-    if (componentSet.remote) {
-      ctx.graph.addRemoteComponent(remoteKey, target, componentSet)
-      ctx.graph.removeRemoteComponent(remoteKey, component, componentSet)
-    }
+
     const prevComponentId = instance.componentId
     ctx.graph.swapInstanceComponent(instanceId, target.id)
+    reapplyInstanceComponentProperties(ctx, instanceId)
     ctx.undo.push({
       label: 'Switch variant',
       forward: () => {
-        if (componentSet.remote) {
-          ctx.graph.addRemoteComponent(remoteKey, target, componentSet)
-          ctx.graph.removeRemoteComponent(remoteKey, component, componentSet)
-        }
-
         ctx.graph.swapInstanceComponent(instanceId, target.id)
-
+        reapplyInstanceComponentProperties(ctx, instanceId)
         ctx.requestRender()
       },
       inverse: () => {
         ctx.graph.swapInstanceComponent(instanceId, prevComponentId)
-        if (componentSet.remote) {
-          ctx.graph.removeRemoteComponent(remoteKey, target, componentSet)
-          ctx.graph.addRemoteComponent(remoteKey, target, componentSet)
-        }
+        reapplyInstanceComponentProperties(ctx, instanceId)
         ctx.requestRender()
       }
     })

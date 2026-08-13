@@ -88,7 +88,10 @@ export const panelMessageDefaults = {
   pageBackground: 'Page background',
   variables: 'Variables',
   variants: 'Variants',
-  componentProperties: 'Component properties',
+  componentProperties: 'Properties',
+  addComponentProperties: 'add properties',
+  removeComponentProperties: 'remove properties',
+
   constraints: 'Constraints',
   horizontalConstraint: 'Horizontal constraint',
   verticalConstraint: 'Vertical constraint',
@@ -278,7 +281,8 @@ export const panelMessageDefaults = {
   gridGutter: 'Gutter',
   gridMargin: 'Margin',
   gridSectionSize: 'Section size',
-  searchFonts: 'Search fonts...'
+  searchFonts: 'Search fonts...',
+  content: 'content'
 } as const
 
 export const panelMessages = i18n('panels', panelMessageDefaults)

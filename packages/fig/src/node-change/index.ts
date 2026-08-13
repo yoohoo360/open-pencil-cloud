@@ -18,3 +18,5 @@ export * from './text-values'
 export * from './variable-bindings'
 export * from './vector-geometry'
 export * from './vector-network'
+
+export { mergePropertyReferencesDefId } from './convert'

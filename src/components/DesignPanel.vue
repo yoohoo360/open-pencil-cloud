@@ -3,7 +3,6 @@ import { computed, ref } from 'vue'
 
 import { useI18n, useSelectionState, useEditorCommands } from '@open-pencil/vue'
 
-import { useEditorStore } from '@/app/editor/active-store'
 import { COMPONENT_TYPES, nodeIcon } from '@/app/editor/icons'
 import PanelHeader from '@/components/ui/panel/PanelHeader.vue'
 import Tip from '@/components/ui/Tip.vue'
@@ -13,7 +12,6 @@ import AppearanceSection from './properties/AppearanceSection.vue'
 import EffectsSection from './properties/EffectsSection.vue'
 import ExportSection from './properties/ExportSection.vue'
 import FillSection from './properties/FillSection.vue'
-import LayoutGridSection from './properties/LayoutSection/LayoutGridSection.vue'
 import LayoutSection from './properties/LayoutSection/LayoutSection.vue'
 import MaskSection from './properties/MaskSection.vue'
 import PageSection from './properties/PageSection.vue'
@@ -26,7 +24,9 @@ import VariablesSection from './properties/VariablesSection.vue'
 import ComponentPropertiesSection from './properties/component-properties/ComponentPropertiesSection.vue'
 import FramePresetsSection from './properties/frame-presets/FramePresetsSection.vue'
 import FramePresetSelect from './properties/frame-presets/FramePresetSelect.vue'
-
+import ComponentProperties from './properties/ComponentProperties.vue'
+import TextProperties from './properties/TextProperties.vue'
+import { useEditorStore } from '@/app/editor/active-store'
 const variablesOpen = ref(false)
 const store = useEditorStore()
 const activeTool = computed(() => store.state.activeTool)
@@ -97,33 +97,37 @@ const { panels } = useI18n()
           </span>
         </Tip>
       </template>
-      <span role="heading" aria-level="2">{{ node.name }}</span>
+      <span role="heading" aria-level="2">{{
+        node.type === 'TEXT' ? node.type.toLowerCase() : node.name
+      }}</span>
       <template #actions>
         <SelectionActionsControl />
       </template>
+      <template #content>
+        <!-- Component actions -->
+        <div
+          v-if="node.type === 'INSTANCE'"
+          class="flex flex-col gap-1 border-b border-border px-3 py-2"
+        >
+          <button
+            type="button"
+            class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
+            @click="goToMainComponent.run()"
+          >
+            {{ panels.goToMainComponent }}
+          </button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
+            @click="detachInstance.run()"
+          >
+            {{ panels.detachInstance }}
+          </button>
+        </div>
+        <ComponentProperties v-if="node.type === 'COMPONENT_SET'"></ComponentProperties>
+        <TextProperties v-else-if="node.type === 'TEXT'"></TextProperties>
+      </template>
     </PanelHeader>
-
-    <!-- Component actions -->
-    <div
-      v-if="node.type === 'INSTANCE'"
-      class="flex flex-col gap-1 border-b border-border px-3 py-2"
-    >
-      <button
-        type="button"
-        class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
-        @click="goToMainComponent.run()"
-      >
-        {{ panels.goToMainComponent }}
-      </button>
-      <button
-        type="button"
-        class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
-        @click="detachInstance.run()"
-      >
-        {{ panels.detachInstance }}
-      </button>
-    </div>
-
     <ComponentPropertiesSection v-if="node.type === 'INSTANCE'" />
 
     <FramePresetSelect v-if="node.type === 'FRAME'" />

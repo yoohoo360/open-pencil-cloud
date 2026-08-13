@@ -42,7 +42,7 @@ function findPropertyPath(
   for (const [index, childId] of sourceParent.childIds.entries()) {
     const child = ctx.graph.getNode(childId)
     if (!child) continue
-    const reference = child.componentPropertyReferences.find((ref) => ref.propertyId === propertyId)
+    const reference = child.componentPropertyReferences.find((ref) => ref.defId === propertyId)
     if (reference) return { path: [...path, index], field: reference.field, source: child }
     const nested = findPropertyPath(ctx, child, propertyId, [...path, index])
     if (nested) return nested
@@ -97,6 +97,10 @@ function targetValue(target: PropertyTarget | null): string {
   return target.source.componentId ?? target.node.componentId ?? ''
 }
 
+const generateOverridesKey = (nodeId: string, key: string) => {
+  return [nodeId, key].join('#')
+}
+
 function propertyOverrides(
   ctx: EditorContext,
   instance: SceneNode,
@@ -104,14 +108,24 @@ function propertyOverrides(
   value: string,
   swapComponentId: string | null
 ): Record<string, unknown> {
+  let oldKey = ''
   const overrides = { ...instance.overrides }
-  if (target?.field === 'TEXT') overrides[`${target.node.id}:text`] = value
-  else if (target?.field === 'VISIBLE') overrides[`${target.node.id}:visible`] = value === 'true'
-  else if (target?.field === 'INSTANCE_SWAP') {
-    overrides[`${target.node.id}:componentId`] = value
-    overrides[`${target.node.id}:sourceComponentId`] = target.source.id
+  if (target?.field === 'TEXT') {
+    overrides[generateOverridesKey(target.node.id, 'text')] = value
+    oldKey = generateOverridesKey(target.source.id, 'text')
+  } else if (target?.field === 'VISIBLE') {
+    overrides[generateOverridesKey(target.node.id, 'visible')] = value === 'true'
+  } else if (target?.field === 'INSTANCE_SWAP') {
+    overrides[generateOverridesKey(target.node.id, 'componentId')] = value
+    overrides[generateOverridesKey(target.node.id, 'sourceComponentId')] = target.source.id
+
     const componentName = swapComponentId ? ctx.graph.getNode(swapComponentId)?.name : undefined
-    if (componentName) overrides[`${target.node.id}:name`] = componentName
+    if (componentName) {
+      overrides[generateOverridesKey(target.node.id, 'name')] = componentName
+    }
+  }
+  if (overrides[oldKey]) {
+    delete overrides[oldKey]
   }
   return overrides
 }
@@ -152,7 +166,17 @@ function applyPropertyValue(
     },
     overrides: propertyOverrides(ctx, instance, target, value, swapComponentId)
   })
+
   updatePropertyTarget(ctx, target, value, swapComponentId)
+}
+
+export function applyPropertyTextValue(
+  ctx: EditorContext,
+  instanceId: string,
+  definition: ComponentPropertyDefinition,
+  value: string
+): void {
+  applyPropertyValue(ctx, instanceId, definition, value)
 }
 
 export function reapplyInstanceComponentProperties(ctx: EditorContext, instanceId: string): void {
