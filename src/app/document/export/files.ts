@@ -180,3 +180,21 @@ export async function saveExportedFile(
 
   downloadBlob(data, fileName, mime)
 }
+
+export async function renderRemoteExportImage(
+  editor: Editor,
+  graph: SceneGraph,
+  nodeIds: string[],
+  pageId: string,
+  scale: number,
+  format: RasterExportFormat
+): Promise<Uint8Array | null> {
+  const renderer = editor.renderer
+  if (!renderer) return null
+  const ids = nodeIds
+  if (ids.length === 0) return null
+  return renderNodesToImage(renderer.ck, renderer, graph, pageId, ids, {
+    scale,
+    format
+  })
+}

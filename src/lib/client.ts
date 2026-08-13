@@ -4,7 +4,8 @@ import Cookies from 'js-cookie'
 
 // Mock 模式使用 Vite 开发服务器代理 /api
 // 真实模式使用完整的后端地址（环境变量配置，如 http://localhost:3000/api）
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 const _apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -268,7 +269,7 @@ interface BackendCurrentUserResponse {
 export const authApi = {
   login: async (data: LoginRequest): Promise<BackendLoginResponse> => {
     // 真实 API 调用
-    const response = await apiClient.post<BackendLoginResponse>('/auth/login', {
+    const response = await apiClient.post<BackendLoginResponse>('/api/auth/login', {
       username_or_email: data.username_or_email,
       password: data.password
     })
@@ -282,7 +283,7 @@ export const authApi = {
 
   register: async (data: RegisterRequest): Promise<BackendLoginResponse> => {
     // 真实 API 调用
-    const response = await apiClient.post<BackendLoginResponse>('/auth/register', {
+    const response = await apiClient.post<BackendLoginResponse>('/api/auth/register', {
       email: data.email,
       name: data.name,
       password: data.password
@@ -298,16 +299,16 @@ export const authApi = {
   },
 
   forgotPassword: async (email: string): Promise<void> => {
-    await apiClient.post('/auth/forgot-password', { email })
+    await apiClient.post('/api/auth/forgot-password', { email })
   },
 
   resetPassword: async (token: string, password: string): Promise<void> => {
-    await apiClient.post('/auth/reset-password', { token, password })
+    await apiClient.post('/api/auth/reset-password', { token, password })
   },
 
   logout: async (): Promise<void> => {
     try {
-      await apiClient.post('/auth/logout')
+      await apiClient.post('/api/auth/logout')
     } finally {
       Cookies.remove('access_token')
       Cookies.remove('refresh_token')
@@ -319,9 +320,8 @@ export const authApi = {
     if (!token) return null
 
     try {
-      const response = await apiClient.get<BackendCurrentUserResponse>('/auth/me')
+      const response = await apiClient.get<BackendCurrentUserResponse>('/api/auth/me')
 
-      console.log('=========response=======', response)
       return response.data
     } catch (error) {
       // 如果是 401 错误，清理 token 并跳转（拦截器会处理，这里只记录）

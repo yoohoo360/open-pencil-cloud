@@ -190,7 +190,7 @@ export async function openStorageDocumentInNewTab(document: StorageDocument): Pr
 }
 
 export async function openHttpFileInNewTab(fileKey: string, store: EditorStore): Promise<void> {
-  const { data: documentMeta } = await apiClient.get('/document/' + fileKey)
+  const { data: documentMeta } = await apiClient.get('/api/document/' + fileKey)
   const providerId = activeStorageProviderID.value
   const existing = findStorageTab(providerId, fileKey)
   if (existing) {
@@ -214,7 +214,7 @@ export async function openHttpFileInNewTab(fileKey: string, store: EditorStore):
     if (!bytes) {
       const figPath = documentMeta?.url
       // 方式1：直接获取二进制数据
-      const res = await apiClient.get<ArrayBuffer>(`/oss/download?path=${figPath}`, {
+      const res = await apiClient.get<ArrayBuffer>(`/api/oss/download?path=${figPath}`, {
         responseType: 'arraybuffer' // 重要：指定响应类型为二进制
       })
       bytes = new Uint8Array(res.data)

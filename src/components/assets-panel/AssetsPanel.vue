@@ -27,6 +27,8 @@ import { useMenuUI } from '@/components/ui/menu'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Tip from '@/components/ui/Tip.vue'
 import { ASSET_GRID_THUMBNAIL_SIZE, ASSET_LIST_THUMBNAIL_SIZE } from '@/constants'
+import apiClient from '@/lib/client.ts'
+import { readFigFile } from '#core/io'
 
 type AssetView = 'grid' | 'list'
 
@@ -56,10 +58,14 @@ const { panels, commands } = useI18n()
 const query = ref('')
 const assetView = ref<AssetView>('grid')
 const detailsOpen = ref(false)
+
 const selectedAssetId = ref<string | null>(null)
 const previewBlob = shallowRef<Blob | null>(null)
 const previewUrl = useObjectUrl(previewBlob)
 const previewLoading = ref(false)
+const canAddRemoteLibList = ref<{ key: string; name: string }[]>([])
+const canAddRemoteLibLoading = ref(false)
+const canAddRemoteLibModalOpen = ref(false)
 let previewRequestId = 0
 const insertButton = useButtonUI({ tone: 'ghost', size: 'iconSm' })
 const primaryButton = useButtonUI({ tone: 'accent', size: 'md' })
@@ -71,6 +77,7 @@ const viewOptions = computed(() => [
 ])
 const viewUI = { root: 'w-16', item: 'px-1' }
 
+const activeLibKey = ref('')
 function componentSetVariantInfo(componentSetId: string) {
   return [...editor.collectVariantOptions(componentSetId)].map(([name, values]) => ({
     name,
@@ -78,10 +85,23 @@ function componentSetVariantInfo(componentSetId: string) {
   }))
 }
 
-const graphNodes = computed(() => ({
-  sceneVersion: editor.state.sceneVersion,
-  nodes: [...editor.graph.nodes.values()]
-}))
+const graphNodes = computed(() => {
+  if (activeLibKey.value && activeLibKey.value !== 'default') {
+    const lib = editor.graph.getLib(activeLibKey.value)
+    const graph = lib?.graph
+    if (graph) {
+      return {
+        sceneVersion: graph.sceneVersion,
+        nodes: [...graph?.nodes.values()]
+      }
+    }
+  }
+
+  return {
+    sceneVersion: editor.state.sceneVersion,
+    nodes: [...editor.graph.nodes.values()]
+  }
+})
 
 const assetNodes = computed(() =>
   graphNodes.value.nodes.filter(
@@ -92,22 +112,61 @@ const assetNodes = computed(() =>
 const pageByNodeId = computed(() => {
   const pages = new Map<string, { id: string; name: string }>()
   for (const node of assetNodes.value) {
-    const page = findAssetPage(node, editor.graph)
+    let graph = editor.graph
+    if (activeLib?.value?.remote) {
+      const lib = editor.graph.getLib(activeLib.value.key)
+      graph = lib?.graph || editor.graph
+    }
+    const page = findAssetPage(node, graph)
     if (page) pages.set(node.id, { id: page.id, name: page.name })
   }
   return pages
 })
+const currentPageId = computed(() => editor.state.currentPageId)
 
+const libList = ref([])
+
+const calculateRemoteList = () => {
+  const remoteLibs = editor.graph.getRemoteImports()
+  const list = [...remoteLibs.values()].map((it) => ({
+    key: it.source,
+    name: it.name,
+    remote: true
+  }))
+  libList.value = [
+    { name: 'Created in this file', key: 'default', thumbnail: '', remote: false },
+    ...list
+  ]
+}
+watch(
+  () => editor.graph.getRemoteImports(),
+  () => {
+    calculateRemoteList()
+  }
+)
+
+const activeLib = computed(() => {
+  if (!activeLibKey.value) return null
+  return libList.value.find((lib) => lib.key === activeLibKey.value) ?? null
+})
 const assets = computed<LocalAsset[]>(() => {
+  let graph = editor.graph
+  if (activeLib?.value?.remote) {
+    const lib = editor.graph.getLib(activeLib.value.key)
+    graph = lib?.graph || editor.graph
+  }
   return assetNodes.value
     .filter((node) => {
       if (node.type === 'COMPONENT_SET') return true
-      const parent = node.parentId ? editor.graph.getNode(node.parentId) : null
+
+      const parent = node.parentId ? graph.getNode(node.parentId) : null
       return parent?.type !== 'COMPONENT_SET'
     })
     .map((node) => {
       const defaultVariant =
-        node.type === 'COMPONENT_SET' ? editor.getDefaultVariantForComponentSet(node.id) : node
+        node.type === 'COMPONENT_SET'
+          ? editor.getDefaultVariantForComponentSet(node.id, graph)
+          : node
       const conflicts =
         node.type === 'COMPONENT_SET' ? editor.getComponentSetVariantConflicts(node.id) : []
       const variants = node.type === 'COMPONENT_SET' ? componentSetVariantInfo(node.id) : []
@@ -211,11 +270,23 @@ function insertionPoint(component: SceneNode, parentId: string) {
 
 function insertAsset(asset: LocalAsset) {
   if (!asset.componentId) return
-  const component = editor.graph.getNode(asset.componentId)
+
+  let graph = editor.graph
+  if (activeLib?.value?.remote) {
+    const lib = editor.graph.getLib(activeLib.value.key)
+    graph = lib?.graph || editor.graph
+  }
+  const component = graph.getNode(asset.componentId)
   if (!component) return
   const parentId = editor.state.enteredContainerId ?? editor.state.currentPageId
   const point = insertionPoint(component, parentId)
-  editor.createInstanceFromComponent(asset.componentId, point.x, point.y, parentId)
+  editor.createInstanceFromComponent(
+    asset.componentId,
+    point.x,
+    point.y,
+    parentId,
+    activeLib?.value?.key
+  )
   editor.requestRender()
 }
 
@@ -246,11 +317,43 @@ function insertSelectedAsset() {
   insertAsset(selectedAsset.value)
   detailsOpen.value = false
 }
+
+const fetchCanAddRemoteLib = async () => {
+  canAddRemoteLibLoading.value = true
+  const res = await apiClient.get('/api/libraries/list')
+  canAddRemoteLibLoading.value = false
+  canAddRemoteLibList.value = res.data
+}
+
+const changeActiveLib = (key: string) => {
+  activeLibKey.value = key
+}
+const openCanAddRemoteLibModal = () => {
+  fetchCanAddRemoteLib()
+  canAddRemoteLibModalOpen.value = true
+}
+
+const addRemoteLibClick = async (item: any) => {
+  const res = await apiClient.get<ArrayBuffer>(`/api/oss/download?path=${item.url}`, {
+    responseType: 'arraybuffer' // 重要：指定响应类型为二进制
+  })
+  const bytes = new Uint8Array(res.data)
+
+  const fileBytes = new Uint8Array(bytes.byteLength)
+  fileBytes.set(bytes)
+  const file = new File([fileBytes.buffer], `${item.key}.fig`, {
+    type: 'application/octet-stream'
+  })
+  const imported = await readFigFile(file, { populate: 'first-page' })
+  editor.graph.addLib(item.key, item.name, item.url, imported)
+  calculateRemoteList()
+  canAddRemoteLibModalOpen.value = false
+}
 </script>
 
 <template>
   <section data-test-id="assets-panel" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <div class="flex shrink-0 items-center gap-2 px-2 py-2">
+    <div class="flex shrink-0 items-center gap-2 px-2 py-2" v-if="activeLibKey">
       <AppInput
         v-model="query"
         type="search"
@@ -273,8 +376,49 @@ function insertSelectedAsset() {
       </SegmentedControl>
     </div>
 
+    <div v-if="activeLib" class="inline-flex items-center px-2 py-2 mb-4">
+      <icon-lucide-chevron-left
+        class="size-4 text-surface cursor-pointer"
+        @click="() => changeActiveLib('')"
+      />
+      <span>{{ activeLib?.name }}</span>
+    </div>
+
     <div class="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
-      <section v-for="group in assetGroups" :key="group.pageId" class="mb-3">
+      <div v-if="!activeLibKey" class="space-x-1">
+        <div
+          v-for="libItem in libList"
+          :key="libItem.key"
+          @click="() => changeActiveLib(libItem.key)"
+        >
+          <div>
+            <AssetThumbnail
+              :node-id="currentPageId"
+              v-if="!activeLib?.remote"
+              :alt="`${libItem.name} preview`"
+              :size="assetView === 'grid' ? ASSET_GRID_THUMBNAIL_SIZE : ASSET_LIST_THUMBNAIL_SIZE"
+            />
+
+            <div
+              v-if="activeLib?.remote"
+              :node-id="currentPageId"
+              remoteKey="activeLib?.key"
+              :alt="`${libItem.name} preview`"
+              :size="assetView === 'grid' ? ASSET_GRID_THUMBNAIL_SIZE : ASSET_LIST_THUMBNAIL_SIZE"
+            />
+          </div>
+          <div>{{ libItem.name }}</div>
+        </div>
+        <div class="mt-4">
+          <button
+            @click="openCanAddRemoteLibModal"
+            class="flex h-7 w-full cursor-pointer items-center justify-center rounded border border-border bg-transparent text-xs text-muted hover:bg-hover hover:text-surface"
+          >
+            Add more libraries
+          </button>
+        </div>
+      </div>
+      <section v-if="activeLibKey" v-for="group in assetGroups" :key="group.pageId" class="mb-3">
         <h2 class="mb-1 px-1 text-[10px] font-medium tracking-wide text-muted uppercase">
           {{ group.pageName }}
         </h2>
@@ -298,9 +442,18 @@ function insertSelectedAsset() {
                 @dragstart="onDragStart($event, asset)"
               >
                 <AssetThumbnail
-                  v-if="asset.componentId"
+                  v-if="asset.componentId && !activeLib?.remote"
                   :node-id="asset.componentId"
                   :alt="`${asset.name} preview`"
+                  :size="
+                    assetView === 'grid' ? ASSET_GRID_THUMBNAIL_SIZE : ASSET_LIST_THUMBNAIL_SIZE
+                  "
+                />
+                <AssetRemoteThumbnail
+                  v-if="asset.componentId && activeLib?.remote"
+                  :node-id="asset.componentId"
+                  :alt="`${asset.name} preview`"
+                  :remote-key="activeLib?.key"
                   :size="
                     assetView === 'grid' ? ASSET_GRID_THUMBNAIL_SIZE : ASSET_LIST_THUMBNAIL_SIZE
                   "
@@ -408,6 +561,72 @@ function insertSelectedAsset() {
         </template>
       </AppPlaceholder>
     </div>
+
+    <AppDialogRoot
+      v-model:open="canAddRemoteLibModalOpen"
+      size="lg"
+      data-test-id="asset-details-dialog"
+    >
+      <div class="border-b border-border px-4 py-3">
+        <div class="flex justify-end w-full">
+          <DialogClose
+            data-test-id="asset-details-close"
+            class="flex size-7 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted"
+          >
+            <icon-lucide-x class="size-4" />
+          </DialogClose>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-3">
+          <div
+            v-for="item in canAddRemoteLibList"
+            :key="item.id || item.key"
+            @click="addRemoteLibClick(item)"
+            class="rounded-lg overflow-hidden bg-transparent border border-border hover:shadow-md transition-all cursor-pointer hover:bg-hover"
+          >
+            <!-- 缩略图 - 更大 -->
+            <div class="w-full aspect-video flex items-center justify-center overflow-hidden">
+              <img
+                v-if="item.thumbnail_url"
+                :src="item.thumbnail_url"
+                :alt="item.name"
+                class="w-full h-full object-cover"
+              />
+              <svg
+                v-else
+                class="w-10 h-10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <rect x="2" y="2" width="20" height="20" rx="3" />
+                <path d="M8 16l4-4 4 4" />
+                <circle cx="8" cy="8" r="2" />
+              </svg>
+            </div>
+
+            <!-- 内容 -->
+            <div class="p-3">
+              <div class="text-sm font-medium truncate">
+                {{ item.name }}
+              </div>
+              <div class="text-muted flex justify-between">
+                <div class="text-[10px] mt-1.5">v{{ item.version || '1.0.0' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div
+            v-if="!canAddRemoteLibList || canAddRemoteLibList.length === 0"
+            class="col-span-full"
+          >
+            <div class="text-center py-12 text-gray-400 text-sm">暂无远程库</div>
+          </div>
+        </div>
+      </div>
+    </AppDialogRoot>
 
     <AppDialogRoot
       v-if="selectedAsset"
