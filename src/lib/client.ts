@@ -4,7 +4,8 @@ import Cookies from 'js-cookie'
 
 // Mock 模式使用 Vite 开发服务器代理 /api
 // 真实模式使用完整的后端地址（环境变量配置，如 http://localhost:3000/api）
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 const _apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -75,32 +76,29 @@ async function refreshaccess_token(): Promise<BackendrefreshTokenResponse> {
     throw new Error('No refresh token available')
   }
 
-  try {
-    // 使用独立的 axios 实例，避免触发拦截器造成循环
-    const response = await axios.post<BackendrefreshTokenResponse>(
-      `${API_BASE_URL}/auth/refresh`,
-      { refresh_token },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
+  // 使用独立的 axios 实例，避免触发拦截器造成循环
+  const response = await axios.post<BackendrefreshTokenResponse>(
+    `${API_BASE_URL}/api/auth/refresh`,
+    { refresh_token },
+    {
+      headers: {
+        'Content-Type': 'application/json'
       }
-    )
-
-    const data = response?.data?.data || {}
-
-    const { access_token, refresh_token: newrefresh_token } = data
-
-    // 存储新的 tokens
-    Cookies.set('access_token', access_token, { expires: 7 })
-    Cookies.set('refresh_token', newrefresh_token, { expires: 30 })
-
-    return data
-  } catch (error) {
-    // 刷新失败，清除所有 tokens 并跳转登录
+    }
+  )
+  const data = response?.data?.data || {}
+  if (response?.status === 401 || response?.status === 403) {
     clearTokensAndRedirect()
-    throw error
+    return data
   }
+
+  const { access_token, refresh_token: newrefresh_token } = data
+
+  // 存储新的 tokens
+  Cookies.set('access_token', access_token, { expires: 7 })
+  Cookies.set('refresh_token', newrefresh_token, { expires: 30 })
+
+  return data
 }
 
 // ============================================================================
@@ -166,8 +164,17 @@ _apiClient.interceptors.response.use(
         )
       })
     }
+    // 真实 API 模式：实现 token 刷新
+    if (
+      error.response?.status &&
+      error.response?.status !== 401 &&
+      error.response?.status !== 403
+    ) {
+      return Promise.reject(error)
+    }
 
     isRefreshing = true
+
     refreshPromise = refreshaccess_token()
 
     try {
@@ -182,8 +189,11 @@ _apiClient.interceptors.response.use(
       return _apiClient(originalRequest)
     } catch (refreshError) {
       // 刷新失败，清理所有待处理请求并清除令牌
-      flushPendingRequests(refreshError)
-      clearTokensAndRedirect()
+      if (refreshError && refreshError.toString().includes('failed with status code 401')) {
+        flushPendingRequests(refreshError)
+        clearTokensAndRedirect()
+      }
+
       return Promise.reject(refreshError)
     } finally {
       isRefreshing = false
@@ -268,7 +278,7 @@ interface BackendCurrentUserResponse {
 export const authApi = {
   login: async (data: LoginRequest): Promise<BackendLoginResponse> => {
     // 真实 API 调用
-    const response = await apiClient.post<BackendLoginResponse>('/auth/login', {
+    const response = await apiClient.post<BackendLoginResponse>('/api/auth/login', {
       username_or_email: data.username_or_email,
       password: data.password
     })
@@ -282,7 +292,7 @@ export const authApi = {
 
   register: async (data: RegisterRequest): Promise<BackendLoginResponse> => {
     // 真实 API 调用
-    const response = await apiClient.post<BackendLoginResponse>('/auth/register', {
+    const response = await apiClient.post<BackendLoginResponse>('/api/auth/register', {
       email: data.email,
       name: data.name,
       password: data.password
@@ -298,16 +308,16 @@ export const authApi = {
   },
 
   forgotPassword: async (email: string): Promise<void> => {
-    await apiClient.post('/auth/forgot-password', { email })
+    await apiClient.post('/api/auth/forgot-password', { email })
   },
 
   resetPassword: async (token: string, password: string): Promise<void> => {
-    await apiClient.post('/auth/reset-password', { token, password })
+    await apiClient.post('/api/auth/reset-password', { token, password })
   },
 
   logout: async (): Promise<void> => {
     try {
-      await apiClient.post('/auth/logout')
+      await apiClient.post('/api/auth/logout')
     } finally {
       Cookies.remove('access_token')
       Cookies.remove('refresh_token')
@@ -319,9 +329,8 @@ export const authApi = {
     if (!token) return null
 
     try {
-      const response = await apiClient.get<BackendCurrentUserResponse>('/auth/me')
+      const response = await apiClient.get<BackendCurrentUserResponse>('/api/auth/me')
 
-      console.log('=========response=======', response)
       return response.data
     } catch (error) {
       // 如果是 401 错误，清理 token 并跳转（拦截器会处理，这里只记录）

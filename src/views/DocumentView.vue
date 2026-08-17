@@ -28,6 +28,9 @@ import SafariBanner from '@/components/SafariBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import Tip from '@/components/ui/Tip.vue'
 import Toolbar from '@/components/Toolbar/Toolbar.vue'
+import apiClient from '@/lib/client.ts'
+import { readFigFile } from '#core/io'
+import { activeStorageProviderID } from '@/app/integrations/storage'
 
 const route = useRoute()
 const params = useUrlSearchParams('history')
@@ -40,10 +43,46 @@ const store = useEditorStore()
 const { dialogs } = useI18n()
 const { isMobile } = useViewportKind()
 
+const addRemoteLibClick = async (item: any) => {
+  const res = await apiClient.get<ArrayBuffer>(`/api/oss/download?path=${item.url}`, {
+    responseType: 'arraybuffer' // 重要：指定响应类型为二进制
+  })
+  const bytes = new Uint8Array(res.data)
+
+  const fileBytes = new Uint8Array(bytes.byteLength)
+  fileBytes.set(bytes)
+  const file = new File([fileBytes.buffer], `${item.key}.fig`, {
+    type: 'application/octet-stream'
+  })
+  const imported = await readFigFile(file, { populate: 'first-page' })
+  editor.graph.addLib(item.key, item.name, item.url, imported)
+}
+
+const loadFile = async (fileKey: string) => {
+  let { data: documentMeta } = await apiClient.get('/api/document/' + fileKey)
+
+  await openHttpFileInNewTab(fileKey, documentMeta, firstTab.store)
+
+  const res = await apiClient.get(`/api/document/${fileKey}/library`, {
+    params: {
+      library_key: 'web_lib_button',
+      document_version: editor.state.documentVersion,
+      library_version: documentMeta?.version
+    }
+  })
+  if (res.success) {
+    addRemoteLibClick({
+      key: res.data.key,
+      name: res.data.name,
+      url: res.data.url,
+      version: res.data.url
+    })
+  }
+}
 if (createdInitialTab) {
   const fileKey = route.params.fileKey
   if (fileKey) {
-    openHttpFileInNewTab(fileKey, firstTab.store)
+    loadFile(fileKey)
   }
 }
 

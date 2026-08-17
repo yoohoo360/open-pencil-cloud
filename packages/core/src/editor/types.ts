@@ -73,6 +73,7 @@ export interface EditorState {
     side?: 'top' | 'right' | 'bottom' | 'left'
   } | null
   documentName: string
+  documentVersion: string
   panX: number
   pageColor: Color
   rulerTheme?: RulerTheme

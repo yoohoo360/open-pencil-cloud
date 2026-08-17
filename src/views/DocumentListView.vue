@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import apiClient from '@/lib/client.ts'
+import apiClient, { API_BASE_URL } from '@/lib/client.ts'
+import { SceneGraph } from '@open-pencil/scene-graph/index.ts'
+import { exportFigFile } from '@open-pencil/core/io'
 
 // ==================== 类型定义 ====================
 
@@ -55,7 +57,7 @@ async function fetchFiles() {
   error.value = null
 
   try {
-    const res = await apiClient.get('/document/list')
+    const res = await apiClient.get('/api/document/list')
     files.value = res.data || []
     total.value = res.data?.length || 0
   } catch (reason) {
@@ -69,7 +71,7 @@ async function deleteFile(key: string) {
   if (!confirm('确定要删除这个文件吗？')) return
 
   try {
-    await apiClient.delete(`/document/${key}`)
+    await apiClient.delete(`/api/document/${key}`)
     await fetchFiles()
   } catch (reason) {
     alert(reason instanceof Error ? reason.message : String(reason))
@@ -106,9 +108,11 @@ async function handleCreate() {
   dialogError.value = null
 
   try {
-    await apiClient.post('/document', formData.value)
-    closeDialog()
-    await fetchFiles()
+    const res = await apiClient.post('/api/document', formData.value)
+
+    if (res.success) {
+      openFile(res.data)
+    }
   } catch (reason) {
     dialogError.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
@@ -271,7 +275,7 @@ onMounted(() => {
           <div class="flex-1bg-panel-field">
             <img
               v-if="file.thumbnail_url"
-              :src="file.thumbnail_url"
+              :src="API_BASE_URL + file.thumbnail_url"
               :alt="file.name"
               class="size-full object-cover"
             />

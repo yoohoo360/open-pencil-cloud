@@ -189,8 +189,11 @@ export async function openStorageDocumentInNewTab(document: StorageDocument): Pr
   }
 }
 
-export async function openHttpFileInNewTab(fileKey: string, store: EditorStore): Promise<void> {
-  const { data: documentMeta } = await apiClient.get('/document/' + fileKey)
+export async function openHttpFileInNewTab(
+  fileKey: string,
+  documentMeta,
+  store: EditorStore
+): Promise<void> {
   const providerId = activeStorageProviderID.value
   const existing = findStorageTab(providerId, fileKey)
   if (existing) {
@@ -200,6 +203,7 @@ export async function openHttpFileInNewTab(fileKey: string, store: EditorStore):
   const name = documentMeta?.name || 'Untitled'
 
   store.state.documentName = name
+  store.state.documentVersion = documentMeta?.version
   store.state.loading = true
   try {
     const local = getLocalCanvasStore()
@@ -207,14 +211,14 @@ export async function openHttpFileInNewTab(fileKey: string, store: EditorStore):
     const localBytes = localMetadata?.hasFig ? await local.readFig(fileKey) : null
     const localIsAuthoritative =
       localMetadata?.syncStatus !== 'synced' ||
-      !document.metadataAuthoritative ||
-      localMetadata.updatedAt >= document?.updated_at
+      !documentMeta.metadataAuthoritative ||
+      localMetadata.updatedAt >= documentMeta?.updated_at
     let bytes = localBytes && localIsAuthoritative ? localBytes : null
 
     if (!bytes) {
       const figPath = documentMeta?.url
       // 方式1：直接获取二进制数据
-      const res = await apiClient.get<ArrayBuffer>(`/oss/download?path=${figPath}`, {
+      const res = await apiClient.get<ArrayBuffer>(`/api/oss/download?path=${figPath}`, {
         responseType: 'arraybuffer' // 重要：指定响应类型为二进制
       })
       bytes = new Uint8Array(res.data)
@@ -232,6 +236,7 @@ export async function openHttpFileInNewTab(fileKey: string, store: EditorStore):
     store.undo.clear()
     store.setStorageDocumentSource({ providerId, documentId: fileKey }, name)
     store.clearSelection()
+
     const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
     await store.switchPage(pageId)
     await store.fitCurrentPageToViewport()

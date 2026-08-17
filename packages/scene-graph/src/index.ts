@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- SceneGraph exposes a stable facade over domain modules */
 export * from './images'
 export * from './copy'
 export { copyInstanceComponentProps } from './instances'
@@ -12,10 +11,10 @@ export * from './shared-styles'
 export { default as TransformMatrix } from './matrix'
 export type { Mat3 } from './matrix'
 export { UndoManager, type UndoEntry, type UndoManagerOptions } from './undo'
-
 import { createNanoEvents } from 'nanoevents'
 
 import { removeStaleBindings } from './bindings'
+import { generatePropertyValues } from './component'
 import { cloneNodeProps } from './copy'
 import { bindNodeEvents } from './events'
 import * as HitTest from './hit-test'
@@ -27,7 +26,6 @@ import { markSourceFieldsEdited } from './source-metadata'
 import { GLYPH_AFFECTING_KEYS, TEXT_PICTURE_KEYS } from './text-picture'
 import * as Variables from './variables'
 import { normalizeVectorNetwork } from './vector-network'
-
 export type { GUID, Color, Vector, Size } from './primitives'
 export * from './types'
 
@@ -407,21 +405,8 @@ export class SceneGraph {
     // Fills, strokes, effects, plugin data changes do NOT affect absolute position.
     const affectsLayout = Object.keys(changes).some((k) => SceneGraph.LAYOUT_AFFECTING_KEYS.has(k))
     if (affectsLayout) this.absPosCache.clear()
-    if (
-      node.type === 'INSTANCE' &&
-      'componentId' in changes &&
-      changes.componentId !== node.componentId
-    ) {
-      if (node.componentId) this.instanceIndex.get(node.componentId)?.delete(id)
-      if (changes.componentId) {
-        let set = this.instanceIndex.get(changes.componentId)
-        if (!set) {
-          set = new Set()
-          this.instanceIndex.set(changes.componentId, set)
-        }
-        set.add(id)
-      }
-    }
+    this.updateNodeComponent(id, node, changes)
+
     if (node.type === 'TEXT') {
       const textChanged = Object.keys(changes).some((k) => TEXT_PICTURE_KEYS.has(k))
       if (node.textPicture && textChanged) node.textPicture = null
@@ -473,6 +458,35 @@ export class SceneGraph {
     this.emitter.emit('node:reparented', nodeId, oldParentId, newParentId)
   }
 
+  private updateNodeComponent(id: string, node: SceneNode, changes: Partial<SceneNode>) {
+    // Only clear absPosCache when layout-affecting properties change.
+    // Fills, strokes, effects, plugin data changes do NOT affect absolute position.
+    const affectsLayout = Object.keys(changes).some((k) => SceneGraph.LAYOUT_AFFECTING_KEYS.has(k))
+    if (affectsLayout) this.absPosCache.clear()
+    if (
+      node.type === 'INSTANCE' &&
+      'componentId' in changes &&
+      changes.componentId !== node.componentId
+    ) {
+      if (node.componentId) this.instanceIndex.get(node.componentId)?.delete(id)
+      if (changes.componentId) {
+        let set = this.instanceIndex.get(changes.componentId)
+        if (!set) {
+          set = new Set()
+          this.instanceIndex.set(changes.componentId, set)
+        }
+        set.add(id)
+      }
+    }
+
+    if (node.type === 'COMPONENT' && 'name' in changes && changes.name !== node.name) {
+      const parent = node.parentId ? this.nodes.get(node.parentId) : undefined
+      node.componentPropertyValues = generatePropertyValues(
+        changes?.name || '',
+        parent && parent.type === 'COMPONENT_SET' ? parent.componentPropertyDefinitions : []
+      )
+    }
+  }
   reorderChild(nodeId: string, parentId: string, insertIndex: number): void {
     const node = this.nodes.get(nodeId)
     if (!node) return
@@ -534,6 +548,18 @@ export class SceneGraph {
 
     if (node.type === 'INSTANCE' && node.componentId) {
       this.instanceIndex.get(node.componentId)?.delete(id)
+
+      const component = this.nodes.get(node?.componentId)
+      const componentSetId = component?.parentId ?? ''
+      const componentSet = this.nodes.get(componentSetId)
+      if (componentSet?.remote) {
+        const [] = node.componentId.split(':')
+
+        const sourceLibraryKey = component?.id.split(':')[0]
+        if (component && componentSet && sourceLibraryKey) {
+          this.removeRemoteComponent(sourceLibraryKey, component, componentSet)
+        }
+      }
     }
     this.nodes.delete(id)
     this.emitter.emit('node:deleted', id)
@@ -581,11 +607,11 @@ export class SceneGraph {
   createInstance(
     componentId: string,
     parentId: string,
-    overrides: Partial<SceneNode> = {}
+    overrides: Partial<SceneNode> = {},
+    sourceLibraryKey?: string | null
   ): SceneNode | null {
-    return Instances.createInstance(this, componentId, parentId, overrides)
+    return Instances.createInstance(this, componentId, parentId, overrides, sourceLibraryKey)
   }
-
   populateInstanceChildren(
     instanceId: string,
     componentId: string,
@@ -627,4 +653,190 @@ export class SceneGraph {
     }
     return result
   }
+  imports = new Map<
+    string,
+    {
+      key: string
+      source: string
+      componentSets: Map<string, string>
+    }
+  >()
+
+  addLib(source: string, name: string, url: string, json: SceneGraph): void {
+    const importId = source
+
+    const getNewId = (id: string) => {
+      const li = id.split(':')
+      if (li?.length >= 2) {
+        li[0] = importId
+      } else {
+        li.unshift(importId)
+      }
+
+      return li.join(':')
+    }
+    const formatGraph = (node: SceneNode) => {
+      node.id = getNewId(node.id)
+      if (node.parentId) {
+        node.parentId = getNewId(node.parentId)
+      }
+      if (node.componentId) {
+        node.componentId = getNewId(node.componentId)
+      }
+      if (node?.childIds?.length > 0) {
+        node.childIds = node.childIds.map((childId) => getNewId(childId))
+      }
+      return node
+    }
+    const oldNodeMap = json.nodes
+    const newMap = new Map()
+    for (let [_key, node] of oldNodeMap) {
+      const newNode = formatGraph(node)
+      newMap.set(newNode.id, newNode)
+    }
+    json.nodes = newMap
+    json.rootId = getNewId(json.rootId)
+    remoteSceneGraphMap.set(importId, { key: importId, name, url, source: source, graph: json })
+  }
+  getLib(sourceLibraryKey: string): { key: string; source: string; graph: SceneGraph } | undefined {
+    return remoteSceneGraphMap.get(sourceLibraryKey)
+  }
+  removeRemoteComponent(
+    sourceLibraryKey: string,
+    component: SceneNode,
+    componentSet: SceneNode
+  ): void {
+    if (componentSet.childIds?.includes(component.id)) {
+      componentSet.childIds = componentSet.childIds.filter((id) => id !== component.id)
+      this.nodes.set(componentSet.id, componentSet)
+    }
+
+    const removeNodeTree = (nodeId: string) => {
+      const node = this.nodes.get(nodeId)
+      if (node?.childIds?.length) {
+        node.childIds.forEach((childId) => removeNodeTree(childId))
+      }
+      this.nodes.delete(nodeId)
+    }
+    removeNodeTree(component.id)
+
+    const cIds = componentSet.childIds.filter((id) => {
+      const childNode = this.nodes.get(id)
+      return childNode?.type === 'COMPONENT'
+    })
+    if (!cIds?.length) {
+      this.nodes.delete(componentSet.id)
+
+      const libPage = this.nodes.get(sourceLibraryKey)
+      if (libPage?.childIds?.includes(componentSet.id)) {
+        libPage.childIds = libPage.childIds.filter((id) => id !== componentSet.id)
+        this.nodes.set(libPage.id, libPage)
+      }
+
+      if (!libPage?.childIds?.length) {
+        this.nodes.delete(libPage?.id)
+        this.imports.delete(sourceLibraryKey)
+      }
+    }
+  }
+  addRemoteComponent(
+    sourceLibraryKey: string,
+    component: SceneNode,
+    componentSet: SceneNode
+  ): boolean {
+    const remoteGraph = this.imports.get(sourceLibraryKey ?? '')
+    const libraryKey = sourceLibraryKey
+    if (!remoteGraph) {
+      this.imports.set(sourceLibraryKey ?? '', {
+        key: libraryKey ?? '',
+        source: sourceLibraryKey ?? '',
+        componentSets: new Map([[componentSet.id, componentSet.name]])
+      })
+    }
+
+    const pages = this.getPages()
+    let libPage = pages.find((it) => it.name === libraryKey)
+    //
+
+    if (!libPage) {
+      libPage = this.createNode('CANVAS', this.rootId, {
+        name: sourceLibraryKey ?? '',
+        id: libraryKey ?? '',
+        width: 0,
+        remote: true,
+        height: 0
+      })
+      this.nodes.set(libraryKey, libPage)
+      libPage = this.nodes.get(libraryKey) as SceneNode
+    }
+
+    const findGraph = this.getLib(sourceLibraryKey)?.graph
+    const addComponentNode = (node: SceneNode, libraryKey: string, parentId: string) => {
+      if (!this.nodes.get(node.id)) {
+        const clonedNode = this.createNode(node.type, parentId, {
+          ...cloneNodeProps(node, null),
+          id: node.id,
+          remote: true,
+          parentId
+        })
+        clonedNode.parentId = parentId
+        this.nodes.set(node.id, clonedNode)
+      }
+      if (node?.childIds?.length > 0) {
+        node?.childIds.forEach((childId) => {
+          const childNode = findGraph?.getNode(childId)
+          if (childNode) {
+            addComponentNode(childNode, libraryKey, node.id)
+          }
+        })
+      }
+      return node
+    }
+    let libComponentSet = this.nodes.get(componentSet.id)
+    if (!libComponentSet) {
+      libComponentSet = this.createNode('COMPONENT_SET', libPage.id, {
+        ...cloneNodeProps(componentSet, null),
+        id: componentSet.id,
+        remote: true,
+        parentId: libPage.id
+      })
+      libComponentSet.childIds = []
+
+      this.nodes.set(libComponentSet.id, libComponentSet)
+
+      if (!libPage?.childIds?.includes(libComponentSet.id)) {
+        libPage.childIds.push(libComponentSet.id)
+      }
+      this.nodes.set(libComponentSet.id, libComponentSet)
+    }
+
+    // const c = findGraph?.getNode(component.id)
+    // if (c && !this.getNode(component.id)) {
+    //   addComponentNode(c, libraryKey, libComponentSet.id)
+    // }
+    componentSet.childIds.forEach((childId) => {
+      const c = findGraph?.getNode(childId)
+      if (c && !this.getNode(childId)) {
+        addComponentNode(c, libraryKey, libComponentSet.id)
+      }
+    })
+    libComponentSet.childIds = componentSet.childIds.map((it) => it)
+
+    return true
+  }
+  getRemoteImports(): Map<
+    string,
+    { key: string; source: string; name: string; graph: SceneGraph }
+  > {
+    return remoteSceneGraphMap
+  }
 }
+
+const remoteSceneGraphMap = new Map<
+  string,
+  {
+    key: string
+    source: string
+    graph: SceneGraph
+  }
+>()
