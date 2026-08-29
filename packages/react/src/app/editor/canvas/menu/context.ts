@@ -1,3 +1,4 @@
+import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { formatShortcut } from '#react/editor/commands'
 import type { Editor } from '@open-pencil/core/editor'
 import type { MenuEntry } from '#react/editor/menu-model/types'
@@ -8,11 +9,13 @@ import {
   type CanvasContextActionId
 } from '#react/app/editor/canvas/menu/registry'
 
-const STATIC_SELECTION_COMMAND_IDS = new Set(['selection.duplicate', 'selection.delete'])
-
 type CanvasMenuActions = ReturnType<typeof createCanvasMenuActions>
 
-type CanvasCopyLabels = {
+export type CanvasContextMenuLabels = {
+  copy: string
+  cut: string
+  pasteHere: string
+  pasteToReplace: string
   copyPasteAs: string
   copyAsText: string
   copyAsSVG: string
@@ -22,11 +25,18 @@ type CanvasCopyLabels = {
   copyXPath: string
 }
 
-function withoutStaticSelectionCommands(entries: readonly MenuEntry[]): MenuEntry[] {
-  return entries.filter((entry) => {
-    if (entry.separator) return true
-    return !entry.id || !STATIC_SELECTION_COMMAND_IDS.has(entry.id)
-  })
+function compactSeparators(entries: readonly MenuEntry[]): MenuEntry[] {
+  const next: MenuEntry[] = []
+  for (const entry of entries) {
+    if (entry.separator) {
+      if (next.length === 0 || next[next.length - 1]?.separator) continue
+      next.push(entry)
+      continue
+    }
+    next.push(entry)
+  }
+  if (next[next.length - 1]?.separator) next.pop()
+  return next
 }
 
 function runAsync(action: () => Promise<void>) {
@@ -56,10 +66,45 @@ function copyAction(
   }
 }
 
+function clipboardEntries(
+  hasSelection: boolean,
+  actions: CanvasMenuActions,
+  labels: CanvasContextMenuLabels
+): MenuEntry[] {
+  return [
+    {
+      label: labels.copy,
+      testId: 'context-copy',
+      shortcut: appMenuShortcutLabel('copy'),
+      disabled: !hasSelection,
+      action: () => actions.execCommand('copy')
+    },
+    {
+      label: labels.cut,
+      testId: 'context-cut',
+      shortcut: appMenuShortcutLabel('cut'),
+      disabled: !hasSelection,
+      action: () => actions.execCommand('cut')
+    },
+    {
+      label: labels.pasteHere,
+      testId: 'context-paste',
+      shortcut: appMenuShortcutLabel('paste'),
+      action: () => actions.execCommand('paste')
+    },
+    {
+      label: labels.pasteToReplace,
+      testId: 'context-paste-to-replace',
+      disabled: !hasSelection,
+      action: actions.pasteToReplace
+    }
+  ]
+}
+
 function copyPasteAsEntry(
   editor: Editor,
   actions: CanvasMenuActions,
-  labels: CanvasCopyLabels
+  labels: CanvasContextMenuLabels
 ): MenuEntry {
   return {
     label: labels.copyPasteAs,
@@ -78,9 +123,15 @@ export function buildCanvasContextMenuEntries(
   hasSelection: boolean,
   editor: Editor,
   actions: CanvasMenuActions,
-  labels: CanvasCopyLabels
+  labels: CanvasContextMenuLabels
 ): MenuEntry[] {
-  const entries = withoutStaticSelectionCommands(baseEntries)
-  if (!hasSelection) return entries
-  return [...entries, { separator: true }, copyPasteAsEntry(editor, actions, labels)]
+  const entries: MenuEntry[] = [
+    ...clipboardEntries(hasSelection, actions, labels),
+    { separator: true },
+    ...baseEntries,
+    ...(hasSelection
+      ? [{ separator: true } satisfies MenuEntry, copyPasteAsEntry(editor, actions, labels)]
+      : [])
+  ]
+  return compactSeparators(entries)
 }

@@ -134,7 +134,7 @@ export function useEditorStore(): EditorStore {
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}`,
+      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}`,
     () => 'ssr'
   )
   return store

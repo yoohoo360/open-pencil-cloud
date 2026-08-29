@@ -53,6 +53,7 @@ export interface EditorCommandMenuItem {
   disabled?: boolean
   checked?: boolean
   onCheckedChange?: (checked: boolean) => void
+  testId?: string
 }
 
 export interface EditorCommandMenuSeparator {

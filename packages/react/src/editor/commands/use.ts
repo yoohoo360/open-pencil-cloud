@@ -2,6 +2,7 @@ import type { EditorCommand, EditorCommandId, EditorCommandMenuItem } from '#rea
 import { editorCommandMetadata } from '#react/editor/commands/registry'
 import { formatShortcut } from '#react/editor/commands/shortcut'
 import { useEditor } from '#react/editor/context'
+import { useSelectionCapabilities } from '#react/editor/selection-capabilities/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
 import { useI18n } from '#react/i18n'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
@@ -20,69 +21,68 @@ function command(
 export function useEditorCommands() {
   const editor = useEditor()
   const selection = useSelectionState()
+  const capabilities = useSelectionCapabilities()
   const { commands: labels } = useI18n()
-  const hasSelection = selection.hasSelection
-  const selectedCount = selection.selectedCount
   const pages = useSceneComputed(() => editor.graph.getPages())
   const otherPages = pages.filter((page) => page.id !== editor.state.currentPageId)
 
   function moveSelectionToPage(pageId: string) {
-    if (!hasSelection) return
+    if (!capabilities.canMoveToPage) return
     editor.moveToPage(pageId)
   }
 
   const commands: Record<string, EditorCommand> = {
-    'edit.undo': command('edit.undo', labels.undo, () => editor.undo.undo(), editor.undo.canUndo),
-    'edit.redo': command('edit.redo', labels.redo, () => editor.undo.redo(), editor.undo.canRedo),
+    'edit.undo': command('edit.undo', labels.undo, () => editor.undo.undo(), capabilities.canUndo),
+    'edit.redo': command('edit.redo', labels.redo, () => editor.undo.redo(), capabilities.canRedo),
     'view.zoomFit': command('view.zoomFit', labels.zoomToFit, () => editor.zoomToFit()),
     'view.zoom100': command('view.zoom100', labels.zoomTo100, () => editor.zoomToLevel(1)),
     'view.zoomSelection': command(
       'view.zoomSelection',
       labels.zoomToSelection,
       () => editor.zoomToSelection(),
-      hasSelection
+      capabilities.canZoomToSelection
     ),
     'selection.duplicate': command(
       'selection.duplicate',
       labels.duplicate,
       () => editor.duplicateSelected(),
-      hasSelection
+      capabilities.canDuplicate
     ),
     'selection.delete': command(
       'selection.delete',
       labels.delete,
       () => editor.deleteSelected(),
-      hasSelection
+      capabilities.canDelete
     ),
     'selection.group': command(
       'selection.group',
       labels.groupSelection,
       () => editor.groupSelected(),
-      selectedCount >= 2
+      capabilities.canGroup
     ),
     'selection.frameSelection': command(
       'selection.frameSelection',
       labels.frameSelection,
       () => editor.frameSelection(),
-      hasSelection
+      capabilities.canFrameSelection
     ),
     'selection.ungroup': command(
       'selection.ungroup',
       labels.ungroup,
       () => editor.ungroupSelected(),
-      selection.isGroup
+      capabilities.canUngroup
     ),
     'selection.createComponent': command(
       'selection.createComponent',
       labels.createComponent,
       () => editor.createComponentFromSelection(),
-      hasSelection && !selection.isComponent
+      capabilities.canCreateComponent
     ),
     'selection.createComponentSet': command(
       'selection.createComponentSet',
       labels.createComponentSet,
       () => editor.createComponentSetFromComponents(),
-      selection.canCreateComponentSet
+      capabilities.canCreateComponentSet
     ),
     'selection.createInstance': command(
       'selection.createInstance',
@@ -91,25 +91,25 @@ export function useEditorCommands() {
         const node = selection.selectedNode
         if (node?.type === 'COMPONENT') editor.createInstanceFromComponent(node.id)
       },
-      selection.isComponent
+      capabilities.canCreateInstance
     ),
     'selection.detachInstance': command(
       'selection.detachInstance',
       labels.detachInstance,
       () => editor.detachInstance(),
-      selection.isInstance
+      capabilities.canDetachInstance
     ),
     'selection.goToMainComponent': command(
       'selection.goToMainComponent',
       labels.goToMainComponent,
       () => void editor.goToMainComponent(),
-      selection.isInstance
+      capabilities.canGoToMainComponent
     ),
     'selection.wrapInAutoLayout': command(
       'selection.wrapInAutoLayout',
       labels.addAutoLayout,
       () => editor.wrapInAutoLayout(),
-      hasSelection
+      capabilities.canWrapInAutoLayout
     ),
     'selection.toggleMask': command(
       'selection.toggleMask',
@@ -117,111 +117,115 @@ export function useEditorCommands() {
       () => {
         const node = selection.selectedNode
         if (!node) return
-        editor.updateNodeWithUndo(node.id, { isMask: !node.isMask }, node.isMask ? 'Remove mask' : 'Use as mask')
+        editor.updateNodeWithUndo(
+          node.id,
+          { isMask: !node.isMask },
+          node.isMask ? 'Remove mask' : 'Use as mask'
+        )
       },
-      hasSelection
+      capabilities.canToggleMask
     ),
     'selection.bringForward': command(
       'selection.bringForward',
       labels.bringForward,
       () => editor.bringForward(),
-      hasSelection
+      capabilities.canBringToFront
     ),
     'selection.bringToFront': command(
       'selection.bringToFront',
       labels.bringToFront,
       () => editor.bringToFront(),
-      hasSelection
+      capabilities.canBringToFront
     ),
     'selection.sendBackward': command(
       'selection.sendBackward',
       labels.sendBackward,
       () => editor.sendBackward(),
-      hasSelection
+      capabilities.canSendToBack
     ),
     'selection.sendToBack': command(
       'selection.sendToBack',
       labels.sendToBack,
       () => editor.sendToBack(),
-      hasSelection
+      capabilities.canSendToBack
     ),
     'selection.toggleVisibility': command(
       'selection.toggleVisibility',
       labels.showHide,
       () => editor.toggleVisibility(),
-      hasSelection
+      capabilities.canToggleVisibility
     ),
     'selection.toggleLock': command(
       'selection.toggleLock',
       labels.lockUnlock,
       () => editor.toggleLock(),
-      hasSelection
+      capabilities.canToggleLock
     ),
     'selection.flipHorizontal': command(
       'selection.flipHorizontal',
       labels.flipHorizontal,
       () => editor.flipNodes([...selection.selectedIds], 'horizontal'),
-      hasSelection
+      capabilities.canFlip
     ),
     'selection.flipVertical': command(
       'selection.flipVertical',
       labels.flipVertical,
       () => editor.flipNodes([...selection.selectedIds], 'vertical'),
-      hasSelection
+      capabilities.canFlip
     ),
     'selection.distributeHorizontal': command(
       'selection.distributeHorizontal',
       labels.distributeHorizontal,
       () => editor.distributeNodes([...selection.selectedIds], 'horizontal'),
-      selectedCount >= 3
+      capabilities.canDistribute
     ),
     'selection.distributeVertical': command(
       'selection.distributeVertical',
       labels.distributeVertical,
       () => editor.distributeNodes([...selection.selectedIds], 'vertical'),
-      selectedCount >= 3
+      capabilities.canDistribute
     ),
     'selection.booleanUnion': command(
       'selection.booleanUnion',
       labels.unionSelection,
       () => editor.booleanOperationSelected('UNION'),
-      selectedCount >= 2
+      capabilities.canBooleanOperation
     ),
     'selection.booleanSubtract': command(
       'selection.booleanSubtract',
       labels.subtractSelection,
       () => editor.booleanOperationSelected('SUBTRACT'),
-      selectedCount >= 2
+      capabilities.canBooleanOperation
     ),
     'selection.booleanIntersect': command(
       'selection.booleanIntersect',
       labels.intersectSelection,
       () => editor.booleanOperationSelected('INTERSECT'),
-      selectedCount >= 2
+      capabilities.canBooleanOperation
     ),
     'selection.booleanExclude': command(
       'selection.booleanExclude',
       labels.excludeSelection,
       () => editor.booleanOperationSelected('EXCLUDE'),
-      selectedCount >= 2
+      capabilities.canBooleanOperation
     ),
     'selection.flatten': command(
       'selection.flatten',
       labels.flattenSelection,
       () => editor.flattenSelected(),
-      hasSelection
+      capabilities.canFlatten
     ),
     'selection.outlineText': command(
       'selection.outlineText',
       labels.outlineText,
       () => editor.outlineTextSelected(),
-      selection.selectedNodeType === 'TEXT'
+      capabilities.canOutlineText
     ),
     'selection.outlineStroke': command(
       'selection.outlineStroke',
       labels.outlineStroke,
       () => editor.outlineStrokeSelected(),
-      hasSelection
+      capabilities.canOutlineStroke
     ),
     'selection.moveToPage': command(
       'selection.moveToPage',
@@ -230,7 +234,7 @@ export function useEditorCommands() {
         const page = otherPages[0]
         if (page) moveSelectionToPage(page.id)
       },
-      hasSelection && otherPages.length > 0
+      capabilities.canMoveToPage
     )
   }
 
@@ -258,6 +262,7 @@ export function useEditorCommands() {
       label: next.label,
       shortcut: formatShortcut(shortcut),
       disabled: !next.enabled,
+      testId: editorCommandMetadata(id).contextTestId,
       action: () => runCommand(id)
     }
   }

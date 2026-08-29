@@ -33,7 +33,11 @@ export const EDITOR_COMMAND_METADATA = {
   'selection.detachInstance': { shortcut: 'MOD+ALT+B', keybinding: '$mod+Alt+KeyB' },
   'selection.goToMainComponent': {},
   'selection.createInstance': {},
-  'selection.wrapInAutoLayout': { shortcut: 'SHIFT+A', keybinding: 'Shift+KeyA' },
+  'selection.wrapInAutoLayout': {
+    shortcut: 'SHIFT+A',
+    keybinding: 'Shift+KeyA',
+    contextTestId: 'context-wrap-in-auto-layout'
+  },
   'selection.toggleMask': {
     shortcut: 'MOD+ALT+M',
     keybinding: ['Control+Meta+KeyM', '$mod+Alt+KeyM'],
