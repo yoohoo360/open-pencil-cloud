@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 
 import { EDITOR_TOOLS, type Editor, type EditorToolDef, type Tool } from '@open-pencil/core/editor'
 
@@ -36,6 +36,22 @@ export type ToolbarRootSlot = {
   }
 }
 
+function rememberFlyoutSelection(
+  tools: readonly EditorToolDef[],
+  activeTool: Tool,
+  previous: ReadonlyMap<Tool, Tool>
+) {
+  const next = new Map(previous)
+  let changed = false
+  for (const tool of tools) {
+    if (!tool.flyout?.includes(activeTool)) continue
+    if (next.get(tool.key) === activeTool) continue
+    next.set(tool.key, activeTool)
+    changed = true
+  }
+  return changed ? next : previous
+}
+
 export function ToolbarRoot({
   tools = EDITOR_TOOLS,
   children
@@ -47,13 +63,9 @@ export function ToolbarRoot({
   const store = useEditorStore()
   const activeTool = store.state.activeTool
   const [expandedFlyout, setExpandedFlyout] = useState<Tool | null>(null)
-  const flyoutSelections = useMemo(() => {
-    const next = new Map<Tool, Tool>()
-    for (const tool of tools) {
-      if (tool.flyout?.includes(activeTool)) next.set(tool.key, activeTool)
-    }
-    return next
-  }, [activeTool, tools])
+  const [flyoutSelections, setFlyoutSelections] = useState<ReadonlyMap<Tool, Tool>>(() => new Map())
+  const remembered = rememberFlyoutSelection(tools, activeTool, flyoutSelections)
+  if (remembered !== flyoutSelections) setFlyoutSelections(remembered)
 
   function setTool(tool: Tool) {
     editor.setTool(tool)
@@ -92,5 +104,7 @@ export function ToolbarItem({
   children: (slot: { active: boolean; actions: { select: () => void }; tool: Tool }) => ReactNode
 }) {
   const { activeTool, setTool } = useToolbar()
-  return <>{children({ active: activeTool === tool, actions: { select: () => setTool(tool) }, tool })}</>
+  return (
+    <>{children({ active: activeTool === tool, actions: { select: () => setTool(tool) }, tool })}</>
+  )
 }

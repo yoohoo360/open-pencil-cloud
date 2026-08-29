@@ -137,7 +137,7 @@ function renderNodeContent(
     r.renderShape(canvas, node, graph)
   }
 
-  if (overlays.editingTextId === nodeId && overlays.textEditor?.state?.paragraph) {
+  if (overlays.editingTextId === nodeId && overlays.textEditor) {
     r.drawTextEditOverlay(canvas, node, overlays.textEditor)
   }
 

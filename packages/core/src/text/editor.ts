@@ -89,7 +89,11 @@ export class TextEditor {
       this.paragraphNode &&
       state.paragraphFontGeneration !== this.renderer.fontGeneration
     ) {
-      this.rebuildParagraph(this.paragraphNode)
+      try {
+        this.rebuildParagraph(this.paragraphNode)
+      } catch {
+        // Dual canvases can dispose the WASM paragraph during a font rebuild.
+      }
     }
     return state
   }
@@ -122,7 +126,11 @@ export class TextEditor {
   stop(): { nodeId: string; text: string } | null {
     if (!this._state) return null
     const result = { nodeId: this._state.nodeId, text: this._state.text }
-    this._state.paragraph?.delete()
+    try {
+      this._state.paragraph?.delete()
+    } catch {
+      // Paragraph may already have been disposed by a sibling canvas renderer.
+    }
     this._state = null
     this.paragraphNode = null
     return result
@@ -131,11 +139,21 @@ export class TextEditor {
   rebuildParagraph(node: SceneNode): void {
     const s = this._state
     if (!s || !this.renderer) return
-    s.paragraph?.delete()
+    const previous = s.paragraph
+    s.paragraph = null
+    try {
+      previous?.delete()
+    } catch {
+      // Dual canvases can dispose the same WASM paragraph; ignore a second delete.
+    }
     this.paragraphNode = node
     s.textDirection = resolveNodeTextDirection(node)
-    s.paragraph = this.renderer.buildParagraph({ ...node, text: s.text })
-    s.paragraphFontGeneration = this.renderer.fontGeneration
+    try {
+      s.paragraph = this.renderer.buildParagraph({ ...node, text: s.text })
+      s.paragraphFontGeneration = this.renderer.fontGeneration
+    } catch {
+      s.paragraph = null
+    }
   }
 
   hasSelection(): boolean {

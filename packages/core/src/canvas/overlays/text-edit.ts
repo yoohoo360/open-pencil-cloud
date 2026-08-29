@@ -25,7 +25,9 @@ export function drawTextEditOverlay(
   r.auxStroke.setStrokeWidth(1 / r.zoom)
   r.auxStroke.setColor(r.selColor())
   r.auxStroke.setPathEffect(null)
-  canvas.drawRect(r.ck.LTRBRect(0, 0, node.width, node.height), r.auxStroke)
+  const boxWidth = Math.max(node.width, 1)
+  const boxHeight = Math.max(node.height, node.fontSize || 1)
+  canvas.drawRect(r.ck.LTRBRect(0, 0, boxWidth, boxHeight), r.auxStroke)
 
   const selRects = editor.getSelectionRects()
   if (selRects.length > 0) {

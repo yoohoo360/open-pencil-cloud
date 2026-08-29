@@ -1,5 +1,5 @@
-import { resolve } from 'node:path'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -24,7 +24,26 @@ function isExternal(id: string) {
   )
 }
 
-export default defineConfig({
+function workspaceSourceAliases() {
+  const repoRoot = resolve(__dirname, '../..')
+  return [
+    {
+      find: /^@open-pencil\/scene-graph$/,
+      replacement: resolve(repoRoot, 'packages/scene-graph/src/index.ts')
+    },
+    { find: '@open-pencil/scene-graph', replacement: resolve(repoRoot, 'packages/scene-graph/src') },
+    { find: /^@open-pencil\/pen$/, replacement: resolve(repoRoot, 'packages/pen/src/index.ts') },
+    { find: '@open-pencil/pen', replacement: resolve(repoRoot, 'packages/pen/src') },
+    { find: /^@open-pencil\/kiwi$/, replacement: resolve(repoRoot, 'packages/kiwi/src/index.ts') },
+    { find: '@open-pencil/kiwi', replacement: resolve(repoRoot, 'packages/kiwi/src') },
+    { find: /^@open-pencil\/fig$/, replacement: resolve(repoRoot, 'packages/fig/src/index.ts') },
+    { find: '@open-pencil/fig', replacement: resolve(repoRoot, 'packages/fig/src') },
+    { find: /^@open-pencil\/core$/, replacement: resolve(repoRoot, 'packages/core/src/index.ts') },
+    { find: '@open-pencil/core', replacement: resolve(repoRoot, 'packages/core/src') }
+  ]
+}
+
+export default defineConfig(({ command }) => ({
   root: __dirname,
   plugins: [
     {
@@ -43,10 +62,11 @@ export default defineConfig({
     tailwindcss()
   ],
   resolve: {
-    alias: {
-      '@open-pencil/react': resolve(__dirname, 'src/index.ts'),
-      '#react': resolve(__dirname, 'src')
-    }
+    alias: [
+      { find: '@open-pencil/react', replacement: resolve(__dirname, 'src/index.ts') },
+      { find: '#react', replacement: resolve(__dirname, 'src') },
+      ...(command === 'serve' ? workspaceSourceAliases() : [])
+    ]
   },
   server: {
     port: 3334
@@ -68,4 +88,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

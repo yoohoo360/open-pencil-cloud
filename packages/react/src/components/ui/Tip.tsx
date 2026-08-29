@@ -1,6 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-
 import { useTooltipUI } from '#react/components/ui/tooltip'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode
+} from 'react'
+import { createPortal } from 'react-dom'
+
+import { IS_BROWSER } from '@open-pencil/core/constants'
 
 const TOOLTIP_OPEN_DELAY_MS = 400
 const TOOLTIP_SIDE_OFFSET = 4
@@ -74,6 +85,63 @@ export function Tip({ label, side = 'top', disabled = false, children }: TipProp
     }, TOOLTIP_OPEN_DELAY_MS)
   }, [canOpen, refreshPosition])
 
+  function isNestedTooltipEvent(
+    event: ReactPointerEvent<HTMLSpanElement> | ReactFocusEvent<HTMLSpanElement>
+  ) {
+    const target = event.target
+    return (
+      target instanceof Element && target.closest('[data-tooltip-trigger]') !== triggerRef.current
+    )
+  }
+
+  function containsRelatedTarget(
+    event: ReactPointerEvent<HTMLSpanElement> | ReactFocusEvent<HTMLSpanElement>
+  ) {
+    const relatedTarget = event.relatedTarget
+    return relatedTarget instanceof Node && Boolean(triggerRef.current?.contains(relatedTarget))
+  }
+
+  function onPointerEnter(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (isNestedTooltipEvent(event)) {
+      hide()
+      return
+    }
+    show()
+  }
+
+  function onPointerLeave(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (containsRelatedTarget(event)) return
+    hide()
+  }
+
+  function onPointerOver(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (isNestedTooltipEvent(event)) {
+      hide()
+      return
+    }
+    if (containsRelatedTarget(event)) return
+    show()
+  }
+
+  function onPointerOut(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (containsRelatedTarget(event)) return
+    hide()
+  }
+
+  function onFocus(event: ReactFocusEvent<HTMLSpanElement>) {
+    if (isNestedTooltipEvent(event)) {
+      hide()
+      return
+    }
+    if (containsRelatedTarget(event)) return
+    show()
+  }
+
+  function onBlur(event: ReactFocusEvent<HTMLSpanElement>) {
+    if (containsRelatedTarget(event)) return
+    hide()
+  }
+
   useEffect(() => {
     if (!open) return
     refreshPosition()
@@ -100,32 +168,36 @@ export function Tip({ label, side = 'top', disabled = false, children }: TipProp
   }, [canOpen, hide])
 
   const contentStyle: CSSProperties = { left: `${position.x}px`, top: `${position.y}px` }
+  const tooltip =
+    open && label && IS_BROWSER ? (
+      <div
+        ref={contentRef}
+        role="tooltip"
+        className={`${cls.content} pointer-events-none fixed z-[200]`}
+        style={contentStyle}
+      >
+        {label}
+      </div>
+    ) : null
 
   return (
     <>
       <span
         ref={triggerRef}
         data-tooltip-trigger
-        className="contents"
-        onFocus={show}
-        onBlur={hide}
-        onPointerOver={show}
-        onPointerOut={hide}
+        className="inline-flex"
+        onFocusCapture={onFocus}
+        onBlurCapture={onBlur}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
         onPointerDown={hide}
         onClick={hide}
       >
         {children}
       </span>
-      {open && label ? (
-        <div
-          ref={contentRef}
-          role="tooltip"
-          className={`${cls.content} pointer-events-none fixed`}
-          style={contentStyle}
-        >
-          {label}
-        </div>
-      ) : null}
+      {tooltip ? createPortal(tooltip, document.body) : null}
     </>
   )
 }

@@ -3,9 +3,11 @@ import type { Tool } from '@open-pencil/core/editor'
 import { DesktopToolbar } from '#react/components/Toolbar/DesktopToolbar'
 import { MobileToolbar } from '#react/components/Toolbar/MobileToolbar'
 import { useToolbarActions } from '#react/components/Toolbar/actions'
+import { useToolbarShortcuts } from '#react/components/Toolbar/shortcuts'
 import type { ToolbarActionItem } from '#react/components/Toolbar/types'
 import { toolIcons } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
+import { useActionToast } from '#react/app/shell/toast/action'
 import { useMenuUI } from '#react/components/ui/menu'
 import { useEditorCommands } from '#react/editor/commands'
 import { useI18n } from '#react/i18n'
@@ -32,6 +34,8 @@ export function Toolbar() {
   const { isMobile } = useViewportKind()
   const { getCommand } = useEditorCommands()
   const { menu, tools: toolTexts } = useI18n()
+  const { showActionToast } = useActionToast()
+  useToolbarShortcuts()
   const toolLabels: Record<Tool, string> = {
     SELECT: toolTexts.move,
     FRAME: toolTexts.frame,
@@ -48,12 +52,11 @@ export function Toolbar() {
   const flyoutMenuCls = useMenuUI({ content: 'min-w-32' })
   const toolbarUI = { flyoutContent: flyoutMenuCls.content }
   const { editActions, arrangeActions } = useToolbarActions({ store, getCommand, menu })
-  const { mobileCategory, hasPrev, hasNext, goPrev, goNext } = useToolbarState()
+  const { mobileCategory, slideDirection, hasPrev, hasNext, goPrev, goNext } = useToolbarState()
 
   function onActionTap(item: ToolbarActionItem) {
     item.action()
-    store.state.actionToast = item.label
-    store.notify()
+    showActionToast(item.label)
   }
 
   return (
@@ -69,6 +72,7 @@ export function Toolbar() {
             toolShortcuts={toolShortcuts}
             ui={toolbarUI}
             mobileCategory={mobileCategory}
+            slideDirection={slideDirection}
             hasPrev={hasPrev}
             hasNext={hasNext}
             editActions={editActions}

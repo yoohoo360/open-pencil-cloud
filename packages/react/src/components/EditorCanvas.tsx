@@ -1,25 +1,38 @@
-import { PencilLine } from 'lucide-react'
-import { useCallback, useEffect, useRef } from 'react'
-
-import { useCanvas } from '#react/canvas/surface/use'
-import { useCanvasInput } from '#react/canvas/useCanvasInput'
+import { createCanvasContextSelection } from '#react/app/editor/canvas/context-selection'
 import { useEditorStore } from '#react/app/editor/store'
+import { useCanvas } from '#react/canvas/surface/use'
+import { useTextEdit } from '#react/canvas/text-edit/use'
+import { useCanvasInput } from '#react/canvas/useCanvasInput'
+import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
 import { toolCursor } from '#react/editor/tool-cursor'
+import { PencilLine } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export function EditorCanvas({ paneId }: { paneId?: string }) {
   const store = useEditorStore()
   const sceneCanvasRef = useRef<HTMLCanvasElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isActivePane = !paneId || store.activePaneId === paneId
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const { selectAtContextPoint } = useMemo(
+    () => createCanvasContextSelection(canvasRef, store),
+    [store]
+  )
 
   const activatePane = useCallback(() => {
     if (paneId) store.setActivePane(paneId)
   }, [paneId, store])
 
-  const getRenderState = paneId ? () => store.getPaneRenderState(paneId) : undefined
-  const onViewportResize = paneId
-    ? (width: number, height: number) => store.resizePane(paneId, width, height)
-    : undefined
+  const getRenderState = useCallback(
+    () => (paneId ? store.getPaneRenderState(paneId) : store.state),
+    [paneId, store]
+  )
+  const onViewportResize = useCallback(
+    (width: number, height: number) => {
+      if (paneId) store.resizePane(paneId, width, height)
+    },
+    [paneId, store]
+  )
 
   useCanvas(sceneCanvasRef, store, {
     layer: 'scene',
@@ -37,20 +50,31 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
     }
   )
 
+  const updateCursor = useCallback(
+    (cx: number, cy: number) => {
+      const point = store.screenToCanvas(cx, cy)
+      store.state.cursorCanvasX = point.x
+      store.state.cursorCanvasY = point.y
+    },
+    [store]
+  )
+
   const { cursorOverride, cleanupInteractions } = useCanvasInput(
     canvasRef,
     store,
     hitTestSectionTitle,
     hitTestComponentLabel,
     hitTestFrameTitle,
-    undefined,
+    updateCursor,
     activatePane,
     () => isActivePane
   )
+  useTextEdit(canvasRef, store, { isEnabled: () => isActivePane })
 
   useEffect(() => {
     if (!isActivePane) cleanupInteractions()
   }, [cleanupInteractions, isActivePane])
+  useEffect(() => () => cleanupInteractions(), [cleanupInteractions])
 
   const cursor = toolCursor(store.state.activeTool, cursorOverride)
 
@@ -64,6 +88,12 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
       onFocusCapture={activatePane}
       onWheelCapture={activatePane}
       onDragEnterCapture={activatePane}
+      onContextMenuCapture={(event) => {
+        event.preventDefault()
+        activatePane()
+        selectAtContextPoint(event.nativeEvent)
+        setContextMenu({ x: event.clientX, y: event.clientY })
+      }}
     >
       <canvas
         ref={sceneCanvasRef}
@@ -90,6 +120,9 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
             <div className="h-full w-2/5 animate-pulse rounded-full bg-surface/25" />
           </div>
         </div>
+      ) : null}
+      {contextMenu ? (
+        <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />
       ) : null}
     </div>
   )

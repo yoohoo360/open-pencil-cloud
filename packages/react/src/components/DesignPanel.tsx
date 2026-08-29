@@ -1,23 +1,127 @@
+import { Layers3 } from 'lucide-react'
+
+import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
+import { useEditorStore } from '#react/app/editor/store'
+import { AppearanceSection } from '#react/components/properties/AppearanceSection'
+import { FillSection } from '#react/components/properties/FillSection'
+import { FramePresetsSection } from '#react/components/properties/FramePresetsSection'
+import { PageSection } from '#react/components/properties/PageSection'
+import { PositionSection } from '#react/components/properties/PositionSection'
+import { SelectionActionsControl } from '#react/components/properties/SelectionActionsControl'
+import { StrokeSection } from '#react/components/properties/StrokeSection'
+import { PanelHeader } from '#react/components/ui/panel/PanelHeader'
+import { Tip } from '#react/components/ui/Tip'
+import { useEditorCommands } from '#react/editor/commands/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
 import { useI18n } from '#react/i18n'
-import { nodeIcon } from '#react/app/editor/icons'
 
 export function DesignPanel() {
+  const store = useEditorStore()
   const { selectedNode, selectedCount } = useSelectionState()
+  const { getCommand } = useEditorCommands()
   const { panels } = useI18n()
-  const Icon = selectedNode ? nodeIcon(selectedNode) : null
+  const activeTool = store.state.activeTool
+  const goToMainComponent = getCommand('selection.goToMainComponent')
+  const detachInstance = getCommand('selection.detachInstance')
+  const isComponentType = selectedNode ? COMPONENT_TYPES.has(selectedNode.type) : false
+  const SelectedIcon = selectedNode ? nodeIcon(selectedNode) : null
+
+  if (activeTool === 'FRAME') {
+    return (
+      <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4">
+          <FramePresetsSection />
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedCount > 1) {
+    return (
+      <div
+        data-test-id="design-panel"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+      <div
+        data-test-id="design-panel-multi"
+        className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+      >
+        <PanelHeader
+          icon={<Layers3 className="size-3.5" aria-hidden="true" />}
+          actions={<SelectionActionsControl showBooleanOperations />}
+        >
+          <span role="heading" aria-level={2}>
+            {panels.layersCount({ count: String(selectedCount) })}
+          </span>
+        </PanelHeader>
+        <PositionSection />
+        <AppearanceSection />
+        <FillSection />
+        <StrokeSection />
+      </div>
+      </div>
+    )
+  }
+
+  if (selectedNode) {
+    return (
+      <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        data-test-id="design-panel-single"
+        className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+      >
+        <PanelHeader
+          component={isComponentType}
+          icon={
+            SelectedIcon ? (
+              <Tip label={selectedNode.type}>
+                <span role="img" aria-label={selectedNode.type} className="contents">
+                  <SelectedIcon className="size-3.5" />
+                </span>
+              </Tip>
+            ) : null
+          }
+          actions={<SelectionActionsControl />}
+        >
+          <span role="heading" aria-level={2}>
+            {selectedNode.name}
+          </span>
+        </PanelHeader>
+        {selectedNode.type === 'INSTANCE' ? (
+          <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
+            <button
+              type="button"
+              className="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
+              onClick={() => goToMainComponent.run()}
+            >
+              {panels.goToMainComponent}
+            </button>
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
+              onClick={() => detachInstance.run()}
+            >
+              {panels.detachInstance}
+            </button>
+          </div>
+        ) : null}
+        <PositionSection />
+        <AppearanceSection />
+        <FillSection />
+        <StrokeSection />
+      </div>
+      </div>
+    )
+  }
 
   return (
-    <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        {Icon ? <Icon className="size-3.5 text-muted" /> : null}
-        <span className="truncate text-[11px] font-semibold text-surface">
-          {selectedNode?.name ?? panels.design}
-        </span>
-        {selectedCount > 1 ? (
-          <span className="text-[11px] text-muted">{selectedCount}</span>
-        ) : null}
-      </div>
+    <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      data-test-id="design-panel-empty"
+      className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+    >
+      <PageSection />
+    </div>
     </div>
   )
 }

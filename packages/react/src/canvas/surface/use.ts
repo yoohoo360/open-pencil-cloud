@@ -111,7 +111,7 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
     const scopedOptions = optionsRef.current
     const loop = createCanvasRenderLoop(editor, renderNow, {
       layer: scopedOptions?.layer,
-      getRenderState: scopedOptions?.getRenderState
+      getRenderState: () => optionsRef.current?.getRenderState?.() ?? editor.state
     })
     loopRef.current = loop
 
@@ -172,7 +172,7 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
       if (loopRef.current === loop) loopRef.current = null
       cleanupRenderer(editor, state)
     }
-  }, [canvasRef, editor, shouldShowRulers, options?.layer, options?.getRenderState])
+  }, [canvasRef, editor, shouldShowRulers, options?.layer])
 
   const { hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle } = createCanvasHitTests(
     editor,

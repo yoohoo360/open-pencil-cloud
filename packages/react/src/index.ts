@@ -17,7 +17,11 @@ export {
 } from '#react/editor/context'
 
 export { useCanvas } from '#react/canvas/surface/use'
-export type { UseCanvasOptions, CanvasRenderLayer, CanvasElementRef } from '#react/canvas/surface/types'
+export type {
+  UseCanvasOptions,
+  CanvasRenderLayer,
+  CanvasElementRef
+} from '#react/canvas/surface/types'
 
 export { useSelectionState } from '#react/editor/selection-state/use'
 export type { SelectionState } from '#react/editor/selection-state/use'
@@ -29,3 +33,18 @@ export { useI18n } from '#react/i18n'
 export { useEditorCommands } from '#react/editor/commands/use'
 export { toolCursor } from '#react/editor/tool-cursor'
 export { useCanvasInput } from '#react/canvas/useCanvasInput'
+export { useTextEdit } from '#react/canvas/text-edit/use'
+export {
+  ToolbarRoot,
+  ToolbarItem,
+  useToolbar,
+  useToolbarState,
+  isToolbarToolActive,
+  getToolbarToolSelection
+} from '#react/primitives/Toolbar'
+export type { ToolbarContext, ToolbarRootSlot } from '#react/primitives/Toolbar'
+export {
+  toolbarFlyoutItemTestId,
+  toolbarFlyoutTestId,
+  toolbarToolTestId
+} from '#react/testing/test-id'
