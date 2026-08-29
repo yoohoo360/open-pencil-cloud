@@ -7,18 +7,20 @@ export function PanelSection({
   label,
   empty = false,
   actions,
+  titleClass,
   children
 }: {
   label: string
   empty?: boolean
   actions?: ReactNode
+  titleClass?: string
   children?: ReactNode
 }) {
   const styles = tv(theme)({ actions: Boolean(actions) })
   return (
     <section data-slot="root" aria-label={label} className={styles.root()}>
       <div data-slot="header" className={styles.header()}>
-        <div data-slot="title" className={styles.title()}>
+        <div data-slot="title" className={styles.title({ class: titleClass })}>
           <span role="heading" aria-level={3}>
             {label}
           </span>

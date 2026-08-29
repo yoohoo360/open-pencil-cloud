@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { panelFieldBase } from '#react/theme/panel/field'
 
@@ -8,6 +8,7 @@ export function NumberField({
   max,
   icon,
   suffix,
+  trailing,
   disabled,
   'aria-label': ariaLabel,
   'data-property': dataProperty,
@@ -16,8 +17,9 @@ export function NumberField({
   value: number
   min?: number
   max?: number
-  icon?: string
+  icon?: ReactNode
   suffix?: string
+  trailing?: ReactNode
   disabled?: boolean
   'aria-label'?: string
   'data-property'?: string
@@ -78,6 +80,7 @@ export function NumberField({
         }}
       />
       {suffix ? <span className="shrink-0 pr-1.5 text-muted">{suffix}</span> : null}
+      {trailing}
     </label>
   )
 }
