@@ -1,8 +1,12 @@
 import { atom } from 'nanostores'
 
-export const settingsDialogOpen = atom(false)
+export type SettingsSection = 'general' | 'ai' | 'mcp'
 
-export function openSettingsDialog() {
+export const settingsDialogOpen = atom(false)
+export const settingsDialogSection = atom<SettingsSection>('general')
+
+export function openSettingsDialog(section?: SettingsSection) {
+  if (section) settingsDialogSection.set(section)
   settingsDialogOpen.set(true)
 }
 

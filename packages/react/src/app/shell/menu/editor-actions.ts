@@ -3,6 +3,7 @@ import type { SnappingPreferences } from '@open-pencil/core/editor'
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
 import type { EditorStore } from '#react/app/editor/store'
+import { updateSnappingPreferences } from '#react/app/settings/preferences'
 import type { AppTheme } from '#react/app/shell/theme'
 
 type TextFormatUpdates = {
@@ -16,6 +17,7 @@ export function setSnappingPreference(
   preference: keyof SnappingPreferences,
   enabled: boolean
 ) {
+  updateSnappingPreferences({ [preference]: enabled })
   store.state.snappingPreferences = {
     ...store.state.snappingPreferences,
     [preference]: enabled

@@ -18,7 +18,9 @@ function notify() {
 
 export function subscribeActiveTab(onStoreChange: () => void) {
   listeners.add(onStoreChange)
-  return () => listeners.delete(onStoreChange)
+  return () => {
+    listeners.delete(onStoreChange)
+  }
 }
 
 export function getActiveTab(): Tab | null {

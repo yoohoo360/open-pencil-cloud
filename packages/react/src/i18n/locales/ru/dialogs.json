@@ -200,6 +200,7 @@
   "chatInsufficientCredit": "На счёте провайдера недостаточно средств или квоты. Пополните его и повторите попытку.",
   "chatOutputLimit": "Модель исчерпала лимит выходных токенов во время рассуждения. Увеличьте максимум выходных токенов или снизьте глубину рассуждения.",
   "chatRequestFailed": "Запрос к модели завершился ошибкой. Проверьте настройки провайдера и повторите попытку.",
+  "chatVisionUnsupported": "Эта модель не принимает изображения. Используйте модель с vision или для DeepSeek — deepseek-v4-flash-vision-exp.",
   "clear": "Clear",
   "keySavedReplace": "Key saved — enter new to replace",
   "getAPIKeyGeneric": "Get API key →",

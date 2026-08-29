@@ -387,6 +387,8 @@ export const dialogMessageDefaults = {
   chatOutputLimit:
     'The model ran out of output tokens while reasoning. Raise Max output tokens or lower reasoning effort.',
   chatRequestFailed: 'The model request failed. Check the provider settings and try again.',
+  chatVisionUnsupported:
+    'This model does not accept images. Use a vision-capable model, or for DeepSeek use deepseek-v4-flash-vision-exp.',
   maxOutputTokens: 'Max output tokens',
   clear: 'Clear',
   keySavedReplace: 'Key saved — enter new to replace',

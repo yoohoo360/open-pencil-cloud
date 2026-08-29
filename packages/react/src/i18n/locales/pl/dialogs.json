@@ -200,6 +200,7 @@
   "chatInsufficientCredit": "Konto dostawcy nie ma wystarczających środków lub limitu. Doładuj je i spróbuj ponownie.",
   "chatOutputLimit": "Model wyczerpał limit tokenów wyjściowych podczas rozumowania. Zwiększ maksymalną liczbę tokenów wyjściowych lub zmniejsz poziom rozumowania.",
   "chatRequestFailed": "Żądanie do modelu nie powiodło się. Sprawdź ustawienia dostawcy i spróbuj ponownie.",
+  "chatVisionUnsupported": "Ten model nie przyjmuje obrazów. Użyj modelu z wizją albo dla DeepSeek deepseek-v4-flash-vision-exp.",
   "clear": "Clear",
   "keySavedReplace": "Key saved — enter new to replace",
   "getAPIKeyGeneric": "Get API key →",

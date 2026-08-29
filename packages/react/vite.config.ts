@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+import { AUTOMATION_HTTP_PORT } from '../../packages/core/src/constants'
+
 function isExternal(id: string) {
   return (
     id === 'react' ||
@@ -39,7 +41,12 @@ function workspaceSourceAliases() {
     { find: /^@open-pencil\/fig$/, replacement: resolve(repoRoot, 'packages/fig/src/index.ts') },
     { find: '@open-pencil/fig', replacement: resolve(repoRoot, 'packages/fig/src') },
     { find: /^@open-pencil\/core$/, replacement: resolve(repoRoot, 'packages/core/src/index.ts') },
-    { find: '@open-pencil/core', replacement: resolve(repoRoot, 'packages/core/src') }
+    { find: '@open-pencil/core', replacement: resolve(repoRoot, 'packages/core/src') },
+    {
+      find: /^@open-pencil\/dom-css\/browser$/,
+      replacement: resolve(repoRoot, 'packages/dom-css/src/browser.ts')
+    },
+    { find: '@open-pencil/dom-css', replacement: resolve(repoRoot, 'packages/dom-css/src') }
   ]
 }
 
@@ -75,6 +82,12 @@ export default defineConfig(({ command }) => ({
     port: 3334,
     fs: {
       allow: [__dirname, repoRoot]
+    },
+    proxy: {
+      '/__openpencil-mcp': {
+        target: `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`,
+        rewrite: (path) => path.replace(/^\/__openpencil-mcp/, '')
+      }
     }
   },
   build: {

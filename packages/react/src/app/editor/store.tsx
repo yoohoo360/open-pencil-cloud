@@ -4,6 +4,7 @@ import { IS_BROWSER } from '@open-pencil/core/constants'
 import { createEditor, createDefaultEditorState, type Editor, type EditorState } from '@open-pencil/core/editor'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
+import { appPreferences } from '#react/app/settings/preferences'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
 import type { CanvasSplitNode, SplitDirection } from '#react/editor/panes/split-tree'
 
@@ -36,8 +37,10 @@ export type EditorStore = Editor & {
 }
 
 function createInitialAppEditorState(pageId: string): AppEditorState {
+  const snapping = appPreferences.get().editing.snapping
   return {
     ...createDefaultEditorState(pageId),
+    snappingPreferences: { ...snapping },
     showUI: true,
     showRulers: true,
     showRemoteCursors: true,

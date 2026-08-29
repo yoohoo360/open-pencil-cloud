@@ -12,7 +12,8 @@ export function AppSelect<T extends string | number>({
   label,
   className,
   onChange,
-  'data-property': dataProperty
+  'data-property': dataProperty,
+  'data-test-id': dataTestId
 }: {
   value: T
   options: AppSelectOption<T>[]
@@ -20,11 +21,13 @@ export function AppSelect<T extends string | number>({
   className?: string
   onChange: (value: T) => void
   'data-property'?: string
+  'data-test-id'?: string
 }) {
   return (
     <select
       aria-label={label}
       data-property={dataProperty}
+      data-test-id={dataTestId}
       className={`${panelFieldBase} w-full min-w-0 cursor-pointer px-1.5 text-[11px] ${className ?? ''}`}
       value={String(value)}
       onChange={(event) => {

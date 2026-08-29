@@ -1,12 +1,22 @@
 import type { InputHTMLAttributes } from 'react'
+import { tv } from 'tailwind-variants'
 
-import { panelFieldBase } from '#react/theme/panel/field'
+import type { ControlSize } from '#react/theme/control'
+import theme from '#react/theme/input'
 
-export function AppInput({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...rest}
-      className={`${panelFieldBase} w-full min-w-0 px-1.5 text-[11px] ${className ?? ''}`}
-    />
-  )
+export type AppInputTone = 'default' | 'panel'
+export type AppInputState = 'idle' | 'mixed' | 'bound' | 'invalid'
+
+export function AppInput({
+  className,
+  tone = 'panel',
+  size = 'xs',
+  state = 'idle',
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
+  tone?: AppInputTone
+  size?: ControlSize
+  state?: AppInputState
+}) {
+  return <input {...rest} className={tv(theme)({ tone, size, state, class: className })} />
 }

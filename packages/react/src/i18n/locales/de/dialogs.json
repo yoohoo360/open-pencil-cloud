@@ -204,6 +204,7 @@
   "chatInsufficientCredit": "Das Anbieterkonto hat nicht genügend Guthaben oder Kontingent. Lade es auf und versuche es erneut.",
   "chatOutputLimit": "Das Modell hat beim Schlussfolgern das Ausgabetoken-Limit erreicht. Erhöhe die maximalen Ausgabetoken oder verringere den Schlussfolgerungsaufwand.",
   "chatRequestFailed": "Die Modellanfrage ist fehlgeschlagen. Prüfe die Anbietereinstellungen und versuche es erneut.",
+  "chatVisionUnsupported": "Dieses Modell akzeptiert keine Bilder. Nutze ein Vision-Modell oder für DeepSeek deepseek-v4-flash-vision-exp.",
   "clear": "Clear",
   "keySavedReplace": "Key saved — enter new to replace",
   "getAPIKeyGeneric": "Get API key →",

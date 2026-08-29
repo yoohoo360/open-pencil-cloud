@@ -200,6 +200,7 @@
   "chatInsufficientCredit": "La cuenta del proveedor no tiene suficiente saldo o cuota. Recárgala e inténtalo de nuevo.",
   "chatOutputLimit": "El modelo agotó los tokens de salida mientras razonaba. Aumenta los tokens máximos de salida o reduce el esfuerzo de razonamiento.",
   "chatRequestFailed": "La solicitud al modelo falló. Comprueba la configuración del proveedor e inténtalo de nuevo.",
+  "chatVisionUnsupported": "Este modelo no acepta imágenes. Usa un modelo con visión o, en DeepSeek, deepseek-v4-flash-vision-exp.",
   "clear": "Limpiar",
   "keySavedReplace": "Clave guardada - introduce una nueva para reemplazarla",
   "getAPIKeyGeneric": "Obtener clave API →",

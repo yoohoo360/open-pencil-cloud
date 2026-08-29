@@ -200,6 +200,7 @@
   "chatInsufficientCredit": "Le compte du fournisseur n’a pas assez de crédit ou de quota. Rechargez-le et réessayez.",
   "chatOutputLimit": "Le modèle a épuisé ses jetons de sortie pendant le raisonnement. Augmentez le nombre maximal de jetons de sortie ou réduisez l’effort de raisonnement.",
   "chatRequestFailed": "La requête au modèle a échoué. Vérifiez les paramètres du fournisseur et réessayez.",
+  "chatVisionUnsupported": "Ce modèle n’accepte pas les images. Utilisez un modèle vision ou, pour DeepSeek, deepseek-v4-flash-vision-exp.",
   "clear": "Clear",
   "keySavedReplace": "Key saved — enter new to replace",
   "getAPIKeyGeneric": "Get API key →",

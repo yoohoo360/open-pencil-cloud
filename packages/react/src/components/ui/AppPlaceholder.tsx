@@ -16,7 +16,8 @@ export function AppPlaceholder({
   size = 'panel',
   ui,
   icon,
-  action
+  action,
+  'data-test-id': dataTestId
 }: {
   label: string
   description?: string
@@ -25,6 +26,7 @@ export function AppPlaceholder({
   ui?: PlaceholderUI
   icon?: ReactNode
   action?: ReactNode
+  'data-test-id'?: string
 }) {
   const theme = placeholder({ fill, size })
   const styles = {
@@ -37,7 +39,7 @@ export function AppPlaceholder({
   }
 
   return (
-    <div className={styles.root} data-slot="placeholder">
+    <div className={styles.root} data-slot="placeholder" data-test-id={dataTestId}>
       <div className={styles.content} data-slot="placeholder-content">
         {icon ? (
           <div className={styles.icon} data-slot="placeholder-icon" aria-hidden="true">

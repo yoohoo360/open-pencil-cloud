@@ -21,3 +21,13 @@ declare module '*?raw' {
   const content: string
   export default content
 }
+
+interface ImportMetaEnv {
+  DEV: boolean
+  PROD: boolean
+  MODE: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}

@@ -200,6 +200,7 @@
   "chatInsufficientCredit": "提供商账户的余额或配额不足。请充值后重试。",
   "chatOutputLimit": "模型在推理时耗尽了输出 token。请提高最大输出 token 数或降低推理强度。",
   "chatRequestFailed": "模型请求失败。请检查提供商设置后重试。",
+  "chatVisionUnsupported": "该模型不支持图片。请使用支持视觉的模型；DeepSeek 请用 deepseek-v4-flash-vision-exp。",
   "clear": "清除",
   "keySavedReplace": "密钥已保存，输入新密钥以替换",
   "getAPIKeyGeneric": "获取 API 密钥 →",

@@ -6,8 +6,9 @@ import { Check, ChevronRight, Settings, Sidebar } from 'lucide-react'
 import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
 
 import { useEditorStore } from '#react/app/editor/store'
-import { closeSettingsDialog, openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
+import { openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
 import { useAppMenu, type AppMenuGroup } from '#react/app/shell/menu/app-menu'
+import { SettingsDialog } from '#react/components/settings/SettingsDialog'
 import {
   hasMenuSubItems,
   isMenuAction,
@@ -106,7 +107,7 @@ export function AppMenu() {
         </Tip>
       </div>
       {IS_TAURI ? null : <AppMenubar menus={topMenus} />}
-      {settingsOpen ? <SettingsDialog onClose={closeSettingsDialog} /> : null}
+      {settingsOpen ? <SettingsDialog /> : null}
     </div>
   )
 }
@@ -407,41 +408,5 @@ function AppMenuSubmenu({
       </button>
       {submenu}
     </div>
-  )
-}
-
-function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const { dialogs } = useI18n()
-  if (!IS_BROWSER) return null
-
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/50"
-        aria-label={dialogs.close}
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-settings-title"
-        data-test-id="settings-dialog"
-        className="relative z-10 w-80 rounded-xl border border-border bg-panel p-4 shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
-      >
-        <h2 id="app-settings-title" className="text-sm font-semibold text-surface">
-          {dialogs.settings}
-        </h2>
-        <p className="mt-2 text-xs text-muted">{dialogs.settingsDescription}</p>
-        <button
-          type="button"
-          className="mt-4 flex h-7 cursor-pointer items-center rounded px-2 text-xs text-surface hover:bg-hover"
-          onClick={onClose}
-        >
-          {dialogs.close}
-        </button>
-      </div>
-    </div>,
-    document.body
   )
 }
