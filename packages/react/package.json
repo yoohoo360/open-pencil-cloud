@@ -21,7 +21,7 @@
     "#react/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config ./vite.config.ts --port 3334 --strictPort",
     "build": "vite build && bun run build:dts",
     "build:dts": "bunx tsc --emitDeclarationOnly -p tsconfig.build.json",
     "check": "bun run typecheck && bun run build && bun run smoke:dist",
@@ -50,15 +50,25 @@
     }
   },
   "dependencies": {
-    "@open-pencil/scene-graph": "workspace:*"
+    "@nanostores/i18n": "^1.3.3",
+    "@nanostores/react": "^1.0.0",
+    "@open-pencil/scene-graph": "workspace:*",
+    "lucide-react": "^0.525.0",
+    "nanostores": "^1.5.0",
+    "react-resizable-panels": "^3.0.3",
+    "tailwind-merge": "^3.6.0",
+    "tailwind-variants": "^3.3.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0",
     "typescript": "~5.8.3",
     "vite": "8.1.4"
   }

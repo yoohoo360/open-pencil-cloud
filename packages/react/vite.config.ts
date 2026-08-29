@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
@@ -12,11 +13,19 @@ function isExternal(id: string) {
     id.startsWith('react-dom/') ||
     id.startsWith('@open-pencil/') ||
     id === 'canvaskit-wasm' ||
-    id.startsWith('canvaskit-wasm/')
+    id.startsWith('canvaskit-wasm/') ||
+    id === 'nanostores' ||
+    id.startsWith('nanostores/') ||
+    id.startsWith('@nanostores/') ||
+    id === 'lucide-react' ||
+    id === 'tailwind-variants' ||
+    id === 'tailwind-merge' ||
+    id === 'react-resizable-panels'
   )
 }
 
 export default defineConfig({
+  root: __dirname,
   plugins: [
     {
       name: 'copy-canvaskit-wasm',
@@ -30,7 +39,8 @@ export default defineConfig({
         }
       }
     },
-    react()
+    react(),
+    tailwindcss()
   ],
   resolve: {
     alias: {

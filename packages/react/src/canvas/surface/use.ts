@@ -131,7 +131,7 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
       if (!state.surface) {
         if (createSurface(editor, target, state, nextOptions) && state.renderer) {
           void state.renderer.loadFonts(() => loop.markDirty()).then(() => {
-            if (!destroyed) loop.markDirty()
+            if (!destroyed) renderNow()
             return undefined
           })
         }
@@ -139,7 +139,7 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
       }
 
       state.renderer.replaceSurface(state.surface)
-      loop.markDirty()
+      renderNow()
     }
 
     let resizeRaf = 0
@@ -160,7 +160,7 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
 
       await state.renderer.loadFonts(() => loop.markDirty())
       if (destroyed) return
-      loop.markDirty()
+      renderNow()
       optionsRef.current?.onReady?.()
     })()
 
