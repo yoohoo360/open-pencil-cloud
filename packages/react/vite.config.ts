@@ -43,8 +43,11 @@ function workspaceSourceAliases() {
   ]
 }
 
+const repoRoot = resolve(__dirname, '../..')
+
 export default defineConfig(({ command }) => ({
   root: __dirname,
+  publicDir: resolve(__dirname, 'public'),
   plugins: [
     {
       name: 'copy-canvaskit-wasm',
@@ -69,7 +72,10 @@ export default defineConfig(({ command }) => ({
     ]
   },
   server: {
-    port: 3334
+    port: 3334,
+    fs: {
+      allow: [__dirname, repoRoot]
+    }
   },
   build: {
     lib: {
