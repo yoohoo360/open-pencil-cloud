@@ -28,6 +28,7 @@ import { FloatingMenu } from '#react/components/properties/variables/FloatingMen
 import { SegmentedControl } from '#react/components/ui/SegmentedControl'
 import { useMenuUI } from '#react/components/ui/menu'
 import { ASSET_GRID_THUMBNAIL_SIZE, ASSET_LIST_THUMBNAIL_SIZE } from '#react/constants'
+import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useI18n } from '#react/i18n'
 import { libraryAPI, type RemoteLibraryCatalogItem } from '#react/lib/client'
 
@@ -47,6 +48,7 @@ export function AssetsPanel() {
   const [addOpen, setAddOpen] = useState(false)
   const [catalog, setCatalog] = useState<RemoteLibraryCatalogItem[]>([])
   const [catalogLoading, setCatalogLoading] = useState(false)
+  const scrollRef = useOverlayScrollbar<HTMLDivElement>()
 
   const libraries = useMemo(
     () => listAssetLibraries(store.graph, panels.createdInThisFile),
@@ -168,7 +170,10 @@ export function AssetsPanel() {
         </div>
       ) : null}
 
-      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
+      <div
+        ref={scrollRef}
+        className="scrollbar-overlay flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2"
+      >
         {!activeLibKey ? (
           <div className="space-y-1">
             {libraries.map((libItem) => (

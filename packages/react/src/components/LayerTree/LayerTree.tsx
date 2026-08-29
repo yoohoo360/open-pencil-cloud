@@ -1,18 +1,51 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { tv } from 'tailwind-variants'
 
 import { nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
+import { DropIndicator } from '#react/components/LayerTree/DropIndicator'
+import { useLayerDrag } from '#react/components/LayerTree/useLayerDrag'
+import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
+import theme from '#react/theme/layer-tree'
 
-function LayerRow({ id, depth }: { id: string; depth: number }) {
+const INDENT_PER_LEVEL = 16
+
+function LayerRow({
+  id,
+  depth,
+  draggingId,
+  instruction,
+  instructionTargetId,
+  setupItem
+}: {
+  id: string
+  depth: number
+  draggingId: string | null
+  instruction: ReturnType<typeof useLayerDrag>['instruction']
+  instructionTargetId: string | null
+  setupItem: ReturnType<typeof useLayerDrag>['setupItem']
+}) {
   const store = useEditorStore()
   const node = useSceneComputed(() => store.graph.getNode(id) ?? null)
   const children = useSceneComputed(() => store.graph.getChildren(id))
   const renaming = store.state.renameNodeId === id
+  const rowRef = useRef<HTMLDivElement>(null)
+  const hasChildren = children.length > 0
+  const level = depth + 1
+
+  useEffect(() => setupItem(rowRef.current, { id, level, hasChildren }), [hasChildren, id, level, setupItem])
+
   if (!node) return null
   const selected = store.state.selectedIds.has(id)
   const Icon = nodeIcon(node)
+  const childDropTarget = instructionTargetId === id && instruction?.type === 'make-child'
+  const styles = tv(theme)({
+    selected,
+    dragging: draggingId === id,
+    childDropTarget
+  })
 
   function commitRename(value: string) {
     const name = value.trim()
@@ -36,14 +69,18 @@ function LayerRow({ id, depth }: { id: string; depth: number }) {
   return (
     <div>
       <div
+        ref={rowRef}
         data-test-id="layers-item"
+        data-slot="row"
         data-node-id={id}
         data-selected={selected || undefined}
-        className="flex w-full cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-left text-[11px] text-surface hover:bg-hover data-selected:bg-panel-selected-muted"
-        style={{ paddingLeft: `${8 + depth * 12}px` }}
+        data-dragging={draggingId === id || undefined}
+        data-drop-position={childDropTarget ? 'child' : undefined}
+        className={styles.row()}
+        style={{ paddingLeft: `${depth * INDENT_PER_LEVEL}px` }}
         onClick={() => store.select([id])}
       >
-        <Icon className="size-3 shrink-0 text-muted" />
+        <Icon data-slot="icon" className={styles.icon()} />
         {renaming ? (
           <input
             autoFocus
@@ -54,11 +91,27 @@ function LayerRow({ id, depth }: { id: string; depth: number }) {
             onKeyDown={onRenameKeyDown}
           />
         ) : (
-          <span className="truncate">{node.name}</span>
+          <span data-slot="label" className={styles.label()}>
+            {node.name}
+          </span>
         )}
+        <DropIndicator
+          active={instructionTargetId === id}
+          instruction={instruction}
+          level={level}
+          indent={INDENT_PER_LEVEL}
+        />
       </div>
       {children.map((child) => (
-        <LayerRow key={child.id} id={child.id} depth={depth + 1} />
+        <LayerRow
+          key={child.id}
+          id={child.id}
+          depth={depth + 1}
+          draggingId={draggingId}
+          instruction={instruction}
+          instructionTargetId={instructionTargetId}
+          setupItem={setupItem}
+        />
       ))}
     </div>
   )
@@ -68,6 +121,11 @@ export function LayerTree({ className }: { className?: string }) {
   const store = useEditorStore()
   const children = useSceneComputed(() => store.graph.getChildren(store.state.currentPageId))
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const scrollRef = useOverlayScrollbar<HTMLDivElement>()
+  const { draggingId, instruction, instructionTargetId, setupItem } = useLayerDrag(
+    store,
+    INDENT_PER_LEVEL
+  )
 
   function onContextMenu(event: MouseEvent) {
     event.preventDefault()
@@ -81,12 +139,21 @@ export function LayerTree({ className }: { className?: string }) {
 
   return (
     <div
+      ref={scrollRef}
       data-test-id="layers-tree"
-      className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 ${className ?? ''}`}
+      className={`scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-1 pb-2 ${className ?? ''}`}
       onContextMenu={onContextMenu}
     >
       {children.map((child) => (
-        <LayerRow key={child.id} id={child.id} depth={0} />
+        <LayerRow
+          key={child.id}
+          id={child.id}
+          depth={0}
+          draggingId={draggingId}
+          instruction={instruction}
+          instructionTargetId={instructionTargetId}
+          setupItem={setupItem}
+        />
       ))}
       {contextMenu ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />

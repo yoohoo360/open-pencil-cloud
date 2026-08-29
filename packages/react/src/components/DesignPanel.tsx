@@ -27,6 +27,7 @@ import { PanelHeader } from '#react/components/ui/panel/PanelHeader'
 import { Tip } from '#react/components/ui/Tip'
 import { useEditorCommands } from '#react/editor/commands/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
+import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useI18n } from '#react/i18n'
 
 export function DesignPanel() {
@@ -35,6 +36,7 @@ export function DesignPanel() {
   const { getCommand } = useEditorCommands()
   const { panels } = useI18n()
   const [variablesOpen, setVariablesOpen] = useState(false)
+  const scrollRef = useOverlayScrollbar<HTMLDivElement>()
   const activeTool = store.state.activeTool
   const goToMainComponent = getCommand('selection.goToMainComponent')
   const detachInstance = getCommand('selection.detachInstance')
@@ -54,7 +56,7 @@ export function DesignPanel() {
   if (activeTool === 'FRAME') {
     return (
       <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4">
+        <div ref={scrollRef} className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4">
           <FramePresetsSection />
         </div>
       </div>
@@ -66,7 +68,8 @@ export function DesignPanel() {
       <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           data-test-id="design-panel-multi"
-          className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+          ref={scrollRef}
+          className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4"
         >
           <PanelHeader
             icon={<Layers3 className="size-3.5" aria-hidden="true" />}
@@ -94,7 +97,8 @@ export function DesignPanel() {
       <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           data-test-id="design-panel-single"
-          className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+          ref={scrollRef}
+          className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4"
         >
           <PanelHeader
             component={isComponentType}
@@ -157,7 +161,8 @@ export function DesignPanel() {
     <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         data-test-id="design-panel-empty"
-        className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
+        ref={scrollRef}
+        className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4"
       >
         <PageSection />
         <VariablesSection onOpenDialog={() => setVariablesOpen(true)} />
