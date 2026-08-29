@@ -19,6 +19,7 @@ import { PageSection } from '#react/components/properties/PageSection'
 import { PositionSection } from '#react/components/properties/PositionSection'
 import { SelectionActionsControl } from '#react/components/properties/SelectionActionsControl'
 import { StrokeSection } from '#react/components/properties/StrokeSection'
+import { TypographyContentField } from '#react/components/properties/TypographyContentField'
 import { TypographySection } from '#react/components/properties/TypographySection'
 import { VariablesSection } from '#react/components/properties/VariablesSection'
 import { VariablesDialog } from '#react/components/properties/variables/VariablesDialog'
@@ -112,6 +113,9 @@ export function DesignPanel() {
               {selectedNode.name}
             </span>
           </PanelHeader>
+          {selectedNode.type === 'TEXT' ? (
+            <TypographyContentField nodeId={selectedNode.id} text={selectedNode.text} />
+          ) : null}
           {selectedNode.type === 'INSTANCE' ? (
             <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
               <button

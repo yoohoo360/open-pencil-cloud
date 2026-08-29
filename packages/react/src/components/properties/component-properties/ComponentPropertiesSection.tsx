@@ -1,9 +1,10 @@
-import { MIXED } from '#react/controls/mixed'
-import { useComponentProperties } from '#react/controls/component-props'
-import { AppInput } from '#react/components/ui/AppInput'
+import { ComponentPropertyTextField } from '#react/components/properties/component-properties/ComponentPropertyTextField'
 import { AppSelect } from '#react/components/ui/AppSelect'
+import { AppSwitch } from '#react/components/ui/AppSwitch'
 import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
+import { useComponentProperties } from '#react/controls/component-props'
+import { MIXED } from '#react/controls/mixed'
 import { useI18n } from '#react/i18n'
 
 export function ComponentPropertiesSection() {
@@ -27,27 +28,23 @@ export function ComponentPropertiesSection() {
           return (
             <PanelFieldGroup key={control.id} label={control.name}>
               {control.type === 'TEXT' ? (
-                <AppInput
-                  defaultValue={control.value === MIXED ? '' : control.value}
-                  placeholder={control.value === MIXED ? panels.mixed : undefined}
-                  aria-label={control.name}
-                  data-property={control.id}
-                  key={`${control.id}:${control.value === MIXED ? 'mixed' : control.value}`}
-                  onBlur={(event) => {
-                    const next = event.currentTarget.value
-                    if (next !== '' && next !== control.value) setValue(control.id, next)
-                  }}
+                <ComponentPropertyTextField
+                  label={control.name}
+                  value={control.value === MIXED ? '' : control.value}
+                  propertyId={control.id}
+                  mixed={control.value === MIXED}
+                  mixedPlaceholder={panels.mixed}
+                  onCommit={(value) => setValue(control.id, value)}
                 />
               ) : null}
               {control.type === 'BOOLEAN' ? (
                 <div className="flex h-6 items-center">
-                  <input
-                    type="checkbox"
-                    className="accent-accent"
-                    aria-label={control.name}
-                    data-property={control.id}
+                  <AppSwitch
                     checked={control.value !== MIXED && control.value === 'true'}
-                    onChange={(event) => setValue(control.id, String(event.target.checked))}
+                    label={control.name}
+                    state={control.value === MIXED ? 'mixed' : 'idle'}
+                    data-property={control.id}
+                    onCheckedChange={(checked) => setValue(control.id, String(checked))}
                   />
                 </div>
               ) : null}

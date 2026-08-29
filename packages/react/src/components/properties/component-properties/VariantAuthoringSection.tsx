@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Copy, Minus, Plus, Settings2, Trash2 } from 'lucide-react'
+import type { ComponentPropertyType } from '@open-pencil/scene-graph'
 
-import { AppInput } from '#react/components/ui/AppInput'
+import { PropertySettingsPopover } from '#react/components/properties/component-properties/PropertySettingsPopover'
+import { VariantValueField } from '#react/components/properties/component-properties/VariantValueField'
 import { IconButton } from '#react/components/ui/IconButton'
-import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
+import { menuItem, useMenuUI } from '#react/components/ui/menu'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
-import { useVariantAuthoring } from '#react/controls/component-props'
+import { useVariantAuthoring, type VariantDefinitionControl } from '#react/controls/component-props'
 import { useI18n } from '#react/i18n'
 
 export function VariantAuthoringSection() {
@@ -17,36 +19,41 @@ export function VariantAuthoringSection() {
     addProperty,
     renameProperty,
     removeProperty,
-    reorderProperties,
     renameValue,
-    reorderValues,
-    setVariantValue,
+    setPropertyDefaultValue,
+    applyVariantValue,
     addVariant,
     duplicateVariant,
     removeVariant
   } = useVariantAuthoring()
   const { panels } = useI18n()
-  const [propertyNames, setPropertyNames] = useState<Record<string, string>>({})
-  const [propertyValues, setPropertyValues] = useState<Record<string, string>>({})
   const [selectedValues, setSelectedValues] = useState<Record<string, string>>({})
-  const [newPropertyName, setNewPropertyName] = useState('')
-  const [newPropertyValue, setNewPropertyValue] = useState('')
   const [mutationConflictIds, setMutationConflictIds] = useState<string[]>([])
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [settingsId, setSettingsId] = useState<string | null>(null)
+  const menuCls = useMenuUI({ content: 'absolute right-0 z-20 mt-1 min-w-40' })
+  const itemCls = menuItem({ justify: 'start' })
 
   useEffect(() => {
-    const names: Record<string, string> = {}
-    const values: Record<string, string> = {}
     const selected: Record<string, string> = {}
     for (const definition of definitions) {
-      names[definition.id] = definition.name
-      for (const value of definition.values) values[`${definition.id}:${value}`] = value
       selected[definition.id] =
-        variant?.componentPropertyValues[definition.name] ?? definition.values[0] ?? ''
+        variant?.componentPropertyValues[definition.name] ??
+        definition.defaultValue ??
+        definition.values[0] ??
+        ''
     }
-    setPropertyNames(names)
-    setPropertyValues(values)
     setSelectedValues(selected)
   }, [definitions, variant])
+
+  useEffect(() => {
+    if (!addMenuOpen) return
+    function close() {
+      setAddMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [addMenuOpen])
 
   if (!active) return null
 
@@ -55,175 +62,140 @@ export function VariantAuthoringSection() {
     ...mutationConflictIds
   ])
   const selectedHasConflict = variant?.id ? conflictIds.has(variant.id) : false
-
-  function moveProperty(propertyId: string, offset: -1 | 1) {
-    const ids = definitions.map((definition) => definition.id)
-    const index = ids.indexOf(propertyId)
-    const destination = index + offset
-    if (index === -1 || destination < 0 || destination >= ids.length) return
-    const [moved] = ids.splice(index, 1)
-    if (!moved) return
-    ids.splice(destination, 0, moved)
-    reorderProperties(ids)
+  const sectionLabel =
+    definitions.length === 0 || definitions.every((definition) => definition.type === 'VARIANT')
+      ? panels.variants
+      : panels.componentProperties
+  function createProperty(type: ComponentPropertyType) {
+    const presets = {
+      VARIANT: { name: panels.defaultVariantPropertyName, value: panels.defaultVariantPropertyValue },
+      BOOLEAN: { name: panels.defaultBooleanPropertyName, value: 'true' },
+      TEXT: { name: panels.defaultTextPropertyName, value: '' },
+      INSTANCE_SWAP: { name: panels.defaultInstanceSwapPropertyName, value: '' }
+    }
+    const preset = presets[type]
+    addProperty(type, preset.name, preset.value)
+    setAddMenuOpen(false)
   }
 
-  function moveValue(propertyId: string, value: string, offset: -1 | 1) {
-    const definition = definitions.find((item) => item.id === propertyId)
-    if (!definition) return
-    const values = [...definition.values]
-    const index = values.indexOf(value)
-    const destination = index + offset
-    if (index === -1 || destination < 0 || destination >= values.length) return
-    const [moved] = values.splice(index, 1)
-    if (!moved) return
-    values.splice(destination, 0, moved)
-    reorderValues(propertyId, values)
+  function commitSelectedValue(propertyId: string, value: string) {
+    setSelectedValues((current) => ({ ...current, [propertyId]: value }))
+    const result = applyVariantValue(propertyId, value)
+    setMutationConflictIds(result.kind === 'conflict' ? result.componentIds : [])
+    if (result.kind === 'invalid' || result.kind === 'conflict') {
+      const definition = definitions.find((item) => item.id === propertyId)
+      setSelectedValues((current) => ({
+        ...current,
+        [propertyId]: variant?.componentPropertyValues[definition?.name ?? ''] ?? ''
+      }))
+    }
   }
 
-  function createProperty() {
-    const name = newPropertyName.trim()
-    const value = newPropertyValue.trim()
-    if (!name || !value) return
-    addProperty(name, value)
-    setNewPropertyName('')
-    setNewPropertyValue('')
-  }
+  const propertyTypes: { type: ComponentPropertyType; label: string }[] = [
+    { type: 'VARIANT', label: panels.propertyTypeVariant },
+    { type: 'BOOLEAN', label: panels.propertyTypeBoolean },
+    { type: 'TEXT', label: panels.propertyTypeText },
+    { type: 'INSTANCE_SWAP', label: panels.propertyTypeInstanceSwap }
+  ]
 
   return (
     <PanelSection
-      label={panels.variants}
-      empty={definitions.length === 0}
+      label={sectionLabel}
+      titleClass="text-component"
       actions={
         <>
-          <IconButton
-            label={variant ? panels.duplicateVariant : panels.addVariant}
-            onClick={() => (variant ? duplicateVariant() : addVariant())}
-          >
-            <Plus className="size-3.5" />
-          </IconButton>
-          {variant ? (
-            <IconButton label={panels.removeVariant} onClick={() => removeVariant()}>
-              <Trash2 className="size-3.5" />
+          <div className="relative" onPointerDown={(event) => event.stopPropagation()}>
+            <IconButton
+              label={panels.addComponentProperty}
+              active={addMenuOpen}
+              onClick={() => setAddMenuOpen((open) => !open)}
+            >
+              <Plus className="size-3.5" />
             </IconButton>
+            {addMenuOpen ? (
+              <div className={menuCls.content}>
+                {variant ? (
+                  <button
+                    type="button"
+                    className={itemCls}
+                    onClick={() => {
+                      duplicateVariant()
+                      setAddMenuOpen(false)
+                    }}
+                  >
+                    {panels.duplicateVariant}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={itemCls}
+                    onClick={() => {
+                      addVariant()
+                      setAddMenuOpen(false)
+                    }}
+                  >
+                    {panels.addVariant}
+                  </button>
+                )}
+                <div className={menuCls.separator} />
+                {propertyTypes.map((item) => (
+                  <button
+                    key={item.type}
+                    type="button"
+                    className={itemCls}
+                    onClick={() => createProperty(item.type)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {variant ? (
+            <>
+              <IconButton label={panels.duplicateVariant} onClick={() => duplicateVariant()}>
+                <Copy className="size-3.5" />
+              </IconButton>
+              <IconButton label={panels.removeVariant} onClick={() => removeVariant()}>
+                <Trash2 className="size-3.5" />
+              </IconButton>
+            </>
           ) : null}
         </>
       }
     >
-      {variant ? (
-        <div className="flex flex-col gap-1.5">
+      {definitions.length ? (
+        <div className="flex flex-col gap-1">
           {definitions.map((definition) => (
-            <PanelFieldGroup key={definition.id} label={definition.name}>
-              <AppInput
-                value={selectedValues[definition.id] ?? ''}
-                aria-label={definition.name}
-                data-property={definition.id}
-                onChange={(event) =>
-                  setSelectedValues((current) => ({
-                    ...current,
-                    [definition.id]: event.target.value
-                  }))
-                }
-                onBlur={() => {
-                  const value = selectedValues[definition.id]?.trim()
-                  if (!value) return
-                  const result = setVariantValue(definition.id, value)
-                  setMutationConflictIds(result.kind === 'conflict' ? result.componentIds : [])
-                }}
-              />
-            </PanelFieldGroup>
-          ))}
-          {selectedHasConflict ? (
-            <p role="alert" className="rounded bg-danger/10 px-2 py-1.5 text-[10px] leading-4 text-danger">
-              {panels.duplicateVariantValues}. {panels.variantConflictHelp}.
-            </p>
-          ) : null}
-        </div>
-      ) : definitions.length ? (
-        <div className="flex flex-col gap-2">
-          {definitions.map((definition) => (
-            <div
+            <PropertyRow
               key={definition.id}
-              className="flex flex-col gap-1.5 rounded border border-border p-1.5"
-              data-property={definition.id}
-            >
-              <div className="flex items-center gap-1">
-                <AppInput
-                  value={propertyNames[definition.id] ?? definition.name}
-                  aria-label={panels.variantPropertyName}
-                  onChange={(event) =>
-                    setPropertyNames((current) => ({
-                      ...current,
-                      [definition.id]: event.target.value
-                    }))
-                  }
-                  onBlur={() => {
-                    const name = propertyNames[definition.id]?.trim()
-                    if (!name || !renameProperty(definition.id, name)) {
-                      setPropertyNames((current) => ({ ...current, [definition.id]: definition.name }))
-                    }
-                  }}
-                />
-                <IconButton
-                  label={panels.moveVariantPropertyUp}
-                  disabled={definitions[0]?.id === definition.id}
-                  onClick={() => moveProperty(definition.id, -1)}
-                >
-                  <ChevronUp className="size-3.5" />
-                </IconButton>
-                <IconButton
-                  label={panels.moveVariantPropertyDown}
-                  disabled={definitions.at(-1)?.id === definition.id}
-                  onClick={() => moveProperty(definition.id, 1)}
-                >
-                  <ChevronDown className="size-3.5" />
-                </IconButton>
-                <IconButton
-                  label={panels.removeVariantProperty}
-                  onClick={() => removeProperty(definition.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </IconButton>
-              </div>
-              {definition.values.map((value, valueIndex) => (
-                <div key={value} className="flex items-center gap-1">
-                  <AppInput
-                    value={propertyValues[`${definition.id}:${value}`] ?? value}
-                    aria-label={`${definition.name}: ${value}`}
-                    onChange={(event) =>
-                      setPropertyValues((current) => ({
-                        ...current,
-                        [`${definition.id}:${value}`]: event.target.value
-                      }))
-                    }
-                    onBlur={() => {
-                      const next = propertyValues[`${definition.id}:${value}`]?.trim()
-                      if (!next || !renameValue(definition.id, value, next)) {
-                        setPropertyValues((current) => ({
-                          ...current,
-                          [`${definition.id}:${value}`]: value
-                        }))
-                      }
-                    }}
+              definition={definition}
+              selectedValue={selectedValues[definition.id] ?? ''}
+              showValueField={Boolean(variant) && definition.type === 'VARIANT'}
+              invalid={selectedHasConflict && definition.type === 'VARIANT'}
+              settingsOpen={settingsId === definition.id}
+              onSelectValue={(value) => commitSelectedValue(definition.id, value)}
+              onToggleSettings={() =>
+                setSettingsId((current) => (current === definition.id ? null : definition.id))
+              }
+              onRemove={() => {
+                if (settingsId === definition.id) setSettingsId(null)
+                removeProperty(definition.id)
+              }}
+              settings={
+                settingsId === definition.id ? (
+                  <PropertySettingsPopover
+                    definition={definition}
+                    onClose={() => setSettingsId(null)}
+                    onRename={(name) => renameProperty(definition.id, name)}
+                    onRenameValue={(previous, next) => renameValue(definition.id, previous, next)}
+                    onSetDefaultValue={(value) => setPropertyDefaultValue(definition.id, value)}
                   />
-                  <IconButton
-                    label={panels.moveVariantValueUp}
-                    disabled={valueIndex === 0}
-                    onClick={() => moveValue(definition.id, value, -1)}
-                  >
-                    <ChevronUp className="size-3.5" />
-                  </IconButton>
-                  <IconButton
-                    label={panels.moveVariantValueDown}
-                    disabled={valueIndex === definition.values.length - 1}
-                    onClick={() => moveValue(definition.id, value, 1)}
-                  >
-                    <ChevronDown className="size-3.5" />
-                  </IconButton>
-                </div>
-              ))}
-            </div>
+                ) : null
+              }
+            />
           ))}
-          {diagnostics.length ? (
+          {selectedHasConflict || diagnostics.length ? (
             <p role="alert" className="rounded bg-danger/10 px-2 py-1.5 text-[10px] leading-4 text-danger">
               {panels.duplicateVariantValues}. {panels.variantConflictHelp}.
             </p>
@@ -232,36 +204,80 @@ export function VariantAuthoringSection() {
       ) : (
         <p className="py-1 text-[10px] text-muted">{panels.noVariantProperties}</p>
       )}
-
-      <form
-        className="mt-2 flex flex-col gap-1.5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          createProperty()
-        }}
-      >
-        <div className="grid grid-cols-2 gap-1">
-          <AppInput
-            value={newPropertyName}
-            placeholder={panels.variantPropertyName}
-            aria-label={panels.variantPropertyName}
-            onChange={(event) => setNewPropertyName(event.target.value)}
-          />
-          <AppInput
-            value={newPropertyValue}
-            placeholder={panels.variantPropertyValue}
-            aria-label={panels.variantPropertyValue}
-            onChange={(event) => setNewPropertyValue(event.target.value)}
-          />
-        </div>
-        <button
-          type="submit"
-          className="h-6 rounded bg-hover px-2 text-[10px] text-surface hover:bg-active disabled:opacity-50"
-          disabled={!newPropertyName.trim() || !newPropertyValue.trim()}
-        >
-          {panels.addVariantProperty}
-        </button>
-      </form>
     </PanelSection>
+  )
+}
+
+function propertyValuesLabel(definition: VariantDefinitionControl, selectedValue: string) {
+  if (definition.type === 'VARIANT') {
+    return definition.values.join(', ') || selectedValue
+  }
+  if (definition.type === 'BOOLEAN') return definition.defaultValue === 'true' ? 'true' : 'false'
+  return selectedValue || definition.defaultValue
+}
+
+function PropertyRow({
+  definition,
+  selectedValue,
+  showValueField,
+  invalid,
+  settingsOpen,
+  onSelectValue,
+  onToggleSettings,
+  onRemove,
+  settings
+}: {
+  definition: VariantDefinitionControl
+  selectedValue: string
+  showValueField: boolean
+  invalid: boolean
+  settingsOpen: boolean
+  onSelectValue: (value: string) => void
+  onToggleSettings: () => void
+  onRemove: () => void
+  settings: ReactNode
+}) {
+  const { panels } = useI18n()
+  const valuesLabel = propertyValuesLabel(definition, selectedValue)
+  return (
+    <div
+      className="relative flex items-center gap-0.5 overflow-visible rounded px-0.5"
+      data-property={definition.id}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        <span className="shrink-0 text-[11px] text-surface">{definition.name}</span>
+        {valuesLabel || showValueField ? (
+          <span className="shrink-0 text-[11px] text-muted" aria-hidden="true">
+            ·
+          </span>
+        ) : null}
+        {showValueField ? (
+          <div className="min-w-0 flex-1">
+            <VariantValueField
+              label={definition.name}
+              value={selectedValue}
+              options={definition.values}
+              invalid={invalid}
+              propertyId={definition.id}
+              onCommit={onSelectValue}
+            />
+          </div>
+        ) : valuesLabel ? (
+          <span className="min-w-0 truncate text-[11px] text-muted">{valuesLabel}</span>
+        ) : null}
+      </div>
+      <IconButton
+        size="xs"
+        label={panels.propertySettings}
+        active={settingsOpen}
+        onClick={onToggleSettings}
+      >
+        <Settings2 className="size-3.5" />
+      </IconButton>
+      <IconButton size="xs" label={panels.removeVariantProperty} onClick={onRemove}>
+        <Minus className="size-3.5" />
+      </IconButton>
+      {settings}
+    </div>
   )
 }

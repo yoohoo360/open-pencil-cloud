@@ -1,5 +1,6 @@
 import { Blend, Eye, EyeOff, SquareRoundCorner } from 'lucide-react'
 
+import { VisibilityPropertyBinding } from '#react/components/properties/component-properties/VisibilityPropertyBinding'
 import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { IconButton } from '#react/components/ui/IconButton'
 import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
@@ -34,13 +35,16 @@ export function AppearanceSection() {
     <PanelSection
       label={panels.appearance}
       actions={
-        <IconButton
-          label={panels.toggleVisibility}
-          active={hidden}
-          onClick={() => editor.toggleVisibility()}
-        >
-          {hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-        </IconButton>
+        <span className="inline-flex items-center gap-0.5">
+          <VisibilityPropertyBinding />
+          <IconButton
+            label={panels.toggleVisibility}
+            active={hidden}
+            onClick={() => editor.toggleVisibility()}
+          >
+            {hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+          </IconButton>
+        </span>
       }
     >
       <PanelGrid columns={2} distribution="wide-first">
