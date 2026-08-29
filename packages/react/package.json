@@ -1,0 +1,65 @@
+{
+  "name": "@open-pencil/react",
+  "version": "0.14.0",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "imports": {
+    "#react/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && bun run build:dts",
+    "build:dts": "bunx tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "check": "bun run typecheck && bun run build && bun run smoke:dist",
+    "prepack": "bun run build",
+    "smoke:dist": "bun scripts/smoke-dist.ts",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-pencil/open-pencil.git",
+    "directory": "packages/react"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "@open-pencil/core": "workspace:*",
+    "canvaskit-wasm": ">=0.41.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "canvaskit-wasm": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@open-pencil/scene-graph": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.1",
+    "typescript": "~5.8.3",
+    "vite": "8.1.4"
+  }
+}
