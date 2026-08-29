@@ -1,3 +1,4 @@
+import { loadDocumentLibraries } from '#react/app/document/libraries'
 import { openHttpDocument } from '#react/app/document/open-http'
 import { requestLocalFontAccess } from '#react/app/editor/fonts'
 import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
@@ -28,6 +29,8 @@ export default function DocumentView() {
         try {
           await requestLocalFontAccess()
           await openHttpDocument(store, documentMeta)
+          await loadDocumentLibraries(store, fileKey)
+          store.notify()
         } catch (reason) {
           console.warn('[Document] Remote fig is unavailable, opening empty canvas', reason)
         }

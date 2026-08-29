@@ -14,9 +14,13 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "moduleSuffixes": [".override", ""],
     "paths": {
       "#react/*": ["./src/*"],
-      "@open-pencil/react": ["./src/index.ts"]
+      "#core/*": ["../core/src/*"],
+      "@open-pencil/react": ["./src/index.ts"],
+      "@open-pencil/core": ["../core/src/index.ts"],
+      "@open-pencil/core/*": ["../core/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "app/**/*.ts", "app/**/*.tsx"],

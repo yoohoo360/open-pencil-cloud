@@ -18,7 +18,8 @@
     "README.md"
   ],
   "imports": {
-    "#react/*": "./src/*"
+    "#react/*": "./src/*",
+    "#core/*": "../core/src/*"
   },
   "scripts": {
     "dev": "vite --config ./vite.config.ts --port 3000 --strictPort",

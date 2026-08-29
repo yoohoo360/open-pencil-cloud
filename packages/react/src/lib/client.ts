@@ -69,6 +69,21 @@ export type CreateDocumentRequest = {
   project_id?: string
 }
 
+export type RemoteLibraryCatalogItem = {
+  id?: string
+  key: string
+  name: string
+  url: string
+  version?: string
+  thumbnail_url?: string
+}
+
+export type AttachDocumentLibraryRequest = {
+  library_key: string
+  document_version?: string
+  library_version?: string
+}
+
 type RetryRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean }
 
 const http = axios.create({
@@ -269,6 +284,13 @@ export const apiClient = {
   ): Promise<APIResponse<T>> {
     return unwrap<T>(http.post(url, data, config), config)
   },
+  put<T = unknown>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<APIResponse<T>> {
+    return unwrap<T>(http.put(url, data, config), config)
+  },
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     return unwrap<T>(http.delete(url, config), config)
   }
@@ -310,6 +332,26 @@ export const documentAPI = {
   },
   delete(key: string): Promise<APIResponse<void>> {
     return apiClient.delete(`/api/document/${key}`)
+  },
+  listLibraries(
+    fileKey: string,
+    documentVersion?: string
+  ): Promise<APIResponse<RemoteLibraryCatalogItem[]>> {
+    return apiClient.get<RemoteLibraryCatalogItem[]>(`/api/document/${fileKey}/library`, {
+      params: documentVersion ? { document_version: documentVersion } : undefined
+    })
+  },
+  attachLibrary(
+    fileKey: string,
+    data: AttachDocumentLibraryRequest
+  ): Promise<APIResponse<void>> {
+    return apiClient.put(`/api/document/${fileKey}/library`, data)
+  }
+}
+
+export const libraryAPI = {
+  list(): Promise<APIResponse<RemoteLibraryCatalogItem[]>> {
+    return apiClient.get<RemoteLibraryCatalogItem[]>('/api/libraries/list')
   }
 }
 

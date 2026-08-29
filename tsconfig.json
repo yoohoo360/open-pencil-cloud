@@ -20,6 +20,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "moduleSuffixes": [".override", ""],
     "paths": {
       "@/*": [
         "./src/*"
@@ -27,6 +28,9 @@
       "#vue/*": [
         "./packages/vue/src/*",
         "./packages/vue/src/*.vue"
+      ],
+      "#react/*": [
+        "./packages/react/src/*"
       ],
       "#core/*": [
         "./packages/core/src/*"

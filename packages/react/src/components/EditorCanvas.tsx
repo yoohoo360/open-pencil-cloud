@@ -1,5 +1,6 @@
 import { createCanvasContextSelection } from '#react/app/editor/canvas/context-selection'
 import { useEditorStore } from '#react/app/editor/store'
+import { useCanvasDrop } from '#react/canvas/drop/use'
 import { useCanvas } from '#react/canvas/surface/use'
 import { useTextEdit } from '#react/canvas/text-edit/use'
 import { useCanvasInput } from '#react/canvas/useCanvasInput'
@@ -70,6 +71,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
     () => isActivePane
   )
   useTextEdit(canvasRef, store, { isEnabled: () => isActivePane })
+  useCanvasDrop(canvasRef, store, activatePane)
 
   useEffect(() => {
     if (!isActivePane) cleanupInteractions()

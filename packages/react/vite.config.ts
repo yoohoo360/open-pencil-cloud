@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 import { AUTOMATION_HTTP_PORT } from '../../packages/core/src/constants'
+import { overrideAliasPlugin } from '../../vite/override-alias'
 
 function isExternal(id: string) {
   return (
@@ -59,6 +60,7 @@ export default defineConfig(({ command }) => ({
   root: __dirname,
   publicDir: resolve(__dirname, 'public'),
   plugins: [
+    overrideAliasPlugin(),
     {
       name: 'copy-canvaskit-wasm',
       buildStart() {
@@ -78,6 +80,7 @@ export default defineConfig(({ command }) => ({
     alias: [
       { find: '@open-pencil/react', replacement: resolve(__dirname, 'src/index.ts') },
       { find: '#react', replacement: resolve(__dirname, 'src') },
+      { find: '#core', replacement: resolve(repoRoot, 'packages/core/src') },
       ...(command === 'serve' ? workspaceSourceAliases() : [])
     ]
   },

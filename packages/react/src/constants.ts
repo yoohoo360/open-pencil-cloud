@@ -1,5 +1,9 @@
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
+export const ASSET_GRID_THUMBNAIL_SIZE = 96
+export const ASSET_LIST_THUMBNAIL_SIZE = 40
+export const ASSET_THUMBNAIL_RENDER_SCALE = 2
+
 export const ACTION_TOAST_DURATION = 800
 export const HALF_FRAC = 3 / 7
 export const HUD_TOP = 12 + 32 + 6 + 32 + 12

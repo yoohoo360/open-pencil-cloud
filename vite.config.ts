@@ -11,6 +11,7 @@ import packageJson from './package.json'
 import { AUTOMATION_HTTP_PORT } from './packages/core/src/constants'
 import { devAutomationRoute } from './src/app/automation/bridge/portless-route'
 import { createOpenPencilAliases } from './vite/aliases'
+import { overrideAliasPlugin } from './vite/override-alias'
 import { localAutomationToken, openPencilAutomationPlugin } from './vite/automation'
 import { copyCanvasKitAssetsPlugin } from './vite/canvaskit-assets'
 import { openPencilPwaPlugin } from './vite/pwa'
@@ -33,6 +34,7 @@ export default defineConfig(async ({ command }) => ({
     )
   },
   plugins: [
+    overrideAliasPlugin(),
     rawMarkdownPlugin(),
     copyCanvasKitAssetsPlugin(),
     tailwindcss(),

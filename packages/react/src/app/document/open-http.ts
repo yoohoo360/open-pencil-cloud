@@ -10,6 +10,7 @@ export async function openHttpDocument(
 ): Promise<void> {
   const name = documentMeta?.name || 'Untitled'
   store.state.documentName = name
+  store.state.documentVersion = documentMeta?.version ?? ''
   store.state.loading = true
   store.notify()
   try {
