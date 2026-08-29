@@ -2,17 +2,10 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LoaderCircle, Pencil } from 'lucide-react'
 
+import { safeRedirect } from '#react/app/auth/redirect'
 import { readRememberedUsername, writeRememberedUsername } from '#react/app/auth/storage'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
-
-function safeRedirect(value: string | null): string {
-  if (!value) return '/dashboard'
-  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/login')) {
-    return '/dashboard'
-  }
-  return value
-}
 
 export default function LoginView() {
   const { auth } = useI18n()

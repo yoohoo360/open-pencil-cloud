@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
+import { loginPathWithRedirect, safeRedirect } from '#react/app/auth/redirect'
 import '#react/app/shell/theme'
 import { hasAccessToken } from '#react/lib/client'
 import CanvasView from './view/CanvasView'
@@ -11,14 +12,17 @@ import LoginView from './view/LoginView'
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (!hasAccessToken()) {
-    const redirect = encodeURIComponent(`${location.pathname}${location.search}`)
-    return <Navigate to={`/login?redirect=${redirect}`} replace/>
+    return <Navigate to={loginPathWithRedirect(location.pathname, location.search)} replace/>
   }
   return children
 }
 
 function GuestOnly({ children }: { children: ReactNode }) {
-  if (hasAccessToken()) return <Navigate to="/dashboard" replace/>
+  const location = useLocation()
+  if (hasAccessToken()) {
+    const redirect = new URLSearchParams(location.search).get('redirect')
+    return <Navigate to={safeRedirect(redirect)} replace/>
+  }
   return children
 }
 

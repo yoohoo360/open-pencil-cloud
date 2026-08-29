@@ -1,4 +1,5 @@
 import { writeStoredUserJSON } from '#react/app/auth/storage'
+import { loginPathWithRedirect } from '#react/app/auth/redirect'
 import axios, {
   type AxiosError,
   type AxiosRequestConfig,
@@ -104,7 +105,7 @@ function clearTokensAndRedirect(): void {
   clearTokens()
   if (typeof window === 'undefined') return
   if (window.location.pathname.includes('/login')) return
-  window.location.href = '/login'
+  window.location.href = loginPathWithRedirect(window.location.pathname, window.location.search)
 }
 
 function requestPath(config?: AxiosRequestConfig): string {
