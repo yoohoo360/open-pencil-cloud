@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} calques concernés",
   "fontSettingsDesktopDescription": "Accédez aux polices système, aux fournisseurs en ligne, aux packs de secours et aux téléchargements en cache.",
   "fontSettingsBrowserDescription": "Autorisez l’accès du navigateur aux polices locales et gérez les fournisseurs de polices en ligne.",
+  "fontSettingsLocalDescription": "Autorisez l’accès du navigateur aux polices locales et intégrées. Les fournisseurs de polices en ligne ne sont pas utilisés dans cet éditeur.",
   "localFonts": "Polices locales",
   "onlineFonts": "Polices en ligne",
   "downloadedCache": "Cache téléchargé",

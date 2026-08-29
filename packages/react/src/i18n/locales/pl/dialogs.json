@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} warstw z problemem",
   "fontSettingsDesktopDescription": "Uzyskaj dostęp do czcionek systemowych, dostawców online, pakietów zapasowych i pobranych plików w pamięci podręcznej.",
   "fontSettingsBrowserDescription": "Zezwól przeglądarce na dostęp do lokalnych czcionek i zarządzaj dostawcami czcionek online.",
+  "fontSettingsLocalDescription": "Zezwól przeglądarce na dostęp do lokalnych i dołączonych czcionek. Ten edytor nie korzysta z dostawców czcionek online.",
   "localFonts": "Czcionki lokalne",
   "onlineFonts": "Czcionki online",
   "downloadedCache": "Pobrana pamięć podręczna",

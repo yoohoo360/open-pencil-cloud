@@ -9,6 +9,15 @@ function createDemoStore() {
   store.createShape('FRAME', 100, 100, 640, 400)
   store.createShape('RECTANGLE', 180, 180, 240, 140)
   store.createShape('ELLIPSE', 500, 250, 120, 120)
+  const textId = store.createShape('TEXT', 180, 340, 280, 48)
+  store.updateNode(textId, {
+    name: 'Headline',
+    text: 'Headline',
+    fontFamily: 'Inter',
+    fontSize: 32,
+    fontWeight: 700
+  })
+  store.select([textId])
   store.zoomToFit()
   return store
 }

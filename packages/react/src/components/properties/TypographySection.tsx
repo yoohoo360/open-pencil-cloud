@@ -1,4 +1,16 @@
-import { useEffect, useState } from 'react'
+import { FontPicker } from '#react/components/font-picker/FontPicker'
+import { FontSettingsPopover } from '#react/components/font-settings/FontSettingsPopover'
+import { NumberField } from '#react/components/inputs/NumberField'
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
+import { AppSelect } from '#react/components/ui/AppSelect'
+import { IconButton } from '#react/components/ui/IconButton'
+import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
+import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
+import { PanelSection } from '#react/components/ui/panel/PanelSection'
+import { SegmentedControl } from '#react/components/ui/SegmentedControl'
+import { Tip } from '#react/components/ui/Tip'
+import { useTypography } from '#react/controls/typography'
+import { useI18n } from '#react/i18n'
 import {
   AlignCenter,
   AlignJustify,
@@ -14,27 +26,10 @@ import {
   Underline
 } from 'lucide-react'
 
-import { NumberField } from '#react/components/inputs/NumberField'
-import { VariableNumberField } from '#react/components/properties/VariableNumberField'
-import { AppInput } from '#react/components/ui/AppInput'
-import { AppSelect } from '#react/components/ui/AppSelect'
-import { IconButton } from '#react/components/ui/IconButton'
-import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
-import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
-import { PanelSection } from '#react/components/ui/panel/PanelSection'
-import { SegmentedControl } from '#react/components/ui/SegmentedControl'
-import { Tip } from '#react/components/ui/Tip'
-import { useTypography } from '#react/controls/typography'
-import { useI18n } from '#react/i18n'
-
 export function TypographySection() {
   const ctx = useTypography()
   const { panels, menu } = useI18n()
   const node = ctx.node
-  const [familyDraft, setFamilyDraft] = useState(node?.fontFamily ?? '')
-  useEffect(() => {
-    setFamilyDraft(node?.fontFamily ?? '')
-  }, [node?.id, node?.fontFamily])
   if (!node || node.type !== 'TEXT') return null
 
   const alignmentOptions = [
@@ -71,22 +66,16 @@ export function TypographySection() {
   return (
     <PanelSection label={panels.typography}>
       <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
-        <AppInput
-          className="min-w-0 flex-1"
-          aria-label={panels.fontFamily}
-          value={familyDraft}
-          onChange={(event) => setFamilyDraft(event.target.value)}
-          onBlur={() => {
-            const family = familyDraft.trim()
-            if (family && family !== node.fontFamily) void ctx.setFamily(family)
-            else setFamilyDraft(node.fontFamily)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-          }}
+        <FontPicker
+          value={node.fontFamily}
+          label={panels.fontFamily}
+          onSelect={(family) => void ctx.setFamily(family)}
         />
+        {/*<FontSettingsPopover />*/}
         {ctx.hasMissingFonts ? (
-          <Tip label={`Missing font${ctx.missingFonts.length > 1 ? 's' : ''}: ${ctx.missingFonts.join(', ')}`}>
+          <Tip
+            label={`Missing font${ctx.missingFonts.length > 1 ? 's' : ''}: ${ctx.missingFonts.join(', ')}`}
+          >
             <TriangleAlert
               role="img"
               aria-label={`Missing font${ctx.missingFonts.length > 1 ? 's' : ''}: ${ctx.missingFonts.join(', ')}`}
@@ -177,7 +166,8 @@ export function TypographySection() {
           onChange={(value) => ctx.setVerticalAlign(value as typeof node.textAlignVertical)}
           renderOption={(option) => {
             if (option.value === 'TOP') return <AlignVerticalJustifyStart className="size-3.5" />
-            if (option.value === 'CENTER') return <AlignVerticalJustifyCenter className="size-3.5" />
+            if (option.value === 'CENTER')
+              return <AlignVerticalJustifyCenter className="size-3.5" />
             return <AlignVerticalJustifyEnd className="size-3.5" />
           }}
         />

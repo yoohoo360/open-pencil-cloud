@@ -236,6 +236,7 @@
   "affectedLayerCount": "{count} betroffene Ebenen",
   "fontSettingsDesktopDescription": "Auf Systemschriften, Online-Anbieter, Fallback-Pakete und zwischengespeicherte Downloads zugreifen.",
   "fontSettingsBrowserDescription": "Browserzugriff auf lokale Schriften erlauben und Online-Schriftanbieter verwalten.",
+  "fontSettingsLocalDescription": "Browserzugriff auf lokale und gebündelte Schriften erlauben. Online-Schriftanbieter werden in diesem Editor nicht verwendet.",
   "localFonts": "Lokale Schriften",
   "onlineFonts": "Online-Schriften",
   "downloadedCache": "Download-Cache",

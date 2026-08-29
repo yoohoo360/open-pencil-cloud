@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} livelli interessati",
   "fontSettingsDesktopDescription": "Accedi ai font di sistema, ai provider online, ai pacchetti di fallback e ai download nella cache.",
   "fontSettingsBrowserDescription": "Consenti al browser di accedere ai font locali e gestisci i provider di font online.",
+  "fontSettingsLocalDescription": "Consenti al browser di accedere ai font locali e in bundle. Questo editor non usa provider di font online.",
   "localFonts": "Font locali",
   "onlineFonts": "Font online",
   "downloadedCache": "Cache scaricata",

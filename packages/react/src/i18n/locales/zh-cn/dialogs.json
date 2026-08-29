@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} 个受影响图层",
   "fontSettingsDesktopDescription": "访问系统字体、在线提供商、后备字体包和缓存下载。",
   "fontSettingsBrowserDescription": "允许浏览器访问本地字体，并管理在线字体提供商。",
+  "fontSettingsLocalDescription": "允许浏览器访问本地字体和内置字体。此编辑器不使用在线字体提供商。",
   "localFonts": "本地字体",
   "onlineFonts": "在线字体",
   "downloadedCache": "下载缓存",

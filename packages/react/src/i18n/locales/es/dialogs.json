@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} capas afectadas",
   "fontSettingsDesktopDescription": "Accede a fuentes del sistema, proveedores en línea, paquetes de respaldo y descargas en caché.",
   "fontSettingsBrowserDescription": "Permite al navegador acceder a fuentes locales y gestiona proveedores de fuentes en línea.",
+  "fontSettingsLocalDescription": "Permite al navegador acceder a fuentes locales e incluidas. Este editor no usa proveedores de fuentes en línea.",
   "localFonts": "Fuentes locales",
   "onlineFonts": "Fuentes en línea",
   "downloadedCache": "Caché descargada",

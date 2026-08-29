@@ -82,6 +82,8 @@ export const dialogMessageDefaults = {
     'Access system fonts, online providers, fallback packs, and cached downloads.',
   fontSettingsBrowserDescription:
     'Allow browser access to local fonts and manage online font providers.',
+  fontSettingsLocalDescription:
+    'Allow browser access to local and bundled fonts. Online font providers are not used in this editor.',
   localFonts: 'Local fonts',
   onlineFonts: 'Online fonts',
   downloadedCache: 'Downloaded cache',

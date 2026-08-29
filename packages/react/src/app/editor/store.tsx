@@ -8,6 +8,8 @@ import { appPreferences } from '#react/app/settings/preferences'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
 import type { CanvasSplitNode, SplitDirection } from '#react/editor/panes/split-tree'
 
+import '#react/app/editor/fonts'
+
 export type AppEditorState = EditorState & {
   showUI: boolean
   showRulers: boolean

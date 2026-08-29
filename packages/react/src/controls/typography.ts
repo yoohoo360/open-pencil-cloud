@@ -1,9 +1,10 @@
 import { useRef } from 'react'
 
 import { DEFAULT_FONT_FAMILY } from '@open-pencil/core/constants'
-import { FONT_WEIGHT_NAMES, fontManager } from '@open-pencil/core/text'
+import { FONT_WEIGHT_NAMES, fontManager, weightToStyle } from '@open-pencil/core/text'
 import type { SceneNode, TextDecoration } from '@open-pencil/scene-graph'
 
+import { loadFont } from '#react/app/editor/fonts'
 import { useEditor } from '#react/editor/context'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 
@@ -29,12 +30,14 @@ export function useTypography() {
 
   async function setFamily(family: string) {
     if (!node) return
+    await loadFont(family, weightToStyle(node.fontWeight, node.italic))
     editor.updateNodeWithUndo(node.id, { fontFamily: family }, 'Change font')
   }
 
   async function setWeight(weight: number) {
     if (!node) return
     editor.updateNodeWithUndo(node.id, { fontWeight: weight }, 'Change font weight')
+    await loadFont(node.fontFamily, weightToStyle(weight, node.italic))
   }
 
   function setAlign(align: TextAlign) {

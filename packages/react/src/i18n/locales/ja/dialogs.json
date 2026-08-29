@@ -232,6 +232,7 @@
   "affectedLayerCount": "{count} 個の該当レイヤー",
   "fontSettingsDesktopDescription": "システムフォント、オンラインプロバイダー、フォールバックパック、キャッシュ済みダウンロードにアクセスします。",
   "fontSettingsBrowserDescription": "ローカルフォントへのブラウザーアクセスを許可し、オンラインフォントプロバイダーを管理します。",
+  "fontSettingsLocalDescription": "ローカルフォントとバンドルフォントへのブラウザーアクセスを許可します。このエディターではオンラインフォントプロバイダーは使用しません。",
   "localFonts": "ローカルフォント",
   "onlineFonts": "オンラインフォント",
   "downloadedCache": "ダウンロード済みキャッシュ",
