@@ -33,7 +33,10 @@ function workspaceSourceAliases() {
       find: /^@open-pencil\/scene-graph$/,
       replacement: resolve(repoRoot, 'packages/scene-graph/src/index.ts')
     },
-    { find: '@open-pencil/scene-graph', replacement: resolve(repoRoot, 'packages/scene-graph/src') },
+    {
+      find: '@open-pencil/scene-graph',
+      replacement: resolve(repoRoot, 'packages/scene-graph/src')
+    },
     { find: /^@open-pencil\/pen$/, replacement: resolve(repoRoot, 'packages/pen/src/index.ts') },
     { find: '@open-pencil/pen', replacement: resolve(repoRoot, 'packages/pen/src') },
     { find: /^@open-pencil\/kiwi$/, replacement: resolve(repoRoot, 'packages/kiwi/src/index.ts') },
@@ -79,7 +82,6 @@ export default defineConfig(({ command }) => ({
     ]
   },
   server: {
-    port: 3334,
     fs: {
       allow: [__dirname, repoRoot]
     },

@@ -26,6 +26,7 @@ interface ImportMetaEnv {
   DEV: boolean
   PROD: boolean
   MODE: string
+  VITE_API_URL?: string
 }
 
 interface ImportMeta {

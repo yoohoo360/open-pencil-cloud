@@ -7,7 +7,8 @@ export {
   usePanelMessages,
   useVariableTypeMessages,
   usePageMessages,
-  useDialogMessages
+  useDialogMessages,
+  useAuthMessages
 } from '#react/i18n/useI18n'
 export { i18n } from '#react/i18n/create'
 export {

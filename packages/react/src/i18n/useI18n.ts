@@ -12,6 +12,7 @@ import {
   pageMessages,
   dialogMessages
 } from '#react/i18n/messages'
+import { authMessages } from '#react/i18n/messages/auth'
 
 export function useI18nNamespace<MessagesStore extends Store>(messages: MessagesStore) {
   return useStore(messages) as StoreValue<MessagesStore>
@@ -45,6 +46,10 @@ export function useDialogMessages() {
   return useI18nNamespace(dialogMessages)
 }
 
+export function useAuthMessages() {
+  return useI18nNamespace(authMessages)
+}
+
 export function useI18n() {
   return {
     menu: useMenuMessages(),
@@ -54,6 +59,7 @@ export function useI18n() {
     variableTypes: useVariableTypeMessages(),
     pages: usePageMessages(),
     dialogs: useDialogMessages(),
+    auth: useAuthMessages(),
     locale: useStore(locale) as Locale,
     availableLocales: AVAILABLE_LOCALES,
     localeLabels: LOCALE_LABELS,
