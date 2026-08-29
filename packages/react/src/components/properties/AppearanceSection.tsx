@@ -1,7 +1,7 @@
 import { Blend, Eye, EyeOff, SquareRoundCorner } from 'lucide-react'
 
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { IconButton } from '#react/components/ui/IconButton'
-import { NumberField } from '#react/components/inputs/NumberField'
 import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { useNodePropCommit } from '#react/components/properties/useNodePropCommit'
@@ -48,23 +48,27 @@ export function AppearanceSection() {
           <Blend className="size-3" />
           {panels.opacity}
         </div>
-        <NumberField
+        <VariableNumberField
           data-property="opacity"
           aria-label={panels.opacity}
           suffix="%"
           min={0}
           max={100}
           value={Math.round(node.opacity * 100)}
+          nodeId={node.id}
+          bindingPath="opacity"
           onCommit={(value) => editor.setOpacity(value / 100)}
         />
       </PanelGrid>
       {hasCorners ? (
         <PanelGrid columns={2} className="mt-1.5">
-          <NumberField
+          <VariableNumberField
             data-property="cornerRadius"
             aria-label={panels.radius}
             min={0}
             value={Math.round(node.cornerRadius)}
+            nodeId={node.id}
+            bindingPath="cornerRadius"
             onCommit={(value, previous) => commit('cornerRadius', value, previous)}
           />
           <div className="flex h-6 items-center text-[11px] text-muted">

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import type { LayoutAlign, LayoutDirection } from '@open-pencil/scene-graph'
 
-import { NumberField } from '#react/components/inputs/NumberField'
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { AppSelect } from '#react/components/ui/AppSelect'
 import {
   ClipContentControl
@@ -55,25 +55,31 @@ export function FlexControls() {
       <div className="mt-2 flex items-center gap-1.5">
         {node.layoutWrap === 'WRAP' ? (
           <>
-            <NumberField
+            <VariableNumberField
               min={0}
               value={Math.round(node.itemSpacing)}
               icon={<GapIcon className="size-3.5" />}
+              nodeId={node.id}
+              bindingPath="itemSpacing"
               onCommit={(value, previous) => ctx.commitProp('itemSpacing', value, previous)}
             />
-            <NumberField
+            <VariableNumberField
               min={0}
               value={Math.round(node.counterAxisSpacing)}
               icon={<CrossGapIcon className="size-3.5" />}
+              nodeId={node.id}
+              bindingPath="counterAxisSpacing"
               onCommit={(value, previous) => ctx.commitProp('counterAxisSpacing', value, previous)}
             />
           </>
         ) : (
-          <NumberField
+          <VariableNumberField
             min={0}
             value={Math.round(node.itemSpacing)}
             icon={<GapIcon className="size-3.5" />}
-            trailing={
+            nodeId={node.id}
+            bindingPath="itemSpacing"
+            afterVariable={
               <select
                 aria-label={panels.gap}
                 className="flex shrink-0 cursor-pointer self-stretch border-none bg-transparent px-1 text-[11px] text-muted outline-none"

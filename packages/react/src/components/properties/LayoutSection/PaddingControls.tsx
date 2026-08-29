@@ -9,7 +9,7 @@ import {
   SeparatorVertical
 } from 'lucide-react'
 
-import { NumberField } from '#react/components/inputs/NumberField'
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { useLayoutControlsContext } from '#react/controls/layout/use'
 
 type PaddingProp = 'paddingTop' | 'paddingRight' | 'paddingBottom' | 'paddingLeft'
@@ -29,21 +29,25 @@ export function PaddingControls() {
   if (!ctx.showIndividualPadding && ctx.hasSymmetricPadding) {
     return (
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-        <NumberField
+        <VariableNumberField
           data-property="paddingLeft"
           min={0}
           value={Math.round(node.paddingLeft)}
           icon={<SeparatorVertical className="size-3.5" />}
+          nodeId={node.id}
+          bindingPath="paddingLeft"
           onCommit={(value, previous) => {
             ctx.setHorizontalPadding(value)
             ctx.commitHorizontalPadding(value, previous)
           }}
         />
-        <NumberField
+        <VariableNumberField
           data-property="paddingTop"
           min={0}
           value={Math.round(node.paddingTop)}
           icon={<SeparatorHorizontal className="size-3.5" />}
+          nodeId={node.id}
+          bindingPath="paddingTop"
           onCommit={(value, previous) => {
             ctx.setVerticalPadding(value)
             ctx.commitVerticalPadding(value, previous)
@@ -58,11 +62,13 @@ export function PaddingControls() {
   return (
     <div className="mt-1.5 grid grid-cols-2 gap-1.5">
       {paddingSides.map((side) => (
-        <NumberField
+        <VariableNumberField
           key={side.prop}
           min={0}
           value={Math.round(node[side.prop])}
           icon={<PaddingIcon icon={side.icon} />}
+          nodeId={node.id}
+          bindingPath={side.prop}
           onCommit={(value, previous) => ctx.commitProp(side.prop, value, previous)}
         />
       ))}

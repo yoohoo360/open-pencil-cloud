@@ -3,7 +3,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { DEFAULT_SHAPE_FILL } from '@open-pencil/core/constants'
 import type { Fill, SceneNode } from '@open-pencil/scene-graph'
 
-import { ColorRow } from '#react/components/properties/ColorRow'
+import { BoundColorRow } from '#react/components/properties/paint/BoundColorRow'
 import { IconButton } from '#react/components/ui/IconButton'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { useEditor } from '#react/editor/context'
@@ -20,6 +20,7 @@ export function FillSection() {
 
   const fills = nodes[0]?.fills ?? []
   const empty = fills.length === 0
+  const nodeIds = nodes.map((node) => node.id)
 
   function patchNodeFills(node: SceneNode, mutator: (fills: Fill[]) => Fill[], label: string) {
     editor.updateNodeWithUndo(node.id, { fills: mutator(structuredClone(node.fills)) }, label)
@@ -42,13 +43,20 @@ export function FillSection() {
       }
     >
       {fills.map((fill, index) => (
-          <div key={`${nodes[0]?.id ?? 'fill'}:${index}:${fill.visible ? 'visible' : 'hidden'}`} className="mb-1.5 last:mb-0">
+        <div
+          key={`${nodes[0]?.id ?? 'fill'}:${index}:${fill.visible ? 'visible' : 'hidden'}`}
+          className="mb-1.5 last:mb-0"
+        >
           <div className="flex items-start gap-1">
             <div className="min-w-0 flex-1">
-              <ColorRow
+              <BoundColorRow
+                nodeIds={nodeIds}
+                kind="fills"
+                index={index}
                 color={fill.color}
                 opacity={fill.opacity}
                 label={panels.fill}
+                batchLabel="Change fill color"
                 onColor={(color) => {
                   for (const node of nodes) {
                     patchNodeFills(

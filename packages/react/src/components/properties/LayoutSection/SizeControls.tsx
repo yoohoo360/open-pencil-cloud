@@ -1,6 +1,6 @@
 import type { LayoutSizing } from '@open-pencil/scene-graph'
 
-import { NumberField } from '#react/components/inputs/NumberField'
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
 import { Tip } from '#react/components/ui/Tip'
 import { useLayoutControlsContext } from '#react/controls/layout/use'
@@ -57,12 +57,14 @@ export function SizeControls() {
         <PanelGrid columns={2} className="mt-1.5">
           {visible.map((item) => (
             <Tip key={item.prop} label={item.label}>
-              <NumberField
+              <VariableNumberField
                 icon={item.icon}
                 aria-label={item.label}
                 min={0}
                 value={Math.round(node[item.prop] ?? 0)}
-                trailing={
+                nodeId={node.id}
+                bindingPath={item.prop}
+                afterVariable={
                   <select
                     aria-label={item.label}
                     className="flex shrink-0 cursor-pointer items-center self-stretch border-none bg-transparent px-1 text-[10px] text-muted outline-none"
@@ -127,12 +129,14 @@ function SizeAxisField({ axis, icon, label }: { axis: LayoutAxis; icon: string; 
 
   return (
     <Tip label={label}>
-      <NumberField
+      <VariableNumberField
         icon={icon}
         aria-label={label}
         min={0}
         value={Math.round(node[axis])}
-        trailing={
+        nodeId={node.id}
+        bindingPath={axis}
+        afterVariable={
           <select
             data-slot="sizing-trigger"
             aria-label={label}

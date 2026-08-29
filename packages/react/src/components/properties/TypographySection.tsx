@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { NumberField } from '#react/components/inputs/NumberField'
+import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { AppInput } from '#react/components/ui/AppInput'
 import { AppSelect } from '#react/components/ui/AppSelect'
 import { IconButton } from '#react/components/ui/IconButton'
@@ -105,11 +106,13 @@ export function TypographySection() {
           />
         </PanelFieldGroup>
         <PanelFieldGroup label={panels.fontSize}>
-          <NumberField
+          <VariableNumberField
             aria-label={panels.fontSize}
             min={1}
             max={1000}
             value={node.fontSize}
+            nodeId={node.id}
+            bindingPath="fontSize"
             onCommit={(value, previous) => ctx.commitProp('fontSize', value, previous)}
           />
         </PanelFieldGroup>
@@ -117,18 +120,22 @@ export function TypographySection() {
 
       <PanelGrid columns={2} className="mb-3">
         <PanelFieldGroup label={panels.lineHeight}>
-          <NumberField
+          <VariableNumberField
             aria-label={panels.lineHeight}
             min={0}
             value={node.lineHeight ?? Math.round((node.fontSize || 14) * 1.2)}
+            nodeId={node.id}
+            bindingPath="lineHeight"
             onCommit={(value, previous) => ctx.commitProp('lineHeight', value, previous)}
           />
         </PanelFieldGroup>
         <PanelFieldGroup label={panels.letterSpacing}>
-          <NumberField
+          <VariableNumberField
             suffix="%"
             aria-label={panels.letterSpacing}
             value={node.letterSpacing}
+            nodeId={node.id}
+            bindingPath="letterSpacing"
             onCommit={(value, previous) => ctx.commitProp('letterSpacing', value, previous)}
           />
         </PanelFieldGroup>

@@ -3,8 +3,8 @@ import { Plus, Trash2 } from 'lucide-react'
 import { BLACK } from '@open-pencil/core/constants'
 import type { SceneNode, Stroke } from '@open-pencil/scene-graph'
 
-import { ColorRow } from '#react/components/properties/ColorRow'
 import { NumberField } from '#react/components/inputs/NumberField'
+import { BoundColorRow } from '#react/components/properties/paint/BoundColorRow'
 import { IconButton } from '#react/components/ui/IconButton'
 import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
@@ -30,6 +30,7 @@ export function StrokeSection() {
 
   const strokes = nodes[0]?.strokes ?? []
   const empty = strokes.length === 0
+  const nodeIds = nodes.map((node) => node.id)
 
   function patchNodeStrokes(node: SceneNode, mutator: (strokes: Stroke[]) => Stroke[], label: string) {
     editor.updateNodeWithUndo(node.id, { strokes: mutator(structuredClone(node.strokes)) }, label)
@@ -55,10 +56,14 @@ export function StrokeSection() {
           <div key={`${nodes[0]?.id ?? 'stroke'}:${index}:${stroke.visible ? 'visible' : 'hidden'}`} className="mb-1.5 last:mb-0">
           <div className="flex items-start gap-1">
             <div className="min-w-0 flex-1">
-              <ColorRow
+              <BoundColorRow
+                nodeIds={nodeIds}
+                kind="strokes"
+                index={index}
                 color={stroke.color}
                 opacity={stroke.opacity}
                 label={panels.stroke}
+                batchLabel="Change stroke color"
                 onColor={(color) => {
                   for (const node of nodes) {
                     patchNodeStrokes(
