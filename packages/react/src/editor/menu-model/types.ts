@@ -9,6 +9,8 @@ export interface MenuActionNode {
   action?: () => void
   disabled?: boolean
   testId?: TestId
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
   sub?: MenuEntry[]
 }
 

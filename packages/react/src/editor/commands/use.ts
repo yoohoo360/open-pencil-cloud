@@ -34,6 +34,18 @@ export function useEditorCommands() {
   const commands: Record<string, EditorCommand> = {
     'edit.undo': command('edit.undo', labels.undo, () => editor.undo.undo(), capabilities.canUndo),
     'edit.redo': command('edit.redo', labels.redo, () => editor.undo.redo(), capabilities.canRedo),
+    'selection.selectAll': command(
+      'selection.selectAll',
+      labels.selectAll,
+      () => editor.selectAll(),
+      capabilities.canSelectAll
+    ),
+    'selection.selectInverse': command(
+      'selection.selectInverse',
+      labels.selectInverse,
+      () => editor.selectInverse(),
+      capabilities.canSelectAll
+    ),
     'view.zoomFit': command('view.zoomFit', labels.zoomToFit, () => editor.zoomToFit()),
     'view.zoom100': command('view.zoom100', labels.zoomTo100, () => editor.zoomToLevel(1)),
     'view.zoomSelection': command(

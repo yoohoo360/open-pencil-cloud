@@ -1,5 +1,6 @@
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 
+import '#react/app/shell/theme'
 import CanvasView from './view/CanvasView'
 
 export function App() {

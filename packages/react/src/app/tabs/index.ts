@@ -36,6 +36,17 @@ export function setActiveTab(tab: Tab | null) {
   notify()
 }
 
+export function createTab() {
+  currentTab = { id: `tab-${nextTabId++}`, kind: 'document' }
+  notify()
+}
+
+export function closeTab(id: string) {
+  if (currentTab?.id !== id) return
+  currentTab = null
+  notify()
+}
+
 export function useActiveTab(): Tab | null {
   return useSyncExternalStore(subscribeActiveTab, getActiveTab, () => null)
 }

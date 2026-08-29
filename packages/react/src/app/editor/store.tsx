@@ -11,6 +11,7 @@ export type AppEditorState = EditorState & {
   showUI: boolean
   showRulers: boolean
   showRemoteCursors: boolean
+  autosaveEnabled: boolean
   activeRibbonTab: 'panels' | 'code' | 'ai'
   panelMode: 'layers' | 'design'
   actionToast: string | null
@@ -40,6 +41,7 @@ function createInitialAppEditorState(pageId: string): AppEditorState {
     showUI: true,
     showRulers: true,
     showRemoteCursors: true,
+    autosaveEnabled: false,
     activeRibbonTab: 'panels',
     panelMode: 'design',
     actionToast: null,
@@ -134,7 +136,7 @@ export function useEditorStore(): EditorStore {
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}`,
+      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}`,
     () => 'ssr'
   )
   return store
