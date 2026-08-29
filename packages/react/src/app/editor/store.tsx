@@ -17,6 +17,8 @@ export type AppEditorState = EditorState & {
   panelMode: 'layers' | 'design'
   actionToast: string | null
   mobileDrawerSnap: 'closed' | 'half' | 'full'
+  numberFieldFocused: boolean
+  renameNodeId: string | null
 }
 
 export type EditorStore = Editor & {
@@ -48,7 +50,9 @@ function createInitialAppEditorState(pageId: string): AppEditorState {
     activeRibbonTab: 'panels',
     panelMode: 'design',
     actionToast: null,
-    mobileDrawerSnap: 'closed'
+    mobileDrawerSnap: 'closed',
+    numberFieldFocused: false,
+    renameNodeId: null
   }
 }
 
@@ -133,13 +137,17 @@ export function EditorStoreProvider({
   return <EditorStoreContext.Provider value={store}>{children}</EditorStoreContext.Provider>
 }
 
+export function useOptionalEditorStore(): EditorStore | null {
+  return useContext(EditorStoreContext)
+}
+
 export function useEditorStore(): EditorStore {
   const store = useContext(EditorStoreContext)
   if (!store) throw new Error('Editor store not provided')
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}`,
+      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
     () => 'ssr'
   )
   return store

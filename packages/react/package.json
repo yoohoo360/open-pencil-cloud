@@ -67,6 +67,7 @@
     "nanostores": "^1.5.0",
     "axios": "^1.19.0",
     "js-cookie": "^3.0.8",
+    "tinykeys": "^3.1.0",
     "react-resizable-panels": "^3.0.3",
     "tailwind-merge": "^3.6.0",
     "tailwind-variants": "^3.3.1"

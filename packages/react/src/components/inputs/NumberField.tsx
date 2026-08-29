@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { panelFieldBase } from '#react/theme/panel/field'
 import { useOptionalBindableValue } from '#react/primitives/BindableValue/context'
+import { useOptionalEditorStore } from '#react/app/editor/store'
 
 export function NumberField({
   value,
@@ -46,6 +47,7 @@ export function NumberField({
   const previous = useRef(displayValue)
   const mutated = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const store = useOptionalEditorStore()
   const showBound = Boolean(boundDisplay) && binding?.state === 'bound' && !revealInput
 
   useEffect(() => {
@@ -121,10 +123,18 @@ export function NumberField({
           onFocus={() => {
             focused.current = true
             previous.current = displayValue
+            if (store) {
+              store.state.numberFieldFocused = true
+              store.notify()
+            }
           }}
           onBlur={() => {
             focused.current = false
             setRevealInput(false)
+            if (store) {
+              store.state.numberFieldFocused = false
+              store.notify()
+            }
             commit()
           }}
           onChange={(event) => {

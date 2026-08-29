@@ -3,7 +3,6 @@ import type { Tool } from '@open-pencil/core/editor'
 import { DesktopToolbar } from '#react/components/Toolbar/DesktopToolbar'
 import { MobileToolbar } from '#react/components/Toolbar/MobileToolbar'
 import { useToolbarActions } from '#react/components/Toolbar/actions'
-import { useToolbarShortcuts } from '#react/components/Toolbar/shortcuts'
 import type { ToolbarActionItem } from '#react/components/Toolbar/types'
 import { toolIcons } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
@@ -35,7 +34,6 @@ export function Toolbar() {
   const { getCommand } = useEditorCommands()
   const { menu, tools: toolTexts } = useI18n()
   const { showActionToast } = useActionToast()
-  useToolbarShortcuts()
   const toolLabels: Record<Tool, string> = {
     SELECT: toolTexts.move,
     FRAME: toolTexts.frame,

@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 import type { EditorCommand, EditorCommandId, EditorCommandMenuItem } from '#react/editor/commands/types'
 import { editorCommandMetadata } from '#react/editor/commands/registry'
 import { formatShortcut } from '#react/editor/commands/shortcut'
@@ -25,6 +27,11 @@ export function useEditorCommands() {
   const { commands: labels } = useI18n()
   const pages = useSceneComputed(() => editor.graph.getPages())
   const otherPages = pages.filter((page) => page.id !== editor.state.currentPageId)
+
+  const opacityTarget = useRef({ value: 1, coalesceKey: undefined as string | undefined })
+  function setOpacityTarget(value: number, coalesceKey?: string) {
+    opacityTarget.current = coalesceKey ? { value, coalesceKey } : { value }
+  }
 
   function moveSelectionToPage(pageId: string) {
     if (!capabilities.canMoveToPage) return
@@ -247,6 +254,15 @@ export function useEditorCommands() {
         if (page) moveSelectionToPage(page.id)
       },
       capabilities.canMoveToPage
+    ),
+    'selection.setOpacity': command(
+      'selection.setOpacity',
+      labels.setOpacity,
+      () => {
+        const target = opacityTarget.current
+        editor.setOpacity(target.value, target.coalesceKey)
+      },
+      capabilities.canSetOpacity
     )
   }
 
@@ -279,5 +295,5 @@ export function useEditorCommands() {
     }
   }
 
-  return { commands, getCommand, runCommand, menuItem, otherPages, moveSelectionToPage }
+  return { commands, getCommand, runCommand, menuItem, otherPages, moveSelectionToPage, setOpacityTarget }
 }

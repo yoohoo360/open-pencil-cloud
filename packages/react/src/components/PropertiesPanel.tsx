@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Code, Sparkles } from 'lucide-react'
 
 import { useI18n } from '#react/i18n'
@@ -6,13 +5,14 @@ import { ChatPanel } from '#react/components/ChatPanel'
 import { CodePanel } from '#react/components/CodePanel'
 import { DesignPanel } from '#react/components/DesignPanel'
 import { ZoomDropdown } from '#react/components/editor/ZoomDropdown'
+import { setPropertiesTab, usePropertiesTab } from '#react/app/shell/properties-tab'
 
 const tabClass =
   'relative rounded px-2.5 py-1 text-[11px] text-muted hover:text-surface data-[state=active]:font-semibold data-[state=active]:text-surface after:absolute after:inset-x-2 after:-bottom-[9px] after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-accent'
 
 export function PropertiesPanel() {
   const { panels } = useI18n()
-  const [activeTab, setActiveTab] = useState<'design' | 'code' | 'ai'>('design')
+  const activeTab = usePropertiesTab()
 
   return (
     <aside
@@ -28,7 +28,7 @@ export function PropertiesPanel() {
             data-test-id="properties-tab-design"
             data-state={activeTab === 'design' ? 'active' : undefined}
             className={tabClass}
-            onClick={() => setActiveTab('design')}
+            onClick={() => setPropertiesTab('design')}
           >
             {panels.design}
           </button>
@@ -38,7 +38,7 @@ export function PropertiesPanel() {
             data-test-id="properties-tab-code"
             data-state={activeTab === 'code' ? 'active' : undefined}
             className={`flex items-center gap-1 ${tabClass}`}
-            onClick={() => setActiveTab('code')}
+            onClick={() => setPropertiesTab('code')}
           >
             <Code className="size-3" />
             {panels.code}
@@ -49,7 +49,7 @@ export function PropertiesPanel() {
             data-test-id="properties-tab-ai"
             data-state={activeTab === 'ai' ? 'active' : undefined}
             className={`flex items-center gap-1 ${tabClass}`}
-            onClick={() => setActiveTab('ai')}
+            onClick={() => setPropertiesTab('ai')}
           >
             <Sparkles className="size-3" />
             {panels.ai}

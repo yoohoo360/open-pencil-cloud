@@ -7,6 +7,7 @@ import { formatShortcut } from '#react/editor/commands'
 import { useI18n } from '#react/i18n'
 import { useViewportKind } from '#react/editor/viewport-kind/use'
 import { useEditorStore } from '#react/app/editor/store'
+import { useKeyboard } from '#react/app/shell/keyboard/use'
 import { appMenuShortcut } from '#react/app/shell/menu/shortcut'
 import { useActiveTab } from '#react/app/tabs'
 import { CanvasSplitRoot } from '#react/components/canvas/CanvasSplitRoot'
@@ -35,6 +36,7 @@ export function EditorWorkspace() {
   const activeTab = useActiveTab()
   const initialEditorLayout = useMemo(() => loadEditorLayout(), [])
   const horizontalSplitterStyles = useMemo(() => tv(splitterTheme)({ direction: 'horizontal' }), [])
+  useKeyboard()
 
   if (!isMobile && showChrome && store.state.showUI) {
     return (

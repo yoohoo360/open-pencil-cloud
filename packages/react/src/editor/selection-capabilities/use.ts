@@ -80,6 +80,7 @@ export function useSelectionCapabilities() {
     canSelectAll,
     canUndo,
     canRedo,
-    canZoomToSelection: hasSelection
+    canZoomToSelection: hasSelection,
+    canSetOpacity: hasSelection
   }
 }

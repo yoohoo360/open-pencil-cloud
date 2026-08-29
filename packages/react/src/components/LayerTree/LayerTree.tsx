@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 import { nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
@@ -9,24 +9,54 @@ function LayerRow({ id, depth }: { id: string; depth: number }) {
   const store = useEditorStore()
   const node = useSceneComputed(() => store.graph.getNode(id) ?? null)
   const children = useSceneComputed(() => store.graph.getChildren(id))
+  const renaming = store.state.renameNodeId === id
   if (!node) return null
   const selected = store.state.selectedIds.has(id)
   const Icon = nodeIcon(node)
 
+  function commitRename(value: string) {
+    const name = value.trim()
+    if (name && name !== node.name) store.updateNodeWithUndo(id, { name }, 'Rename')
+    store.state.renameNodeId = null
+    store.notify()
+  }
+
+  function onRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitRename(event.currentTarget.value)
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      store.state.renameNodeId = null
+      store.notify()
+    }
+  }
+
   return (
     <div>
-      <button
-        type="button"
+      <div
         data-test-id="layers-item"
         data-node-id={id}
         data-selected={selected || undefined}
-        className="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-left text-[11px] text-surface hover:bg-hover data-selected:bg-panel-selected-muted"
+        className="flex w-full cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-left text-[11px] text-surface hover:bg-hover data-selected:bg-panel-selected-muted"
         style={{ paddingLeft: `${8 + depth * 12}px` }}
         onClick={() => store.select([id])}
       >
         <Icon className="size-3 shrink-0 text-muted" />
-        <span className="truncate">{node.name}</span>
-      </button>
+        {renaming ? (
+          <input
+            autoFocus
+            defaultValue={node.name}
+            className="min-w-0 flex-1 cursor-text rounded border border-accent bg-transparent px-0.5 text-[11px] text-surface outline-none"
+            onClick={(event) => event.stopPropagation()}
+            onBlur={(event) => commitRename(event.currentTarget.value)}
+            onKeyDown={onRenameKeyDown}
+          />
+        ) : (
+          <span className="truncate">{node.name}</span>
+        )}
+      </div>
       {children.map((child) => (
         <LayerRow key={child.id} id={child.id} depth={depth + 1} />
       ))}

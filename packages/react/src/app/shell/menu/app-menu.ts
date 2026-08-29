@@ -14,6 +14,7 @@ import { createSelectionMenuActions } from '#react/app/shell/menu/selection-acti
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { useAppTheme } from '#react/app/shell/theme'
 import { closeTab, createTab, getActiveTab } from '#react/app/tabs'
+import { openFileDialog, saveFigFile, saveFigFileAs, exportSelectionPNG } from '#react/app/shell/menu/files'
 import { menuMessageDefaults } from '#react/i18n/messages/menu'
 
 export interface AppMenuGroup {
@@ -102,18 +103,18 @@ export function useAppMenu() {
       store.notify()
       createTab()
     },
-    open: () => undefined,
+    open: () => openFileDialog(store),
     'open-storage-workspace': () => undefined,
-    save: () => undefined,
-    'save-as': () => undefined,
-    'export-selection': () => undefined,
+    save: () => void saveFigFile(store),
+    'save-as': () => void saveFigFileAs(store),
+    'export-selection': () => void exportSelectionPNG(store),
     ...createSelectionMenuActions(store),
     close: () => {
       const tab = getActiveTab()
       if (tab) closeTab(tab.id)
     },
     settings: openSettingsDialog,
-    'export-png': () => undefined,
+    'export-png': () => void exportSelectionPNG(store),
     'export-svg': () => undefined,
     'export-pptx': () => undefined,
     'export-fig': () => undefined,

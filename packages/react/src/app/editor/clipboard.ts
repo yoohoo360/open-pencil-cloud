@@ -3,6 +3,14 @@ import type { Vector } from '@open-pencil/scene-graph/primitives'
 
 let memoryHtml = ''
 
+export function getInMemoryClipboardHTML() {
+  return memoryHtml
+}
+
+export function rememberClipboardTransfer(transfer: DataTransfer) {
+  memoryHtml = transfer.getData('text/html') || transfer.getData('text/plain')
+}
+
 function cursorPos(editor: Editor): Vector | undefined {
   const x = editor.state.cursorCanvasX
   const y = editor.state.cursorCanvasY
@@ -16,7 +24,8 @@ export async function copyEditorSelection(editor: Editor): Promise<boolean> {
   const html = transfer.getData('text/html')
   const text = transfer.getData('text/plain')
   if (!html && !text) return false
-  memoryHtml = html || text
+  rememberClipboardTransfer(transfer)
+  if (!memoryHtml) memoryHtml = html || text
   try {
     const item: Record<string, Blob> = {}
     if (html) item['text/html'] = new Blob([html], { type: 'text/html' })
