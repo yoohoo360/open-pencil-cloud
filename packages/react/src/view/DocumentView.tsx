@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-
+import { openHttpDocument } from '#react/app/document/open-http'
+import { requestLocalFontAccess } from '#react/app/editor/fonts'
+import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
 import { OpenPencilProvider } from '#react/editor/context'
 import { EditorWorkspace } from '#react/editor/EditorWorkspace'
-import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
-import { openHttpDocument } from '#react/app/document/open-http'
 import { documentAPI, getAPIErrorMessage } from '#react/lib/client'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 export default function DocumentView() {
   const { fileKey } = useParams<{ fileKey: string }>()
   const store = useMemo(() => createEditorStore(), [])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, _setLoading] = useState(true)
 
+  const setLoading = (e: boolean) => {
+    _setLoading(e)
+  }
   useEffect(() => {
     if (!fileKey) return
     let cancelled = false
@@ -23,6 +26,7 @@ export default function DocumentView() {
         const { data: documentMeta } = await documentAPI.get(fileKey)
         if (cancelled) return
         try {
+          await requestLocalFontAccess()
           await openHttpDocument(store, documentMeta)
         } catch (reason) {
           console.warn('[Document] Remote fig is unavailable, opening empty canvas', reason)

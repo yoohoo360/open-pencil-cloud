@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom'
+
 import type { MenuEntry } from '#react/editor/menu-model/types'
 import { useEditorCommands } from '#react/editor/commands/use'
 import { useI18n } from '#react/i18n'
@@ -8,13 +10,20 @@ import {
   createSharedEditorMenuActions,
   setSnappingPreference
 } from '#react/app/shell/menu/editor-actions'
+import {
+  exportSelection,
+  newDocument,
+  openFileDialog,
+  saveFigFile,
+  saveFigFileAs
+} from '#react/app/shell/menu/files'
+import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
 import type { AppMenuActionItem, AppMenuEntry, AppMenuGroupSchema } from '#react/app/shell/menu/schema'
 import { APP_MENU_SCHEMA } from '#react/app/shell/menu/schema'
 import { createSelectionMenuActions } from '#react/app/shell/menu/selection-actions'
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { useAppTheme } from '#react/app/shell/theme'
 import { closeTab, createTab, getActiveTab } from '#react/app/tabs'
-import { openFileDialog, saveFigFile, saveFigFileAs, exportSelectionPNG } from '#react/app/shell/menu/files'
 import { menuMessageDefaults } from '#react/i18n/messages/menu'
 
 export interface AppMenuGroup {
@@ -77,6 +86,7 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
 
 export function useAppMenu() {
   const store = useEditorStore()
+  const navigate = useNavigate()
   const { commands, menuItem: commandMenuItem, otherPages, moveSelectionToPage } = useEditorCommands()
   const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
   const { theme, setTheme } = useAppTheme()
@@ -97,27 +107,30 @@ export function useAppMenu() {
     store.requestRepaint()
   }
 
+  function exportCurrentSelection(format: 'png' | 'svg' | 'pptx' | 'fig') {
+    if (store.state.selectedIds.size > 0) void exportSelection(store, format)
+  }
+
   const actions: Partial<Record<string, () => void>> = {
     new: () => {
-      store.state.documentName = 'Untitled'
-      store.notify()
       createTab()
+      newDocument(store)
     },
-    open: () => openFileDialog(store),
-    'open-storage-workspace': () => undefined,
+    open: () => void openFileDialog(store),
+    'open-storage-workspace': () => openStorageWorkspace(navigate),
     save: () => void saveFigFile(store),
     'save-as': () => void saveFigFileAs(store),
-    'export-selection': () => void exportSelectionPNG(store),
+    'export-selection': () => exportCurrentSelection('png'),
     ...createSelectionMenuActions(store),
     close: () => {
       const tab = getActiveTab()
       if (tab) closeTab(tab.id)
     },
     settings: openSettingsDialog,
-    'export-png': () => void exportSelectionPNG(store),
-    'export-svg': () => undefined,
-    'export-pptx': () => undefined,
-    'export-fig': () => undefined,
+    'export-png': () => exportCurrentSelection('png'),
+    'export-svg': () => exportCurrentSelection('svg'),
+    'export-pptx': () => exportCurrentSelection('pptx'),
+    'export-fig': () => exportCurrentSelection('fig'),
     ...createSharedEditorMenuActions(store, setTheme),
     profiler: toggleProfiler
   }

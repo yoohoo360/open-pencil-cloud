@@ -10,7 +10,7 @@ import { bindEditorClipboard } from '#react/app/shell/keyboard/clipboard'
 import { isInputElement } from '#react/app/shell/keyboard/focus'
 import { bindNudgeKeys } from '#react/app/shell/keyboard/nudging'
 import { registerKeyboardShortcuts } from '#react/app/shell/keyboard/registry'
-import { openFileDialog } from '#react/app/shell/menu/files'
+import { newDocument, openFileDialog } from '#react/app/shell/menu/files'
 import { closeTab, createTab, getActiveTab } from '#react/app/tabs'
 
 export function useKeyboard() {
@@ -41,12 +41,15 @@ export function useKeyboard() {
       store,
       runCommand: (id) => runCommandRef.current(id),
       actions,
-      openFileDialog: () => openFileDialog(store),
+      openFileDialog: () => void openFileDialog(store),
       closeActiveTab: () => {
         const tab = getActiveTab()
         if (tab) closeTab(tab.id)
       },
-      createTab
+      createTab: () => {
+        createTab()
+        newDocument(store)
+      }
     })
 
     return () => {

@@ -229,6 +229,9 @@ function MenubarMenu({
       <button
         ref={triggerRef}
         type="button"
+        role="menuitem"
+        aria-haspopup="true"
+        aria-expanded={open}
         data-test-id={testId}
         data-state={open ? 'open' : undefined}
         className="flex cursor-pointer items-center rounded px-2 py-1 text-[11px] text-surface/80 transition-colors select-none hover:bg-hover hover:text-surface data-[state=open]:bg-hover data-[state=open]:text-surface"
@@ -372,6 +375,7 @@ function AppMenuSubmenu({
               top: pos.top,
               maxHeight: Math.max(120, window.innerHeight - pos.top - MENU_VIEWPORT_PAD)
             }}
+            role="menu"
             onMouseEnter={openSubmenu}
             onMouseLeave={scheduleClose}
           >
@@ -394,6 +398,9 @@ function AppMenuSubmenu({
       <button
         ref={triggerRef}
         type="button"
+        role="menuitem"
+        aria-haspopup="true"
+        aria-expanded={open}
         className={menuCls.item}
         disabled={disabled}
         data-disabled={disabled ? '' : undefined}

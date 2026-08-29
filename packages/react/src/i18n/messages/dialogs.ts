@@ -364,6 +364,7 @@ export const dialogMessageDefaults = {
   removeGradientStop: 'Remove gradient stop',
   notifications: 'Notifications',
   saveAsPrompt: 'Save as:',
+  openFileFailed: params('Could not open “{name}”: {error}'),
   browserFileAPINotSupported:
     "Your browser doesn't support the local file API. Files will be downloaded instead of saved in place.",
   useChrome: 'Use Chrome',

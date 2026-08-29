@@ -295,6 +295,7 @@
   "removeGradientStop": "删除渐变色标",
   "notifications": "通知",
   "saveAsPrompt": "另存为：",
+  "openFileFailed": "无法打开“{name}”：{error}",
   "browserFileAPINotSupported": "你的浏览器不支持本地文件 API。文件将被下载，而不是保存在原位置。",
   "useChrome": "使用 Chrome",
   "orEdgeForFullSupport": "或使用 Edge 以获得完整支持。",

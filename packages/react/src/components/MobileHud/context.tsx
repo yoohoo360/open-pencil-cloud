@@ -7,6 +7,8 @@ import { useI18n } from '#react/i18n'
 import { DEFAULT_COLLAB_STATE } from '#react/app/collab/types'
 import { useEditorStore } from '#react/app/editor/store'
 import { toolIcons } from '#react/app/editor/icons'
+import { newDocument, openFileDialog, saveFigFile, exportSelection } from '#react/app/shell/menu/files'
+import { createTab } from '#react/app/tabs'
 import type { ToolbarActionItem } from '#react/components/Toolbar/types'
 
 function useMobileHudState() {
@@ -22,10 +24,23 @@ function useMobileHudState() {
   const actionToast = store.state.actionToast
 
   const menuItems: ToolbarActionItem[] = [
-    { icon: FilePlus, label: 'New', action: () => {} },
-    { icon: FolderOpen, label: 'Open…', action: () => {} },
-    { icon: Save, label: 'Save', action: () => {} },
-    { icon: ImageDown, label: 'Export…', action: () => {} },
+    {
+      icon: FilePlus,
+      label: 'New',
+      action: () => {
+        createTab()
+        newDocument(store)
+      }
+    },
+    { icon: FolderOpen, label: 'Open…', action: () => void openFileDialog(store) },
+    { icon: Save, label: 'Save', action: () => void saveFigFile(store) },
+    {
+      icon: ImageDown,
+      label: 'Export…',
+      action: () => {
+        if (store.state.selectedIds.size > 0) void exportSelection(store, 'png')
+      }
+    },
     { icon: ZoomIn, label: 'Zoom to fit', action: () => getCommand('view.zoomFit').run() }
   ]
 

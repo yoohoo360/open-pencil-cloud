@@ -1,5 +1,5 @@
-import { writeStoredUserJSON } from '#react/app/auth/storage'
 import { loginPathWithRedirect } from '#react/app/auth/redirect'
+import { writeStoredUserJSON } from '#react/app/auth/storage'
 import axios, {
   type AxiosError,
   type AxiosRequestConfig,
@@ -177,6 +177,11 @@ http.interceptors.response.use(
       shouldSkipRefresh(originalRequest) ||
       (status !== 401 && status !== 403)
     ) {
+      if (status === 401) {
+        clearTokensAndRedirect()
+        return
+      }
+
       throw error
     }
 

@@ -299,6 +299,7 @@
   "removeGradientStop": "Farbverlaufspunkt entfernen",
   "notifications": "Benachrichtigungen",
   "saveAsPrompt": "Speichern unter:",
+  "openFileFailed": "„{name}“ konnte nicht geöffnet werden: {error}",
   "browserFileAPINotSupported": "Dein Browser unterstützt die lokale Datei-API nicht. Dateien werden heruntergeladen, statt direkt gespeichert zu werden.",
   "useChrome": "Chrome verwenden",
   "orEdgeForFullSupport": "oder Edge für vollständige Unterstützung.",
