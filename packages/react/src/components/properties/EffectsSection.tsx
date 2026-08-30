@@ -1,18 +1,20 @@
-import { Blend, Eye, EyeOff, Minus, Plus } from 'lucide-react'
-import type { BlendMode, Effect, SceneNode } from '@open-pencil/scene-graph'
-
-import { ColorRow } from '#react/components/properties/ColorRow'
 import { NumberField } from '#react/components/inputs/NumberField'
+import { ColorRow } from '#react/components/properties/ColorRow'
+import { SharedStyleField } from '#react/components/properties/shared-style/SharedStyleField'
 import { AppSelect } from '#react/components/ui/AppSelect'
 import { IconButton } from '#react/components/ui/IconButton'
 import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { Tip } from '#react/components/ui/Tip'
 import { patchEffectsForNodes, useEffectsControls } from '#react/controls/effects'
+import { useSharedStyleBinding } from '#react/controls/shared-style'
 import { useEditor } from '#react/editor/context'
 import { useSelectionState } from '#react/editor/selection-state/use'
 import { useI18n } from '#react/i18n'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
+import { Blend, Eye, EyeOff, Minus, Plus } from 'lucide-react'
+
+import type { BlendMode, Effect, SceneNode } from '@open-pencil/scene-graph'
 
 function useBlendModeOptions() {
   const { panels } = useI18n()
@@ -41,6 +43,7 @@ export function EffectsSection() {
   const { hasSelection } = useSelectionState()
   const { panels } = useI18n()
   const effectsCtx = useEffectsControls()
+  const effectStyle = useSharedStyleBinding('effect')
   const blendModeOptions = useBlendModeOptions()
   const nodes = useSceneComputed(() => editor.getSelectedNodes())
   if (!hasSelection) return null
@@ -58,7 +61,7 @@ export function EffectsSection() {
   return (
     <PanelSection
       label={panels.effects}
-      empty={!mixed && items.length === 0}
+      empty={!mixed && items.length === 0 && !effectStyle.visible}
       actions={
         <IconButton
           label={panels.addEffect}
@@ -75,6 +78,7 @@ export function EffectsSection() {
         </IconButton>
       }
     >
+      <SharedStyleField binding={effectStyle} label={panels.effectStyle} />
       {mixed ? <p className="text-[11px] text-muted">{panels.mixedEffectsHelp}</p> : null}
       {items.map((effect, index) => (
         <EffectRow
@@ -188,7 +192,9 @@ function EffectRow({
                         min={0}
                         data-property="effect-radius"
                         value={effect.radius}
-                        onCommit={(value) => effectsCtx.commitEffect(node, index, { radius: value })}
+                        onCommit={(value) =>
+                          effectsCtx.commitEffect(node, index, { radius: value })
+                        }
                       />
                     </Tip>
                     <Tip label={panels.spread}>
@@ -196,7 +202,9 @@ function EffectRow({
                         icon="S"
                         data-property="effect-spread"
                         value={effect.spread}
-                        onCommit={(value) => effectsCtx.commitEffect(node, index, { spread: value })}
+                        onCommit={(value) =>
+                          effectsCtx.commitEffect(node, index, { spread: value })
+                        }
                       />
                     </Tip>
                   </div>
@@ -229,9 +237,16 @@ function EffectRow({
           active={effect.visible === false}
           onClick={() => effectsCtx.toggleVisibility(node, index)}
         >
-          {effect.visible === false ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+          {effect.visible === false ? (
+            <EyeOff className="size-3.5" />
+          ) : (
+            <Eye className="size-3.5" />
+          )}
         </IconButton>
-        <IconButton label={panels.removeEffect} onClick={() => effectsCtx.removeEffect(node, index)}>
+        <IconButton
+          label={panels.removeEffect}
+          onClick={() => effectsCtx.removeEffect(node, index)}
+        >
           <Minus className="size-3.5" />
         </IconButton>
       </div>

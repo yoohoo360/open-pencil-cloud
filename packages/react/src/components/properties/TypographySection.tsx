@@ -1,6 +1,7 @@
 import { FontPicker } from '#react/components/font-picker/FontPicker'
 import { FontSettingsPopover } from '#react/components/font-settings/FontSettingsPopover'
 import { NumberField } from '#react/components/inputs/NumberField'
+import { TextStylePicker } from '#react/components/properties/shared-style/TextStylePicker'
 import { VariableNumberField } from '#react/components/properties/VariableNumberField'
 import { AppSelect } from '#react/components/ui/AppSelect'
 import { IconButton } from '#react/components/ui/IconButton'
@@ -64,7 +65,7 @@ export function TypographySection() {
   }
 
   return (
-    <PanelSection label={panels.typography}>
+    <PanelSection label={panels.typography} actions={<TextStylePicker />}>
       <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
         <FontPicker
           value={node.fontFamily}

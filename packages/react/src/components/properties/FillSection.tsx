@@ -1,25 +1,27 @@
+import { BoundColorRow } from '#react/components/properties/paint/BoundColorRow'
+import { SharedStyleField } from '#react/components/properties/shared-style/SharedStyleField'
+import { IconButton } from '#react/components/ui/IconButton'
+import { PanelSection } from '#react/components/ui/panel/PanelSection'
+import { useSharedStyleBinding } from '#react/controls/shared-style'
+import { useEditor } from '#react/editor/context'
+import { useSelectionState } from '#react/editor/selection-state/use'
+import { useI18n } from '#react/i18n'
+import { useSceneComputed } from '#react/internal/scene-computed/use'
 import { Plus, Trash2 } from 'lucide-react'
 
 import { DEFAULT_SHAPE_FILL } from '@open-pencil/core/constants'
 import type { Fill, SceneNode } from '@open-pencil/scene-graph'
 
-import { BoundColorRow } from '#react/components/properties/paint/BoundColorRow'
-import { IconButton } from '#react/components/ui/IconButton'
-import { PanelSection } from '#react/components/ui/panel/PanelSection'
-import { useEditor } from '#react/editor/context'
-import { useSelectionState } from '#react/editor/selection-state/use'
-import { useSceneComputed } from '#react/internal/scene-computed/use'
-import { useI18n } from '#react/i18n'
-
 export function FillSection() {
   const editor = useEditor()
   const { hasSelection } = useSelectionState()
   const { panels } = useI18n()
+  const fillStyle = useSharedStyleBinding('fill')
   const nodes = useSceneComputed(() => editor.getSelectedNodes())
   if (!hasSelection) return null
 
   const fills = nodes[0]?.fills ?? []
-  const empty = fills.length === 0
+  const empty = fills.length === 0 && !fillStyle.visible
   const nodeIds = nodes.map((node) => node.id)
 
   function patchNodeFills(node: SceneNode, mutator: (fills: Fill[]) => Fill[], label: string) {
@@ -28,7 +30,11 @@ export function FillSection() {
 
   function addFill() {
     for (const node of nodes) {
-      patchNodeFills(node, (current) => [...current, structuredClone(DEFAULT_SHAPE_FILL)], 'Add fill')
+      patchNodeFills(
+        node,
+        (current) => [...current, structuredClone(DEFAULT_SHAPE_FILL)],
+        'Add fill'
+      )
     }
   }
 
@@ -42,6 +48,7 @@ export function FillSection() {
         </IconButton>
       }
     >
+      <SharedStyleField binding={fillStyle} label={panels.fillStyle} />
       {fills.map((fill, index) => (
         <div
           key={`${nodes[0]?.id ?? 'fill'}:${index}:${fill.visible ? 'visible' : 'hidden'}`}

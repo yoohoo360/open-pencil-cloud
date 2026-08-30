@@ -1,20 +1,23 @@
-import { Columns3, Eye, EyeOff, LayoutGrid, Minus, Plus, Rows3 } from 'lucide-react'
-import type { LayoutGrid as LayoutGridSetting } from '@open-pencil/scene-graph'
-
 import { NumberField } from '#react/components/inputs/NumberField'
+import { SharedStyleField } from '#react/components/properties/shared-style/SharedStyleField'
 import { IconButton } from '#react/components/ui/IconButton'
 import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
 import { PanelGrid } from '#react/components/ui/panel/PanelGrid'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { SegmentedControl } from '#react/components/ui/SegmentedControl'
 import { Tip } from '#react/components/ui/Tip'
+import { useSharedStyleBinding } from '#react/controls/shared-style'
 import { useEditor } from '#react/editor/context'
 import { useI18n } from '#react/i18n'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
+import { Columns3, Eye, EyeOff, LayoutGrid, Minus, Plus, Rows3 } from 'lucide-react'
+
+import type { LayoutGrid as LayoutGridSetting } from '@open-pencil/scene-graph'
 
 export function LayoutGridSection() {
   const editor = useEditor()
   const { panels } = useI18n()
+  const gridStyle = useSharedStyleBinding('grid')
   const selectedNode = useSceneComputed(() => editor.getSelectedNode() ?? null)
   const grids = selectedNode?.layoutGrids ?? []
   if (!selectedNode) return null
@@ -57,13 +60,17 @@ export function LayoutGridSection() {
   return (
     <PanelSection
       label={panels.layoutGrids}
-      empty={grids.length === 0}
+      empty={grids.length === 0 && !gridStyle.visible}
       actions={
-        <IconButton label={panels.addLayoutGrid} onClick={() => commit([...grids, defaultGrid()], 'Add layout guide')}>
+        <IconButton
+          label={panels.addLayoutGrid}
+          onClick={() => commit([...grids, defaultGrid()], 'Add layout guide')}
+        >
           <Plus className="size-3.5" />
         </IconButton>
       }
     >
+      <SharedStyleField binding={gridStyle} label={panels.gridStyle} />
       {grids.map((grid, index) => {
         const pattern = gridPattern(grid)
         const isGrid = pattern === 'GRID'
@@ -75,7 +82,11 @@ export function LayoutGridSection() {
                 options={patternOptions}
                 label={panels.layoutGrids}
                 onChange={(value) =>
-                  patch(index, { pattern: value as LayoutGridSetting['pattern'] }, 'Change grid pattern')
+                  patch(
+                    index,
+                    { pattern: value as LayoutGridSetting['pattern'] },
+                    'Change grid pattern'
+                  )
                 }
                 renderOption={(option) => (
                   <Tip label={option.label}>
@@ -131,7 +142,11 @@ export function LayoutGridSection() {
                 patch(index, { visible: grid.visible === false }, 'Toggle layout guide')
               }
             >
-              {grid.visible === false ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {grid.visible === false ? (
+                <EyeOff className="size-3.5" />
+              ) : (
+                <Eye className="size-3.5" />
+              )}
             </IconButton>
             <IconButton
               label={panels.removeLayoutGrid}

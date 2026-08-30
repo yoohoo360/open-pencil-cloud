@@ -24,6 +24,8 @@ import { SelectionActionsControl } from '#react/components/properties/SelectionA
 import { StrokeSection } from '#react/components/properties/StrokeSection'
 import { TypographyContentField } from '#react/components/properties/TypographyContentField'
 import { TypographySection } from '#react/components/properties/TypographySection'
+import { StylesDialog } from '#react/components/properties/shared-style/StylesDialog'
+import { StylesSection } from '#react/components/properties/shared-style/StylesSection'
 import { VariablesSection } from '#react/components/properties/VariablesSection'
 import { VariablesDialog } from '#react/components/properties/variables/VariablesDialog'
 import { PanelHeader } from '#react/components/ui/panel/PanelHeader'
@@ -39,6 +41,7 @@ export function DesignPanel() {
   const { getCommand } = useEditorCommands()
   const { panels } = useI18n()
   const [variablesOpen, setVariablesOpen] = useState(false)
+  const [stylesOpen, setStylesOpen] = useState(false)
   const scrollRef = useOverlayScrollbar<HTMLDivElement>()
   const activeTool = store.state.activeTool
   const goToMainComponent = getCommand('selection.goToMainComponent')
@@ -172,9 +175,11 @@ export function DesignPanel() {
       >
         <PageSection />
         <VariablesSection onOpenDialog={() => setVariablesOpen(true)} />
+        <StylesSection onOpenDialog={() => setStylesOpen(true)} />
         <ExportSection />
       </div>
       <VariablesDialog open={variablesOpen} onClose={() => setVariablesOpen(false)} />
+      <StylesDialog open={stylesOpen} onClose={() => setStylesOpen(false)} />
     </div>
   )
 }

@@ -25,6 +25,7 @@ export const dialogMessageDefaults = {
   renameCollection: 'Rename collection',
   deleteCollection: 'Delete collection',
   localVariables: 'Local variables',
+  localStyles: 'Local styles',
   noVariableCollections: 'No variable collections',
   modes: 'Modes',
   addMode: 'Add mode',

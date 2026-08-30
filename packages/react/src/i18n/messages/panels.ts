@@ -1,6 +1,5 @@
-import { params } from '@nanostores/i18n'
-
 import { i18n } from '#react/i18n/create'
+import { params } from '@nanostores/i18n'
 
 export const panelMessageDefaults = {
   untitled: 'Untitled',
@@ -268,6 +267,21 @@ export const panelMessageDefaults = {
   noSelection: 'No selection',
   noLocalVariables: 'No local variables',
   openVariables: 'Open variables',
+  styles: 'Styles',
+  localStyles: 'Local styles',
+  noLocalStyles: 'No local styles',
+  openStyles: 'Open styles',
+  textStyles: 'Text styles',
+  searchStyles: 'Search styles',
+  noStylesFound: 'No styles found',
+  editStyle: 'Edit style',
+  deleteStyle: 'Delete style',
+  detachStyle: 'Detach style',
+  applyStyle: 'Apply style',
+  styleGroupColor: 'Color',
+  styleGroupText: 'Text',
+  styleGroupEffect: 'Effect',
+  styleGroupGrid: 'Layout guide',
   addPage: 'Add page',
   toggleVisibility: 'Toggle visibility',
   independentCornerRadii: 'Independent corner radii',
@@ -314,6 +328,9 @@ export const panelMessageDefaults = {
   variableName: 'Variable name',
   mixed: 'Mixed',
   none: 'None',
+  createStyle: 'Create style',
+  colorStyle: 'Color style',
+  styleName: 'Style name',
   fillStyle: 'Fill style',
   strokeStyle: 'Stroke style',
   textStyle: 'Text style',

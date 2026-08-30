@@ -1,6 +1,3 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { tv } from 'tailwind-variants'
-
 import { nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
@@ -9,6 +6,8 @@ import { useLayerDrag } from '#react/components/LayerTree/useLayerDrag'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 import theme from '#react/theme/layer-tree'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { tv } from 'tailwind-variants'
 
 const INDENT_PER_LEVEL = 16
 
@@ -29,13 +28,18 @@ function LayerRow({
 }) {
   const store = useEditorStore()
   const node = useSceneComputed(() => store.graph.getNode(id) ?? null)
-  const children = useSceneComputed(() => store.graph.getChildren(id))
+  const children = useSceneComputed(() =>
+    store.graph.getChildren(id).filter((child) => !child.internalOnly)
+  )
   const renaming = store.state.renameNodeId === id
   const rowRef = useRef<HTMLDivElement>(null)
   const hasChildren = children.length > 0
   const level = depth + 1
 
-  useEffect(() => setupItem(rowRef.current, { id, level, hasChildren }), [hasChildren, id, level, setupItem])
+  useEffect(
+    () => setupItem(rowRef.current, { id, level, hasChildren }),
+    [hasChildren, id, level, setupItem]
+  )
 
   if (!node) return null
   const selected = store.state.selectedIds.has(id)
@@ -119,7 +123,9 @@ function LayerRow({
 
 export function LayerTree({ className }: { className?: string }) {
   const store = useEditorStore()
-  const children = useSceneComputed(() => store.graph.getChildren(store.state.currentPageId))
+  const children = useSceneComputed(() =>
+    store.graph.getChildren(store.state.currentPageId).filter((child) => !child.internalOnly)
+  )
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const scrollRef = useOverlayScrollbar<HTMLDivElement>()
   const { draggingId, instruction, instructionTargetId, setupItem } = useLayerDrag(
