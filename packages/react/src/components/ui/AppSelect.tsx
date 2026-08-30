@@ -32,7 +32,7 @@ export function AppSelect<T extends string | number>({
       value={String(value)}
       onChange={(event) => {
         const next = options.find((option) => String(option.value) === event.target.value)
-        if (next) onChange(next.value)
+        if (next && String(next.value) !== String(value)) onChange(next.value)
       }}
     >
       {options.map((option) => (

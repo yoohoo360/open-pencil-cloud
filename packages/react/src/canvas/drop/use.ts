@@ -8,6 +8,12 @@ import {
   assetInsertionPoint,
   resolveAssetGraph
 } from '#react/components/assets-panel/assets'
+import {
+  canAcceptInsertedChild,
+  findSlotAtPoint,
+  applySlotInsertLayout,
+  isSlotNode
+} from '#react/controls/component-props/slot-insert'
 import { createInstanceFromComponent } from '#react/graph/instances'
 import { findMoveDropTarget } from '#react/shared/input/drop-target'
 
@@ -41,8 +47,11 @@ function componentDropPlacement(
 ) {
   const component = resolveAssetGraph(editor, sourceLibraryKey).getNode(componentId)
   if (component?.type !== 'COMPONENT') return null
-  const target = findMoveDropTarget(cx, cy, editor)
-  const parentId = target?.id ?? editor.state.currentPageId
+  const slot = findSlotAtPoint(editor, cx, cy, editor.state.selectedIds)
+  const target = slot ?? findMoveDropTarget(cx, cy, editor)
+  const getNode = (id: string) => editor.graph.getNode(id)
+  const parentId =
+    target && canAcceptInsertedChild(target, getNode) ? target.id : editor.state.currentPageId
   const parentOffset =
     parentId === editor.state.currentPageId
       ? { x: 0, y: 0 }
@@ -100,7 +109,7 @@ export function useCanvasDrop(
           sourceLibraryKey
         )
         if (!placement) return
-        createInstanceFromComponent(
+        const instanceId = createInstanceFromComponent(
           editor,
           componentId,
           placement.x,
@@ -108,6 +117,10 @@ export function useCanvasDrop(
           placement.parentId,
           sourceLibraryKey
         )
+        const parent = editor.graph.getNode(placement.parentId)
+        if (instanceId && parent && isSlotNode(parent)) {
+          applySlotInsertLayout(editor, instanceId, parent)
+        }
         editor.requestRender()
         return
       }

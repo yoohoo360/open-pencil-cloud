@@ -1,3 +1,4 @@
+import { isInternalOnlyPage } from '#react/components/assets-panel/page'
 import { useI18n } from '#react/i18n'
 import { useEditorStore } from '#react/app/editor/store'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
@@ -6,7 +7,7 @@ import { useSceneComputed } from '#react/internal/scene-computed/use'
 export function PagesPanel() {
   const store = useEditorStore()
   const { panels } = useI18n()
-  const pages = useSceneComputed(() => store.graph.getPages())
+  const pages = useSceneComputed(() => store.graph.getPages().filter((page) => !isInternalOnlyPage(page)))
   const currentPageId = store.state.currentPageId
   const scrollRef = useOverlayScrollbar<HTMLDivElement>()
 

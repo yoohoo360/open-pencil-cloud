@@ -186,17 +186,16 @@ http.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryRequestConfig | undefined
     const status = error.response?.status
+    if (status === 401) {
+      clearTokensAndRedirect()
+      return
+    }
 
     if (
       !originalRequest ||
       shouldSkipRefresh(originalRequest) ||
       (status !== 401 && status !== 403)
     ) {
-      if (status === 401) {
-        clearTokensAndRedirect()
-        return
-      }
-
       throw error
     }
 
@@ -341,10 +340,7 @@ export const documentAPI = {
       params: documentVersion ? { document_version: documentVersion } : undefined
     })
   },
-  attachLibrary(
-    fileKey: string,
-    data: AttachDocumentLibraryRequest
-  ): Promise<APIResponse<void>> {
+  attachLibrary(fileKey: string, data: AttachDocumentLibraryRequest): Promise<APIResponse<void>> {
     return apiClient.put(`/api/document/${fileKey}/library`, data)
   }
 }

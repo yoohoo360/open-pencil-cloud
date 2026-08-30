@@ -5,6 +5,9 @@ import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AppearanceSection } from '#react/components/properties/AppearanceSection'
 import { ComponentPropertiesSection } from '#react/components/properties/component-properties/ComponentPropertiesSection'
+import { InstanceSwapSlotField } from '#react/components/properties/component-properties/InstanceSwapSlotField'
+import { SlotBindField } from '#react/components/properties/component-properties/SlotBindField'
+import { SlotInsertField } from '#react/components/properties/component-properties/SlotInsertField'
 import { VariantAuthoringSection } from '#react/components/properties/component-properties/VariantAuthoringSection'
 import { ConstraintsSection } from '#react/components/properties/constraints/ConstraintsSection'
 import { EffectsSection } from '#react/components/properties/EffectsSection'
@@ -120,6 +123,9 @@ export function DesignPanel() {
           {selectedNode.type === 'TEXT' ? (
             <TypographyContentField nodeId={selectedNode.id} text={selectedNode.text} />
           ) : null}
+          {selectedNode.type === 'FRAME' ? <SlotBindField /> : null}
+          {selectedNode.type === 'FRAME' ? <SlotInsertField /> : null}
+          {selectedNode.type === 'INSTANCE' ? <InstanceSwapSlotField /> : null}
           {selectedNode.type === 'INSTANCE' ? (
             <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
               <button

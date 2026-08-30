@@ -1,22 +1,35 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Copy, Minus, Plus, Settings2, Trash2 } from 'lucide-react'
-import type { ComponentPropertyType } from '@open-pencil/scene-graph'
-
+import { CreateSlotPropertyDialog } from '#react/components/properties/component-properties/CreateSlotPropertyDialog'
 import { PropertySettingsPopover } from '#react/components/properties/component-properties/PropertySettingsPopover'
+import {
+  propertyBindingTooltip,
+  PropertyTypeIcon
+} from '#react/components/properties/component-properties/PropertyTypeIcon'
 import { VariantValueField } from '#react/components/properties/component-properties/VariantValueField'
 import { IconButton } from '#react/components/ui/IconButton'
+import { Tip } from '#react/components/ui/Tip'
 import { menuItem, useMenuUI } from '#react/components/ui/menu'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { useVariantAuthoring, type VariantDefinitionControl } from '#react/controls/component-props'
+import { boundLayerNamesForProperty, emptySlotDraft, slotDraftFromDefinition } from '#react/controls/component-props/model'
+import { listLocalAssets } from '#react/components/assets-panel/assets'
+import { useEditor } from '#react/editor/context'
 import { useI18n } from '#react/i18n'
+import { useSceneComputed } from '#react/internal/scene-computed/use'
+import { Copy, Minus, Plus, Settings2, Trash2 } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+import type { ComponentPropertyType } from '@open-pencil/scene-graph'
 
 export function VariantAuthoringSection() {
   const {
     active,
+    componentSet,
     variant,
     definitions,
     diagnostics,
     addProperty,
+    addSlotProperty,
+    updateSlotProperty,
     renameProperty,
     removeProperty,
     renameValue,
@@ -31,9 +44,47 @@ export function VariantAuthoringSection() {
   const [mutationConflictIds, setMutationConflictIds] = useState<string[]>([])
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [settingsId, setSettingsId] = useState<string | null>(null)
+  const [slotDialog, setSlotDialog] = useState<'create' | string | null>(null)
+  const editor = useEditor()
+  const localComponents = useSceneComputed(() =>
+    listLocalAssets(editor, '').flatMap((asset) => {
+      const item = { id: asset.componentId ?? asset.id, name: asset.name }
+      if (asset.node.type !== 'COMPONENT_SET') return [item]
+      return [
+        item,
+        ...asset.node.childIds
+          .filter((id) => id !== item.id)
+          .map((id) => ({ id, name: asset.name }))
+      ]
+    })
+  )
+  const boundLayersByProperty = useSceneComputed<Record<string, string[]>>(() => {
+    if (!componentSet) return {}
+    const roots = variant
+      ? [variant]
+      : editor.graph.getChildren(componentSet.id).filter((node) => node.type === 'COMPONENT')
+    const result: Record<string, string[]> = {}
+    for (const definition of definitions) {
+      result[definition.id] = boundLayerNamesForProperty(roots, definition.id, (id) =>
+        editor.graph.getChildren(id)
+      )
+    }
+    return result
+  })
   const menuCls = useMenuUI({ content: 'absolute right-0 z-20 mt-1 min-w-40' })
   const itemCls = menuItem({ justify: 'start' })
+  const isSameSelected = (a, b) => {
+    const aKeys = Object.keys(a || {})
+    const bKeys = Object.keys(b || {})
 
+    if (aKeys.length !== bKeys.length) return false
+
+    for (const key of aKeys) {
+      if (a[key] !== b[key]) return false
+    }
+
+    return true
+  }
   useEffect(() => {
     const selected: Record<string, string> = {}
     for (const definition of definitions) {
@@ -43,6 +94,7 @@ export function VariantAuthoringSection() {
         definition.values[0] ??
         ''
     }
+    if (isSameSelected(selectedValues, selected)) return
     setSelectedValues(selected)
   }, [definitions, variant])
 
@@ -68,14 +120,22 @@ export function VariantAuthoringSection() {
       : panels.componentProperties
   function createProperty(type: ComponentPropertyType) {
     const presets = {
-      VARIANT: { name: panels.defaultVariantPropertyName, value: panels.defaultVariantPropertyValue },
+      VARIANT: {
+        name: panels.defaultVariantPropertyName,
+        value: panels.defaultVariantPropertyValue
+      },
       BOOLEAN: { name: panels.defaultBooleanPropertyName, value: 'true' },
       TEXT: { name: panels.defaultTextPropertyName, value: '' },
-      INSTANCE_SWAP: { name: panels.defaultInstanceSwapPropertyName, value: '' }
+      INSTANCE_SWAP: { name: panels.defaultInstanceSwapPropertyName, value: '' },
+      SLOT: { name: panels.defaultSlotPropertyName, value: '' }
     }
     const preset = presets[type]
-    addProperty(type, preset.name, preset.value)
     setAddMenuOpen(false)
+    if (type === 'SLOT') {
+      setSlotDialog('create')
+      return
+    }
+    addProperty(type, preset.name, preset.value)
   }
 
   function commitSelectedValue(propertyId: string, value: string) {
@@ -95,7 +155,8 @@ export function VariantAuthoringSection() {
     { type: 'VARIANT', label: panels.propertyTypeVariant },
     { type: 'BOOLEAN', label: panels.propertyTypeBoolean },
     { type: 'TEXT', label: panels.propertyTypeText },
-    { type: 'INSTANCE_SWAP', label: panels.propertyTypeInstanceSwap }
+    { type: 'INSTANCE_SWAP', label: panels.propertyTypeInstanceSwap },
+    { type: 'SLOT', label: panels.propertyTypeSlot }
   ]
 
   return (
@@ -145,6 +206,7 @@ export function VariantAuthoringSection() {
                     className={itemCls}
                     onClick={() => createProperty(item.type)}
                   >
+                    <PropertyTypeIcon type={item.type} className="size-3 shrink-0 text-component" />
                     {item.label}
                   </button>
                 ))}
@@ -170,20 +232,25 @@ export function VariantAuthoringSection() {
             <PropertyRow
               key={definition.id}
               definition={definition}
+              boundLayerNames={boundLayersByProperty[definition.id] ?? []}
               selectedValue={selectedValues[definition.id] ?? ''}
               showValueField={Boolean(variant) && definition.type === 'VARIANT'}
               invalid={selectedHasConflict && definition.type === 'VARIANT'}
               settingsOpen={settingsId === definition.id}
               onSelectValue={(value) => commitSelectedValue(definition.id, value)}
-              onToggleSettings={() =>
+              onToggleSettings={() => {
+                if (definition.type === 'SLOT') {
+                  setSlotDialog(definition.id)
+                  return
+                }
                 setSettingsId((current) => (current === definition.id ? null : definition.id))
-              }
+              }}
               onRemove={() => {
                 if (settingsId === definition.id) setSettingsId(null)
                 removeProperty(definition.id)
               }}
               settings={
-                settingsId === definition.id ? (
+                settingsId === definition.id && definition.type !== 'SLOT' ? (
                   <PropertySettingsPopover
                     definition={definition}
                     onClose={() => setSettingsId(null)}
@@ -196,7 +263,10 @@ export function VariantAuthoringSection() {
             />
           ))}
           {selectedHasConflict || diagnostics.length ? (
-            <p role="alert" className="rounded bg-danger/10 px-2 py-1.5 text-[10px] leading-4 text-danger">
+            <p
+              role="alert"
+              className="rounded bg-danger/10 px-2 py-1.5 text-[10px] leading-4 text-danger"
+            >
               {panels.duplicateVariantValues}. {panels.variantConflictHelp}.
             </p>
           ) : null}
@@ -204,6 +274,26 @@ export function VariantAuthoringSection() {
       ) : (
         <p className="py-1 text-[10px] text-muted">{panels.noVariantProperties}</p>
       )}
+      {slotDialog ? (
+        <CreateSlotPropertyDialog
+          mode={slotDialog === 'create' ? 'create' : 'edit'}
+          initial={
+            slotDialog === 'create'
+              ? emptySlotDraft(panels.defaultSlotPropertyName)
+              : slotDraftFromDefinition(
+                  definitions.find((definition) => definition.id === slotDialog) ??
+                    emptySlotDraft(panels.defaultSlotPropertyName)
+                )
+          }
+          components={localComponents}
+          onClose={() => setSlotDialog(null)}
+          onSubmit={(draft) => {
+            if (slotDialog === 'create') addSlotProperty(draft)
+            else updateSlotProperty(slotDialog, draft)
+            setSlotDialog(null)
+          }}
+        />
+      ) : null}
     </PanelSection>
   )
 }
@@ -218,6 +308,7 @@ function propertyValuesLabel(definition: VariantDefinitionControl, selectedValue
 
 function PropertyRow({
   definition,
+  boundLayerNames,
   selectedValue,
   showValueField,
   invalid,
@@ -228,6 +319,7 @@ function PropertyRow({
   settings
 }: {
   definition: VariantDefinitionControl
+  boundLayerNames: string[]
   selectedValue: string
   showValueField: boolean
   invalid: boolean
@@ -245,6 +337,9 @@ function PropertyRow({
       data-property={definition.id}
     >
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        <Tip label={propertyBindingTooltip(definition.type, panels, boundLayerNames)}>
+          <PropertyTypeIcon type={definition.type} />
+        </Tip>
         <span className="shrink-0 text-[11px] text-surface">{definition.name}</span>
         {valuesLabel || showValueField ? (
           <span className="shrink-0 text-[11px] text-muted" aria-hidden="true">

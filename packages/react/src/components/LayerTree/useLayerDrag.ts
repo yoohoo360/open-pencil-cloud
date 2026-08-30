@@ -17,6 +17,7 @@ import {
   applyLayerDrag,
   type LayerDragInstruction
 } from '#react/components/LayerTree/apply'
+import { canAcceptInsertedChild } from '#react/controls/component-props/slot-insert'
 
 export type LayerDragItem = {
   id: string
@@ -39,7 +40,8 @@ export function useLayerDrag(editor: Editor, indentPerLevel = 16) {
   const setupItem = useCallback(
     (element: HTMLElement | null, item: LayerDragItem) => {
       if (!element) return () => {}
-      const isContainer = editorRef.current.graph.isContainer(item.id)
+      const target = editorRef.current.graph.getNode(item.id)
+      const canNest = canAcceptInsertedChild(target, (id) => editorRef.current.graph.getNode(id))
       const mode: ItemMode = item.hasChildren ? 'expanded' : 'standard'
       return combine(
         draggable({
@@ -59,7 +61,7 @@ export function useLayerDrag(editor: Editor, indentPerLevel = 16) {
                 indentPerLevel,
                 currentLevel: item.level,
                 mode,
-                block: isContainer ? ['reparent'] : ['make-child', 'reparent']
+                block: canNest ? ['reparent'] : ['make-child', 'reparent']
               }
             ),
           canDrop: ({ source }) => source.data.id !== item.id,

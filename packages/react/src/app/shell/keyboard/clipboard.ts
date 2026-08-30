@@ -1,6 +1,7 @@
 import type { EditorStore } from '#react/app/editor/store'
 import { getInMemoryClipboardHTML, rememberClipboardTransfer } from '#react/app/editor/clipboard'
 import { hasDocumentTextSelection, isEditing } from '#react/app/shell/keyboard/focus'
+import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
 const RASTER_IMAGE_TYPES = new Set([
   'image/png',
@@ -33,6 +34,19 @@ export async function copyAndDeleteSelection(
     console.warn('Browser clipboard cut failed', error)
     return false
   }
+}
+
+function pasteIntoInsertionParent(
+  store: EditorStore,
+  html: string,
+  cursorPos: { x: number; y: number } | undefined
+) {
+  const parentId = resolveSelectedInsertionParent(store)
+  const previous = store.state.enteredContainerId
+  if (parentId !== store.state.currentPageId) store.state.enteredContainerId = parentId
+  return store.pasteFromHTML(html, cursorPos).finally(() => {
+    store.state.enteredContainerId = previous
+  })
 }
 
 export function bindEditorClipboard(store: EditorStore) {
@@ -68,13 +82,13 @@ export function bindEditorClipboard(store: EditorStore) {
 
     const html = e.clipboardData?.getData('text/html') ?? ''
     if (html) {
-      void store.pasteFromHTML(html, cursorPos)
+      void pasteIntoInsertionParent(store, html, cursorPos)
       return
     }
 
     const memoryHTML = getInMemoryClipboardHTML()
     if (memoryHTML) {
-      void store.pasteFromHTML(memoryHTML, cursorPos)
+      void pasteIntoInsertionParent(store, memoryHTML, cursorPos)
     }
   }
 

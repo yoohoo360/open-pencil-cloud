@@ -1,0 +1,1167 @@
+import { guidToString } from '@open-pencil/kiwi/fig/guid'
+import {
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_STROKE_MITER_LIMIT,
+  styleToWeight
+} from '@open-pencil/scene-graph'
+import { parseVariantName } from '@open-pencil/scene-graph/variant-name'
+/* eslint-disable max-lines -- kiwi↔scene conversion helpers are tightly coupled */
+
+import { importCanvasGuides } from './canvas-guides'
+import { convertFigmaDerivedTextGlyphs } from './derived-text-glyphs'
+import { convertFontFeatures } from './font/features'
+import { convertFontVariations } from './font/variations'
+import { convertEffects, convertFills, convertStrokes } from './paint'
+import { expandPathTextLayoutBox } from './path/text-layout'
+import {
+  extractBoundVariables,
+  extractExportSettings,
+  extractLibrarySource,
+  extractTextPathBox,
+  extractPluginData,
+  extractPluginRelaunchData,
+  getOpenPencilPluginValue,
+  LAYOUT_DIRECTION_PLUGIN_KEY,
+  NODE_TYPE_PLUGIN_KEY,
+  TEXT_DIRECTION_PLUGIN_KEY
+} from './plugin-data'
+import { importStyleRuns } from './style-runs'
+import { convertLetterSpacing, convertLineHeight, mapTextDecoration } from './text-values'
+import {
+  alignGeometryWindingRules,
+  resolveGeometryPaths,
+  resolveVectorNetwork,
+  resolveVectorStyleOverrideFills
+} from './vector-geometry'
+import { decodeVectorNetworkBlob, type StyleOverride } from './vector-network'
+
+export { convertEffects, convertFills, convertStrokes, setVariableColorResolver } from './paint'
+export { importStyleRuns } from './style-runs'
+export { convertLetterSpacing, convertLineHeight, mapTextDecoration } from './text-values'
+export { resolveGeometryPaths } from './vector-geometry'
+
+import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
+import type {
+  SceneNode,
+  NodeType,
+  Fill,
+  StrokeCap,
+  StrokeJoin,
+  LayoutMode,
+  LayoutSizing,
+  LayoutAlign,
+  LayoutAlignSelf,
+  LayoutCounterAlign,
+  ConstraintType,
+  TextAutoResize,
+  TextAlignVertical,
+  TextCase,
+  ArcData,
+  LayoutGrid,
+  SharedStyleType,
+  VectorNetwork,
+  ComponentPropertyDefinition,
+  ComponentPropertyReference,
+  ComponentPropertyType,
+  SymbolLink,
+  VariantPropSpec,
+  VariableModeMap,
+  Vector
+} from '@open-pencil/scene-graph'
+import type { GUID } from '@open-pencil/scene-graph/primitives'
+
+export { guidToString, stringToGuid } from '@open-pencil/kiwi/fig/guid'
+export { VARIABLE_BINDING_FIELDS, VARIABLE_BINDING_FIELDS_INVERSE } from './variable-bindings'
+
+interface FigVariableModeMap {
+  entries?: Array<{
+    variableSetID?: { guid?: GUID }
+    variableModeID?: GUID
+  }>
+}
+
+function extractVariableModes(nc: NodeChange): VariableModeMap {
+  const result: VariableModeMap = {}
+  const modeMap = nc.variableModeBySetMap as FigVariableModeMap | undefined
+  for (const entry of modeMap?.entries ?? []) {
+    const collectionGuid = entry.variableSetID?.guid
+    const modeGuid = entry.variableModeID
+    if (!collectionGuid || !modeGuid) continue
+    result[guidToString(collectionGuid)] = guidToString(modeGuid)
+  }
+  return result
+}
+
+const NODE_TYPE_MAP: Record<string, NodeType | 'DOCUMENT' | 'VARIABLE'> = {
+  DOCUMENT: 'DOCUMENT',
+  VARIABLE: 'VARIABLE',
+  CANVAS: 'CANVAS',
+  FRAME: 'FRAME',
+  RECTANGLE: 'RECTANGLE',
+  ROUNDED_RECTANGLE: 'ROUNDED_RECTANGLE',
+  ELLIPSE: 'ELLIPSE',
+  TEXT: 'TEXT',
+  LINE: 'LINE',
+  STAR: 'STAR',
+  REGULAR_POLYGON: 'POLYGON',
+  VECTOR: 'VECTOR',
+  BOOLEAN_OPERATION: 'BOOLEAN_OPERATION',
+  GROUP: 'GROUP',
+  SECTION: 'SECTION',
+  COMPONENT: 'COMPONENT',
+  COMPONENT_SET: 'COMPONENT_SET',
+  INSTANCE: 'INSTANCE',
+  SYMBOL: 'COMPONENT',
+  CONNECTOR: 'CONNECTOR',
+  SHAPE_WITH_TEXT: 'SHAPE_WITH_TEXT',
+  // Map to TEXT while retaining a format-neutral text path for rendering/editing.
+  TEXT_PATH: 'TEXT'
+}
+
+function mapNodeType(type?: string): NodeType | 'DOCUMENT' | 'VARIABLE' {
+  if (type) return NODE_TYPE_MAP[type] ?? 'RECTANGLE'
+  return 'RECTANGLE'
+}
+
+function mapBooleanOperation(nc: NodeChange): SceneNode['booleanOperation'] {
+  if (nc.type !== 'BOOLEAN_OPERATION') return undefined
+  const operation = nc.booleanOperation as NodeChange['booleanOperation'] | 'EXCLUDE' | undefined
+  switch (operation) {
+    case 'SUBTRACT':
+    case 'INTERSECT':
+      return operation
+    case 'EXCLUDE':
+    case 'XOR':
+      return 'EXCLUDE'
+    default:
+      return 'UNION'
+  }
+}
+
+function mapStackMode(mode?: string): LayoutMode {
+  switch (mode) {
+    case 'HORIZONTAL':
+      return 'HORIZONTAL'
+    case 'VERTICAL':
+      return 'VERTICAL'
+    default:
+      return 'NONE'
+  }
+}
+
+export function mapStackSizing(sizing?: string): LayoutSizing {
+  switch (sizing) {
+    case 'RESIZE_TO_FIT':
+    case 'RESIZE_TO_FIT_WITH_IMPLICIT_SIZE':
+      return 'HUG'
+    case 'FILL':
+      return 'FILL'
+    default:
+      return 'FIXED'
+  }
+}
+
+export function mapStackJustify(justify?: string): LayoutAlign {
+  switch (justify) {
+    case 'CENTER':
+      return 'CENTER'
+    case 'MAX':
+      return 'MAX'
+    case 'SPACE_BETWEEN':
+    case 'SPACE_EVENLY':
+      return 'SPACE_BETWEEN'
+    default:
+      return 'MIN'
+  }
+}
+
+export function mapStackCounterAlign(align?: string): LayoutCounterAlign {
+  switch (align) {
+    case 'CENTER':
+      return 'CENTER'
+    case 'MAX':
+      return 'MAX'
+    case 'STRETCH':
+      return 'STRETCH'
+    case 'BASELINE':
+      return 'BASELINE'
+    default:
+      return 'MIN'
+  }
+}
+
+export function mapAlignSelf(align?: string): LayoutAlignSelf {
+  switch (align) {
+    case 'MIN':
+      return 'MIN'
+    case 'CENTER':
+      return 'CENTER'
+    case 'MAX':
+      return 'MAX'
+    case 'STRETCH':
+      return 'STRETCH'
+    case 'BASELINE':
+      return 'BASELINE'
+    default:
+      return 'AUTO'
+  }
+}
+
+function mapConstraint(c?: string): ConstraintType {
+  switch (c) {
+    case 'CENTER':
+      return 'CENTER'
+    case 'MAX':
+      return 'MAX'
+    case 'STRETCH':
+      return 'STRETCH'
+    case 'SCALE':
+      return 'SCALE'
+    default:
+      return 'MIN'
+  }
+}
+
+export function mapArcData(data?: Partial<ArcData>): ArcData | null {
+  if (!data) return null
+  return {
+    startingAngle: data.startingAngle ?? 0,
+    endingAngle: data.endingAngle ?? 2 * Math.PI,
+    innerRadius: data.innerRadius ?? 0
+  }
+}
+
+export function convertFigmaTransformProps(
+  nc: NodeChange
+): Pick<SceneNode, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX' | 'flipY'> {
+  const width = nc.size?.x ?? 100
+  const height = nc.size?.y ?? 100
+
+  let x = nc.transform?.m02 ?? 0
+  let y = nc.transform?.m12 ?? 0
+  let rotation = 0
+  let flipX = false
+  if (nc.transform) {
+    const t = nc.transform
+    const det = t.m00 * t.m11 - t.m01 * t.m10
+    if (det < 0) flipX = true
+    rotation = Math.atan2(t.m10, flipX ? t.m11 : t.m00) * (180 / Math.PI)
+
+    // Scene nodes apply their reflection and rotation around the center. Decompose the Figma
+    // matrix into that same linear transform, then recover the node translation so recomposing
+    // it produces the original matrix. Reflected rotations need their angle read from the
+    // second row; treating them as ordinary rotations reverses connector instances by 180°.
+    const radians = (rotation * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    const centerX = width / 2
+    const centerY = height / 2
+    const m00 = flipX ? -cos : cos
+    const m01 = flipX ? sin : -sin
+    const m10 = sin
+    const m11 = cos
+    x = t.m02 - centerX + m00 * centerX + m01 * centerY
+    y = t.m12 - centerY + m10 * centerX + m11 * centerY
+  }
+
+  return { x, y, width, height, rotation, flipX, flipY: false }
+}
+
+function convertCornerProps(
+  nc: NodeChange
+): Pick<
+  SceneNode,
+  | 'cornerRadius'
+  | 'topLeftRadius'
+  | 'topRightRadius'
+  | 'bottomRightRadius'
+  | 'bottomLeftRadius'
+  | 'independentCorners'
+  | 'cornerSmoothing'
+> {
+  return {
+    cornerRadius: nc.cornerRadius ?? 0,
+    topLeftRadius: nc.rectangleTopLeftCornerRadius ?? nc.cornerRadius ?? 0,
+    topRightRadius: nc.rectangleTopRightCornerRadius ?? nc.cornerRadius ?? 0,
+    bottomRightRadius: nc.rectangleBottomRightCornerRadius ?? nc.cornerRadius ?? 0,
+    bottomLeftRadius: nc.rectangleBottomLeftCornerRadius ?? nc.cornerRadius ?? 0,
+    independentCorners: nc.rectangleCornerRadiiIndependent ?? false,
+    cornerSmoothing: nc.cornerSmoothing ?? 0
+  }
+}
+
+function importedTextLineHeight(nc: NodeChange): number | null {
+  const derivedLineHeight = nc.derivedTextData?.baselines?.[0]?.lineHeight
+  if (derivedLineHeight !== undefined && Number.isFinite(derivedLineHeight))
+    return derivedLineHeight
+  return convertLineHeight(nc.lineHeight, nc.fontSize)
+}
+
+type TextProps = Pick<
+  SceneNode,
+  | 'text'
+  | 'fontSize'
+  | 'fontFamily'
+  | 'fontWeight'
+  | 'italic'
+  | 'textAlignHorizontal'
+  | 'textAlignVertical'
+  | 'textAutoResize'
+  | 'textCase'
+  | 'textDecoration'
+  | 'textDecorationStyle'
+  | 'textDecorationThickness'
+  | 'textDecorationFills'
+  | 'leadingTrim'
+  | 'lineHeight'
+  | 'letterSpacing'
+  | 'maxLines'
+  | 'styleRuns'
+  | 'fontVariations'
+  | 'fontFeatures'
+  | 'textTruncation'
+  | 'textDirection'
+  | 'derivedLayout'
+  | 'derivedTextGlyphs'
+>
+
+function convertTextDecorationProps(
+  nc: NodeChange
+): Pick<
+  SceneNode,
+  | 'textDecoration'
+  | 'textDecorationStyle'
+  | 'textDecorationThickness'
+  | 'textDecorationFills'
+  | 'textDecorationSkipInk'
+  | 'textUnderlineOffset'
+> {
+  return {
+    textDecoration: mapTextDecoration(nc.textDecoration as string),
+    textDecorationStyle: (nc.textDecorationStyle ?? 'SOLID') as SceneNode['textDecorationStyle'],
+    textDecorationThickness: nc.textDecorationThickness?.value ?? null,
+    textDecorationFills: convertFills(nc.textDecorationFillPaints),
+    textDecorationSkipInk: nc.textDecorationSkipInk ?? true,
+    textUnderlineOffset: nc.textUnderlineOffset?.value ?? null
+  }
+}
+
+function convertTextProps(nc: NodeChange, blobs: Uint8Array[]): TextProps {
+  return {
+    text: nc.textData?.characters ?? '',
+    fontSize: nc.fontSize ?? 14,
+    fontFamily: nc.fontName?.family ?? DEFAULT_FONT_FAMILY,
+    fontWeight: styleToWeight(nc.fontName?.style ?? ''),
+    italic: nc.fontName?.style.toLowerCase().includes('italic') ?? false,
+    textAlignHorizontal: (nc.textAlignHorizontal ?? 'LEFT') as
+      | 'LEFT'
+      | 'CENTER'
+      | 'RIGHT'
+      | 'JUSTIFIED',
+    textAlignVertical: (nc.textAlignVertical ?? 'TOP') as TextAlignVertical,
+    textAutoResize: (nc.textAutoResize ?? 'NONE') as TextAutoResize,
+    textCase: (nc.textCase ?? 'ORIGINAL') as TextCase,
+    ...convertTextDecorationProps(nc),
+    leadingTrim: (nc.leadingTrim ?? 'NONE') as SceneNode['leadingTrim'],
+    lineHeight: importedTextLineHeight(nc),
+    letterSpacing: convertLetterSpacing(nc.letterSpacing, nc.fontSize),
+    maxLines: (nc.maxLines ?? null) as number | null,
+    styleRuns: importStyleRuns(nc),
+    fontVariations: convertFontVariations(nc),
+    fontFeatures: convertFontFeatures(nc),
+    textTruncation: (nc.textTruncation as string) === 'ENDING' ? 'ENDING' : 'DISABLED',
+    textDirection:
+      (getOpenPencilPluginValue(nc, TEXT_DIRECTION_PLUGIN_KEY) as
+        | SceneNode['textDirection']
+        | null) || 'AUTO',
+    derivedLayout: nc.derivedTextData?.layoutSize
+      ? {
+          width: nc.derivedTextData.layoutSize.x,
+          height: nc.derivedTextData.layoutSize.y
+        }
+      : null,
+    derivedTextGlyphs: convertFigmaDerivedTextGlyphs(nc.derivedTextData, blobs)
+  }
+}
+
+function convertLayoutPadding(
+  nc: NodeChange
+): Pick<SceneNode, 'paddingTop' | 'paddingBottom' | 'paddingLeft' | 'paddingRight'> {
+  const basePadding = nc.stackPadding ?? 0
+  return {
+    paddingTop: nc.stackVerticalPadding ?? basePadding,
+    paddingBottom: nc.stackPaddingBottom ?? basePadding,
+    paddingLeft: nc.stackHorizontalPadding ?? basePadding,
+    paddingRight: nc.stackPaddingRight ?? basePadding
+  }
+}
+
+function visibleContainerDerivedLayout(
+  nc: NodeChange,
+  layoutMode: SceneNode['layoutMode'],
+  primaryAxisSizing: SceneNode['primaryAxisSizing'],
+  counterAxisSizing: SceneNode['counterAxisSizing']
+): SceneNode['derivedLayout'] | undefined {
+  const hasHugAxis = primaryAxisSizing === 'HUG' || counterAxisSizing === 'HUG'
+  const hasVisiblePaint =
+    (nc.fillPaints?.some((paint) => paint.visible !== false) ?? false) ||
+    (nc.strokePaints?.some((paint) => paint.visible !== false) ?? false)
+  if (layoutMode === 'NONE' || !hasHugAxis || !hasVisiblePaint) return undefined
+
+  return {
+    x: nc.transform?.m02 ?? 0,
+    y: nc.transform?.m12 ?? 0,
+    width: nc.size?.x ?? 100,
+    height: nc.size?.y ?? 100
+  }
+}
+
+function minimumSizeDimension(size: NodeChange['minSize'], axis: 'x' | 'y'): number | null {
+  const value = size?.value?.[axis]
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+}
+
+function maximumSizeDimension(size: NodeChange['maxSize'], axis: 'x' | 'y'): number | null {
+  const value = size?.value?.[axis]
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+}
+
+function convertLayoutProps(
+  nc: NodeChange
+): Pick<
+  SceneNode,
+  | 'layoutMode'
+  | 'itemSpacing'
+  | 'paddingTop'
+  | 'paddingBottom'
+  | 'paddingLeft'
+  | 'paddingRight'
+  | 'primaryAxisSizing'
+  | 'counterAxisSizing'
+  | 'primaryAxisAlign'
+  | 'counterAxisAlign'
+  | 'layoutWrap'
+  | 'counterAxisSpacing'
+  | 'layoutPositioning'
+  | 'layoutGrow'
+  | 'layoutAlignSelf'
+  | 'counterAxisAlignContent'
+  | 'itemReverseZIndex'
+  | 'strokesIncludedInLayout'
+  | 'layoutDirection'
+> &
+  Partial<Pick<SceneNode, 'derivedLayout'>> {
+  const layoutMode = mapStackMode(nc.stackMode)
+  const primaryAxisSizing = mapStackSizing(nc.stackPrimarySizing)
+  const counterAxisSizing = mapStackSizing(nc.stackCounterSizing)
+  const derivedLayout = visibleContainerDerivedLayout(
+    nc,
+    layoutMode,
+    primaryAxisSizing,
+    counterAxisSizing
+  )
+
+  return {
+    layoutMode,
+    itemSpacing: nc.stackSpacing ?? 0,
+    ...convertLayoutPadding(nc),
+    primaryAxisSizing,
+    counterAxisSizing,
+    primaryAxisAlign: mapStackJustify(nc.stackPrimaryAlignItems ?? nc.stackJustify),
+    counterAxisAlign: mapStackCounterAlign(nc.stackCounterAlignItems ?? nc.stackCounterAlign),
+    layoutWrap: nc.stackWrap === 'WRAP' ? 'WRAP' : 'NO_WRAP',
+    counterAxisSpacing: nc.stackCounterSpacing ?? 0,
+    layoutPositioning: nc.stackPositioning === 'ABSOLUTE' ? 'ABSOLUTE' : 'AUTO',
+    layoutGrow: nc.stackChildPrimaryGrow ?? 0,
+    layoutAlignSelf: mapAlignSelf(nc.stackChildAlignSelf),
+    counterAxisAlignContent:
+      (nc.stackCounterAlignContent as string) === 'SPACE_BETWEEN' ? 'SPACE_BETWEEN' : 'AUTO',
+    itemReverseZIndex: (nc.stackReverseZIndex ?? false) as boolean,
+    strokesIncludedInLayout: (nc.strokesIncludedInLayout ?? false) as boolean,
+    layoutDirection:
+      (getOpenPencilPluginValue(nc, LAYOUT_DIRECTION_PLUGIN_KEY) as
+        | SceneNode['layoutDirection']
+        | null) || 'AUTO',
+    ...(derivedLayout ? { derivedLayout } : {})
+  }
+}
+
+function getVectorStrokeCap(nc: NodeChange, vectorNetwork: VectorNetwork | null): StrokeCap {
+  return (nc.strokeCap ??
+    vectorNetwork?.vertices.find((v) => v.strokeCap)?.strokeCap ??
+    'NONE') as StrokeCap
+}
+
+function getVectorStrokeJoin(nc: NodeChange, vectorNetwork: VectorNetwork | null): StrokeJoin {
+  return (nc.strokeJoin ??
+    vectorNetwork?.vertices.find((v) => v.strokeJoin)?.strokeJoin ??
+    'MITER') as StrokeJoin
+}
+
+function styleRefId(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || !('guid' in value)) return null
+  const guid = value.guid
+  if (!guid || typeof guid !== 'object') return null
+  return guidToString(guid as GUID)
+}
+
+function sharedStyleType(value: string | undefined): SharedStyleType | null {
+  if (value === 'FILL' || value === 'TEXT' || value === 'EFFECT' || value === 'GRID') return value
+  return null
+}
+
+function convertLayoutGrids(value: unknown): LayoutGrid[] {
+  return Array.isArray(value) ? structuredClone(value as LayoutGrid[]) : []
+}
+
+function convertTextPathData(nc: NodeChange, blobs: Uint8Array[]): SceneNode['textPathData'] {
+  if (nc.type !== 'TEXT_PATH') return null
+  const vectorData = nc.vectorData as
+    | {
+        vectorNetworkBlob?: number
+        normalizedSize?: Vector
+        styleOverrideTable?: StyleOverride[]
+      }
+    | undefined
+  const blobIndex = vectorData?.vectorNetworkBlob
+  const normalizedSize = vectorData?.normalizedSize
+  if (
+    typeof blobIndex !== 'number' ||
+    !normalizedSize ||
+    normalizedSize.x <= 0 ||
+    normalizedSize.y <= 0
+  ) {
+    return null
+  }
+  const blob = blobs[blobIndex]
+  const textPathStart = nc.textPathStart as { tValue?: number; forward?: boolean } | undefined
+  try {
+    return {
+      network: decodeVectorNetworkBlob(blob, vectorData.styleOverrideTable),
+      normalizedSize: { x: normalizedSize.x, y: normalizedSize.y },
+      tValue: textPathStart?.tValue ?? 0,
+      forward: textPathStart?.forward ?? true
+    }
+  } catch {
+    return null
+  }
+}
+
+function convertVectorAndStrokeProps(nc: NodeChange, blobs: Uint8Array[]) {
+  const vectorNetwork = resolveVectorNetwork(nc, blobs)
+  const strokeCap = getVectorStrokeCap(nc, vectorNetwork)
+  const strokeJoin = getVectorStrokeJoin(nc, vectorNetwork)
+  const fillGeometry = alignGeometryWindingRules(
+    resolveGeometryPaths(nc.fillGeometry, blobs, resolveVectorStyleOverrideFills(nc)),
+    vectorNetwork
+  )
+  return {
+    vectorNetwork,
+    fillGeometry,
+    strokeGeometry: resolveGeometryPaths(nc.strokeGeometry, blobs),
+    arcData: mapArcData(nc.arcData as Partial<ArcData> | undefined),
+    strokeCap,
+    strokeJoin,
+    dashPattern: nc.dashPattern ?? [],
+    borderTopWeight: (nc.borderTopWeight ?? 0) as number,
+    borderRightWeight: (nc.borderRightWeight ?? 0) as number,
+    borderBottomWeight: (nc.borderBottomWeight ?? 0) as number,
+    borderLeftWeight: (nc.borderLeftWeight ?? 0) as number,
+    independentStrokeWeights: (nc.borderStrokeWeightsIndependent ?? false) as boolean,
+    strokeMiterLimit: (nc.miterLimit ?? DEFAULT_STROKE_MITER_LIMIT) as number
+  }
+}
+
+function resolveNodeType(nc: NodeChange): NodeType | 'DOCUMENT' | 'VARIABLE' {
+  const nodeType = mapNodeType(nc.type)
+  if (
+    (nodeType === 'FRAME' && isComponentSet(nc)) ||
+    getOpenPencilPluginValue(nc, NODE_TYPE_PLUGIN_KEY) === 'COMPONENT_SET'
+  ) {
+    return 'COMPONENT_SET'
+  }
+  // Figma stores plain groups as FRAME node-changes flagged with resizeToFit.
+  // Auto-layout "hug" frames instead use stackPrimarySizing/stackCounterSizing and
+  // always carry a stackMode, so guard on the absence of auto-layout — a real group
+  // never has one. This keeps component-sets and auto-layout frames from being
+  // misclassified as groups.
+  if (
+    nodeType === 'FRAME' &&
+    nc.resizeToFit === true &&
+    (nc.stackMode === undefined || nc.stackMode === 'NONE')
+  ) {
+    return 'GROUP'
+  }
+  return nodeType
+}
+
+function nearlyEqualSize(a: number | undefined, b: number | undefined): boolean {
+  return Math.abs((a ?? 0) - (b ?? 0)) <= 0.5
+}
+
+export function shouldImportTextAsAutoSize(
+  nc: NodeChange,
+  parentNc: NodeChange | undefined
+): boolean {
+  if (nc.type !== 'TEXT' || nc.textAutoResize !== 'NONE') return false
+  if (parentNc?.stackMode !== 'HORIZONTAL' && parentNc?.stackMode !== 'VERTICAL') return false
+  if (!nc.textData?.characters) return false
+  const layoutSize = nc.derivedTextData?.layoutSize
+  if (!layoutSize || !nc.size) return false
+  return nearlyEqualSize(layoutSize.x, nc.size.x) && nearlyEqualSize(layoutSize.y, nc.size.y)
+}
+
+export function nodeChangeToProps(
+  nc: NodeChange,
+  blobs: Uint8Array[]
+): Partial<SceneNode> & { nodeType: NodeType | 'DOCUMENT' | 'VARIABLE' } {
+  const nodeType = resolveNodeType(nc)
+
+  const vectorAndStrokeProps = convertVectorAndStrokeProps(nc, blobs)
+  const textPathData = convertTextPathData(nc, blobs)
+
+  const props: Partial<SceneNode> & { nodeType: NodeType | 'DOCUMENT' | 'VARIABLE' } = {
+    nodeType,
+    name: nc.name ?? nodeType,
+    source: extractSourceMetadata(nc, blobs),
+    ...convertFigmaTransformProps(nc),
+    opacity: nc.opacity ?? 1,
+    visible: nc.visible ?? true,
+    locked: nc.locked ?? false,
+    blendMode: (nc.blendMode as Fill['blendMode']) ?? 'PASS_THROUGH',
+    booleanOperation: mapBooleanOperation(nc),
+    fills: convertFills(nc.fillPaints),
+    strokes: convertStrokes(
+      nc.strokePaints,
+      nc.strokeWeight,
+      nc.strokeAlign,
+      vectorAndStrokeProps.strokeCap,
+      vectorAndStrokeProps.strokeJoin,
+      nc.dashPattern ?? []
+    ),
+    effects: convertEffects(nc.effects),
+    layoutGrids: convertLayoutGrids(nc.layoutGrids),
+    guides: importCanvasGuides(nc.guides),
+    fillStyleId: styleRefId(nc.styleIdForFill),
+    strokeStyleId: styleRefId(nc.styleIdForStrokeFill),
+    textStyleId: styleRefId(nc.styleIdForText),
+    effectStyleId: styleRefId(nc.styleIdForEffect),
+    gridStyleId: styleRefId(nc.styleIdForGrid),
+    sharedStyleType: sharedStyleType(nc.styleType),
+    ...convertCornerProps(nc),
+    ...convertTextProps(nc, blobs),
+    horizontalConstraint: mapConstraint(nc.horizontalConstraint as string),
+    verticalConstraint: mapConstraint(nc.verticalConstraint as string),
+    ...convertLayoutProps(nc),
+    ...vectorAndStrokeProps,
+    minWidth: minimumSizeDimension(nc.minSize, 'x'),
+    maxWidth: maximumSizeDimension(nc.maxSize, 'x'),
+    minHeight: minimumSizeDimension(nc.minSize, 'y'),
+    maxHeight: maximumSizeDimension(nc.maxSize, 'y'),
+    isMask: nc.mask ?? false,
+    maskType: (nc.maskType ?? 'ALPHA') as 'ALPHA' | 'VECTOR' | 'LUMINANCE',
+    maskIsOutline: nc.maskIsOutline ?? false,
+    expanded: true,
+    autoRename: (nc.autoRename ?? true) as boolean,
+    boundVariables: extractBoundVariables(nc),
+    variableModes: extractVariableModes(nc),
+    exportSettings: extractExportSettings(nc),
+    pluginData: extractPluginData(nc),
+    librarySource: extractLibrarySource(nc),
+    pluginRelaunchData: extractPluginRelaunchData(nc),
+    clipsContent: nc.frameMaskDisabled === false && nc.resizeToFit !== true,
+    componentId: extractSymbolId(nc),
+    componentPropertyDefinitions: extractComponentPropertyDefs(nc),
+    componentPropertyReferences: extractComponentPropertyRefs(nc),
+    componentPropertyAssignments: extractComponentPropertyAssignments(nc),
+    componentPropertyValues: extractComponentPropertyValues(nc),
+    ...extractComponentMetadata(nc)
+  }
+
+  // See path/text-layout.ts — expand the layout box before node creation so
+  // clipsContent parents don't shave overflowing path lettering at first paint.
+  expandPathTextLayoutBox(props, textPathData)
+  // A saved OpenPencil doc carries the true textPathBox (reflow may have
+  // scaled it); the expand-time reconstruction is only right for pristine
+  // Figma exports. Plugin box is in pre-expansion local coords — expand's
+  // shift is textPathBox.x/y by construction, so re-home it.
+  const pluginBox = extractTextPathBox(nc)
+  if (pluginBox && props.textPathBox) {
+    props.textPathBox = {
+      x: pluginBox.x + props.textPathBox.x,
+      y: pluginBox.y + props.textPathBox.y,
+      width: pluginBox.width,
+      height: pluginBox.height
+    }
+  }
+  return props
+}
+
+const COMPONENT_PROP_TYPE_MAP: Record<string, ComponentPropertyType> = {
+  VARIANT: 'VARIANT',
+  TEXT: 'TEXT',
+  BOOL: 'BOOLEAN',
+  BOOLEAN: 'BOOLEAN',
+  INSTANCE_SWAP: 'INSTANCE_SWAP',
+  SLOT: 'SLOT'
+}
+
+function componentPropValueToString(value: unknown): string {
+  if (!value || typeof value !== 'object') return ''
+  const propValue = value as {
+    boolValue?: boolean
+    textValue?: string | { characters?: string }
+    guidValue?: GUID
+  }
+  if (typeof propValue.boolValue === 'boolean') return String(propValue.boolValue)
+  if (typeof propValue.textValue === 'string') return propValue.textValue
+  if (propValue.textValue && typeof propValue.textValue === 'object') {
+    return propValue.textValue.characters ?? ''
+  }
+  return propValue.guidValue ? guidToString(propValue.guidValue) : ''
+}
+
+interface RawComponentPropDef {
+  id?: GUID
+  name?: string
+  type?: string
+  initialValue?: unknown
+  preferredValues?: {
+    stringValues?: string[]
+    instanceSwapValues?: Array<{ key?: string }>
+  }
+}
+
+interface RawComponentPropRef {
+  defID?: GUID
+  componentPropNodeField?: string | number
+  isDeleted?: boolean
+}
+
+interface RawComponentPropValue {
+  boolValue?: boolean
+  textValue?: string | { characters?: string }
+  guidValue?: GUID
+}
+
+interface RawComponentPropAssignment {
+  defID?: GUID
+  value?: RawComponentPropValue
+  varValue?: {
+    value?: {
+      boolValue?: boolean
+      textValue?: string
+      textDataValue?: { characters?: string }
+      symbolIdValue?: { guid?: GUID }
+    }
+  }
+}
+
+interface RawSymbolData {
+  symbolOverrides?: unknown[]
+  uniformScaleFactor?: number
+}
+
+function extractComponentPropertyDefs(nc: NodeChange): ComponentPropertyDefinition[] {
+  const defs = nc.componentPropDefs as RawComponentPropDef[] | undefined
+  if (!defs?.length) return []
+  const result: ComponentPropertyDefinition[] = []
+  for (const def of defs) {
+    if (!def.id || !def.name) continue
+    const propType = COMPONENT_PROP_TYPE_MAP[def.type ?? ''] ?? 'VARIANT'
+    result.push({
+      id: guidToString(def.id),
+      name: def.name,
+      type: propType,
+      defaultValue: componentPropValueToString(def.initialValue),
+      variantOptions: propType === 'VARIANT' ? def.preferredValues?.stringValues : undefined,
+      preferredValues:
+        propType === 'INSTANCE_SWAP' || propType === 'SLOT'
+          ? def.preferredValues?.instanceSwapValues
+              ?.map((value) => value.key)
+              .filter((value): value is string => value !== undefined)
+          : undefined
+    })
+  }
+  return result
+}
+
+function extractComponentPropertyRefs(nc: NodeChange): ComponentPropertyReference[] {
+  const refs = nc.componentPropRefs as RawComponentPropRef[] | undefined
+  if (!refs?.length) return []
+  const fieldMap: Record<string, ComponentPropertyReference['field'] | undefined> = {
+    '0': 'VISIBLE',
+    '1': 'TEXT',
+    '2': 'INSTANCE_SWAP',
+    '4': 'SLOT',
+    VISIBLE: 'VISIBLE',
+    TEXT_DATA: 'TEXT',
+    OVERRIDDEN_SYMBOL_ID: 'INSTANCE_SWAP',
+    SLOT_CONTENT_ID: 'SLOT'
+  }
+  return refs.flatMap((ref) => {
+    const field = fieldMap[String(ref.componentPropNodeField)]
+    return ref.defID && field && !ref.isDeleted
+      ? [{ propertyId: guidToString(ref.defID), field }]
+      : []
+  })
+}
+
+function componentPropertyAssignmentValue(assignment: RawComponentPropAssignment): string {
+  if (
+    assignment.value &&
+    (assignment.value.boolValue !== undefined ||
+      assignment.value.textValue !== undefined ||
+      assignment.value.guidValue !== undefined)
+  ) {
+    return componentPropValueToString(assignment.value)
+  }
+  const variableValue = assignment.varValue?.value
+  if (variableValue?.symbolIdValue?.guid) return guidToString(variableValue.symbolIdValue.guid)
+  if (variableValue?.boolValue !== undefined) return String(variableValue.boolValue)
+  if (variableValue?.textValue !== undefined) return variableValue.textValue
+  return variableValue?.textDataValue?.characters ?? ''
+}
+
+function extractComponentPropertyAssignments(nc: NodeChange): Record<string, string> {
+  const assignments = nc.componentPropAssignments as RawComponentPropAssignment[] | undefined
+  if (!assignments?.length) return {}
+  return Object.fromEntries(
+    assignments.flatMap((assignment) =>
+      assignment.defID
+        ? [[guidToString(assignment.defID), componentPropertyAssignmentValue(assignment)]]
+        : []
+    )
+  )
+}
+
+function extractVariantPropSpecs(nc: NodeChange): VariantPropSpec[] {
+  const specs = nc.variantPropSpecs as Array<{ propDefId?: GUID; value?: string }> | undefined
+  if (!specs?.length) return []
+  return specs
+    .filter((spec): spec is { propDefId: GUID; value?: string } => !!spec.propDefId)
+    .map((spec) => ({ propDefId: guidToString(spec.propDefId), value: spec.value ?? '' }))
+}
+
+function extractComponentPropertyValues(nc: NodeChange): Record<string, string> {
+  const specs = extractVariantPropSpecs(nc)
+  const defs = new Map(extractComponentPropertyDefs(nc).map((def) => [def.id, def.name]))
+  if (specs.length > 0 && defs.size > 0) {
+    const values: Record<string, string> = {}
+    for (const spec of specs) values[defs.get(spec.propDefId) ?? spec.propDefId] = spec.value
+    return values
+  }
+
+  const name = nc.name
+  if (!name?.includes('=')) return {}
+  return parseVariantName(name)
+}
+
+type ComponentMetadataProps = Pick<
+  SceneNode,
+  | 'componentKey'
+  | 'sourceLibraryKey'
+  | 'publishId'
+  | 'overrideKey'
+  | 'sharedSymbolVersion'
+  | 'publishedVersion'
+  | 'isPublishable'
+  | 'isSymbolPublishable'
+  | 'symbolDescription'
+  | 'symbolLinks'
+  | 'variantPropSpecs'
+>
+
+function guidToStringOrNull(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const guid = value as Partial<GUID>
+  if (typeof guid.sessionID !== 'number' || typeof guid.localID !== 'number') return null
+  return guidToString({ sessionID: guid.sessionID, localID: guid.localID })
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function stringOrEmpty(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function booleanOrFalse(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : false
+}
+
+function extractComponentMetadata(nc: NodeChange): ComponentMetadataProps {
+  const symbolLinks = (nc.symbolLinks as Array<Partial<SymbolLink>> | undefined) ?? []
+  return {
+    componentKey: stringOrNull(nc.componentKey),
+    sourceLibraryKey: stringOrNull(nc.sourceLibraryKey),
+    publishId: guidToStringOrNull(nc.publishID),
+    overrideKey: guidToStringOrNull(nc.overrideKey),
+    sharedSymbolVersion: stringOrNull(nc.sharedSymbolVersion),
+    publishedVersion: stringOrNull(nc.publishedVersion),
+    isPublishable: booleanOrFalse(nc.isPublishable),
+    isSymbolPublishable: booleanOrFalse(nc.isSymbolPublishable),
+    symbolDescription: stringOrEmpty(nc.symbolDescription),
+    symbolLinks: symbolLinks
+      .filter((link): link is SymbolLink => typeof link.uri === 'string')
+      .map((link) => ({
+        uri: link.uri,
+        displayName: link.displayName,
+        displayText: link.displayText
+      })),
+    variantPropSpecs: extractVariantPropSpecs(nc)
+  }
+}
+
+function isComponentSet(nc: NodeChange): boolean {
+  const defs = nc.componentPropDefs as Array<{ type?: string }> | undefined
+  if (!defs?.length) return false
+  return defs.some((d) => d.type === 'VARIANT')
+}
+
+function extractFigmaLayoutMetadata(nc: NodeChange): SceneNode['source']['fig']['layout'] {
+  return {
+    stackMode: nc.stackMode,
+    stackSpacing: nc.stackSpacing,
+    stackPadding: nc.stackPadding,
+    stackPaddingRight: nc.stackPaddingRight,
+    stackPaddingBottom: nc.stackPaddingBottom,
+    stackCounterAlign: nc.stackCounterAlign,
+    stackJustify: nc.stackJustify,
+    stackCounterAlignItems: nc.stackCounterAlignItems,
+    stackPrimaryAlignItems: nc.stackPrimaryAlignItems,
+    stackPrimarySizing: nc.stackPrimarySizing,
+    stackCounterSizing: nc.stackCounterSizing,
+    stackVerticalPadding: nc.stackVerticalPadding,
+    stackHorizontalPadding: nc.stackHorizontalPadding,
+    stackWrap: nc.stackWrap,
+    stackPositioning: nc.stackPositioning,
+    stackChildPrimaryGrow: nc.stackChildPrimaryGrow,
+    stackChildAlignSelf: nc.stackChildAlignSelf,
+    stackCounterSpacing: nc.stackCounterSpacing,
+    bordersTakeSpace: nc.bordersTakeSpace as boolean | undefined,
+    stackReverseZIndex: nc.stackReverseZIndex as boolean | undefined
+  }
+}
+
+function extractSourceMetadata(nc: NodeChange, blobs: Uint8Array[]): SceneNode['source'] {
+  return {
+    format: 'fig',
+    id: nc.guid ? guidToString(nc.guid) : null,
+    orderKey: nc.parentIndex?.position ?? null,
+    editedFields: [],
+    fig: {
+      ...extractFigmaRawGeometry(nc, blobs),
+      ...extractFigmaSymbolMetadata(nc, blobs),
+      layout: extractFigmaLayoutMetadata(nc)
+    }
+  }
+}
+
+export function sortChildren(
+  children: string[],
+  parentNc: NodeChange,
+  nodeMap: Map<string, NodeChange>
+): void {
+  // Always sort by parentIndex.position first (canonical tree order)
+  const stackMode = parentNc.stackMode as string | undefined
+  const isHorizontal = stackMode === 'HORIZONTAL'
+  const isVertical = stackMode === 'VERTICAL'
+
+  children.sort((a, b) => {
+    const aPos = nodeMap.get(a)?.parentIndex?.position ?? ''
+    const bPos = nodeMap.get(b)?.parentIndex?.position ?? ''
+    // Primary sort: parentIndex.position (exact tree order)
+    if (aPos < bPos) return -1
+    if (aPos > bPos) return 1
+
+    // Tiebreaker for auto-layout: sort by transform position
+    if (isHorizontal || isVertical) {
+      const axis = isHorizontal ? 'm02' : 'm12'
+      const aT = nodeMap.get(a)?.transform?.[axis] ?? 0
+      const bT = nodeMap.get(b)?.transform?.[axis] ?? 0
+      if (aT !== bT) return aT - bT
+    }
+
+    return 0
+  })
+}
+
+interface PreservedFigmaBlob {
+  __openPencilFigmaBlob: Uint8Array
+}
+
+function preserveFigmaPayloadBlobs(value: unknown, blobs: Uint8Array[]): unknown {
+  if (value instanceof Uint8Array) return value
+  if (Array.isArray(value)) return value.map((item) => preserveFigmaPayloadBlobs(item, blobs))
+  if (!value || typeof value !== 'object') return value
+  const result: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value)) {
+    if ((key === 'commandsBlob' || key === 'vectorNetworkBlob') && typeof child === 'number') {
+      const blob: unknown = blobs[child]
+      if (blob == null) {
+        result[key] = child
+      } else {
+        result[key] = {
+          __openPencilFigmaBlob:
+            blob instanceof Uint8Array
+              ? blob
+              : new Uint8Array(Object.values(blob as Record<string, number>))
+        } satisfies PreservedFigmaBlob
+      }
+    } else {
+      result[key] = preserveFigmaPayloadBlobs(child, blobs)
+    }
+  }
+  return result
+}
+
+export const FIGMA_RAW_NODE_FIELD_KEYS = [
+  'styleIdForFill',
+  'styleIdForStrokeFill',
+  'styleIdForText',
+  'styleIdForEffect',
+  'styleIdForGrid',
+  'styleType',
+  'componentPropAssignments',
+  'backgroundPaints',
+  'layoutGrids',
+  'exportSettings',
+  'componentPropDefs',
+  'componentPropRefs',
+  'variantPropSpecs',
+  'stateGroupPropertyValueOrders',
+  'isStateGroup',
+  'version',
+  'sourceLibraryKey',
+  'userFacingVersion',
+  'description',
+  'key',
+  'sortPosition',
+  'detachedSymbolId',
+  'documentColorProfile',
+  'variableConsumptionMap',
+  'variableModeBySetMap',
+  'parameterConsumptionMap',
+  'editInfo',
+  'backgroundColor',
+  'pageType',
+  'isPageDivider',
+  'guides',
+  'handoffStatusMap',
+  'annotationCategories',
+  'miterLimit',
+  'mask',
+  'maskType',
+  'maskIsOutline',
+  'strokeWeight',
+  'strokeJoin',
+  'borderStrokeWeightsIndependent',
+  'borderTopWeight',
+  'borderRightWeight',
+  'borderBottomWeight',
+  'borderLeftWeight',
+  'minSize',
+  'maxSize',
+  'targetAspectRatio',
+  'gridRows',
+  'gridColumns',
+  'gridRowAnchor',
+  'gridColumnAnchor',
+  'gridColumnsSizing',
+  'gridRowsSizing',
+  'gridChildVerticalAlign',
+  'gridChildHorizontalAlign',
+  'textAutoResize',
+  'textData',
+  'lineHeight',
+  'fontName',
+  'fontSize',
+  'letterSpacing',
+  'textTracking',
+  'fontVersion',
+  'textUserLayoutVersion',
+  'textExplicitLayoutVersion',
+  'fontVariations',
+  'fontVariantCommonLigatures',
+  'fontVariantContextualLigatures',
+  'toggledOnOTFeatures',
+  'toggledOffOTFeatures',
+  'leadingTrim',
+  'textDecorationFillPaints',
+  'textUnderlineOffset',
+  'textDecorationThickness',
+  'textDecorationStyle',
+  'semanticWeight',
+  'semanticItalic',
+  'maxLines',
+  'textPathStart',
+  'derivedTextData',
+  'fillPaints',
+  'strokePaints',
+  'effects',
+  'sectionStatusInfo',
+  'prototypeStartNodeID',
+  'prototypeInteractions',
+  'transitionInfo',
+  'codeSyntax',
+  'lockMode',
+  'slideThemeMap',
+  'isSoftDeleted',
+  'brushType',
+  'scatterStrokeSettings',
+  'vectorOperationVersion',
+  'vectorData',
+  'fillGeometry',
+  'strokeGeometry'
+] as const satisfies readonly (keyof NodeChange)[]
+
+function extractFigmaRawGeometry(
+  nc: NodeChange,
+  blobs: Uint8Array[]
+): Pick<SceneNode['source']['fig'], 'rawSize' | 'rawTransform' | 'rawNodeFields'> {
+  const rawNodeFields: Record<string, unknown> = {}
+  for (const key of FIGMA_RAW_NODE_FIELD_KEYS) {
+    const value = nc[key]
+    if (value !== undefined) rawNodeFields[key] = preserveFigmaPayloadBlobs(value, blobs)
+  }
+  return {
+    rawSize: nc.size ? { ...nc.size } : null,
+    rawTransform: nc.transform ? { ...nc.transform } : null,
+    rawNodeFields
+  }
+}
+
+function extractFigmaSymbolMetadata(
+  nc: NodeChange,
+  blobs: Uint8Array[]
+): Pick<
+  SceneNode['source']['fig'],
+  | 'symbolOverrides'
+  | 'componentPropAssignments'
+  | 'derivedSymbolData'
+  | 'derivedSymbolDataLayoutVersion'
+  | 'uniformScaleFactor'
+> {
+  const sd = nc.symbolData as RawSymbolData | undefined
+  return {
+    symbolOverrides: preserveFigmaPayloadBlobs(sd?.symbolOverrides ?? [], blobs) as unknown[],
+    componentPropAssignments: preserveFigmaPayloadBlobs(
+      nc.componentPropAssignments ?? [],
+      blobs
+    ) as unknown[],
+    derivedSymbolData: preserveFigmaPayloadBlobs(nc.derivedSymbolData ?? [], blobs) as unknown[],
+    derivedSymbolDataLayoutVersion:
+      typeof nc.derivedSymbolDataLayoutVersion === 'number'
+        ? nc.derivedSymbolDataLayoutVersion
+        : null,
+    uniformScaleFactor: typeof sd?.uniformScaleFactor === 'number' ? sd.uniformScaleFactor : null
+  }
+}
+
+function extractSymbolId(nc: NodeChange): string {
+  const sd = nc.symbolData as { symbolID?: GUID } | undefined
+  if (!sd?.symbolID) return ''
+  return guidToString(sd.symbolID)
+}

@@ -1,6 +1,8 @@
 import type { Editor } from '@open-pencil/core/editor'
 import type { Vector } from '@open-pencil/scene-graph/primitives'
 
+import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
+
 let memoryHtml = ''
 
 export function getInMemoryClipboardHTML() {
@@ -65,6 +67,13 @@ export async function pasteEditorClipboard(editor: Editor, replace = false): Pro
     /* fall back to in-memory HTML */
   }
   if (!html) return false
-  await editor.pasteFromHTML(html, cursorPos(editor), { replaceSelection: replace })
+  const parentId = resolveSelectedInsertionParent(editor)
+  const previous = editor.state.enteredContainerId
+  if (parentId !== editor.state.currentPageId) editor.state.enteredContainerId = parentId
+  try {
+    await editor.pasteFromHTML(html, cursorPos(editor), { replaceSelection: replace })
+  } finally {
+    editor.state.enteredContainerId = previous
+  }
   return true
 }

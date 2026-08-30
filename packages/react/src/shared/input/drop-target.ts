@@ -1,13 +1,24 @@
 import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
+import {
+  canAcceptInsertedChild,
+  findSlotAtPoint
+} from '#react/controls/component-props/slot-insert'
+
 export function findMoveDropTarget(cx: number, cy: number, editor: Editor): SceneNode | null {
+  const slot = findSlotAtPoint(editor, cx, cy, editor.state.selectedIds)
+  if (slot) return slot
   let dropTarget = editor.graph.hitTestFrame(
     cx,
     cy,
     editor.state.selectedIds,
     editor.state.currentPageId
   )
+  const getNode = (id: string) => editor.graph.getNode(id)
+  while (dropTarget && !canAcceptInsertedChild(dropTarget, getNode)) {
+    dropTarget = dropTarget.parentId ? editor.graph.getNode(dropTarget.parentId) ?? null : null
+  }
   const movingSection = [...editor.state.selectedIds].some(
     (id) => editor.graph.getNode(id)?.type === 'SECTION'
   )

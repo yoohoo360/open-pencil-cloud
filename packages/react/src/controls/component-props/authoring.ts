@@ -1,11 +1,14 @@
 import type { VariantConflict } from '@open-pencil/core/editor'
-import type { ComponentPropertyType, SceneNode } from '@open-pencil/scene-graph'
+import type { ComponentPropertyDefinition, ComponentPropertyType, SceneNode } from '@open-pencil/scene-graph'
 
 import { bindFirstUnboundDescendant } from '#react/controls/component-props/binding'
 import {
+  applySlotDraft,
+  findFirstUnboundDescendant,
   orderedVariantValues,
   resolveVariantAuthoringChange,
   uniquePropertyName,
+  type SlotPropertyDraft,
   type VariantDefinitionControl
 } from '#react/controls/component-props/model'
 import { useEditor } from '#react/editor/context'
@@ -36,6 +39,13 @@ export function useVariantAuthoring() {
       name: definition.name,
       type: definition.type,
       defaultValue: definition.defaultValue,
+      description: definition.description,
+      preferredValues: definition.preferredValues,
+      slotMinLayers: definition.slotMinLayers,
+      slotMaxLayers: definition.slotMaxLayers,
+      onlyPreferredInstances: definition.onlyPreferredInstances,
+      emptySlotByDefault: definition.emptySlotByDefault,
+      fillCounterAxisByDefault: definition.fillCounterAxisByDefault,
       values:
         definition.type === 'VARIANT'
           ? orderedVariantValues(definition.variantOptions, values.get(definition.name))
@@ -54,15 +64,96 @@ export function useVariantAuthoring() {
       definitions.map((definition) => definition.name),
       name.trim()
     )
-    const propertyId = editor.addPropertyDefinition(componentSetId, uniqueName, type, initialValue)
-    const field = type === 'TEXT' ? 'TEXT' : type === 'BOOLEAN' ? 'VISIBLE' : null
-    if (propertyId && field) {
+    const field =
+      type === 'TEXT'
+        ? 'TEXT'
+        : type === 'BOOLEAN'
+          ? 'VISIBLE'
+          : type === 'INSTANCE_SWAP'
+            ? 'INSTANCE_SWAP'
+            : type === 'SLOT'
+              ? 'SLOT'
+              : null
+    let value = initialValue
+    if (type === 'INSTANCE_SWAP' && !value) {
+      for (const variant of editor.graph.getChildren(componentSetId)) {
+        if (variant.type !== 'COMPONENT') continue
+        const nested = findFirstUnboundDescendant(
+          variant,
+          field ?? 'SLOT',
+          (id) => editor.graph.getChildren(id),
+          true
+        )
+        if (nested?.componentId) {
+          value = nested.componentId
+          break
+        }
+      }
+    }
+    const propertyId = editor.addPropertyDefinition(componentSetId, uniqueName, type, value)
+    if (propertyId && field && type !== 'SLOT') {
       for (const variant of editor.graph.getChildren(componentSetId)) {
         if (variant.type === 'COMPONENT') {
           bindFirstUnboundDescendant(editor, variant.id, field, propertyId)
         }
       }
     }
+    return propertyId
+  }
+
+  function patchDefinitions(
+    componentSetId: string,
+    label: string,
+    mutate: (definitions: ComponentPropertyDefinition[]) => ComponentPropertyDefinition[]
+  ) {
+    const previous = structuredClone(editor.getComponentSetPropertyDefs(componentSetId))
+    const next = mutate(previous)
+    editor.graph.updateNode(componentSetId, { componentPropertyDefinitions: next })
+    editor.undo.push({
+      label,
+      forward: () => {
+        editor.graph.updateNode(componentSetId, {
+          componentPropertyDefinitions: structuredClone(next)
+        })
+        editor.requestRender()
+      },
+      inverse: () => {
+        editor.graph.updateNode(componentSetId, {
+          componentPropertyDefinitions: structuredClone(previous)
+        })
+        editor.requestRender()
+      }
+    })
+    editor.requestRender()
+    return true
+  }
+
+  function addSlotProperty(draft: SlotPropertyDraft) {
+    const propertyId = addProperty('SLOT', draft.name, '')
+    const componentSetId = componentSet?.id
+    if (!propertyId || !componentSetId) return propertyId
+    patchDefinitions(componentSetId, 'Add property', (definitions) =>
+      definitions.map((definition) =>
+        definition.id === propertyId
+          ? applySlotDraft(definition, { ...draft, name: definition.name })
+          : definition
+      )
+    )
+    return propertyId
+  }
+
+  function updateSlotProperty(propertyId: string, draft: SlotPropertyDraft) {
+    const componentSetId = componentSet?.id
+    if (!componentSetId) return false
+    const current = editor
+      .getComponentSetPropertyDefs(componentSetId)
+      .find((definition) => definition.id === propertyId)
+    if (!current || current.type !== 'SLOT') return false
+    return patchDefinitions(componentSetId, `Change ${draft.name.trim() || current.name}`, (definitions) =>
+      definitions.map((definition) =>
+        definition.id === propertyId ? applySlotDraft(definition, draft) : definition
+      )
+    )
   }
 
   function renameProperty(propertyId: string, name: string) {
@@ -174,6 +265,8 @@ export function useVariantAuthoring() {
     definitions,
     diagnostics,
     addProperty,
+    addSlotProperty,
+    updateSlotProperty,
     renameProperty,
     removeProperty,
     reorderProperties,

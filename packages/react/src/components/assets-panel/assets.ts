@@ -1,12 +1,17 @@
+import {
+  applySlotInsertLayout,
+  isSlotNode,
+  resolveSelectedInsertionParent
+} from '#react/controls/component-props/slot-insert'
+import { createInstanceFromComponent } from '#react/graph/instances'
+import { getLib, getRemoteImports } from '#react/graph/remote-lib'
+
 import type { Editor } from '@open-pencil/core/editor'
 import { renderNodesToImage } from '@open-pencil/core/io'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { Vector } from '@open-pencil/scene-graph/primitives'
 
-import { createInstanceFromComponent } from '#react/graph/instances'
-import { getLib, getRemoteImports } from '#react/graph/remote-lib'
-
-import { findAssetPage } from './page'
+import { findAssetPage, isInternalOnlyPage } from './page'
 
 export const COMPONENT_MIME = 'application/x-openpencil-component'
 export const COMPONENT_LIB_MIME = 'application/x-openpencil-component-lib'
@@ -17,6 +22,7 @@ export type LocalAsset = {
   name: string
   node: SceneNode
   componentId: string | null
+  componentIds: string[]
   variants: Array<{ name: string; values: string[] }>
   variantCount: number
   hasConflicts: boolean
@@ -47,9 +53,7 @@ function variantInfoFromGraph(graph: SceneGraph, componentSetId: string) {
     if (definition.type !== 'VARIANT') continue
     byName.set(definition.name, new Set(definition.variantOptions ?? []))
   }
-  for (const childId of set.childIds) {
-    const child = graph.getNode(childId)
-    if (child?.type !== 'COMPONENT') continue
+  for (const child of collectSetComponents(graph, set)) {
     for (const [name, value] of Object.entries(child.componentPropertyValues)) {
       if (!value) continue
       const values = byName.get(name) ?? new Set<string>()
@@ -63,12 +67,42 @@ function variantInfoFromGraph(graph: SceneGraph, componentSetId: string) {
   }))
 }
 
+function collectSetComponents(graph: SceneGraph, set: SceneNode): SceneNode[] {
+  const found: SceneNode[] = []
+  const seen = new Set<string>()
+  function walk(id: string) {
+    if (seen.has(id)) return
+    seen.add(id)
+    const node = graph.getNode(id)
+    if (!node) return
+    if (node.type === 'COMPONENT') found.push(node)
+    if (node.type === 'COMPONENT_SET' && node.id !== set.id) return
+    for (const childId of node.childIds) walk(childId)
+  }
+  for (const childId of set.childIds) walk(childId)
+  return found
+}
+
+export function owningComponentSet(graph: SceneGraph, node: SceneNode): SceneNode | undefined {
+  if (node.type === 'COMPONENT_SET') return node
+  let current = node.parentId ? graph.getNode(node.parentId) : undefined
+  while (current) {
+    if (current.type === 'COMPONENT_SET') return current
+    current = current.parentId ? graph.getNode(current.parentId) : undefined
+  }
+  for (const candidate of graph.nodes.values()) {
+    if (candidate.type !== 'COMPONENT_SET') continue
+    if (collectSetComponents(graph, candidate).some((child) => child.id === node.id)) {
+      return candidate
+    }
+  }
+}
+
 function defaultVariantFromGraph(graph: SceneGraph, node: SceneNode): SceneNode | undefined {
   if (node.type !== 'COMPONENT_SET') return node
-  return node.childIds
-    .map((id) => graph.getNode(id))
-    .filter((child): child is SceneNode => child?.type === 'COMPONENT')
-    .sort((a, b) => a.y - b.y || a.x - b.x || a.name.localeCompare(b.name))[0]
+  return collectSetComponents(graph, node).sort(
+    (a, b) => a.y - b.y || a.x - b.x || a.name.localeCompare(b.name)
+  )[0]
 }
 
 function hasVariantConflicts(graph: SceneGraph, componentSetId: string): boolean {
@@ -78,11 +112,11 @@ function hasVariantConflicts(graph: SceneGraph, componentSetId: string): boolean
     (definition) => definition.type === 'VARIANT'
   )
   const counts = new Map<string, number>()
-  for (const childId of set.childIds) {
-    const child = graph.getNode(childId)
-    if (child?.type !== 'COMPONENT') continue
+  for (const child of collectSetComponents(graph, set)) {
     const key = definitions
-      .map((definition) => `${definition.name}=${child.componentPropertyValues[definition.name] ?? ''}`)
+      .map(
+        (definition) => `${definition.name}=${child.componentPropertyValues[definition.name] ?? ''}`
+      )
       .join('\0')
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
@@ -100,42 +134,77 @@ export function listAssetLibraries(graph: SceneGraph, localName: string): AssetL
   ]
 }
 
+function toLocalAsset(
+  editor: Editor,
+  graph: SceneGraph,
+  node: SceneNode,
+  fallbackPageName: string
+): LocalAsset {
+  const setComponents = node.type === 'COMPONENT_SET' ? collectSetComponents(graph, node) : [node]
+  const defaultVariant = defaultVariantFromGraph(graph, node)
+  const variants = node.type === 'COMPONENT_SET' ? variantInfoFromGraph(graph, node.id) : []
+  const page = findAssetPage(node, graph)
+  const hidePage = isInternalOnlyPage(page)
+  return {
+    id: node.id,
+    name: node.name,
+    node,
+    componentId: defaultVariant?.id ?? null,
+    componentIds: setComponents.map((component) => component.id),
+    variants,
+    variantCount: node.type === 'COMPONENT_SET' ? setComponents.length : 0,
+    hasConflicts: node.type === 'COMPONENT_SET' ? hasVariantConflicts(graph, node.id) : false,
+    sourceLibraryKey: node.sourceLibraryKey,
+    description: node.symbolDescription,
+    docsURL: node.symbolLinks[0]?.uri ?? null,
+    pageId: hidePage ? '' : (page?.id ?? editor.state.currentPageId),
+    pageName: hidePage ? '' : (page?.name ?? fallbackPageName)
+  }
+}
+
 export function listAssets(
   editor: Editor,
   graph: SceneGraph,
   fallbackPageName: string
 ): LocalAsset[] {
-  return [...graph.nodes.values()]
-    .filter((node) => node.type === 'COMPONENT' || node.type === 'COMPONENT_SET')
-    .filter((node) => {
-      if (node.type === 'COMPONENT_SET') return true
-      const parent = node.parentId ? graph.getNode(node.parentId) : null
-      return parent?.type !== 'COMPONENT_SET'
-    })
-    .map((node) => {
-      const defaultVariant = defaultVariantFromGraph(graph, node)
-      const variants = node.type === 'COMPONENT_SET' ? variantInfoFromGraph(graph, node.id) : []
-      const page = findAssetPage(node, graph)
-      return {
-        id: node.id,
-        name: node.name,
-        node,
-        componentId: defaultVariant?.id ?? null,
-        variants,
-        variantCount: node.type === 'COMPONENT_SET' ? node.childIds.length : 0,
-        hasConflicts: node.type === 'COMPONENT_SET' ? hasVariantConflicts(graph, node.id) : false,
-        sourceLibraryKey: node.sourceLibraryKey,
-        description: node.symbolDescription,
-        docsURL: node.symbolLinks[0]?.uri ?? null,
-        pageId: page?.id ?? editor.state.currentPageId,
-        pageName: page?.name ?? fallbackPageName
-      }
-    })
-    .sort((a, b) => a.name.localeCompare(b.name))
+  const seen = new Set<string>()
+  const assets: LocalAsset[] = []
+  for (const node of graph.nodes.values()) {
+    if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') continue
+
+    const listed = node.type === 'COMPONENT_SET' ? node : (owningComponentSet(graph, node) ?? node)
+    if (seen.has(listed.id)) continue
+    seen.add(listed.id)
+
+    const asset = toLocalAsset(editor, graph, listed, fallbackPageName)
+
+    if (!asset?.pageId || !asset?.pageName) {
+      continue
+    }
+    if (asset.node?.type === 'COMPONENT_SET') {
+      assets.push(asset)
+    }
+    const parent = graph.getNode(asset.node.parentId ?? '')
+
+    if (parent && asset.node?.type === 'COMPONENT' && parent?.type !== 'COMPONENT_SET') {
+      assets.push(asset)
+    }
+  }
+  return assets.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function listLocalAssets(editor: Editor, fallbackPageName: string): LocalAsset[] {
   return listAssets(editor, editor.graph, fallbackPageName)
+}
+
+export function assetMatchesComponentId(asset: LocalAsset, componentId: string): boolean {
+  if (!componentId) return false
+  return (
+    asset.id === componentId ||
+    asset.componentId === componentId ||
+    asset.node.componentKey === componentId ||
+    asset.componentIds.includes(componentId)
+  )
 }
 
 export function filterAssets(assets: LocalAsset[], query: string): LocalAsset[] {
@@ -192,15 +261,19 @@ export function insertAssetInstance(
   const graph = resolveAssetGraph(editor, sourceLibraryKey)
   const component = graph.getNode(asset.componentId)
   if (!component) return false
-  const parentId = editor.state.enteredContainerId ?? editor.state.currentPageId
+  const parentId = resolveSelectedInsertionParent(editor)
+  const parent = editor.graph.getNode(parentId)
   const center = viewportCanvasCenter()
   const canvasWorld = editor.screenToCanvas(center.x, center.y)
   const parentOffset =
     parentId === editor.state.currentPageId
       ? { x: 0, y: 0 }
       : editor.graph.getAbsolutePosition(parentId)
-  const point = assetInsertionPoint(component, canvasWorld, parentOffset)
-  createInstanceFromComponent(
+  const point =
+    parent && isSlotNode(parent)
+      ? { x: parent.paddingLeft, y: parent.paddingTop }
+      : assetInsertionPoint(component, canvasWorld, parentOffset)
+  const instanceId = createInstanceFromComponent(
     editor,
     asset.componentId,
     point.x,
@@ -208,6 +281,7 @@ export function insertAssetInstance(
     parentId,
     sourceLibraryKey
   )
+  if (instanceId && parent && isSlotNode(parent)) applySlotInsertLayout(editor, instanceId, parent)
   editor.requestRender()
   return true
 }
@@ -222,10 +296,17 @@ export async function renderAssetPreview(
   const renderer = editor.renderer
   if (!renderer) return null
   const data = await Promise.resolve(
-    renderNodesToImage(renderer.ck, renderer, graph, pageId ?? editor.state.currentPageId, [nodeId], {
-      scale,
-      format: 'PNG'
-    })
+    renderNodesToImage(
+      renderer.ck,
+      renderer,
+      graph,
+      pageId ?? editor.state.currentPageId,
+      [nodeId],
+      {
+        scale,
+        format: 'PNG'
+      }
+    )
   )
   return data ? new Blob([data], { type: 'image/png' }) : null
 }

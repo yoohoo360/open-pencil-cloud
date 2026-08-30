@@ -21,6 +21,10 @@ export interface ComponentPropertyControl {
   type: ComponentPropertyType
   value: MixedValue<string>
   options: ComponentPropertyOption[]
+  insertable?: boolean
+  preferredValues?: string[]
+  onlyPreferredInstances?: boolean
+  boundLayerNames?: string[]
 }
 
 export interface VariantDefinitionControl {
@@ -29,6 +33,78 @@ export interface VariantDefinitionControl {
   type: ComponentPropertyType
   defaultValue: string
   values: string[]
+  description?: string
+  preferredValues?: string[]
+  slotMinLayers?: number
+  slotMaxLayers?: number
+  onlyPreferredInstances?: boolean
+  emptySlotByDefault?: boolean
+  fillCounterAxisByDefault?: boolean
+}
+
+export interface SlotPropertyDraft {
+  name: string
+  description: string
+  preferredValues: string[]
+  slotMinLayers?: number
+  slotMaxLayers?: number
+  onlyPreferredInstances: boolean
+  emptySlotByDefault: boolean
+  fillCounterAxisByDefault: boolean
+}
+
+export function emptySlotDraft(name: string): SlotPropertyDraft {
+  return {
+    name,
+    description: '',
+    preferredValues: [],
+    onlyPreferredInstances: false,
+    emptySlotByDefault: false,
+    fillCounterAxisByDefault: false
+  }
+}
+
+export function slotDraftFromDefinition(
+  definition: Pick<
+    ComponentPropertyDefinition,
+    | 'name'
+    | 'description'
+    | 'preferredValues'
+    | 'slotMinLayers'
+    | 'slotMaxLayers'
+    | 'onlyPreferredInstances'
+    | 'emptySlotByDefault'
+    | 'fillCounterAxisByDefault'
+  >
+): SlotPropertyDraft {
+  return {
+    name: definition.name,
+    description: definition.description ?? '',
+    preferredValues: [...(definition.preferredValues ?? [])],
+    slotMinLayers: definition.slotMinLayers,
+    slotMaxLayers: definition.slotMaxLayers,
+    onlyPreferredInstances: definition.onlyPreferredInstances ?? false,
+    emptySlotByDefault: definition.emptySlotByDefault ?? false,
+    fillCounterAxisByDefault: definition.fillCounterAxisByDefault ?? false
+  }
+}
+
+export function applySlotDraft(
+  definition: ComponentPropertyDefinition,
+  draft: SlotPropertyDraft
+): ComponentPropertyDefinition {
+  const name = draft.name.trim() || definition.name
+  return {
+    ...definition,
+    name,
+    description: draft.description,
+    preferredValues: [...draft.preferredValues],
+    slotMinLayers: draft.slotMinLayers,
+    slotMaxLayers: draft.slotMaxLayers,
+    onlyPreferredInstances: draft.onlyPreferredInstances,
+    emptySlotByDefault: draft.emptySlotByDefault,
+    fillCounterAxisByDefault: draft.fillCounterAxisByDefault
+  }
 }
 
 export function orderedVariantValues(
@@ -100,6 +176,42 @@ export function propertyIdForField(
   return node.componentPropertyReferences.find((reference) => reference.field === field)?.propertyId
 }
 
+export function findNodesBoundToProperty(
+  root: SceneNode,
+  propertyId: string,
+  getChildren: (id: string) => SceneNode[]
+): SceneNode[] {
+  const found: SceneNode[] = []
+  const seen = new Set<string>()
+  function walk(node: SceneNode) {
+    if (seen.has(node.id)) return
+    seen.add(node.id)
+    if (node.componentPropertyReferences.some((reference) => reference.propertyId === propertyId)) {
+      found.push(node)
+    }
+    for (const child of getChildren(node.id)) walk(child)
+  }
+  walk(root)
+  return found
+}
+
+export function boundLayerNamesForProperty(
+  roots: readonly SceneNode[],
+  propertyId: string,
+  getChildren: (id: string) => SceneNode[]
+): string[] {
+  const names: string[] = []
+  const seen = new Set<string>()
+  for (const root of roots) {
+    for (const node of findNodesBoundToProperty(root, propertyId, getChildren)) {
+      if (node.id === root.id || seen.has(node.name)) continue
+      seen.add(node.name)
+      names.push(node.name)
+    }
+  }
+  return names
+}
+
 export function visiblePropertyId(node: SceneNode): string | undefined {
   return propertyIdForField(node, 'VISIBLE')
 }
@@ -150,18 +262,90 @@ export function instanceBooleanPropertyValue(
   return referencedDescendantVisible(instance, definition.id, getChildren) ?? definition.defaultValue
 }
 
+export function canBindInstanceSwapProperty(node: SceneNode): boolean {
+  return node.type === 'INSTANCE'
+}
+
+export function canBindSlotProperty(node: SceneNode): boolean {
+  return node.type === 'FRAME'
+}
+
+export function resolveInstanceSwapComponentId(
+  node: SceneNode,
+  getNode: (id: string) => SceneNode | undefined
+): string | undefined {
+  if (node.type !== 'INSTANCE' || !node.componentId) return undefined
+  const target = getNode(node.componentId)
+  if (target?.type === 'COMPONENT') return target.id
+  if (target?.type === 'INSTANCE') return target.componentId ?? undefined
+}
+
+export function findReferencedSwapInstance(
+  root: SceneNode,
+  propertyId: string,
+  getChildren: (id: string) => SceneNode[],
+  seen = new Set<string>()
+): SceneNode | undefined {
+  if (seen.has(root.id)) return
+  seen.add(root.id)
+  if (
+    root.type === 'INSTANCE' &&
+    root.componentPropertyReferences.some(
+      (reference) =>
+        reference.propertyId === propertyId &&
+        (reference.field === 'INSTANCE_SWAP' || reference.field === 'SLOT')
+    )
+  ) {
+    return root
+  }
+  for (const child of getChildren(root.id)) {
+    const found = findReferencedSwapInstance(child, propertyId, getChildren, seen)
+    if (found) return found
+  }
+}
+
+export function referencedDescendantSwap(
+  root: SceneNode,
+  propertyId: string,
+  getChildren: (id: string) => SceneNode[],
+  getNode: (id: string) => SceneNode | undefined
+): string | undefined {
+  const nested = findReferencedSwapInstance(root, propertyId, getChildren)
+  return nested ? resolveInstanceSwapComponentId(nested, getNode) : undefined
+}
+
+export function instanceSwapPropertyValue(
+  instance: SceneNode,
+  definition: ComponentPropertyDefinition,
+  getChildren: (id: string) => SceneNode[],
+  getNode: (id: string) => SceneNode | undefined
+): string {
+  const assigned = instance.componentPropertyAssignments[definition.id]
+  if (assigned !== undefined) return assigned
+  return (
+    referencedDescendantSwap(instance, definition.id, getChildren, getNode) ?? definition.defaultValue
+  )
+}
+
 export function findFirstUnboundDescendant(
   root: SceneNode,
   field: ComponentPropertyReferenceField,
   getChildren: (id: string) => SceneNode[],
-  skipRoot = true
+  skipRoot = true,
+  seen = new Set<string>()
 ): SceneNode | undefined {
+  if (seen.has(root.id)) return
+  seen.add(root.id)
   const matchesField =
     field === 'TEXT'
       ? root.type === 'TEXT'
       : field === 'VISIBLE'
         ? !VISIBILITY_BIND_SKIP.has(root.type)
-        : false
+        : field === 'INSTANCE_SWAP'
+          ? root.type === 'INSTANCE'
+          : field === 'SLOT'
+            ? root.type === 'FRAME'
+            : false
   if (
     !skipRoot &&
     matchesField &&
@@ -170,7 +354,7 @@ export function findFirstUnboundDescendant(
     return root
   }
   for (const child of getChildren(root.id)) {
-    const found = findFirstUnboundDescendant(child, field, getChildren, false)
+    const found = findFirstUnboundDescendant(child, field, getChildren, false, seen)
     if (found) return found
   }
 }
@@ -181,9 +365,14 @@ export function propertyDefinitionOwners(
 ): SceneNode[] {
   let current: SceneNode | undefined = node
   let sawInstance = false
+  let started = true
   let component: SceneNode | undefined
+  const seen = new Set<string>()
   while (current) {
-    if (current.type === 'INSTANCE') sawInstance = true
+    if (seen.has(current.id)) break
+    seen.add(current.id)
+    if (!started && current.type === 'INSTANCE') sawInstance = true
+    started = false
     if (current.type === 'COMPONENT' || current.type === 'COMPONENT_SET') {
       component = current
       break
@@ -219,19 +408,53 @@ export function textPropertyDefinitions(owners: SceneNode[]): ComponentPropertyD
   return propertyDefinitionsOfType(owners, 'TEXT')
 }
 
+export function ancestorPublishedInstance(
+  node: SceneNode,
+  getNode: (id: string) => SceneNode | undefined
+): SceneNode | undefined {
+  let current = node.parentId ? getNode(node.parentId) : undefined
+  const seen = new Set<string>()
+  while (current) {
+    if (seen.has(current.id)) return
+    seen.add(current.id)
+    if (current.type === 'INSTANCE') return current
+    current = current.parentId ? getNode(current.parentId) : undefined
+  }
+}
+
+export function isSwapPropertyType(type: ComponentPropertyType): boolean {
+  return type === 'INSTANCE_SWAP' || type === 'SLOT'
+}
+
+export function isSwapReferenceField(field: ComponentPropertyReferenceField): boolean {
+  return field === 'INSTANCE_SWAP' || field === 'SLOT'
+}
+
 export function instanceSwapOptions(
   components: SceneNode[],
-  definition: ComponentPropertyDefinition,
-  value: string
+  definition: Pick<ComponentPropertyDefinition, 'preferredValues'>,
+  value: string,
+  excludeIds: Iterable<string> = []
 ): ComponentPropertyOption[] {
   const preferred = new Set(definition.preferredValues ?? [])
+  const excluded = new Set(excludeIds)
   const options: ComponentPropertyOption[] = components
-    .filter((node) => node.type === 'COMPONENT')
+    .filter((node) => node.type === 'COMPONENT' && !excluded.has(node.id))
+    .filter(
+      (node) =>
+        preferred.size === 0 ||
+        preferred.has(node.id) ||
+        preferred.has(node.componentKey ?? '') ||
+        preferred.has(node.sourceLibraryKey ?? '') ||
+        node.id === value
+    )
     .map((node) => ({
       value: node.id,
       label: node.name,
       preferred:
-        preferred.has(node.componentKey ?? '') || preferred.has(node.sourceLibraryKey ?? '')
+        preferred.has(node.id) ||
+        preferred.has(node.componentKey ?? '') ||
+        preferred.has(node.sourceLibraryKey ?? '')
     }))
     .sort(
       (left, right) =>

@@ -1,9 +1,25 @@
 import { DEFAULT_TEXT_HEIGHT, DEFAULT_TEXT_WIDTH } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
+import type { NodeType } from '@open-pencil/scene-graph'
 
 import { markTextEditStarted } from '#react/canvas/text-edit/input'
+import {
+  applySlotInsertLayout,
+  isSlotNode,
+  resolveInsertionParent,
+  worldToParentLocal
+} from '#react/controls/component-props/slot-insert'
 import { TOOL_TO_NODE } from '#react/shared/input/types'
 import type { DragDraw, DragState } from '#react/shared/input/types'
+
+function createDrawnNode(type: NodeType, cx: number, cy: number, editor: Editor) {
+  const parentId = resolveInsertionParent(editor, cx, cy)
+  const local = worldToParentLocal(editor, parentId, cx, cy)
+  const nodeId = editor.createShape(type, local.x, local.y, 0, 0, parentId)
+  const parent = editor.graph.getNode(parentId)
+  if (parent && isSlotNode(parent)) applySlotInsertLayout(editor, nodeId, parent)
+  return nodeId
+}
 
 export function startTextDraw(
   cx: number,
@@ -12,7 +28,7 @@ export function startTextDraw(
   setDrag: (d: DragState) => void
 ) {
   editor.undo.beginBatch('Create text')
-  const nodeId = editor.createShape('TEXT', cx, cy, 0, 0)
+  const nodeId = createDrawnNode('TEXT', cx, cy, editor)
   editor.graph.updateNode(nodeId, { text: '' })
   editor.select([nodeId])
   setDrag({ type: 'draw', startX: cx, startY: cy, nodeId })
@@ -28,7 +44,7 @@ export function startShapeDraw(
   if (!nodeType) return
 
   editor.undo.beginBatch('Create shape')
-  const nodeId = editor.createShape(nodeType, cx, cy, 0, 0)
+  const nodeId = createDrawnNode(nodeType, cx, cy, editor)
   editor.select([nodeId])
   setDrag({ type: 'draw', startX: cx, startY: cy, nodeId })
 }
@@ -49,9 +65,12 @@ export function handleDrawMove(
     h = Math.sign(h) * size
   }
 
+  const node = editor.graph.getNode(d.nodeId)
+  const parentId = node?.parentId ?? editor.state.currentPageId
+  const start = worldToParentLocal(editor, parentId, d.startX, d.startY)
   editor.updateNode(d.nodeId, {
-    x: w < 0 ? d.startX + w : d.startX,
-    y: h < 0 ? d.startY + h : d.startY,
+    x: w < 0 ? start.x + w : start.x,
+    y: h < 0 ? start.y + h : start.y,
     width: Math.abs(w),
     height: Math.abs(h)
   })
