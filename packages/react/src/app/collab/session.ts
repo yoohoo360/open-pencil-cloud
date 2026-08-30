@@ -2,7 +2,6 @@ import { connectCollabRoom } from '#react/app/collab/room'
 import type { CollabRoomTransport } from '#react/app/collab/transport/types'
 import { bindCollabGraphEvents, registerYjsObservers } from '#react/app/collab/yjs-sync'
 import type { EditorStore } from '#react/app/editor/store'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as Y from 'yjs'
 
@@ -13,7 +12,6 @@ export type CollabRuntime = {
   ynodes: Y.Map<Y.Map<unknown>> | null
   yimages: Y.Map<Uint8Array> | null
   room: CollabRoomTransport | null
-  persistence: IndexeddbPersistence | null
   suppressGraphSync: boolean
   suppressYjsEvents: boolean
   unbindGraphEvents: (() => void) | null
@@ -28,7 +26,6 @@ export function createCollabRuntime(): CollabRuntime {
     ynodes: null,
     yimages: null,
     room: null,
-    persistence: null,
     suppressGraphSync: false,
     suppressYjsEvents: false,
     unbindGraphEvents: null,
@@ -60,7 +57,6 @@ export function connectCollabSession({
   runtime.awareness = new awarenessProtocol.Awareness(runtime.ydoc)
   runtime.ynodes = runtime.ydoc.getMap('nodes')
   runtime.yimages = runtime.ydoc.getMap('images')
-  runtime.persistence = new IndexeddbPersistence(`hl-room-${roomId}`, runtime.ydoc)
 
   runtime.awareness.on('change', () => {
     updatePeersList()
@@ -111,7 +107,6 @@ export function disposeCollabSession(runtime: CollabRuntime, store: EditorStore)
   runtime.stopZoomWatch?.()
   void runtime.room?.leave()
   runtime.awareness?.destroy()
-  if (runtime.persistence) void runtime.persistence.destroy()
   runtime.ydoc?.destroy()
   store.state.remoteCursors = []
   store.requestRender()
@@ -120,7 +115,6 @@ export function disposeCollabSession(runtime: CollabRuntime, store: EditorStore)
   runtime.room = null
   runtime.roomId = null
   runtime.awareness = null
-  runtime.persistence = null
   runtime.ydoc = null
   runtime.ynodes = null
   runtime.yimages = null

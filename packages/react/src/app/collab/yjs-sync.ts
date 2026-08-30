@@ -50,7 +50,29 @@ export function bindCollabGraphEvents({
     }
   }
 
+  const pendingPreview = new Set<string>()
+  let previewTimer: number | null = null
+  function onPreviewMutation(nodeId: string) {
+    pendingPreview.add(nodeId)
+    if (previewTimer !== null) return
+    previewTimer = window.setTimeout(() => {
+      previewTimer = null
+      for (const id of pendingPreview) onGraphMutation(id)
+      pendingPreview.clear()
+    }, 32)
+  }
+
+  let unbindPreview = store.graph.onNodeEvents({
+    previewUpdated: (id) => onPreviewMutation(id)
+  })
+
   const unbinds = [
+    store.onEditorEvent('graph:replaced', () => {
+      unbindPreview()
+      unbindPreview = store.graph.onNodeEvents({
+        previewUpdated: (id) => onPreviewMutation(id)
+      })
+    }),
     store.onEditorEvent('node:updated', (id) => onGraphMutation(id)),
     store.onEditorEvent('node:created', (node) => onGraphMutation(node.id)),
     store.onEditorEvent('node:reparented', (nodeId) => onGraphMutation(nodeId)),
@@ -73,6 +95,9 @@ export function bindCollabGraphEvents({
     })
   ]
   return () => {
+    if (previewTimer !== null) window.clearTimeout(previewTimer)
+    pendingPreview.clear()
+    unbindPreview()
     for (const unbind of unbinds) unbind()
   }
 }
@@ -155,6 +180,15 @@ export function createYjsGraphSync({
       logCollabSyncError(`Failed to sync node ${nodeId}`, error)
     } finally {
       setSuppressYjsEvents(false)
+    }
+  }
+
+  function syncMissingNodesToYjs() {
+    const store = getStore()
+    const ynodes = getYnodes()
+    if (!ynodes) return
+    for (const node of store.graph.getAllNodes()) {
+      if (!ynodes.has(node.id)) syncNodeToYjs(node.id)
     }
   }
 
@@ -253,5 +287,5 @@ export function createYjsGraphSync({
     void store.switchPage(pages[0].id)
   }
 
-  return { syncNodeToYjs, syncAllNodesToYjs, applyYjsToGraph }
+  return { syncNodeToYjs, syncAllNodesToYjs, syncMissingNodesToYjs, applyYjsToGraph }
 }

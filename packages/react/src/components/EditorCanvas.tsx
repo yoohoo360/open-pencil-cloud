@@ -1,3 +1,4 @@
+import { useCanvasCollaborationAwareness } from '#react/app/editor/canvas/collaboration-awareness'
 import { createCanvasContextSelection } from '#react/app/editor/canvas/context-selection'
 import { useEditorStore } from '#react/app/editor/store'
 import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
@@ -53,15 +54,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   )
 
   const collab = useOptionalCollabPanelContext()
-  const updateCursor = useCallback(
-    (cx: number, cy: number) => {
-      const point = store.screenToCanvas(cx, cy)
-      store.state.cursorCanvasX = point.x
-      store.state.cursorCanvasY = point.y
-      collab?.updateCursor(point.x, point.y, store.state.currentPageId)
-    },
-    [collab, store]
-  )
+  const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
 
   useEffect(() => {
     return store.onEditorEvent('selection:changed', (ids) => collab?.updateSelection(ids))

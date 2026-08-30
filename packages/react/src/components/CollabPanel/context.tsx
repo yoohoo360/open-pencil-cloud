@@ -33,7 +33,6 @@ export function useCollabPanelState(roomId: string | null) {
   const disposeTimerRef = useRef<number | null>(null)
   const followingPeerRef = useRef<number | null>(null)
   const peersRef = useRef<RemotePeer[]>([])
-  const lastCursorAtRef = useRef(0)
   storeRef.current = store
   const [followingPeer, setFollowingPeer] = useState<number | null>(null)
   const [state, setState] = useState<CollabState>({
@@ -43,7 +42,7 @@ export function useCollabPanelState(roomId: string | null) {
   const peers: RemotePeer[] = state.peers
   followingPeerRef.current = followingPeer
 
-  const { syncNodeToYjs, syncAllNodesToYjs, applyYjsToGraph } = useMemo(
+  const { syncNodeToYjs, syncAllNodesToYjs, syncMissingNodesToYjs, applyYjsToGraph } = useMemo(
     () =>
       createYjsGraphSync({
         getStore: () => store,
@@ -67,7 +66,7 @@ export function useCollabPanelState(roomId: string | null) {
     const nextIds = nextPeers.map((peer) => `${peer.clientId}:${peer.name}`).join('|')
     const prevIds = peersRef.current.map((peer) => `${peer.clientId}:${peer.name}`).join('|')
     store.state.remoteCursors = remotePeersToCursors(nextPeers, store.state.currentPageId)
-    store.requestRender()
+    store.requestRepaint()
     const nextFollow = applyFollowViewport(store, awareness, followingPeerRef.current)
     if (nextFollow !== followingPeerRef.current) setFollowingPeer(nextFollow)
     if (nextIds === prevIds) return
@@ -127,9 +126,9 @@ export function useCollabPanelState(roomId: string | null) {
     }
 
     const seedTimer = window.setTimeout(() => {
-      if (generationRef.current === generation && peersRef.current.length === 0) {
-        syncAllNodesToYjs()
-      }
+      if (generationRef.current !== generation) return
+      if (peersRef.current.length === 0) syncAllNodesToYjs()
+      else syncMissingNodesToYjs()
     }, 800)
 
     return () => {
@@ -145,9 +144,6 @@ export function useCollabPanelState(roomId: string | null) {
   }, [roomId])
 
   function updateCursor(x: number, y: number, pageId: string) {
-    const now = Date.now()
-    if (now - lastCursorAtRef.current < 80) return
-    lastCursorAtRef.current = now
     runtimeRef.current.awareness?.setLocalStateField('cursor', {
       x,
       y,

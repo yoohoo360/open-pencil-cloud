@@ -17,8 +17,14 @@ type TransportMessage =
       senderId: string
       targetId?: string
       namespace: string
-      data: number[]
+      data: string
     }
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let index = 0; index < bytes.length; index++) binary += String.fromCharCode(bytes[index])
+  return btoa(binary)
+}
 
 function bytesFromData(data: unknown): Uint8Array | null {
   if (typeof data === 'string') {
@@ -66,7 +72,7 @@ function parseMessage(value: unknown): TransportMessage | null {
     senderId: message.senderId,
     targetId: message.targetId,
     namespace: message.namespace,
-    data: Array.from(data)
+    data: bytesToBase64(data)
   }
 }
 
@@ -140,7 +146,13 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
       return
     }
     addPeer(message.senderId)
-    receivers.get(message.namespace)?.(new Uint8Array(message.data), message.senderId)
+    const data = bytesFromData(message.data)
+    if (!data) return
+    try {
+      receivers.get(message.namespace)?.(data, message.senderId)
+    } catch (error) {
+      console.error('Collaboration action failed', message.namespace, error)
+    }
   }
 
   function connect() {
@@ -181,7 +193,7 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
             senderId: peerId,
             targetId,
             namespace,
-            data: Array.from(data)
+            data: bytesToBase64(data)
           })
         },
         (handler) => {

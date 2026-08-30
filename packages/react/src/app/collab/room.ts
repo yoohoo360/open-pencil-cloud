@@ -30,14 +30,20 @@ export function connectCollabRoom({
   const awarenessClientsByPeer = new Map<string, Set<number>>()
 
   getUpdate((data) => {
-    Y.applyUpdate(ydoc, data, 'remote')
+    try {
+      Y.applyUpdate(ydoc, data, 'remote')
+    } catch (error) {
+      console.error('Collaboration yjs-update failed', error)
+    }
   })
 
   getAwareness((data, peerId) => {
-    const known = awarenessClientsByPeer.get(peerId) ?? new Set<number>()
-    for (const clientId of awarenessClientIds(data)) known.add(clientId)
-    awarenessClientsByPeer.set(peerId, known)
-    awarenessProtocol.applyAwarenessUpdate(awareness, data, 'remote')
+    awarenessClientsByPeer.set(peerId, new Set(awarenessClientIds(data)))
+    try {
+      awarenessProtocol.applyAwarenessUpdate(awareness, data, 'remote')
+    } catch (error) {
+      console.error('Collaboration awareness update failed', error)
+    }
   })
 
   getSyncStep1((stateVector, peerId) => {
@@ -45,7 +51,11 @@ export function connectCollabRoom({
   })
 
   getSyncReply((data) => {
-    Y.applyUpdate(ydoc, data, 'remote')
+    try {
+      Y.applyUpdate(ydoc, data, 'remote')
+    } catch (error) {
+      console.error('Collaboration sync-reply failed', error)
+    }
   })
 
   ydoc.on('update', (update: Uint8Array, origin: unknown) => {
@@ -59,8 +69,9 @@ export function connectCollabRoom({
       { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
       origin: unknown
     ) => {
-      if (origin === 'remote' || origin === 'peer-left' || origin === 'timeout') return
-      sendAwareness(awarenessProtocol.encodeAwarenessUpdate(awareness, [...added, ...updated, ...removed]))
+      if (origin === 'remote' || origin === 'peer-left') return
+      const changedClients = [...added, ...updated, ...removed]
+      sendAwareness(awarenessProtocol.encodeAwarenessUpdate(awareness, changedClients))
     }
   )
 
