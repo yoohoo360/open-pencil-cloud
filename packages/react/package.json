@@ -73,7 +73,12 @@
     "tinykeys": "^3.1.0",
     "react-resizable-panels": "^3.0.3",
     "tailwind-merge": "^3.6.0",
-    "tailwind-variants": "^3.3.1"
+    "tailwind-variants": "^3.3.1",
+    "es-toolkit": "^1.51.0",
+    "lib0": "^0.2.117",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

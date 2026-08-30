@@ -40,6 +40,7 @@ interface ImportMetaEnv {
   PROD: boolean
   MODE: string
   VITE_API_URL?: string
+  VITE_COLLAB_WS_URL?: string
 }
 
 interface ImportMeta {

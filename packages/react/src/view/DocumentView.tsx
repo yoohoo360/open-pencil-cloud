@@ -12,11 +12,17 @@ export default function DocumentView() {
   const { fileKey } = useParams<{ fileKey: string }>()
   const store = useMemo(() => createEditorStore(), [])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [loading, _setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [collabRoomId, setCollabRoomId] = useState<string | null>(null)
 
-  const setLoading = (e: boolean) => {
-    _setLoading(e)
-  }
+  useEffect(() => {
+    if (!fileKey) {
+      setCollabRoomId(null)
+      return
+    }
+    if (!loading) setCollabRoomId(fileKey)
+  }, [fileKey, loading])
+
   useEffect(() => {
     if (!fileKey) return
     let cancelled = false
@@ -65,7 +71,7 @@ export default function DocumentView() {
               加载文档中...
             </div>
           ) : null}
-          <EditorWorkspace />
+          <EditorWorkspace collabRoomId={collabRoomId} />
         </main>
       </OpenPencilProvider>
     </EditorStoreProvider>

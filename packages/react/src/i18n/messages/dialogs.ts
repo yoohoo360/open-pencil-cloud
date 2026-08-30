@@ -1,6 +1,5 @@
-import { params } from '@nanostores/i18n'
-
 import { i18n } from '#react/i18n/create'
+import { params } from '@nanostores/i18n'
 
 export const dialogMessageDefaults = {
   cancel: 'Cancel',
@@ -411,6 +410,7 @@ export const dialogMessageDefaults = {
   join: 'Join',
   roomLink: 'Room link',
   joinCollaboration: 'Join collaboration',
+  joinSharedFile: 'Someone shared this file with you. Enter your name to join.',
   orJoinRoom: 'or join a room',
   pasteRoomLinkOrId: 'Paste room link or ID',
   connected: 'Connected',

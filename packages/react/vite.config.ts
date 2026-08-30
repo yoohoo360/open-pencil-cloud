@@ -89,6 +89,13 @@ export default defineConfig(({ command }) => ({
       allow: [__dirname, repoRoot]
     },
     proxy: {
+      '/ws/collab': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        ws: true,
+        timeout: 0,
+        proxyTimeout: 0
+      },
       '/__openpencil-mcp': {
         target: `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`,
         rewrite: (path) => path.replace(/^\/__openpencil-mcp/, '')

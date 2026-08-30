@@ -21,3 +21,15 @@ export function writeStoredUserJSON(value: string | null): void {
   if (value) window.localStorage.setItem(USER_STORAGE_KEY, value)
   else window.localStorage.removeItem(USER_STORAGE_KEY)
 }
+
+export function readStoredUserName(): string {
+  if (!canUseStorage()) return ''
+  const raw = window.localStorage.getItem(USER_STORAGE_KEY)
+  if (!raw) return ''
+  try {
+    const user = JSON.parse(raw) as { name?: string; username?: string; email?: string }
+    return user.name || user.username || user.email || ''
+  } catch {
+    return ''
+  }
+}

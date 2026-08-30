@@ -1,5 +1,6 @@
 import { createCanvasContextSelection } from '#react/app/editor/canvas/context-selection'
 import { useEditorStore } from '#react/app/editor/store'
+import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
 import { useCanvasDrop } from '#react/canvas/drop/use'
 import { useCanvas } from '#react/canvas/surface/use'
 import { useTextEdit } from '#react/canvas/text-edit/use'
@@ -51,14 +52,20 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
     }
   )
 
+  const collab = useOptionalCollabPanelContext()
   const updateCursor = useCallback(
     (cx: number, cy: number) => {
       const point = store.screenToCanvas(cx, cy)
       store.state.cursorCanvasX = point.x
       store.state.cursorCanvasY = point.y
+      collab?.updateCursor(point.x, point.y, store.state.currentPageId)
     },
-    [store]
+    [collab, store]
   )
+
+  useEffect(() => {
+    return store.onEditorEvent('selection:changed', (ids) => collab?.updateSelection(ids))
+  }, [collab, store])
 
   const { cursorOverride, cleanupInteractions } = useCanvasInput(
     canvasRef,

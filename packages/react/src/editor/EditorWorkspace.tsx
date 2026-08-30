@@ -12,6 +12,7 @@ import { appMenuShortcut } from '#react/app/shell/menu/shortcut'
 import { useActiveTab } from '#react/app/tabs'
 import { CanvasSplitRoot } from '#react/components/canvas/CanvasSplitRoot'
 import { CollabPanel } from '#react/components/CollabPanel/CollabPanel'
+import { CollabPanelProvider } from '#react/components/CollabPanel/context'
 import { EditorCanvas } from '#react/components/EditorCanvas'
 import { LayersPanel } from '#react/components/LayersPanel'
 import { MobileDrawer } from '#react/components/MobileDrawer'
@@ -27,7 +28,15 @@ import {
 } from '#react/components/ui/splitter'
 import splitterTheme from '#react/theme/splitter'
 
-export function EditorWorkspace() {
+export function EditorWorkspace({ collabRoomId }: { collabRoomId?: string | null }) {
+  return (
+    <CollabPanelProvider roomId={collabRoomId}>
+      <EditorWorkspaceLayout />
+    </CollabPanelProvider>
+  )
+}
+
+function EditorWorkspaceLayout() {
   const [searchParams] = useSearchParams()
   const showChrome = !searchParams.has('no-chrome')
   const store = useEditorStore()
