@@ -248,6 +248,7 @@ export interface CharacterStyleOverride {
   letterSpacing?: number
   lineHeight?: number | null
   fills?: Fill[]
+  backgroundFills?: Fill[]
   fontVariations?: FontVariation[]
   fontFeatures?: FontFeature[]
   textLanguage?: string | null

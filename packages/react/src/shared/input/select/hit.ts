@@ -1,7 +1,13 @@
+import { enclosingBuiltinInstance } from '#react/graph/builtin'
+import type { HitTestFns } from '#react/shared/input/select'
+
 import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
-import type { HitTestFns } from '#react/shared/input/select'
+function hostOrHit(editor: Editor, hit: SceneNode | null): SceneNode | null {
+  if (!hit) return null
+  return enclosingBuiltinInstance(editor.graph, hit.id) ?? hit
+}
 
 export function resolveHit(
   cx: number,
@@ -13,10 +19,10 @@ export function resolveHit(
     fns.hitTestFrameTitle(cx, cy) ??
     fns.hitTestSectionTitle(cx, cy) ??
     fns.hitTestComponentLabel(cx, cy)
-  if (titleHit) return titleHit
+  if (titleHit) return hostOrHit(editor, titleHit)
 
   const hit = fns.hitTestInScope(cx, cy, false)
-  if (hit) return hit
+  if (hit) return hostOrHit(editor, hit)
 
   const scopeId = editor.state.enteredContainerId
   if (!scopeId) return null
@@ -28,7 +34,7 @@ export function resolveHit(
 
   editor.exitContainer()
   const afterExit = fns.hitTestInScope(cx, cy, false)
-  if (afterExit) return afterExit
+  if (afterExit) return hostOrHit(editor, afterExit)
 
   if (editor.state.enteredContainerId) {
     editor.exitContainer()

@@ -54,8 +54,14 @@ export function AssetsPanel() {
   const assetsScrollRef = useOverlayScrollbar<HTMLDivElement>()
 
   const libraries = useMemo(
-    () => listAssetLibraries(store.graph, panels.createdInThisFile),
-    [libRevision, panels.createdInThisFile, store.graph, store.state.sceneVersion]
+    () => listAssetLibraries(store.graph, panels.createdInThisFile, panels.builtinLibrary),
+    [
+      libRevision,
+      panels.builtinLibrary,
+      panels.createdInThisFile,
+      store.graph,
+      store.state.sceneVersion
+    ]
   )
   const activeLib = libraries.find((lib) => lib.key === activeLibKey) ?? null
   const sourceLibraryKey = activeLib?.remote ? activeLib.key : undefined

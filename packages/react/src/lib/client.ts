@@ -1,5 +1,10 @@
 import { loginPathWithRedirect } from '#react/app/auth/redirect'
 import { writeStoredUserJSON } from '#react/app/auth/storage'
+import type {
+  DocumentVersion,
+  DocumentVersionKind,
+  DocumentVersionList
+} from '#react/app/document/version-history/types'
 import axios, {
   type AxiosError,
   type AxiosRequestConfig,
@@ -295,6 +300,13 @@ export const apiClient = {
   },
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     return unwrap<T>(http.delete(url, config), config)
+  },
+  patch<T = unknown>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<APIResponse<T>> {
+    return unwrap<T>(http.patch(url, data, config), config)
   }
 }
 
@@ -345,6 +357,42 @@ export const documentAPI = {
   },
   attachLibrary(fileKey: string, data: AttachDocumentLibraryRequest): Promise<APIResponse<void>> {
     return apiClient.put(`/api/document/${fileKey}/library`, data)
+  },
+  listVersions(
+    fileKey: string,
+    params?: { named_before?: number; named_limit?: number }
+  ): Promise<APIResponse<DocumentVersionList>> {
+    return apiClient.get<DocumentVersionList>(`/api/document/${fileKey}/versions`, { params })
+  },
+  createVersion(
+    fileKey: string,
+    data: {
+      kind: DocumentVersionKind
+      bytes: Uint8Array
+      title?: string
+      description?: string
+    }
+  ): Promise<APIResponse<DocumentVersion>> {
+    const copy = new Uint8Array(data.bytes.byteLength)
+    copy.set(data.bytes)
+    const form = new FormData()
+    form.append('kind', data.kind)
+    if (data.title) form.append('title', data.title)
+    if (data.description) form.append('description', data.description)
+    form.append('file', new Blob([copy], { type: 'application/octet-stream' }), 'document.fig')
+    return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions`, form, {
+      timeout: 120_000
+    })
+  },
+  updateVersion(
+    fileKey: string,
+    versionId: string,
+    data: { title?: string; description?: string }
+  ): Promise<APIResponse<DocumentVersion>> {
+    return apiClient.patch<DocumentVersion>(`/api/document/${fileKey}/versions/${versionId}`, data)
+  },
+  restoreVersion(fileKey: string, versionId: string): Promise<APIResponse<DocumentVersion>> {
+    return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions/${versionId}/restore`)
   }
 }
 

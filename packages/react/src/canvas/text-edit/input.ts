@@ -1,3 +1,8 @@
+import {
+  enclosingBuiltinInstance,
+  isBuiltinInstance,
+  isBuiltinTextLayer
+} from '#react/graph/builtin'
 import type { DragState } from '#react/shared/input/types'
 
 import type { Editor } from '@open-pencil/core/editor'
@@ -85,6 +90,11 @@ export function createTextEditInput(options: TextEditInputOptions) {
   }
 
   function startTextEditingAt(hit: SceneNode, cx: number, cy: number) {
+    if (isBuiltinTextLayer(editor.graph, hit)) {
+      const host = enclosingBuiltinInstance(editor.graph, hit.id)
+      if (host) editor.select([host.id])
+      return
+    }
     editor.select([hit.id])
     editor.startTextEditing(hit.id)
     markTextEditStarted()
@@ -107,6 +117,21 @@ export function createTextEditInput(options: TextEditInputOptions) {
     return null
   }
 
+  function selectBuiltinHost(hit: SceneNode): boolean {
+    const host = enclosingBuiltinInstance(editor.graph, hit.id)
+    if (!host) return false
+    editor.select([host.id])
+    return true
+  }
+
+  function enterSelectedContainer(selectedId: string, cx: number, cy: number) {
+    const hit = getContainerDescendantHit(selectedId, cx, cy)
+    editor.enterContainer(selectedId)
+    if (hit?.type === 'TEXT') startTextEditingAt(hit, cx, cy)
+    else if (hit) editor.select([hit.id])
+    else editor.clearSelection()
+  }
+
   function onDblClick(e: MouseEvent) {
     const nodeEditEditor = editor as Editor & NodeEditMethods
     if (editor.state.editingTextId) return
@@ -120,21 +145,15 @@ export function createTextEditInput(options: TextEditInputOptions) {
       selectedNode && selectedId && editor.graph.isContainer(selectedId) && !selectedNode.locked
 
     if (canEnter) {
-      const hit = getContainerDescendantHit(selectedId, cx, cy)
-      editor.enterContainer(selectedId)
-      if (hit?.type === 'TEXT') {
-        startTextEditingAt(hit, cx, cy)
-      } else if (hit) {
-        editor.select([hit.id])
-      } else {
-        editor.clearSelection()
-      }
+      if (isBuiltinInstance(selectedNode, editor.graph)) return
+      enterSelectedContainer(selectedId, cx, cy)
       return
     }
 
     const hit =
       hitTestSectionTitle(cx, cy) ?? hitTestComponentLabel(cx, cy) ?? hitTestInScope(cx, cy, true)
     if (!hit) return
+    if (selectBuiltinHost(hit)) return
 
     if (hit.type === 'TEXT') {
       const isTopLevelText = hit.parentId === editor.state.currentPageId

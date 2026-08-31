@@ -50,8 +50,8 @@ export function SlotInstancePicker({
   const preferred = useMemo(() => new Set(preferredIds), [preferredIds])
   const excluded = useMemo(() => new Set(excludedIds), [excludedIds])
   const libraries = useMemo(
-    () => listAssetLibraries(store.graph, panels.createdInThisFile),
-    [panels.createdInThisFile, store.graph, store.state.sceneVersion]
+    () => listAssetLibraries(store.graph, panels.createdInThisFile, panels.builtinLibrary),
+    [panels.builtinLibrary, panels.createdInThisFile, store.graph, store.state.sceneVersion]
   )
   const [libKey, setLibKey] = useState(LOCAL_LIBRARY_KEY)
   const [query, setQuery] = useState('')

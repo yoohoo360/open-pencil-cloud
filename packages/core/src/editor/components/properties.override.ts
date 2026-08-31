@@ -139,7 +139,12 @@ function updatePropertyTarget(
     ctx.graph.updateNode(target.node.id, { text: value })
   } else if (target?.field === 'VISIBLE') {
     ctx.graph.updateNode(target.node.id, { visible: value === 'true' })
-  } else if (target && isSwapField(target.field) && target.node.type === 'INSTANCE' && swapComponentId) {
+  } else if (
+    target &&
+    isSwapField(target.field) &&
+    target.node.type === 'INSTANCE' &&
+    swapComponentId
+  ) {
     if (target.node.componentId === swapComponentId) return
     ctx.graph.swapInstanceComponent(target.node.id, swapComponentId)
   }

@@ -1,13 +1,16 @@
+import { formatVersionTimestamp } from '#react/app/document/version-history/format'
 import { useCanvasCollaborationAwareness } from '#react/app/editor/canvas/collaboration-awareness'
 import { createCanvasContextSelection } from '#react/app/editor/canvas/context-selection'
 import { useEditorStore } from '#react/app/editor/store'
-import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
 import { useCanvasDrop } from '#react/canvas/drop/use'
 import { useCanvas } from '#react/canvas/surface/use'
 import { useTextEdit } from '#react/canvas/text-edit/use'
 import { useCanvasInput } from '#react/canvas/useCanvasInput'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
+import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
+import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { toolCursor } from '#react/editor/tool-cursor'
+import { useI18n } from '#react/i18n'
 import { PencilLine } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -54,6 +57,9 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   )
 
   const collab = useOptionalCollabPanelContext()
+  const history = useOptionalVersionHistory()
+  const { dialogs, locale } = useI18n()
+  const previewing = Boolean(store.state.historyPreviewId)
   const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
 
   useEffect(() => {
@@ -68,9 +74,9 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
     hitTestFrameTitle,
     updateCursor,
     activatePane,
-    () => isActivePane
+    () => isActivePane && !previewing
   )
-  useTextEdit(canvasRef, store, { isEnabled: () => isActivePane })
+  useTextEdit(canvasRef, store, { isEnabled: () => isActivePane && !previewing })
   useCanvasDrop(canvasRef, store, activatePane)
 
   useEffect(() => {
@@ -93,6 +99,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
       onContextMenuCapture={(event) => {
         event.preventDefault()
         activatePane()
+        if (previewing) return
         selectAtContextPoint(event.nativeEvent)
         setContextMenu({ x: event.clientX, y: event.clientY })
       }}
@@ -123,8 +130,26 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
           </div>
         </div>
       ) : null}
-      {contextMenu ? (
+      {contextMenu && !previewing ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />
+      ) : null}
+      {previewing && history?.previewVersion ? (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-panel px-3 py-1.5 shadow-sm">
+            <span className="text-[11px] text-muted">
+              {dialogs.viewingVersion({
+                date: formatVersionTimestamp(history.previewVersion.created_at, locale)
+              })}
+            </span>
+            <button
+              type="button"
+              className="text-[11px] font-medium text-accent hover:underline"
+              onClick={() => void history.restoreSelected()}
+            >
+              {dialogs.restoreVersion}
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   )

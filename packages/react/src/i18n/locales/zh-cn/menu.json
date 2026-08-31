@@ -10,6 +10,8 @@
   "openStorageWorkspace": "打开存储工作区…",
   "save": "保存",
   "saveAs": "另存为…",
+  "showVersionHistory": "显示版本历史",
+  "saveToVersionHistory": "保存到版本历史",
   "exportSelection": "导出所选内容…",
   "autosave": "自动保存到本地文件",
   "copy": "复制",

@@ -1,4 +1,5 @@
 import { uploadOSSFig } from '#react/app/document/oss'
+import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { dialogMessages } from '#react/i18n/messages'
 
@@ -34,6 +35,13 @@ function getSaveTarget(store: EditorStore): FileSaveTarget {
   const next: FileSaveTarget = { handle: null, downloadName: null }
   saveTargets.set(store, next)
   return next
+}
+
+function clearRemoteDocument(store: EditorStore) {
+  store.state.documentVersion = ''
+  store.state.documentFigURL = ''
+  store.state.documentKey = ''
+  store.state.historyPreviewId = null
 }
 
 function clearSaveTarget(store: EditorStore) {
@@ -168,8 +176,7 @@ export function newDocument(store: EditorStore) {
   store.undo.clear()
   store.clearSelection()
   store.state.documentName = 'Untitled'
-  store.state.documentVersion = ''
-  store.state.documentFigURL = ''
+  clearRemoteDocument(store)
   clearSaveTarget(store)
   const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
   void store.switchPage(pageId)
@@ -192,8 +199,7 @@ export async function openFileIntoStore(
       const imported = await browserHTMLToSceneGraph(html, { pageName: name })
       await applyOpenedDocument(store, imported)
       store.state.documentName = name
-      store.state.documentVersion = ''
-      store.state.documentFigURL = ''
+      clearRemoteDocument(store)
       clearSaveTarget(store)
       return
     }
@@ -205,8 +211,7 @@ export async function openFileIntoStore(
     })
     await applyOpenedDocument(store, graph)
     store.state.documentName = file.name.replace(/\.[^.]+$/i, '') || 'Untitled'
-    store.state.documentVersion = ''
-    store.state.documentFigURL = ''
+    clearRemoteDocument(store)
     const target = getSaveTarget(store)
     if (handle && file.name.toLowerCase().endsWith('.fig')) {
       target.handle = handle
@@ -290,7 +295,16 @@ export async function openFileDialog(store: EditorStore) {
 }
 
 async function buildFigFile(store: EditorStore) {
-  return exportFigFile(store.graph, store.renderer?.ck, store.renderer, store.state.currentPageId)
+  return exportFigFile(
+    store.graph,
+    store.renderer?.ck,
+    store.renderer ?? undefined,
+    store.state.currentPageId
+  )
+}
+
+export async function exportCurrentFig(store: EditorStore) {
+  return buildFigFile(store)
 }
 
 async function writeFigHandle(handle: FileSystemFileHandle, data: Uint8Array) {
@@ -333,6 +347,7 @@ export async function saveFigFile(store: EditorStore) {
     if (remoteURL) {
       try {
         await uploadOSSFig(remoteURL, data)
+        void maybeRecordAutosave(store, data)
       } catch (error) {
         reportSaveFailure(store, error)
         return

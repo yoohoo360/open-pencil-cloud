@@ -1,6 +1,7 @@
 import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AppearanceSection } from '#react/components/properties/AppearanceSection'
+import { BuiltinTextSection } from '#react/components/properties/builtin-text/BuiltinTextSection'
 import { ComponentPropertiesSection } from '#react/components/properties/component-properties/ComponentPropertiesSection'
 import { InstanceSwapSlotField } from '#react/components/properties/component-properties/InstanceSwapSlotField'
 import { SlotBindField } from '#react/components/properties/component-properties/SlotBindField'
@@ -30,10 +31,31 @@ import { PanelHeader } from '#react/components/ui/panel/PanelHeader'
 import { Tip } from '#react/components/ui/Tip'
 import { useEditorCommands } from '#react/editor/commands/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
+import {
+  enclosingBuiltinInstance,
+  isBuiltinDescendant,
+  isBuiltinTextLayer
+} from '#react/graph/builtin'
 import { useI18n } from '#react/i18n'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { Layers3 } from 'lucide-react'
 import { useState } from 'react'
+
+import type { SceneNode } from '@open-pencil/scene-graph'
+
+function DesignNodeText({ selectedNode }: { selectedNode: SceneNode }) {
+  const store = useEditorStore()
+  const builtinHost = enclosingBuiltinInstance(store.graph, selectedNode.id)
+  const showPlain = selectedNode.type === 'TEXT' && !isBuiltinTextLayer(store.graph, selectedNode)
+  return (
+    <>
+      {showPlain ? (
+        <TypographyContentField nodeId={selectedNode.id} text={selectedNode.text} />
+      ) : null}
+      {builtinHost ? <BuiltinTextSection /> : null}
+    </>
+  )
+}
 
 export function DesignPanel() {
   const store = useEditorStore()
@@ -127,9 +149,7 @@ export function DesignPanel() {
               {selectedNode.name}
             </span>
           </PanelHeader>
-          {selectedNode.type === 'TEXT' ? (
-            <TypographyContentField nodeId={selectedNode.id} text={selectedNode.text} />
-          ) : null}
+          <DesignNodeText selectedNode={selectedNode} />
           {selectedNode.type === 'FRAME' ? <SlotBindField /> : null}
           {selectedNode.type === 'FRAME' ? <SlotInsertField /> : null}
           {selectedNode.type === 'INSTANCE' ? <InstanceSwapSlotField /> : null}
@@ -151,21 +171,28 @@ export function DesignPanel() {
               </button>
             </div>
           ) : null}
-          {selectedNode.type === 'INSTANCE' ? <ComponentPropertiesSection /> : null}
+          {selectedNode.type === 'INSTANCE' &&
+          !enclosingBuiltinInstance(store.graph, selectedNode.id) ? (
+            <ComponentPropertiesSection />
+          ) : null}
           {showVariantAuthoring ? <VariantAuthoringSection /> : null}
           {selectedNode.type === 'FRAME' ? <FramePresetSelect /> : null}
-          <PositionSection />
-          <ConstraintsSection />
-          <LayoutSection />
-          <AppearanceSection />
-          <MaskSection />
-          {selectedNode.type === 'TEXT' ? <TypographySection /> : null}
-          <FillSection />
-          <StrokeSection />
-          <SelectionColorsSection />
-          {supportsLayoutGuides ? <LayoutGridSection /> : null}
-          <EffectsSection />
-          <ExportSection />
+          {isBuiltinDescendant(store.graph, selectedNode) ? null : (
+            <>
+              <PositionSection />
+              <ConstraintsSection />
+              <LayoutSection />
+              <AppearanceSection />
+              <MaskSection />
+              {selectedNode.type === 'TEXT' ? <TypographySection /> : null}
+              <FillSection />
+              <StrokeSection />
+              <SelectionColorsSection />
+              {supportsLayoutGuides ? <LayoutGridSection /> : null}
+              <EffectsSection />
+              <ExportSection />
+            </>
+          )}
         </div>
       </div>
     )

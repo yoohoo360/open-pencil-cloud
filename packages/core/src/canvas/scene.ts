@@ -29,6 +29,7 @@ import {
   getStrokeCapEntity,
   getStrokeJoinEntity
 } from './strokes'
+import { drawParagraphWithHighlights } from './text'
 import {
   drawDerivedText,
   drawReflowedPathTextSilhouettes,
@@ -731,7 +732,7 @@ function drawGradientText(r: SkiaRenderer, canvas: Canvas, node: SceneNode): boo
     r.effectLayerPaint.setBlendMode(r.ck.BlendMode.SrcOver)
     const bounds = r.ck.LTRBRect(0, paragraphY, node.width, paragraphY + node.height)
     canvas.saveLayer(r.effectLayerPaint, bounds)
-    canvas.drawParagraph(paragraph, 0, paragraphY)
+    drawParagraphWithHighlights(r.ck, canvas, paragraph, node, 0, paragraphY)
 
     r.effectLayerPaint.setBlendMode(r.ck.BlendMode.SrcIn)
     canvas.saveLayer(r.effectLayerPaint, bounds)
@@ -806,7 +807,7 @@ export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fil
       halfLeading: true
     })
     const paragraphY = textVerticalOffset(node, paragraph.getHeight())
-    canvas.drawParagraph(paragraph, 0, paragraphY)
+    drawParagraphWithHighlights(r.ck, canvas, paragraph, node, 0, paragraphY)
     paragraph.delete()
   } else if (r.textFont) {
     const fontSize = node.fontSize || r.DEFAULT_FONT_SIZE

@@ -1,13 +1,6 @@
-import { useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { tv } from 'tailwind-variants'
-import { Sidebar } from 'lucide-react'
-
-import { formatShortcut } from '#react/editor/commands'
-import { useI18n } from '#react/i18n'
-import { useViewportKind } from '#react/editor/viewport-kind/use'
 import { useEditorStore } from '#react/app/editor/store'
 import { useKeyboard } from '#react/app/shell/keyboard/use'
+import { loadEditorLayout, saveEditorLayout } from '#react/app/shell/layout-storage'
 import { appMenuShortcut } from '#react/app/shell/menu/shortcut'
 import { useActiveTab } from '#react/app/tabs'
 import { CanvasSplitRoot } from '#react/components/canvas/CanvasSplitRoot'
@@ -18,20 +11,26 @@ import { LayersPanel } from '#react/components/LayersPanel'
 import { MobileDrawer } from '#react/components/MobileDrawer'
 import { MobileHud } from '#react/components/MobileHud/MobileHud'
 import { PropertiesPanel } from '#react/components/PropertiesPanel'
-import { Tip } from '#react/components/ui/Tip'
 import { Toolbar } from '#react/components/Toolbar/Toolbar'
-import { loadEditorLayout, saveEditorLayout } from '#react/app/shell/layout-storage'
-import {
-  SplitterGroup,
-  SplitterPanel,
-  SplitterResizeHandle
-} from '#react/components/ui/splitter'
+import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from '#react/components/ui/splitter'
+import { Tip } from '#react/components/ui/Tip'
+import { VersionHistoryProvider, useVersionHistory } from '#react/components/VersionHistory/context'
+import { VersionHistoryPanel } from '#react/components/VersionHistory/VersionHistoryPanel'
+import { formatShortcut } from '#react/editor/commands'
+import { useViewportKind } from '#react/editor/viewport-kind/use'
+import { useI18n } from '#react/i18n'
 import splitterTheme from '#react/theme/splitter'
+import { Sidebar } from 'lucide-react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { tv } from 'tailwind-variants'
 
 export function EditorWorkspace({ collabRoomId }: { collabRoomId?: string | null }) {
   return (
     <CollabPanelProvider roomId={collabRoomId}>
-      <EditorWorkspaceLayout />
+      <VersionHistoryProvider>
+        <EditorWorkspaceLayout />
+      </VersionHistoryProvider>
     </CollabPanelProvider>
   )
 }
@@ -43,6 +42,7 @@ function EditorWorkspaceLayout() {
   const { dialogs } = useI18n()
   const { isMobile } = useViewportKind()
   const activeTab = useActiveTab()
+  const versionHistory = useVersionHistory()
   const initialEditorLayout = useMemo(() => loadEditorLayout(), [])
   const horizontalSplitterStyles = useMemo(() => tv(splitterTheme)({ direction: 'horizontal' }), [])
   useKeyboard()
@@ -70,7 +70,12 @@ function EditorWorkspaceLayout() {
         >
           <div className={horizontalSplitterStyles.divider()} />
         </SplitterResizeHandle>
-        <SplitterPanel id="canvas" defaultSize={initialEditorLayout[1]} minSize={30} className="flex">
+        <SplitterPanel
+          id="canvas"
+          defaultSize={initialEditorLayout[1]}
+          minSize={30}
+          className="flex"
+        >
           <div className="relative flex min-w-0 flex-1">
             <CanvasSplitRoot />
             <Toolbar />
@@ -89,7 +94,7 @@ function EditorWorkspaceLayout() {
           <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
             <CollabPanel />
           </div>
-          <PropertiesPanel />
+          {versionHistory.open ? <VersionHistoryPanel /> : <PropertiesPanel />}
         </SplitterPanel>
       </SplitterGroup>
     )
@@ -120,7 +125,9 @@ function EditorWorkspaceLayout() {
                 {store.state.documentName}
               </span>
               <Tip
-                label={dialogs.showUI({ shortcut: formatShortcut(appMenuShortcut('toggle-ui')) ?? '' })}
+                label={dialogs.showUI({
+                  shortcut: formatShortcut(appMenuShortcut('toggle-ui')) ?? ''
+                })}
               >
                 <button
                   type="button"

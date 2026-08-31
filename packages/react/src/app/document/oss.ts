@@ -1,5 +1,28 @@
 import { apiClient } from '#react/lib/client'
 
+function extensionForImage(file: File): string {
+  const fromName = file.name.split('.').pop()?.toLowerCase()
+  if (fromName && /^[a-z0-9]{2,4}$/.test(fromName)) return fromName
+  if (file.type === 'image/jpeg') return 'jpg'
+  if (file.type === 'image/png') return 'png'
+  if (file.type === 'image/webp') return 'webp'
+  if (file.type === 'image/gif') return 'gif'
+  if (file.type === 'image/avif') return 'avif'
+  return 'png'
+}
+
+export async function uploadOSSImage(file: File): Promise<string> {
+  const id = crypto.randomUUID()
+  const fileName = `${id}.${extensionForImage(file)}`
+  const form = new FormData()
+  form.append('file', file, fileName)
+  await apiClient.post('/api/oss/upload', form, {
+    params: { path: id },
+    timeout: 120_000
+  })
+  return `${id}/${fileName}`
+}
+
 export function splitOSSFigURL(url: string): { path: string; fileName: string } {
   const normalized = url.replace(/^\/+/, '').replace(/\/+$/, '')
   const slash = normalized.lastIndexOf('/')

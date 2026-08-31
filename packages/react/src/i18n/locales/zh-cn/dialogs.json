@@ -393,5 +393,21 @@
   "diagnosticsClearDescription": "这会从此设备中删除本地保存的诊断事件。",
   "diagnosticsCleared": "诊断数据已清除。",
   "diagnosticsCopied": "诊断数据已复制到剪贴板。",
-  "diagnosticsCopyFailed": "无法将诊断数据复制到剪贴板。"
+  "diagnosticsCopyFailed": "无法将诊断数据复制到剪贴板。",
+  "versionHistory": "版本历史",
+  "versionHistoryShortcutHint": "编辑时按 {shortcut} 即可加入版本历史。",
+  "currentVersion": "当前版本",
+  "autosaveVersions": "{count} 个自动保存版本",
+  "showOlder": "显示更早的版本",
+  "saveVersion": "保存版本",
+  "saveVersionDescription": "为此文件添加一个命名检查点。",
+  "versionTitle": "标题",
+  "versionDescription": "描述（可选）",
+  "restoreVersion": "恢复此版本",
+  "versionHistoryNeedsCloud": "版本历史仅适用于已保存的云端文件。",
+  "versionHistoryLoadFailed": "无法加载版本历史。",
+  "versionSaveFailed": "无法保存此版本。",
+  "versionRestoreFailed": "无法恢复此版本。",
+  "viewingVersion": "正在查看 {date} 的版本",
+  "loadingVersions": "正在加载版本…"
 }

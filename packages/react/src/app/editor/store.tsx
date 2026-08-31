@@ -1,6 +1,7 @@
 import { appPreferences } from '#react/app/settings/preferences'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
 import type { CanvasSplitNode, SplitDirection } from '#react/editor/panes/split-tree'
+import { ensureBuiltinLibrary } from '#react/graph/builtin'
 import {
   createContext,
   useContext,
@@ -17,8 +18,8 @@ import {
   type Editor,
   type EditorState
 } from '@open-pencil/core/editor'
-import { SceneGraph } from '@open-pencil/scene-graph'
 import '#react/app/editor/fonts'
+import { SceneGraph } from '@open-pencil/scene-graph'
 
 export type AppEditorState = EditorState & {
   showUI: boolean
@@ -33,6 +34,8 @@ export type AppEditorState = EditorState & {
   renameNodeId: string | null
   documentVersion: string
   documentFigURL: string
+  documentKey: string
+  historyPreviewId: string | null
 }
 
 export type EditorStore = Editor & {
@@ -71,7 +74,9 @@ function createInitialAppEditorState(pageId: string): AppEditorState {
     numberFieldFocused: false,
     renameNodeId: null,
     documentVersion: '',
-    documentFigURL: ''
+    documentFigURL: '',
+    documentKey: '',
+    historyPreviewId: null
   }
 }
 
@@ -92,6 +97,10 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
           }
   })
   if (initialGraph) editor.subscribeToGraph()
+  ensureBuiltinLibrary(editor.graph)
+  editor.onEditorEvent('graph:replaced', (graph) => {
+    ensureBuiltinLibrary(graph)
+  })
 
   const listeners = new Set<() => void>()
   const notify = () => {
@@ -166,7 +175,7 @@ export function useEditorStore(): EditorStore {
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
+      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
     () => 'ssr'
   )
   return store

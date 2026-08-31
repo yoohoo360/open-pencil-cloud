@@ -1,6 +1,5 @@
-import { resolve } from 'node:path'
-
 import { describe, expect, test } from 'bun:test'
+import { resolve } from 'node:path'
 
 import {
   collectOverrideAliases,
@@ -31,8 +30,8 @@ describe('override alias', () => {
       resolve(import.meta.dir, '../../../packages/core/src/editor/components')
     ])
     expect(aliases[instances]).toBe(override)
-    expect(collectOverrideAliases([resolve(import.meta.dir, '../../../packages/core/src')])[instances]).toBe(
-      override
-    )
+    expect(
+      collectOverrideAliases([resolve(import.meta.dir, '../../../packages/core/src')])[instances]
+    ).toBe(override)
   })
 })

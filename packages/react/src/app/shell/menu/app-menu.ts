@@ -1,9 +1,7 @@
-import { useNavigate } from 'react-router-dom'
-
-import type { MenuEntry } from '#react/editor/menu-model/types'
-import { useEditorCommands } from '#react/editor/commands/use'
-import { useI18n } from '#react/i18n'
-
+import {
+  openVersionHistory,
+  saveNamedDocumentVersion
+} from '#react/app/document/version-history/actions'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog } from '#react/app/settings/dialog'
 import {
@@ -18,13 +16,21 @@ import {
   saveFigFileAs
 } from '#react/app/shell/menu/files'
 import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
-import type { AppMenuActionItem, AppMenuEntry, AppMenuGroupSchema } from '#react/app/shell/menu/schema'
+import type {
+  AppMenuActionItem,
+  AppMenuEntry,
+  AppMenuGroupSchema
+} from '#react/app/shell/menu/schema'
 import { APP_MENU_SCHEMA } from '#react/app/shell/menu/schema'
 import { createSelectionMenuActions } from '#react/app/shell/menu/selection-actions'
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { useAppTheme } from '#react/app/shell/theme'
 import { closeTab, createTab, getActiveTab } from '#react/app/tabs'
+import { useEditorCommands } from '#react/editor/commands/use'
+import type { MenuEntry } from '#react/editor/menu-model/types'
+import { useI18n } from '#react/i18n'
 import { menuMessageDefaults } from '#react/i18n/messages/menu'
+import { useNavigate } from 'react-router-dom'
 
 export interface AppMenuGroup {
   label: string
@@ -46,6 +52,8 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
   'open-storage-workspace': 'openStorageWorkspace',
   save: 'save',
   'save-as': 'saveAs',
+  'show-version-history': 'showVersionHistory',
+  'save-version': 'saveToVersionHistory',
   'export-selection': 'exportSelection',
   autosave: 'autosave',
   close: 'closeTab',
@@ -87,7 +95,12 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
 export function useAppMenu() {
   const store = useEditorStore()
   const navigate = useNavigate()
-  const { commands, menuItem: commandMenuItem, otherPages, moveSelectionToPage } = useEditorCommands()
+  const {
+    commands,
+    menuItem: commandMenuItem,
+    otherPages,
+    moveSelectionToPage
+  } = useEditorCommands()
   const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
   const { theme, setTheme } = useAppTheme()
 
@@ -120,6 +133,8 @@ export function useAppMenu() {
     'open-storage-workspace': () => openStorageWorkspace(navigate),
     save: () => void saveFigFile(store),
     'save-as': () => void saveFigFileAs(store),
+    'show-version-history': openVersionHistory,
+    'save-version': saveNamedDocumentVersion,
     'export-selection': () => exportCurrentSelection('png'),
     ...createSelectionMenuActions(store),
     close: () => {

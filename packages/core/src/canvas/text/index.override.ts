@@ -389,6 +389,16 @@ function styleRunColor(
   return ck.Color4f(color.r, color.g, color.b, color.a * visibleFill.opacity)
 }
 
+function styleRunBackground(
+  ck: CanvasKit,
+  style: SceneNode['styleRuns'][number]['style']
+): Float32Array | undefined {
+  const fill = style.backgroundFills?.find((item) => item.visible && item.type === 'SOLID')
+  if (!fill) return undefined
+  const color = resolveRGBAForPreview(fill.color).color
+  return ck.Color4f(color.r, color.g, color.b, color.a * fill.opacity)
+}
+
 function styleRunLanguage(
   style: SceneNode['styleRuns'][number]['style'],
   node: SceneNode
@@ -410,10 +420,12 @@ function pushStyleRun(
   const style = run.style
   const runLineHeight = style.lineHeight !== undefined ? style.lineHeight : node.lineHeight
   const runFontSize = style.fontSize ?? baseFontSize
+  const backgroundColor = styleRunBackground(ck, style)
 
   builder.pushStyle(
     new ck.TextStyle({
       color: styleRunColor(ck, style, baseColor),
+      ...(backgroundColor ? { backgroundColor } : {}),
       fontFamilies: fontFamilies(
         style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY),
         style.fontWeight ?? node.fontWeight,

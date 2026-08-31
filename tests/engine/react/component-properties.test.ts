@@ -169,9 +169,9 @@ describe('text property binding', () => {
     expect(withPropertyReference([], 'TEXT', 'prop:label')).toEqual([
       { propertyId: 'prop:label', field: 'TEXT' }
     ])
-    expect(propertyDefinitionOwners(label, (id) => editor.graph.getNode(id)).map((node) => node.id)).toEqual([
-      component.id
-    ])
+    expect(
+      propertyDefinitionOwners(label, (id) => editor.graph.getNode(id)).map((node) => node.id)
+    ).toEqual([component.id])
   })
 })
 
@@ -218,16 +218,18 @@ describe('boolean property binding', () => {
     expect(withPropertyReference([], 'VISIBLE', 'prop:show')).toEqual([
       { propertyId: 'prop:show', field: 'VISIBLE' }
     ])
-    expect(propertyDefinitionOwners(icon, (id) => editor.graph.getNode(id)).map((node) => node.id)).toEqual([
-      component.id
-    ])
+    expect(
+      propertyDefinitionOwners(icon, (id) => editor.graph.getNode(id)).map((node) => node.id)
+    ).toEqual([component.id])
   })
 })
 
 describe('component property authoring', () => {
   test('adds boolean and text properties on a component set', () => {
     const { editor, componentSet } = setupButtonSet()
-    expect(editor.addPropertyDefinition(componentSet.id, 'Show icon', 'BOOLEAN', 'true')).toBeTruthy()
+    expect(
+      editor.addPropertyDefinition(componentSet.id, 'Show icon', 'BOOLEAN', 'true')
+    ).toBeTruthy()
     expect(editor.addPropertyDefinition(componentSet.id, 'Caption', 'TEXT', '')).toBeTruthy()
     const types = editor
       .getComponentSetPropertyDefs(componentSet.id)

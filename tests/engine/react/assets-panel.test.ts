@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createEditor } from '@open-pencil/core/editor'
-import { expectDefined } from '#tests/helpers/assert'
-
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { createInstanceFromComponent } from '../../../packages/react/src/graph/instances'
-import { addLib, getLib } from '../../../packages/react/src/graph/remote-lib'
+import { expectDefined } from '#tests/helpers/assert'
+
 import {
   assetInsertionPoint,
   filterAssets,
@@ -16,6 +14,8 @@ import {
   listLocalAssets
 } from '../../../packages/react/src/components/assets-panel/assets'
 import { findAssetPage } from '../../../packages/react/src/components/assets-panel/page'
+import { createInstanceFromComponent } from '../../../packages/react/src/graph/instances'
+import { addLib, getLib } from '../../../packages/react/src/graph/remote-lib'
 
 describe('findAssetPage', () => {
   test('walks to the owning canvas', () => {
@@ -101,6 +101,7 @@ describe('listAssetLibraries', () => {
 
     expect(listAssetLibraries(editor.graph, 'Created in this file')).toEqual([
       { key: 'default', name: 'Created in this file', remote: false },
+      { key: 'builtin', name: 'Built-in', remote: true },
       { key: 'web_lib', name: 'Web lib', remote: true }
     ])
     const remote = getLib(editor.graph, 'web_lib')
@@ -110,9 +111,9 @@ describe('listAssetLibraries', () => {
       'remapped component'
     )
     expect(remapped.id.startsWith('web_lib:')).toBe(true)
-    expect(listAssets(editor, remote?.graph ?? editor.graph, 'Page').map((asset) => asset.name)).toEqual(
-      ['Remote card']
-    )
+    expect(
+      listAssets(editor, remote?.graph ?? editor.graph, 'Page').map((asset) => asset.name)
+    ).toEqual(['Remote card'])
     const instanceId = expectDefined(
       createInstanceFromComponent(
         editor,

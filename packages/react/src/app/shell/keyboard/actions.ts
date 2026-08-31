@@ -1,9 +1,10 @@
 import { opacityFromBuffer } from '@open-pencil/core/editor'
 
-import type { EditorCommandId } from '#react/editor/commands/types'
 import type { EditorStore } from '#react/app/editor/store'
 import { exportSelectionPNG as exportSelectionPngFile } from '#react/app/shell/menu/files'
 import { getPropertiesTab, setPropertiesTab } from '#react/app/shell/properties-tab'
+import type { EditorCommandId } from '#react/editor/commands/types'
+import { isBuiltinTextLayer } from '#react/graph/builtin'
 
 type KeyboardActionsOptions = {
   store: EditorStore
@@ -54,7 +55,7 @@ export function createKeyboardActions({
       return
     }
     const node = store.getSelectedNode()
-    if (node?.type === 'TEXT') {
+    if (node?.type === 'TEXT' && !isBuiltinTextLayer(store.graph, node)) {
       requestAnimationFrame(() => {
         store.startTextEditing(node.id)
         store.textEditor?.selectAll()

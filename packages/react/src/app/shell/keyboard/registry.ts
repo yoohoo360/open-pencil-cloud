@@ -1,8 +1,4 @@
-import { tinykeys } from 'tinykeys'
-import type { KeyBindingMap } from 'tinykeys'
-import { TOOL_SHORTCUTS } from '@open-pencil/core/editor'
-
-import { editorCommandMetadata, type EditorCommandId } from '#react/editor/commands'
+import { saveNamedDocumentVersion } from '#react/app/document/version-history/actions'
 import { requestRenameSelection } from '#react/app/editor/selection/rename-dialog'
 import { openSettingsDialog } from '#react/app/settings/dialog'
 import { isEditing } from '#react/app/shell/keyboard/focus'
@@ -13,6 +9,11 @@ import type {
 } from '#react/app/shell/keyboard/types'
 import { saveFigFile, saveFigFileAs } from '#react/app/shell/menu/files'
 import { appMenuTinykeysShortcut } from '#react/app/shell/menu/shortcut'
+import { editorCommandMetadata, type EditorCommandId } from '#react/editor/commands'
+import { tinykeys } from 'tinykeys'
+import type { KeyBindingMap } from 'tinykeys'
+
+import { TOOL_SHORTCUTS } from '@open-pencil/core/editor'
 
 type ShortcutAction = (options: KeyboardShortcutRunOptions) => void
 
@@ -160,6 +161,11 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
       id: 'save',
       keys: appMenuTinykeysShortcut('save') ?? '$mod+KeyS',
       run: ({ store }) => void saveFigFile(store)
+    },
+    {
+      id: 'save-version',
+      keys: appMenuTinykeysShortcut('save-version') ?? '$mod+Alt+KeyS',
+      run: () => saveNamedDocumentVersion()
     },
     {
       id: 'open-file',

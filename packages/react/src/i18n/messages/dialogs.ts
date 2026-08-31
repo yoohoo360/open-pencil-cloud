@@ -429,7 +429,23 @@ export const dialogMessageDefaults = {
   updateInstalled: params('OpenPencil {version} was installed{size}. Restarting now.'),
   updateUnavailable:
     'Updates are not available yet. Publish a signed release with latest.json first.',
-  updateCheckFailed: params('Could not check for updates: {error}')
+  updateCheckFailed: params('Could not check for updates: {error}'),
+  versionHistory: 'Version history',
+  versionHistoryShortcutHint: params('Press {shortcut} to add to version history while editing.'),
+  currentVersion: 'Current version',
+  autosaveVersions: params('{count} autosave versions'),
+  showOlder: 'Show older',
+  saveVersion: 'Save version',
+  saveVersionDescription: 'Add a named checkpoint to this file’s history.',
+  versionTitle: 'Title',
+  versionDescription: 'Description (optional)',
+  restoreVersion: 'Restore this version',
+  versionHistoryNeedsCloud: 'Version history is available for saved cloud files.',
+  versionHistoryLoadFailed: 'Could not load version history.',
+  versionSaveFailed: 'Could not save this version.',
+  versionRestoreFailed: 'Could not restore this version.',
+  viewingVersion: params('Viewing version from {date}'),
+  loadingVersions: 'Loading versions…'
 } as const
 
 export const dialogMessages = i18n('dialogs', dialogMessageDefaults)

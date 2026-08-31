@@ -179,11 +179,13 @@ describe('shared style model', () => {
 
   test('groups folder prefixes and creates standalone definitions', () => {
     expect(sharedStyleLeafName('Type/Heading')).toBe('Heading')
-    expect(groupSharedStyles([
-      { id: '1', nodeId: 'n1', name: 'Type/Heading', type: 'TEXT' },
-      { id: '2', nodeId: 'n2', name: 'Type/Body', type: 'TEXT' },
-      { id: '3', nodeId: 'n3', name: 'Caption', type: 'TEXT' }
-    ])).toEqual([
+    expect(
+      groupSharedStyles([
+        { id: '1', nodeId: 'n1', name: 'Type/Heading', type: 'TEXT' },
+        { id: '2', nodeId: 'n2', name: 'Type/Body', type: 'TEXT' },
+        { id: '3', nodeId: 'n3', name: 'Caption', type: 'TEXT' }
+      ])
+    ).toEqual([
       {
         folder: 'Type',
         styles: [

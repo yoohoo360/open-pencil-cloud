@@ -3,6 +3,7 @@ import {
   isSlotNode,
   resolveSelectedInsertionParent
 } from '#react/controls/component-props/slot-insert'
+import { BUILTIN_LIBRARY_KEY, ensureBuiltinLibrary } from '#react/graph/builtin'
 import { createInstanceFromComponent } from '#react/graph/instances'
 import { getLib, getRemoteImports } from '#react/graph/remote-lib'
 
@@ -123,14 +124,23 @@ function hasVariantConflicts(graph: SceneGraph, componentSetId: string): boolean
   return [...counts.values()].some((count) => count > 1)
 }
 
-export function listAssetLibraries(graph: SceneGraph, localName: string): AssetLibraryItem[] {
+export function listAssetLibraries(
+  graph: SceneGraph,
+  localName: string,
+  builtinName = 'Built-in'
+): AssetLibraryItem[] {
+  ensureBuiltinLibrary(graph)
+  const builtin = getLib(graph, BUILTIN_LIBRARY_KEY)
   return [
     { key: LOCAL_LIBRARY_KEY, name: localName, remote: false },
-    ...[...getRemoteImports(graph).values()].map((lib) => ({
-      key: lib.key,
-      name: lib.name,
-      remote: true
-    }))
+    ...(builtin ? [{ key: BUILTIN_LIBRARY_KEY, name: builtinName, remote: true as const }] : []),
+    ...[...getRemoteImports(graph).values()]
+      .filter((lib) => lib.key !== BUILTIN_LIBRARY_KEY)
+      .map((lib) => ({
+        key: lib.key,
+        name: lib.name,
+        remote: true as const
+      }))
   ]
 }
 
