@@ -6,6 +6,8 @@ import { useActiveTab } from '#react/app/tabs'
 import { CanvasSplitRoot } from '#react/components/canvas/CanvasSplitRoot'
 import { CollabPanel } from '#react/components/CollabPanel/CollabPanel'
 import { CollabPanelProvider } from '#react/components/CollabPanel/context'
+import { CommentsPanel } from '#react/components/Comments/CommentsPanel'
+import { CommentsProvider, useComments } from '#react/components/Comments/context'
 import { EditorCanvas } from '#react/components/EditorCanvas'
 import { LayersPanel } from '#react/components/LayersPanel'
 import { MobileDrawer } from '#react/components/MobileDrawer'
@@ -29,7 +31,9 @@ export function EditorWorkspace({ collabRoomId }: { collabRoomId?: string | null
   return (
     <CollabPanelProvider roomId={collabRoomId}>
       <VersionHistoryProvider>
-        <EditorWorkspaceLayout />
+        <CommentsProvider>
+          <EditorWorkspaceLayout />
+        </CommentsProvider>
       </VersionHistoryProvider>
     </CollabPanelProvider>
   )
@@ -43,6 +47,7 @@ function EditorWorkspaceLayout() {
   const { isMobile } = useViewportKind()
   const activeTab = useActiveTab()
   const versionHistory = useVersionHistory()
+  const comments = useComments()
   const initialEditorLayout = useMemo(() => loadEditorLayout(), [])
   const horizontalSplitterStyles = useMemo(() => tv(splitterTheme)({ direction: 'horizontal' }), [])
   useKeyboard()
@@ -94,7 +99,13 @@ function EditorWorkspaceLayout() {
           <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
             <CollabPanel />
           </div>
-          {versionHistory.open ? <VersionHistoryPanel /> : <PropertiesPanel />}
+          {comments.open ? (
+            <CommentsPanel />
+          ) : versionHistory.open ? (
+            <VersionHistoryPanel />
+          ) : (
+            <PropertiesPanel />
+          )}
         </SplitterPanel>
       </SplitterGroup>
     )

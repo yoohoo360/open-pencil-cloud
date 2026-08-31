@@ -1,5 +1,6 @@
 import { opacityFromBuffer } from '@open-pencil/core/editor'
 
+import { cancelCommentInteraction } from '#react/app/document/comments/actions'
 import type { EditorStore } from '#react/app/editor/store'
 import { exportSelectionPNG as exportSelectionPngFile } from '#react/app/shell/menu/files'
 import { getPropertiesTab, setPropertiesTab } from '#react/app/shell/properties-tab'
@@ -65,6 +66,7 @@ export function createKeyboardActions({
   }
 
   function escapeOrDeselect() {
+    if (cancelCommentInteraction()) return
     if (store.state.nodeEditState) {
       nodeEditStore.exitNodeEditMode?.(true)
       return

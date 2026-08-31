@@ -1,3 +1,4 @@
+import { toggleComments } from '#react/app/document/comments/actions'
 import {
   openVersionHistory,
   saveNamedDocumentVersion
@@ -54,6 +55,7 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
   'save-as': 'saveAs',
   'show-version-history': 'showVersionHistory',
   'save-version': 'saveToVersionHistory',
+  'show-comments': 'showComments',
   'export-selection': 'exportSelection',
   autosave: 'autosave',
   close: 'closeTab',
@@ -135,6 +137,7 @@ export function useAppMenu() {
     'save-as': () => void saveFigFileAs(store),
     'show-version-history': openVersionHistory,
     'save-version': saveNamedDocumentVersion,
+    'show-comments': toggleComments,
     'export-selection': () => exportCurrentSelection('png'),
     ...createSelectionMenuActions(store),
     close: () => {

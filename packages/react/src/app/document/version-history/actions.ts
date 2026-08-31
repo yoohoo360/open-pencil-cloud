@@ -1,5 +1,6 @@
 type VersionHistoryActions = {
   open: () => void
+  close: () => void
   saveNamed: () => void
 }
 
@@ -14,6 +15,10 @@ export function registerVersionHistoryActions(next: VersionHistoryActions | null
 
 export function openVersionHistory(): void {
   actions?.open()
+}
+
+export function closeVersionHistory(): void {
+  actions?.close()
 }
 
 export function saveNamedDocumentVersion(): void {

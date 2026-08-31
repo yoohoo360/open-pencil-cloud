@@ -127,6 +127,7 @@ export const APP_MENU_SCHEMA = [
       { type: 'separator' },
       { id: 'view-rulers', label: 'Rulers', checkbox: true },
       { id: 'view-multiplayer-cursors', label: 'Multiplayer Cursors', checkbox: true },
+      { id: 'show-comments', label: 'Show comments', shortcut: 'SHIFT+C' },
       { type: 'separator' },
       {
         id: 'theme',

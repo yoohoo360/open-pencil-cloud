@@ -1,3 +1,4 @@
+import { closeComments } from '#react/app/document/comments/actions'
 import { applyFigBytes } from '#react/app/document/open-http'
 import { uploadOSSFig } from '#react/app/document/oss'
 import { registerVersionHistoryActions } from '#react/app/document/version-history/actions'
@@ -134,6 +135,7 @@ export function useVersionHistoryState() {
       store.notify()
       return
     }
+    closeComments()
     setState((current) => ({
       ...current,
       open: true,
@@ -209,6 +211,7 @@ export function useVersionHistoryState() {
       return
     }
     if (store.state.historyPreviewId) return
+    closeComments()
     setState((current) => ({ ...current, open: true, saveDialogOpen: true }))
     if (!state.open) void refresh()
   }, [dialogs.versionHistoryNeedsCloud, refresh, state.open, store])
@@ -243,9 +246,10 @@ export function useVersionHistoryState() {
   useEffect(() => {
     return registerVersionHistoryActions({
       open: openPanel,
+      close,
       saveNamed: requestSaveNamed
     })
-  }, [openPanel, requestSaveNamed])
+  }, [openPanel, close, requestSaveNamed])
 
   const previewVersion = findVersion(state.list, store.state.historyPreviewId ?? '')
 

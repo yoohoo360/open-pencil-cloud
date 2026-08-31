@@ -1,3 +1,4 @@
+import { toggleComments } from '#react/app/document/comments/actions'
 import { saveNamedDocumentVersion } from '#react/app/document/version-history/actions'
 import { requestRenameSelection } from '#react/app/editor/selection/rename-dialog'
 import { openSettingsDialog } from '#react/app/settings/dialog'
@@ -166,6 +167,11 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
       id: 'save-version',
       keys: appMenuTinykeysShortcut('save-version') ?? '$mod+Alt+KeyS',
       run: () => saveNamedDocumentVersion()
+    },
+    {
+      id: 'show-comments',
+      keys: appMenuTinykeysShortcut('show-comments') ?? 'Shift+KeyC',
+      run: () => toggleComments()
     },
     {
       id: 'open-file',

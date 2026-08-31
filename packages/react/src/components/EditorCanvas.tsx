@@ -7,12 +7,14 @@ import { useCanvas } from '#react/canvas/surface/use'
 import { useTextEdit } from '#react/canvas/text-edit/use'
 import { useCanvasInput } from '#react/canvas/useCanvasInput'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
+import { CommentPins } from '#react/components/Comments/CommentPins'
+import { useOptionalComments } from '#react/components/Comments/context'
 import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
 import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { toolCursor } from '#react/editor/tool-cursor'
 import { useI18n } from '#react/i18n'
 import { PencilLine } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 
 export function EditorCanvas({ paneId }: { paneId?: string }) {
   const store = useEditorStore()
@@ -58,8 +60,10 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
 
   const collab = useOptionalCollabPanelContext()
   const history = useOptionalVersionHistory()
+  const comments = useOptionalComments()
   const { dialogs, locale } = useI18n()
   const previewing = Boolean(store.state.historyPreviewId)
+  const commenting = Boolean(comments?.open) && !previewing
   const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
 
   useEffect(() => {
@@ -76,7 +80,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
     activatePane,
     () => isActivePane && !previewing
   )
-  useTextEdit(canvasRef, store, { isEnabled: () => isActivePane && !previewing })
+  useTextEdit(canvasRef, store, { isEnabled: () => isActivePane && !previewing && !commenting })
   useCanvasDrop(canvasRef, store, activatePane)
 
   useEffect(() => {
@@ -84,7 +88,30 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   }, [cleanupInteractions, isActivePane])
   useEffect(() => () => cleanupInteractions(), [cleanupInteractions])
 
-  const cursor = toolCursor(store.state.activeTool, cursorOverride)
+  const cursor =
+    commenting && store.state.activeTool !== 'HAND'
+      ? 'crosshair'
+      : toolCursor(store.state.activeTool, cursorOverride)
+
+  function onCanvasPointerDownCapture(event: PointerEvent<HTMLDivElement>) {
+    activatePane()
+    if (!commenting || !comments) return
+    if (event.button !== 0 || store.state.activeTool === 'HAND') return
+    const target = event.target
+    if (
+      target instanceof Element &&
+      (target.closest('[data-comment-pin]') || target.closest('textarea, input, button, [role="dialog"]'))
+    ) {
+      return
+    }
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const world = store.screenToCanvas(event.clientX - rect.left, event.clientY - rect.top)
+    event.preventDefault()
+    event.stopPropagation()
+    comments.startDraft(world.x, world.y)
+  }
 
   return (
     <div
@@ -92,14 +119,14 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
       data-pane-id={paneId}
       data-active-pane={isActivePane ? 'true' : 'false'}
       className="canvas-area relative min-h-0 min-w-0 flex-1 overflow-hidden"
-      onPointerDownCapture={activatePane}
+      onPointerDownCapture={onCanvasPointerDownCapture}
       onFocusCapture={activatePane}
       onWheelCapture={activatePane}
       onDragEnterCapture={activatePane}
       onContextMenuCapture={(event) => {
         event.preventDefault()
         activatePane()
-        if (previewing) return
+        if (previewing || commenting) return
         selectAtContextPoint(event.nativeEvent)
         setContextMenu({ x: event.clientX, y: event.clientY })
       }}
@@ -119,6 +146,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
         style={{ cursor }}
         className="absolute inset-0 block size-full touch-none outline-none"
       />
+      {comments?.open ? <CommentPins /> : null}
       {store.state.loading ? (
         <div
           data-test-id="canvas-loading"

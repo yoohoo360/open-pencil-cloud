@@ -1,6 +1,11 @@
 import { loginPathWithRedirect } from '#react/app/auth/redirect'
 import { writeStoredUserJSON } from '#react/app/auth/storage'
 import type {
+  DocumentComment,
+  DocumentCommentList,
+  DocumentCommentThread
+} from '#react/app/document/comments/types'
+import type {
   DocumentVersion,
   DocumentVersionKind,
   DocumentVersionList
@@ -393,6 +398,39 @@ export const documentAPI = {
   },
   restoreVersion(fileKey: string, versionId: string): Promise<APIResponse<DocumentVersion>> {
     return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions/${versionId}/restore`)
+  },
+  listComments(
+    fileKey: string,
+    params?: { page_id?: string; resolved?: boolean }
+  ): Promise<APIResponse<DocumentCommentList>> {
+    return apiClient.get<DocumentCommentList>(`/api/document/${fileKey}/comments`, { params })
+  },
+  createCommentThread(
+    fileKey: string,
+    data: { page_id: string; node_id?: string; x: number; y: number; body: string }
+  ): Promise<APIResponse<DocumentCommentThread>> {
+    return apiClient.post<DocumentCommentThread>(`/api/document/${fileKey}/comments`, data)
+  },
+  replyToComment(
+    fileKey: string,
+    threadId: string,
+    data: { body: string }
+  ): Promise<APIResponse<DocumentComment>> {
+    return apiClient.post<DocumentComment>(`/api/document/${fileKey}/comments/${threadId}/replies`, data)
+  },
+  resolveCommentThread(
+    fileKey: string,
+    threadId: string,
+    data: { resolved: boolean }
+  ): Promise<APIResponse<DocumentCommentThread>> {
+    return apiClient.patch<DocumentCommentThread>(`/api/document/${fileKey}/comments/${threadId}`, data)
+  },
+  deleteComment(
+    fileKey: string,
+    threadId: string,
+    commentId: string
+  ): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/document/${fileKey}/comments/${threadId}/messages/${commentId}`)
   }
 }
 

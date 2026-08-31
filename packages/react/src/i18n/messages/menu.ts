@@ -15,6 +15,7 @@ export const menuMessageDefaults = {
   saveAs: 'Save as…',
   showVersionHistory: 'Show version history',
   saveToVersionHistory: 'Save to version history',
+  showComments: 'Show comments',
   exportSelection: 'Export selection…',
   autosave: 'Auto-save to local file',
   closeTab: 'Close tab',

@@ -445,7 +445,31 @@ export const dialogMessageDefaults = {
   versionSaveFailed: 'Could not save this version.',
   versionRestoreFailed: 'Could not restore this version.',
   viewingVersion: params('Viewing version from {date}'),
-  loadingVersions: 'Loading versions…'
+  loadingVersions: 'Loading versions…',
+  comments: 'Comments',
+  commentFilter: 'Comment filter',
+  openComments: 'Open',
+  resolvedComments: 'Resolved',
+  commentsThisPage: 'This page',
+  commentsToday: 'Today',
+  commentsYesterday: 'Yesterday',
+  commentsOlder: 'Older',
+  commentCanvasHint: 'Click the canvas to leave a comment.',
+  commentPlaceholder: 'Write a comment',
+  replyPlaceholder: 'Reply',
+  postComment: 'Post',
+  reply: 'Reply',
+  resolveComment: 'Resolve',
+  reopenComment: 'Reopen',
+  deleteComment: 'Delete comment',
+  backToComments: 'All comments',
+  noComments: 'No comments yet.',
+  loadingComments: 'Loading comments…',
+  commentsNeedCloud: 'Comments are available for saved cloud files.',
+  commentsLoadFailed: 'Could not load comments.',
+  commentSaveFailed: 'Could not save this comment.',
+  commentUpdateFailed: 'Could not update this comment.',
+  commentDeleteFailed: 'Could not delete this comment.'
 } as const
 
 export const dialogMessages = i18n('dialogs', dialogMessageDefaults)

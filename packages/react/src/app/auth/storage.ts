@@ -23,13 +23,28 @@ export function writeStoredUserJSON(value: string | null): void {
 }
 
 export function readStoredUserName(): string {
-  if (!canUseStorage()) return ''
+  const user = readStoredUser()
+  if (!user) return ''
+  return user.name || user.username || user.email || ''
+}
+
+export type StoredAccountUser = {
+  id?: string
+  name?: string
+  username?: string
+  email?: string
+  avatar?: string
+}
+
+export function readStoredUser(): StoredAccountUser | null {
+  if (!canUseStorage()) return null
   const raw = window.localStorage.getItem(USER_STORAGE_KEY)
-  if (!raw) return ''
+  if (!raw) return null
   try {
-    const user = JSON.parse(raw) as { name?: string; username?: string; email?: string }
-    return user.name || user.username || user.email || ''
+    const user = JSON.parse(raw) as StoredAccountUser
+    if (!user || typeof user !== 'object') return null
+    return user
   } catch {
-    return ''
+    return null
   }
 }
