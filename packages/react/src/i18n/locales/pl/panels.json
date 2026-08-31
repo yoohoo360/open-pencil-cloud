@@ -25,6 +25,7 @@
   "appearance": "Wygląd",
   "fill": "Wypełnienie",
   "stroke": "Obrys",
+  "selectionColors": "Kolory zaznaczenia",
   "effects": "Efekty",
   "export": "Eksport",
   "typography": "Typografia",

@@ -176,6 +176,7 @@ export const panelMessageDefaults = {
   appearance: 'Appearance',
   fill: 'Fill',
   stroke: 'Stroke',
+  selectionColors: 'Selection colors',
   effects: 'Effects',
   mask: 'Mask',
   export: 'Export',

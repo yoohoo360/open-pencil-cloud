@@ -25,6 +25,7 @@
   "appearance": "Apparence",
   "fill": "Remplissage",
   "stroke": "Contour",
+  "selectionColors": "Couleurs de la sélection",
   "effects": "Effets",
   "export": "Export",
   "typography": "Typographie",

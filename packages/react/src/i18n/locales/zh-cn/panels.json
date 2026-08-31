@@ -25,6 +25,7 @@
   "appearance": "外观",
   "fill": "填充",
   "stroke": "描边",
+  "selectionColors": "选区颜色",
   "effects": "效果",
   "export": "导出",
   "typography": "排版",

@@ -1,6 +1,3 @@
-import { useState } from 'react'
-import { Layers3 } from 'lucide-react'
-
 import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AppearanceSection } from '#react/components/properties/AppearanceSection'
@@ -21,19 +18,22 @@ import { MaskSection } from '#react/components/properties/MaskSection'
 import { PageSection } from '#react/components/properties/PageSection'
 import { PositionSection } from '#react/components/properties/PositionSection'
 import { SelectionActionsControl } from '#react/components/properties/SelectionActionsControl'
+import { SelectionColorsSection } from '#react/components/properties/SelectionColorsSection'
+import { StylesDialog } from '#react/components/properties/shared-style/StylesDialog'
+import { StylesSection } from '#react/components/properties/shared-style/StylesSection'
 import { StrokeSection } from '#react/components/properties/StrokeSection'
 import { TypographyContentField } from '#react/components/properties/TypographyContentField'
 import { TypographySection } from '#react/components/properties/TypographySection'
-import { StylesDialog } from '#react/components/properties/shared-style/StylesDialog'
-import { StylesSection } from '#react/components/properties/shared-style/StylesSection'
-import { VariablesSection } from '#react/components/properties/VariablesSection'
 import { VariablesDialog } from '#react/components/properties/variables/VariablesDialog'
+import { VariablesSection } from '#react/components/properties/VariablesSection'
 import { PanelHeader } from '#react/components/ui/panel/PanelHeader'
 import { Tip } from '#react/components/ui/Tip'
 import { useEditorCommands } from '#react/editor/commands/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
-import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useI18n } from '#react/i18n'
+import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
+import { Layers3 } from 'lucide-react'
+import { useState } from 'react'
 
 export function DesignPanel() {
   const store = useEditorStore()
@@ -62,7 +62,10 @@ export function DesignPanel() {
   if (activeTool === 'FRAME') {
     return (
       <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div ref={scrollRef} className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4">
+        <div
+          ref={scrollRef}
+          className="scrollbar-overlay flex-1 overflow-x-hidden overflow-y-auto pb-4"
+        >
           <FramePresetsSection />
         </div>
       </div>
@@ -91,6 +94,7 @@ export function DesignPanel() {
           <AppearanceSection />
           <FillSection />
           <StrokeSection />
+          <SelectionColorsSection />
           <EffectsSection />
           <ExportSection />
         </div>
@@ -158,6 +162,7 @@ export function DesignPanel() {
           {selectedNode.type === 'TEXT' ? <TypographySection /> : null}
           <FillSection />
           <StrokeSection />
+          <SelectionColorsSection />
           {supportsLayoutGuides ? <LayoutGridSection /> : null}
           <EffectsSection />
           <ExportSection />

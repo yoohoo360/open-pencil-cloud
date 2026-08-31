@@ -25,6 +25,7 @@
   "appearance": "Внешний вид",
   "fill": "Заливка",
   "stroke": "Обводка",
+  "selectionColors": "Цвета выделения",
   "effects": "Эффекты",
   "export": "Экспорт",
   "typography": "Типографика",

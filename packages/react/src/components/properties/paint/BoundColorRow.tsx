@@ -1,8 +1,5 @@
-import { colorToHexRaw } from '@open-pencil/core/color'
-import type { Color } from '@open-pencil/scene-graph/primitives'
-
-import { ColorRow } from '#react/components/properties/ColorRow'
 import { VariableBindingPicker } from '#react/components/properties/binding/VariableBindingPicker'
+import { ColorRow } from '#react/components/properties/ColorRow'
 import {
   applyPaintMutation,
   commitPaintMutation,
@@ -11,13 +8,18 @@ import {
 } from '#react/components/properties/paint/binding'
 import { BindingPill } from '#react/components/ui/binding/BindingPill'
 import { useColorBindingProvider } from '#react/controls/binding/color'
+import type { BindingTarget } from '#react/controls/binding/types'
 import { useI18n } from '#react/i18n'
 import { BindableValueRoot } from '#react/primitives/BindableValue/BindableValueRoot'
+
+import { colorToHexRaw } from '@open-pencil/core/color'
+import type { Color } from '@open-pencil/scene-graph/primitives'
 
 export function BoundColorRow({
   nodeIds,
   kind,
   index,
+  targets,
   color,
   opacity,
   label,
@@ -25,9 +27,10 @@ export function BoundColorRow({
   onColor,
   onOpacity
 }: {
-  nodeIds: string[]
-  kind: PaintBindingKind
-  index: number
+  nodeIds?: string[]
+  kind?: PaintBindingKind
+  index?: number
+  targets?: BindingTarget[]
   color: Color
   opacity: number
   label: string
@@ -37,18 +40,23 @@ export function BoundColorRow({
 }) {
   const { panels, dialogs } = useI18n()
   const colorProvider = useColorBindingProvider()
+  const bindingTargets = targets ?? paintBindingTargets(nodeIds ?? [], kind ?? 'fills', index ?? 0)
 
   return (
     <BindableValueRoot
       provider={colorProvider}
-      targets={paintBindingTargets(nodeIds, kind, index)}
+      targets={bindingTargets}
       value={color}
       batchLabel={batchLabel}
     >
       {(binding) => {
         const displayColor = binding.resolvedValue ?? color
         function updateColor(next: Color) {
-          applyPaintMutation(binding.actions, () => {}, () => onColor(next))
+          applyPaintMutation(
+            binding.actions,
+            () => {},
+            () => onColor(next)
+          )
           commitPaintMutation(binding.actions)
         }
         return (
