@@ -54,6 +54,7 @@ export function createBuiltinCatalog(): SceneGraph {
     fontSize: 14,
     textAutoResize: 'HEIGHT',
     layoutSizingHorizontal: 'FILL',
+    layoutSizingVertical: 'HUG',
     fills: [solidFill(BLACK)]
   })
   return graph

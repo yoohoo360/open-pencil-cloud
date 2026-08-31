@@ -131,9 +131,11 @@ function createTextNode(
     text: slot.text,
     styleRuns: slot.styleRuns,
     width: Math.max(1, host.width - host.paddingLeft - host.paddingRight),
+    height: Math.max(16, slot.text ? 20 : 16),
     fontSize: 14,
     textAutoResize: 'HEIGHT',
     layoutSizingHorizontal: 'FILL',
+    layoutSizingVertical: 'HUG',
     fills: [{ type: 'SOLID', color: BLACK, opacity: 1, visible: true }]
   })
 }
@@ -164,7 +166,13 @@ export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichB
     if (slot.kind === 'text') {
       const existing = children.find((node) => node.type === 'TEXT' && !used.has(node.id))
       if (existing) {
-        editor.updateNode(existing.id, { text: slot.text, styleRuns: slot.styleRuns })
+        editor.updateNode(existing.id, {
+          text: slot.text,
+          styleRuns: slot.styleRuns,
+          textAutoResize: 'HEIGHT',
+          layoutSizingHorizontal: 'FILL',
+          layoutSizingVertical: 'HUG'
+        })
         used.add(existing.id)
         order.push(existing.id)
       } else {

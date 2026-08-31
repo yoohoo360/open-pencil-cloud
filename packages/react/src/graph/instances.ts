@@ -1,3 +1,4 @@
+import { hydrateBuiltinInstance } from '#react/controls/builtin-text/hydrate'
 import { BUILTIN_LIBRARY_KEY, copyBuiltinImages } from '#react/graph/builtin'
 import { addRemoteComponent, getLib } from '#react/graph/remote-lib'
 
@@ -71,6 +72,9 @@ export function createInstanceFromComponent(
   if (!resolvedId) return null
   const instanceId = editor.createInstanceFromComponent(resolvedId, x, y, parent)
   if (instanceId && sourceLibraryKey) editor.graph.updateNode(instanceId, { sourceLibraryKey })
-  if (sourceLibraryKey === BUILTIN_LIBRARY_KEY) copyBuiltinImages(editor.graph)
+  if (instanceId && sourceLibraryKey === BUILTIN_LIBRARY_KEY) {
+    copyBuiltinImages(editor.graph)
+    hydrateBuiltinInstance(editor, instanceId)
+  }
   return instanceId
 }
