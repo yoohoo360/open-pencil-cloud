@@ -1,6 +1,6 @@
-import type { Editor } from '@open-pencil/core/editor'
-
 import { canAcceptInsertedChild } from '#react/controls/component-props/slot-insert'
+
+import type { Editor } from '@open-pencil/core/editor'
 
 export type LayerDragInstruction = {
   type: 'reorder-above' | 'reorder-below' | 'make-child'
@@ -33,10 +33,7 @@ export function applyLayerDrag(
   }
 
   const container = editor.graph.getNode(targetId)
-  if (
-    !container ||
-    !canAcceptInsertedChild(container, (id) => editor.graph.getNode(id))
-  ) {
+  if (!container || !canAcceptInsertedChild(container, (id) => editor.graph.getNode(id))) {
     return false
   }
   editor.reorderChildWithUndo(sourceId, targetId, container.childIds.length)

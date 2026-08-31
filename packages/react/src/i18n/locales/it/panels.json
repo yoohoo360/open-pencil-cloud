@@ -1,5 +1,7 @@
 {
   "layers": "Livelli",
+  "expandLayer": "Espandi",
+  "collapseLayer": "Comprimi",
   "pages": "Pagine",
   "design": "Design",
   "code": "Codice",

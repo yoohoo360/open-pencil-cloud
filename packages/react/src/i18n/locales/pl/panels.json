@@ -1,5 +1,7 @@
 {
   "layers": "Warstwy",
+  "expandLayer": "Rozwiń",
+  "collapseLayer": "Zwiń",
   "pages": "Strony",
   "design": "Design",
   "code": "Kod",

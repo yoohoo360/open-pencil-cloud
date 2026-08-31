@@ -1,5 +1,7 @@
 {
   "layers": "图层",
+  "expandLayer": "展开",
+  "collapseLayer": "收起",
   "pages": "页面",
   "design": "设计",
   "code": "代码",

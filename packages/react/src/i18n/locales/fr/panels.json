@@ -1,5 +1,7 @@
 {
   "layers": "Calques",
+  "expandLayer": "Développer",
+  "collapseLayer": "Réduire",
   "pages": "Pages",
   "design": "Design",
   "code": "Code",

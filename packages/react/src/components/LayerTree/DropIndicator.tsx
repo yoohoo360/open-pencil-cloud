@@ -1,7 +1,6 @@
-import { tv } from 'tailwind-variants'
-
 import type { LayerDragInstruction } from '#react/components/LayerTree/apply'
 import theme from '#react/theme/layer-tree'
+import { tv } from 'tailwind-variants'
 
 export function DropIndicator({
   active,
@@ -15,7 +14,12 @@ export function DropIndicator({
   indent: number
 }) {
   if (!active || !instruction) return null
-  const position = instruction.type === 'make-child' ? 'child' : instruction.type === 'reorder-above' ? 'above' : 'below'
+  const position =
+    instruction.type === 'make-child'
+      ? 'child'
+      : instruction.type === 'reorder-above'
+        ? 'above'
+        : 'below'
   const style =
     position === 'child'
       ? { left: `${level * indent}px`, right: '4px' }

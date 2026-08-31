@@ -5,6 +5,8 @@ export const panelMessageDefaults = {
   untitled: 'Untitled',
   nodeCopyString: ' copy',
   layers: 'Layers',
+  expandLayer: 'Expand',
+  collapseLayer: 'Collapse',
   pages: 'Pages',
   design: 'Design',
   code: 'Code',

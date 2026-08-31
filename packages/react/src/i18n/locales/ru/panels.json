@@ -1,5 +1,7 @@
 {
   "layers": "Слои",
+  "expandLayer": "Развернуть",
+  "collapseLayer": "Свернуть",
   "pages": "Страницы",
   "design": "Дизайн",
   "code": "Код",

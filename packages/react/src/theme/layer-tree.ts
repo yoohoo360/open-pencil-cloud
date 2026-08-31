@@ -1,6 +1,9 @@
 const layerTreeTheme = {
   slots: {
     row: 'group/row relative flex w-full cursor-pointer items-center gap-1.5 rounded py-0.5 pr-2 text-left text-[11px] text-surface hover:bg-hover',
+    disclosure:
+      'flex w-4 shrink-0 cursor-pointer items-center justify-center text-muted transition-transform hover:text-surface',
+    disclosurePlaceholder: 'w-4 shrink-0',
     icon: 'size-3 shrink-0 text-muted',
     label: 'min-w-0 flex-1 truncate',
     dropIndicator: 'pointer-events-none absolute bg-accent'
@@ -13,6 +16,10 @@ const layerTreeTheme = {
     dragging: {
       true: { row: 'opacity-30' },
       false: {}
+    },
+    expanded: {
+      true: { disclosure: 'rotate-90' },
+      false: { disclosure: 'rotate-0' }
     },
     childDropTarget: {
       true: { row: 'bg-accent/15 hover:bg-accent/15' },
@@ -29,6 +36,7 @@ const layerTreeTheme = {
   defaultVariants: {
     selected: false,
     dragging: false,
+    expanded: false,
     childDropTarget: false
   }
 }

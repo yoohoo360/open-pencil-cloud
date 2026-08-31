@@ -1,5 +1,7 @@
 {
   "layers": "Ebenen",
+  "expandLayer": "Einblenden",
+  "collapseLayer": "Ausblenden",
   "pages": "Seiten",
   "design": "Design",
   "code": "Code",
