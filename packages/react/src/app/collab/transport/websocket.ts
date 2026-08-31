@@ -1,4 +1,6 @@
 import { getCollabWebSocketURL } from '#react/constants'
+import { bytesFromData, bytesToBase64 } from '#react/app/collab/transport/bytes'
+import { createChunkAssembler, splitBytes } from '#react/app/collab/transport/chunk'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
@@ -19,32 +21,6 @@ type TransportMessage =
       namespace: string
       data: string
     }
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let index = 0; index < bytes.length; index++) binary += String.fromCharCode(bytes[index])
-  return btoa(binary)
-}
-
-function bytesFromData(data: unknown): Uint8Array | null {
-  if (typeof data === 'string') {
-    try {
-      const binary = atob(data)
-      const bytes = new Uint8Array(binary.length)
-      for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
-      return bytes
-    } catch {
-      return null
-    }
-  }
-  if (
-    Array.isArray(data) &&
-    data.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
-  ) {
-    return new Uint8Array(data)
-  }
-  return null
-}
 
 function parseMessage(value: unknown): TransportMessage | null {
   const text = typeof value === 'string' ? value : null
@@ -76,6 +52,22 @@ function parseMessage(value: unknown): TransportMessage | null {
   }
 }
 
+async function payloadText(payload: unknown): Promise<string | null> {
+  if (typeof payload === 'string') return payload
+  if (payload instanceof ArrayBuffer) return new TextDecoder().decode(payload)
+  if (ArrayBuffer.isView(payload)) {
+    return new TextDecoder().decode(payload)
+  }
+  if (typeof Blob !== 'undefined' && payload instanceof Blob) {
+    try {
+      return await payload.text()
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
   if (
     !IS_BROWSER ||
@@ -98,6 +90,19 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
   let reconnectAttempt = 0
 
   function post(message: TransportMessage) {
+    if (message.type === 'action') {
+      const bytes = bytesFromData(message.data)
+      if (bytes) {
+        for (const frame of splitBytes(bytes)) {
+          sendRaw({ ...message, data: bytesToBase64(frame) })
+        }
+        return
+      }
+    }
+    sendRaw(message)
+  }
+
+  function sendRaw(message: TransportMessage) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
     else pending.push(message)
   }
@@ -109,31 +114,28 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
     leaveTimers.delete(id)
   }
 
-  function addPeer(id: string) {
+  function addPeer(id: string, resync = false) {
     if (id === peerId) return
     cancelLeave(id)
-    if (peers.has(id)) return
+    const isNew = !peers.has(id)
     peers.add(id)
-    joinHandler?.(id)
+    if (isNew || resync) joinHandler?.(id)
   }
 
-  function scheduleLeave(id: string) {
-    if (id === peerId || leaveTimers.has(id)) return
-    leaveTimers.set(
-      id,
-      window.setTimeout(() => {
-        leaveTimers.delete(id)
-        if (peers.delete(id)) leaveHandler?.(id)
-      }, LEAVE_GRACE_MS)
-    )
-  }
+  const assemble = createChunkAssembler((data, senderId, namespace) => {
+    try {
+      receivers.get(namespace)?.(data, senderId)
+    } catch (error) {
+      console.error('Collaboration action failed', namespace, error)
+    }
+  })
 
   function handlePayload(payload: unknown) {
     const message = parseMessage(payload)
     if (!message || message.senderId === peerId) return
     if (message.targetId && message.targetId !== peerId) return
     if (message.type === 'hello') {
-      addPeer(message.senderId)
+      addPeer(message.senderId, true)
       post({ type: 'welcome', senderId: peerId, targetId: message.senderId })
       return
     }
@@ -148,16 +150,24 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
     addPeer(message.senderId)
     const data = bytesFromData(message.data)
     if (!data) return
-    try {
-      receivers.get(message.namespace)?.(data, message.senderId)
-    } catch (error) {
-      console.error('Collaboration action failed', message.namespace, error)
-    }
+    assemble(data, message.senderId, message.namespace)
+  }
+
+  function scheduleLeave(id: string) {
+    if (id === peerId || leaveTimers.has(id)) return
+    leaveTimers.set(
+      id,
+      window.setTimeout(() => {
+        leaveTimers.delete(id)
+        if (peers.delete(id)) leaveHandler?.(id)
+      }, LEAVE_GRACE_MS)
+    )
   }
 
   function connect() {
     if (left) return
     const next = new WebSocket(url)
+    next.binaryType = 'arraybuffer'
     socket = next
     next.addEventListener('open', () => {
       if (socket !== next || left) {
@@ -171,8 +181,18 @@ export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
     next.addEventListener('error', () => {
       if (socket === next && !left) console.error('Collaboration WebSocket connection failed', next.url)
     })
-    next.addEventListener('message', (event: MessageEvent<string>) => {
-      if (socket === next && !left) handlePayload(event.data)
+    next.addEventListener('message', (event: MessageEvent) => {
+      if (socket !== next || left) return
+      const payload = event.data
+      if (typeof payload === 'string' || payload instanceof ArrayBuffer || ArrayBuffer.isView(payload)) {
+        handlePayload(
+          typeof payload === 'string' ? payload : new TextDecoder().decode(payload as ArrayBuffer)
+        )
+        return
+      }
+      void payloadText(payload).then((text) => {
+        if (text && socket === next && !left) handlePayload(text)
+      })
     })
     next.addEventListener('close', () => {
       if (left || socket !== next) return

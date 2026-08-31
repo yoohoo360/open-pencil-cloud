@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '#react/lib/client'
+
 import { IS_BROWSER } from '@open-pencil/core/constants'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
@@ -30,19 +32,18 @@ export const PEER_COLORS: Color[] = [
 
 export const DEFAULT_COLLAB_API_ORIGIN = 'http://localhost:8000'
 
-export function getShareURL(roomId: string): string {
-  const origin = IS_BROWSER ? window.location.origin : 'https://app.openpencil.dev'
-  return `${origin}/share/${roomId}`
-}
-
 export function getCollabWebSocketURL(roomId: string): string {
   const configured = import.meta.env.VITE_COLLAB_WS_URL
   if (configured) {
     return `${configured.replace(/\/$/, '')}/${encodeURIComponent(roomId)}`
   }
   if (IS_BROWSER) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${window.location.host}/ws/collab/${encodeURIComponent(roomId)}`
+    const protocol = API_BASE_URL.startsWith('https:') ? 'wss:' : 'ws:'
+
+    const _url = API_BASE_URL?.startsWith('https:')
+      ? API_BASE_URL.replace('https://', '')
+      : API_BASE_URL.replace('http://', '')
+    return `${protocol}//${_url}/ws/collab/${encodeURIComponent(roomId)}`
   }
   const apiOrigin = (import.meta.env.VITE_API_URL ?? DEFAULT_COLLAB_API_ORIGIN).replace(
     'localhost',

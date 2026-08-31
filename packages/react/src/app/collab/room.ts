@@ -31,7 +31,7 @@ export function connectCollabRoom({
 
   getUpdate((data) => {
     try {
-      Y.applyUpdate(ydoc, data, 'remote')
+      Y.applyUpdate(ydoc, new Uint8Array(data), 'remote')
     } catch (error) {
       console.error('Collaboration yjs-update failed', error)
     }
@@ -47,12 +47,16 @@ export function connectCollabRoom({
   })
 
   getSyncStep1((stateVector, peerId) => {
-    sendSyncReply(Y.encodeStateAsUpdate(ydoc, stateVector), peerId)
+    try {
+      sendSyncReply(Y.encodeStateAsUpdate(ydoc, stateVector), peerId)
+    } catch (error) {
+      console.error('Collaboration sync-step1 failed', error)
+    }
   })
 
   getSyncReply((data) => {
     try {
-      Y.applyUpdate(ydoc, data, 'remote')
+      Y.applyUpdate(ydoc, new Uint8Array(data), 'remote')
     } catch (error) {
       console.error('Collaboration sync-reply failed', error)
     }
@@ -77,7 +81,12 @@ export function connectCollabRoom({
 
   room.onPeerJoin((peerId) => {
     setConnected()
-    sendSyncStep1(Y.encodeStateVector(ydoc), peerId)
+    try {
+      sendYjsUpdate(Y.encodeStateAsUpdate(ydoc))
+      sendSyncStep1(Y.encodeStateVector(ydoc), peerId)
+    } catch (error) {
+      console.error('Collaboration peer-join sync failed', error)
+    }
     sendAwareness(awarenessProtocol.encodeAwarenessUpdate(awareness, [awareness.clientID]), peerId)
   })
 

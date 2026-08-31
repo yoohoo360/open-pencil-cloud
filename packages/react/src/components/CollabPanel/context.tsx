@@ -102,33 +102,35 @@ export function useCollabPanelState(roomId: string | null) {
     const generation = ++generationRef.current
     const name = collabDisplayName(state.localName)
     if (!runtime.room || runtime.roomId !== roomId) {
-      connectCollabSession({
-        roomId,
-        runtime,
-        store: editorStore,
-        setConnected: () => {
-          setState((current) => ({ ...current, connected: true, roomId }))
-        },
-        updatePeersList,
-        applyYjsToGraph,
-        syncNodeToYjs
-      })
-      runtime.awareness?.setLocalStateField('user', {
-        name,
-        color: state.localColor
-      })
-      setState((current) => ({
-        ...current,
-        connected: true,
-        roomId,
-        localName: name
-      }))
+    connectCollabSession({
+      roomId,
+      runtime,
+      store: editorStore,
+      setConnected: () => {
+        setState((current) => ({ ...current, connected: true, roomId }))
+      },
+      updatePeersList,
+      applyYjsToGraph,
+      syncNodeToYjs
+    })
+    runtime.awareness?.setLocalStateField('user', {
+      name,
+      color: state.localColor
+    })
+    syncAllNodesToYjs()
+    setState((current) => ({
+      ...current,
+      connected: true,
+      roomId,
+      localName: name
+    }))
     }
 
     const seedTimer = window.setTimeout(() => {
       if (generationRef.current !== generation) return
-      if (peersRef.current.length === 0) syncAllNodesToYjs()
-      else syncMissingNodesToYjs()
+      const ynodes = runtime.ynodes
+      if (ynodes && ynodes.size > 0) syncMissingNodesToYjs()
+      else syncAllNodesToYjs()
     }, 800)
 
     return () => {

@@ -72,6 +72,9 @@ export function bindCollabGraphEvents({
       unbindPreview = store.graph.onNodeEvents({
         previewUpdated: (id) => onPreviewMutation(id)
       })
+      if (!getSuppressGraphSync()) {
+        for (const node of store.graph.getAllNodes()) onGraphMutation(node.id)
+      }
     }),
     store.onEditorEvent('node:updated', (id) => onGraphMutation(id)),
     store.onEditorEvent('node:created', (node) => onGraphMutation(node.id)),

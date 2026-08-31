@@ -11,7 +11,12 @@ import { copyFills } from '@open-pencil/scene-graph/copy'
 import { createDefaultSourceMetadata } from '@open-pencil/scene-graph/node-defaults'
 import type { Matrix, Vector } from '@open-pencil/scene-graph/primitives'
 
-const DERIVED_NODE_FIELDS = new Set<keyof SceneNode>(['textPicture'])
+const DERIVED_NODE_FIELDS = new Set<keyof SceneNode>([
+  'textPicture',
+  'derivedLayout',
+  'fillGeometry',
+  'strokeGeometry'
+])
 const FILL_TYPES = new Set<FillType>([
   'SOLID',
   'GRADIENT_LINEAR',
