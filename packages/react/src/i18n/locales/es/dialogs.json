@@ -296,6 +296,7 @@
   "notifications": "Notificaciones",
   "saveAsPrompt": "Guardar como:",
   "openFileFailed": "No se pudo abrir «{name}»: {error}",
+  "saveFileFailed": "No se pudo guardar «{name}»: {error}",
   "browserFileAPINotSupported": "Tu navegador no admite la API de archivos locales. Los archivos se descargarán en lugar de guardarse en el mismo lugar.",
   "useChrome": "Usar Chrome",
   "orEdgeForFullSupport": "o Edge para disponer de compatibilidad completa.",

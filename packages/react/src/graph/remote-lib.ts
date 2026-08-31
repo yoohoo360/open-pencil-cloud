@@ -5,4 +5,4 @@ export {
   getRemoteImports,
   removeRemoteComponent,
   type RemoteLibrary
-} from '#core/editor/remote-lib'
+} from '#core/editor/remote-lib.override'

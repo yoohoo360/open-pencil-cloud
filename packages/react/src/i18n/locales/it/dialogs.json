@@ -296,6 +296,7 @@
   "notifications": "Notifiche",
   "saveAsPrompt": "Salva con nome:",
   "openFileFailed": "Impossibile aprire «{name}»: {error}",
+  "saveFileFailed": "Impossibile salvare «{name}»: {error}",
   "browserFileAPINotSupported": "Il browser non supporta l’API dei file locali. I file verranno scaricati anziché salvati nella posizione corrente.",
   "useChrome": "Usa Chrome",
   "orEdgeForFullSupport": "o Edge per il supporto completo.",

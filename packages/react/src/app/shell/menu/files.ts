@@ -1,10 +1,11 @@
-import { computeAllLayouts } from '@open-pencil/core/layout'
-import { BUILTIN_IO_FORMATS, exportFigFile, IORegistry } from '@open-pencil/core/io'
-import { browserHTMLToSceneGraph } from '@open-pencil/dom-css/browser'
-import { SceneGraph } from '@open-pencil/scene-graph'
-
+import { uploadOSSFig } from '#react/app/document/oss'
 import type { EditorStore } from '#react/app/editor/store'
 import { dialogMessages } from '#react/i18n/messages'
+
+import { BUILTIN_IO_FORMATS, exportFigFile, IORegistry } from '@open-pencil/core/io'
+import { computeAllLayouts } from '@open-pencil/core/layout'
+import { browserHTMLToSceneGraph } from '@open-pencil/dom-css/browser'
+import { SceneGraph } from '@open-pencil/scene-graph'
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
 const DOM_DOCUMENT_EXTENSIONS = ['html', 'htm', 'xhtml'] as const
@@ -14,7 +15,9 @@ const READABLE_DOCUMENT_EXTENSIONS = [
     ...DOM_DOCUMENT_EXTENSIONS
   ])
 ]
-const DESIGN_FILE_ACCEPT = READABLE_DOCUMENT_EXTENSIONS.map((extension) => `.${extension}`).join(',')
+const DESIGN_FILE_ACCEPT = READABLE_DOCUMENT_EXTENSIONS.map((extension) => `.${extension}`).join(
+  ','
+)
 
 export type SelectionExportFormat = 'png' | 'svg' | 'pptx' | 'fig'
 
@@ -116,7 +119,10 @@ function getSelectionExportTarget(store: EditorStore) {
   return { scope: 'page' as const, pageId: store.state.currentPageId }
 }
 
-function getExportBaseName(store: EditorStore, target: ReturnType<typeof getSelectionExportTarget>) {
+function getExportBaseName(
+  store: EditorStore,
+  target: ReturnType<typeof getSelectionExportTarget>
+) {
   if (target.scope === 'selection' && target.nodeIds.length === 1) {
     return store.graph.getNode(target.nodeIds[0])?.name ?? 'Export'
   }
@@ -162,6 +168,8 @@ export function newDocument(store: EditorStore) {
   store.undo.clear()
   store.clearSelection()
   store.state.documentName = 'Untitled'
+  store.state.documentVersion = ''
+  store.state.documentFigURL = ''
   clearSaveTarget(store)
   const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
   void store.switchPage(pageId)
@@ -184,6 +192,8 @@ export async function openFileIntoStore(
       const imported = await browserHTMLToSceneGraph(html, { pageName: name })
       await applyOpenedDocument(store, imported)
       store.state.documentName = name
+      store.state.documentVersion = ''
+      store.state.documentFigURL = ''
       clearSaveTarget(store)
       return
     }
@@ -195,6 +205,8 @@ export async function openFileIntoStore(
     })
     await applyOpenedDocument(store, graph)
     store.state.documentName = file.name.replace(/\.[^.]+$/i, '') || 'Untitled'
+    store.state.documentVersion = ''
+    store.state.documentFigURL = ''
     const target = getSaveTarget(store)
     if (handle && file.name.toLowerCase().endsWith('.fig')) {
       target.handle = handle
@@ -305,16 +317,33 @@ async function chooseBrowserFigSaveHandle(suggestedName: string) {
   }
 }
 
+function reportSaveFailure(store: EditorStore, error: unknown) {
+  store.state.actionToast = dialogMessages.get().saveFileFailed({
+    name: store.state.documentName?.trim() || 'Untitled',
+    error: errorDetail(error)
+  })
+  store.notify()
+}
+
 export async function saveFigFile(store: EditorStore) {
   const target = getSaveTarget(store)
-  if (target.handle) {
+  const remoteURL = store.state.documentFigURL
+  if (remoteURL || target.handle || target.downloadName) {
     const data = await buildFigFile(store)
-    await writeFigHandle(target.handle, data)
-    return
-  }
-  if (target.downloadName) {
-    const data = await buildFigFile(store)
-    downloadBytes(data, target.downloadName, 'application/octet-stream')
+    if (remoteURL) {
+      try {
+        await uploadOSSFig(remoteURL, data)
+      } catch (error) {
+        reportSaveFailure(store, error)
+        return
+      }
+    }
+    if (target.handle) {
+      await writeFigHandle(target.handle, data)
+      return
+    }
+    if (remoteURL) return
+    downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
     return
   }
   await saveFigFileAs(store)
@@ -335,7 +364,10 @@ export async function saveFigFileAs(store: EditorStore) {
     return
   }
 
-  const filename = prompt(dialogMessages.get().saveAsPrompt, target.downloadName ?? figFileName(store))
+  const filename = prompt(
+    dialogMessages.get().saveAsPrompt,
+    target.downloadName ?? figFileName(store)
+  )
   if (!filename) return
   target.handle = null
   target.downloadName = filename

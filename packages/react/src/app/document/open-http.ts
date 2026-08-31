@@ -1,8 +1,8 @@
-import { readFigFile } from '@open-pencil/core/io'
-import { computeAllLayouts } from '@open-pencil/core/layout'
-
 import type { EditorStore } from '#react/app/editor/store'
 import { apiClient, type PencilDocument } from '#react/lib/client'
+
+import { readFigFile } from '@open-pencil/core/io'
+import { computeAllLayouts } from '@open-pencil/core/layout'
 
 export async function openHttpDocument(
   store: EditorStore,
@@ -11,6 +11,7 @@ export async function openHttpDocument(
   const name = documentMeta?.name || 'Untitled'
   store.state.documentName = name
   store.state.documentVersion = documentMeta?.version ?? ''
+  store.state.documentFigURL = documentMeta?.url ?? ''
   store.state.loading = true
   store.notify()
   try {
@@ -23,12 +24,12 @@ export async function openHttpDocument(
       timeout: 120_000
     })
     const payload = res.data
-    const bytes =
-      payload instanceof ArrayBuffer
-        ? new Uint8Array(payload)
-        : payload instanceof Uint8Array
-          ? payload
-          : null
+    let bytes: Uint8Array | null = null
+    if (payload instanceof ArrayBuffer) {
+      bytes = new Uint8Array(payload)
+    } else if (payload instanceof Uint8Array) {
+      bytes = payload
+    }
     if (!bytes) return
 
     const fileBytes = new Uint8Array(bytes.byteLength)

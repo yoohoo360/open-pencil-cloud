@@ -82,14 +82,21 @@ export function getRemoteImports(graph: SceneGraph): Map<string, RemoteLibrary> 
 
 function ensureLibPage(graph: SceneGraph, libraryKey: string): SceneNode {
   const existing = graph
-    .getPages()
+    .getPages(true)
     .find((page) => page.name === libraryKey || page.id === libraryKey)
-  if (existing) return existing
+  if (existing) {
+    if (!existing.internalOnly || existing.visible) {
+      graph.updateNode(existing.id, { internalOnly: true, visible: false })
+    }
+    return graph.getNode(existing.id) ?? existing
+  }
   return markRemote(
     graph.createNodeWithId(libraryKey, 'CANVAS', graph.rootId, {
       name: libraryKey,
       width: 0,
-      height: 0
+      height: 0,
+      internalOnly: true,
+      visible: false
     })
   )
 }

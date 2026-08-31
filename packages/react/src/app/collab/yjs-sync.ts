@@ -1,7 +1,6 @@
-import * as Y from 'yjs'
-
 import { decodeNodeFromYjs, syncEncodedNodeToYMap } from '#react/app/collab/node-codec'
 import type { EditorStore } from '#react/app/editor/store'
+import * as Y from 'yjs'
 
 type YNodes = Y.Map<Y.Map<unknown>>
 type YImages = Y.Map<Uint8Array>
@@ -77,13 +76,24 @@ export function bindCollabGraphEvents({
       }
     }),
     store.onEditorEvent('node:updated', (id) => onGraphMutation(id)),
-    store.onEditorEvent('node:created', (node) => onGraphMutation(node.id)),
-    store.onEditorEvent('node:reparented', (nodeId) => onGraphMutation(nodeId)),
-    store.onEditorEvent('node:reordered', (nodeId) => onGraphMutation(nodeId)),
+    store.onEditorEvent('node:created', (node) => {
+      onGraphMutation(node.id)
+      if (node.parentId) onGraphMutation(node.parentId)
+    }),
+    store.onEditorEvent('node:reparented', (nodeId, oldParentId, newParentId) => {
+      onGraphMutation(nodeId)
+      if (oldParentId) onGraphMutation(oldParentId)
+      onGraphMutation(newParentId)
+    }),
+    store.onEditorEvent('node:reordered', (nodeId, parentId) => {
+      onGraphMutation(nodeId)
+      onGraphMutation(parentId)
+    }),
     store.onEditorEvent('node:deleted', (id) => {
       const ydoc = getYdoc()
       const ynodes = getYnodes()
       if (!getSuppressGraphSync() && ydoc && ynodes) {
+        const parentId = ynodes.get(id)?.get('parentId')
         setSuppressYjsEvents(true)
         try {
           ydoc.transact(() => {
@@ -94,6 +104,8 @@ export function bindCollabGraphEvents({
         } finally {
           setSuppressYjsEvents(false)
         }
+        if (typeof parentId === 'string') onGraphMutation(parentId)
+        else onGraphMutation(store.graph.rootId)
       }
     })
   ]
@@ -267,9 +279,12 @@ export function createYjsGraphSync({
     const existing = store.graph.getNode(nodeId)
     const props = decodeNodeFromYjs(ynode)
     const parentId = typeof props.parentId === 'string' ? props.parentId : null
+    const childIds = mergeYjsChildIds(existing?.childIds ?? [], props.childIds, (id) => {
+      return store.graph.getNode(id)?.parentId === nodeId
+    })
 
     if (existing) {
-      store.graph.updateNode(nodeId, props)
+      store.graph.updateNode(nodeId, childIds ? { ...props, childIds } : props)
       if (parentId === null) store.graph.rootId = nodeId
       ensureCurrentPageExists(store)
       return
@@ -291,4 +306,15 @@ export function createYjsGraphSync({
   }
 
   return { syncNodeToYjs, syncAllNodesToYjs, syncMissingNodesToYjs, applyYjsToGraph }
+}
+
+export function mergeYjsChildIds(
+  existingChildIds: readonly string[],
+  incomingChildIds: unknown,
+  childStillAttached: (id: string) => boolean
+): string[] | undefined {
+  if (!Array.isArray(incomingChildIds)) return undefined
+  const incoming = incomingChildIds.filter((id): id is string => typeof id === 'string')
+  const extras = existingChildIds.filter((id) => !incoming.includes(id) && childStillAttached(id))
+  return extras.length === 0 ? incoming : [...incoming, ...extras]
 }

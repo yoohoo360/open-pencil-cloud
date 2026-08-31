@@ -296,6 +296,7 @@
   "notifications": "通知",
   "saveAsPrompt": "名前を付けて保存：",
   "openFileFailed": "「{name}」を開けませんでした: {error}",
+  "saveFileFailed": "「{name}」を保存できませんでした: {error}",
   "browserFileAPINotSupported": "このブラウザはローカルファイルAPIに対応していません。ファイルは同じ場所に保存されず、ダウンロードされます。",
   "useChrome": "Chromeを使用",
   "orEdgeForFullSupport": "またはEdgeを使用するとすべての機能を利用できます。",

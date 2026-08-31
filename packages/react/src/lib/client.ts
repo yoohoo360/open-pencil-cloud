@@ -178,6 +178,9 @@ function flushPendingRequests(error: unknown, token?: string): void {
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = Cookies.get(ACCESS_TOKEN_COOKIE)
   if (token) config.headers.Authorization = `Bearer ${token}`
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type')
+  }
   return config
 })
 

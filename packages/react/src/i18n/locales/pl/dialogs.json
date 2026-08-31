@@ -296,6 +296,7 @@
   "notifications": "Powiadomienia",
   "saveAsPrompt": "Zapisz jako:",
   "openFileFailed": "Nie udało się otworzyć „{name}”: {error}",
+  "saveFileFailed": "Nie udało się zapisać „{name}”: {error}",
   "browserFileAPINotSupported": "Twoja przeglądarka nie obsługuje interfejsu API plików lokalnych. Pliki będą pobierane zamiast zapisywane w bieżącym miejscu.",
   "useChrome": "Użyj Chrome",
   "orEdgeForFullSupport": "lub Edge, aby uzyskać pełną obsługę.",

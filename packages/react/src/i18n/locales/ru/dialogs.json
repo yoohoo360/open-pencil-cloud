@@ -296,6 +296,7 @@
   "notifications": "Уведомления",
   "saveAsPrompt": "Сохранить как:",
   "openFileFailed": "Не удалось открыть «{name}»: {error}",
+  "saveFileFailed": "Не удалось сохранить «{name}»: {error}",
   "browserFileAPINotSupported": "Ваш браузер не поддерживает API локальных файлов. Вместо сохранения на месте файлы будут скачиваться.",
   "useChrome": "Использовать Chrome",
   "orEdgeForFullSupport": "или Edge для полной поддержки.",
