@@ -1,0 +1,152 @@
+import type { SceneGraph } from '@open-pencil/scene-graph'
+import type { Color } from '@open-pencil/scene-graph/primitives'
+
+import { populateLazyFigImportRoots } from '#core/kiwi/fig/lazy-import'
+import {
+  canUseFigPopulationWorker,
+  createFigPopulationWorker
+} from '#core/kiwi/fig/population/client'
+import { computeAllLayouts } from '#core/layout'
+import { fontManager } from '#core/text/fonts'
+import { collectGraphFontRequirements } from '#core/text/requirements'
+import { missingGraphFontScripts } from '#core/text/resolved-requirements'
+
+import { createPageViewportStore } from './page-viewports'
+import type { EditorContext } from './types'
+
+export function createPageActions(ctx: EditorContext) {
+  const pageViewportStore = createPageViewportStore(ctx)
+  let populationWorkerInstance: ReturnType<typeof createFigPopulationWorker> | undefined
+  let populationWorkerGeneration = 0
+  let pageSwitchGeneration = 0
+
+  function populationWorker() {
+    if (!canUseFigPopulationWorker(ctx.graph)) return null
+    populationWorkerInstance ??= createFigPopulationWorker(ctx.graph)
+    return populationWorkerInstance
+  }
+
+  async function switchPage(pageId: string) {
+    const page = ctx.graph.getNode(pageId)
+    if (page?.type !== 'CANVAS') return
+
+    pageViewportStore.saveCurrentPageViewport()
+
+    const previousPageId = ctx.state.currentPageId
+    ctx.state.currentPageId = pageId
+    ctx.state.enteredContainerId = null
+    ctx.setSelectedIds(new Set())
+    if (previousPageId !== pageId) ctx.emitEditorEvent('page:changed', pageId, previousPageId)
+
+    pageViewportStore.restorePageViewport(pageId)
+
+    const populated = populateLazyFigImportRoots(ctx.graph, [pageId])
+
+    const toLoad = fontManager.collectFontKeys(
+      ctx.graph,
+      ctx.graph.getChildren(pageId).map((n) => n.id)
+    )
+    if (toLoad.length > 0) {
+      await Promise.all(toLoad.map(([family, style]) => ctx.loadFont(family, style)))
+    }
+    if (ctx.getRenderer() || populated) {
+      computeAllLayouts(ctx.graph, pageId)
+    }
+    ctx.requestRender()
+  }
+
+  function clearPageViewports() {
+    populationWorkerGeneration++
+    pageSwitchGeneration++
+    ctx.state.loading = false
+    populationWorkerInstance?.terminate()
+    populationWorkerInstance = undefined
+    pageViewportStore.clearPageViewports()
+  }
+
+  function addPage(name?: string) {
+    const pages = ctx.graph.getPages()
+    const pageName = name ?? `Page ${pages.length + 1}`
+    const page = ctx.graph.addPage(pageName)
+    stampCreatedPageFigSource(ctx.graph, page.id)
+    void switchPage(page.id)
+    return page.id
+  }
+
+  function deletePage(pageId: string) {
+    const pages = ctx.graph.getPages()
+    if (pages.length <= 1) return
+    const idx = pages.findIndex((p) => p.id === pageId)
+    ctx.graph.deleteNode(pageId)
+    pageViewportStore.deletePageViewport(pageId)
+    if (ctx.state.currentPageId === pageId) {
+      const newIdx = Math.min(idx, pages.length - 2)
+      const remaining = ctx.graph.getPages()
+      void switchPage(remaining[newIdx].id)
+    }
+  }
+
+  function movePage(pageId: string, index: number) {
+    const pages = ctx.graph.getPages()
+    const currentIndex = pages.findIndex((page) => page.id === pageId)
+    if (currentIndex === -1) return
+
+    const nextIndex = Math.max(0, Math.min(index, pages.length - 1))
+    if (nextIndex === currentIndex) return
+
+    const dest = pages[nextIndex]
+    if (!dest) return
+    const rootIndex = ctx.graph
+      .getChildren(ctx.graph.rootId)
+      .findIndex((node) => node.id === dest.id)
+    if (rootIndex === -1) return
+
+    ctx.graph.insertChildAt(pageId, ctx.graph.rootId, rootIndex)
+  }
+
+  function renamePage(pageId: string, name: string) {
+    ctx.graph.updateNode(pageId, { name })
+  }
+
+  function setPageColor(color: Color) {
+    ctx.state.pageColor = color
+    ctx.requestRender()
+  }
+
+  return {
+    switchPage,
+    addPage,
+    deletePage,
+    movePage,
+    renamePage,
+    setPageColor,
+    clearPageViewports
+  }
+}
+
+const SESSION_1_GUID = /^1:(\d+)$/
+
+function nextLocalFigSourceId(graph: SceneGraph): string {
+  let maxLocal = 0
+  for (const node of graph.getAllNodes()) {
+    for (const raw of [node.source.id, node.id]) {
+      if (!raw) continue
+      const match = SESSION_1_GUID.exec(raw)
+      if (!match) continue
+      maxLocal = Math.max(maxLocal, Number.parseInt(match[1], 10))
+    }
+  }
+  return `1:${maxLocal + 1}`
+}
+
+function stampCreatedPageFigSource(graph: SceneGraph, pageId: string): void {
+  const page = graph.getNode(pageId)
+  if (!page || page.source.id) return
+  graph.updateNode(pageId, {
+    source: {
+      ...page.source,
+      format: 'fig',
+      id: nextLocalFigSourceId(graph)
+    }
+  })
+}
