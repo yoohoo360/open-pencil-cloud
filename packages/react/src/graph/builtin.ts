@@ -37,6 +37,8 @@ export function createBuiltinCatalog(): SceneGraph {
     width: 320,
     height: 88,
     layoutMode: 'VERTICAL',
+    primaryAxisSizing: 'HUG',
+    counterAxisSizing: 'FIXED',
     paddingTop: 12,
     paddingRight: 12,
     paddingBottom: 12,
@@ -53,8 +55,8 @@ export function createBuiltinCatalog(): SceneGraph {
     height: 64,
     fontSize: 14,
     textAutoResize: 'HEIGHT',
-    layoutSizingHorizontal: 'FILL',
-    layoutSizingVertical: 'HUG',
+    layoutAlignSelf: 'STRETCH',
+    layoutGrow: 0,
     fills: [solidFill(BLACK)]
   })
   return graph

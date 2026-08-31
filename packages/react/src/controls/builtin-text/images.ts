@@ -4,7 +4,7 @@ import { flattenBlocks } from '#react/controls/builtin-text/lists'
 
 import { TRANSPARENT } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
-import { computeAllLayouts } from '@open-pencil/core/layout'
+import { computeAllLayouts, computeLayout } from '@open-pencil/core/layout'
 import type { Fill, SceneNode } from '@open-pencil/scene-graph'
 
 const RASTER_IMAGE_TYPES = new Set([
@@ -121,6 +121,21 @@ function contentSlots(blocks: RichBlock[]): ContentSlot[] {
   return slots
 }
 
+function contentWidth(host: SceneNode): number {
+  return Math.max(1, host.width - host.paddingLeft - host.paddingRight)
+}
+
+function textLeafLayout(host: SceneNode): Partial<SceneNode> {
+  return {
+    x: host.paddingLeft,
+    width: contentWidth(host),
+    fontSize: 14,
+    textAutoResize: 'HEIGHT',
+    layoutAlignSelf: 'STRETCH',
+    layoutGrow: 0
+  }
+}
+
 function createTextNode(
   editor: Editor,
   host: SceneNode,
@@ -130,13 +145,10 @@ function createTextNode(
     name: 'RichText',
     text: slot.text,
     styleRuns: slot.styleRuns,
-    width: Math.max(1, host.width - host.paddingLeft - host.paddingRight),
+    y: host.paddingTop,
     height: Math.max(16, slot.text ? 20 : 16),
-    fontSize: 14,
-    textAutoResize: 'HEIGHT',
-    layoutSizingHorizontal: 'FILL',
-    layoutSizingVertical: 'HUG',
-    fills: [{ type: 'SOLID', color: BLACK, opacity: 1, visible: true }]
+    fills: [{ type: 'SOLID', color: BLACK, opacity: 1, visible: true }],
+    ...textLeafLayout(host)
   })
 }
 
@@ -145,12 +157,40 @@ function createImageNode(editor: Editor, host: SceneNode, image: RichImage) {
   const height = Math.max(1, image.height || 1)
   return editor.graph.createNode('RECTANGLE', host.id, {
     name: 'Image',
+    x: host.paddingLeft,
+    y: host.paddingTop,
     width,
     height,
-    layoutSizingHorizontal: 'FIXED',
-    layoutSizingVertical: 'FIXED',
+    layoutAlignSelf: 'AUTO',
+    layoutGrow: 0,
     fills: [imageFill(image.hash)]
   })
+}
+
+function snapBuiltinPadding(editor: Editor, hostId: string): void {
+  const host = editor.graph.getNode(hostId)
+  if (!host) return
+  const children = editor.graph
+    .getChildren(hostId)
+    .filter((node) => node.visible && node.layoutPositioning !== 'ABSOLUTE')
+  for (const [index, child] of children.entries()) {
+    const next: Partial<SceneNode> = {}
+    if (host.paddingLeft > 0 && Math.abs(child.x) < 0.51) next.x = host.paddingLeft
+    if (index === 0 && host.paddingTop > 0 && Math.abs(child.y) < 0.51) next.y = host.paddingTop
+    if (child.type === 'TEXT' && child.layoutAlignSelf === 'STRETCH') {
+      const width = contentWidth(host)
+      if (Math.abs(child.width - width) > 0.51) next.width = width
+    }
+    if (Object.keys(next).length > 0) editor.graph.updateNode(child.id, next)
+  }
+}
+
+function layoutBuiltinHost(editor: Editor, hostId: string): void {
+  const host = editor.graph.getNode(hostId)
+  if (host && host.layoutMode !== 'NONE') computeLayout(editor.graph, hostId)
+  snapBuiltinPadding(editor, hostId)
+  computeAllLayouts(editor.graph, editor.state.currentPageId)
+  editor.requestRender()
 }
 
 export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichBlock[]): void {
@@ -166,12 +206,10 @@ export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichB
     if (slot.kind === 'text') {
       const existing = children.find((node) => node.type === 'TEXT' && !used.has(node.id))
       if (existing) {
-        editor.updateNode(existing.id, {
+        editor.graph.updateNode(existing.id, {
           text: slot.text,
           styleRuns: slot.styleRuns,
-          textAutoResize: 'HEIGHT',
-          layoutSizingHorizontal: 'FILL',
-          layoutSizingVertical: 'HUG'
+          ...textLeafLayout(host)
         })
         used.add(existing.id)
         order.push(existing.id)
@@ -184,11 +222,12 @@ export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichB
       children.find((node) => imageHash(node) === slot.image.hash && !used.has(node.id)) ??
       children.find((node) => isImageRect(node) && !used.has(node.id))
     if (existing) {
-      editor.updateNode(existing.id, {
+      editor.graph.updateNode(existing.id, {
+        x: host.paddingLeft,
         width: Math.max(1, slot.image.width),
         height: Math.max(1, slot.image.height),
-        layoutSizingHorizontal: 'FIXED',
-        layoutSizingVertical: 'FIXED',
+        layoutAlignSelf: 'AUTO',
+        layoutGrow: 0,
         fills: [imageFill(slot.image.hash)]
       })
       used.add(existing.id)
@@ -201,6 +240,5 @@ export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichB
     if (!used.has(child.id)) editor.graph.deleteNode(child.id)
   }
   for (const [index, id] of order.entries()) editor.graph.reorderChild(id, hostId, index)
-  computeAllLayouts(editor.graph, editor.state.currentPageId)
-  editor.requestRender()
+  layoutBuiltinHost(editor, hostId)
 }

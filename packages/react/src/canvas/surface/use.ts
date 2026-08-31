@@ -4,6 +4,7 @@ import type { CanvasKit, Surface } from 'canvaskit-wasm'
 import { SkiaRenderer } from '@open-pencil/core/canvas'
 import { getCanvasKit } from '@open-pencil/core/canvaskit'
 import type { Editor } from '@open-pencil/core/editor'
+import { computeAllLayouts } from '@open-pencil/core/layout'
 
 import { makeGLSurface, sizeCanvas, type CanvasGLContext } from '#react/canvas/surface/gl-surface'
 import { createCanvasHitTests, createRulerVisibility } from '#react/canvas/surface/overlays'
@@ -131,7 +132,10 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
       if (!state.surface) {
         if (createSurface(editor, target, state, nextOptions) && state.renderer) {
           void state.renderer.loadFonts(() => loop.markDirty()).then(() => {
-            if (!destroyed) renderNow()
+            if (destroyed) return
+            computeAllLayouts(editor.graph, editor.state.currentPageId)
+            editor.requestRender()
+            renderNow()
             return undefined
           })
         }
@@ -160,6 +164,8 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
 
       await state.renderer.loadFonts(() => loop.markDirty())
       if (destroyed) return
+      computeAllLayouts(editor.graph, editor.state.currentPageId)
+      editor.requestRender()
       renderNow()
       optionsRef.current?.onReady?.()
     })()
