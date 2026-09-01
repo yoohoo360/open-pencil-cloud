@@ -13,7 +13,31 @@ export const authMessageDefaults = {
   signIn: 'Sign In',
   loggingIn: 'Logging in...',
   noAccount: "Don't have an account?",
-  signUp: 'Sign Up'
+  signUp: 'Sign Up',
+  createAccount: 'Create an account',
+  registerSubtitle: 'Register with email, then enter the verification code',
+  username: 'Username',
+  name: 'Name',
+  email: 'Email',
+  confirmPassword: 'Confirm password',
+  creatingAccount: 'Creating account...',
+  hasAccount: 'Already have an account?',
+  continueWithGithub: 'Continue with GitHub',
+  continueWithGoogle: 'Continue with Google',
+  orEmail: 'or email',
+  verifyEmail: 'Verify your email',
+  verifySubtitle: 'Enter the 6-digit code we sent you',
+  verificationCode: 'Verification code',
+  verifyAndSignIn: 'Verify and sign in',
+  verifying: 'Verifying...',
+  resendCode: 'Resend code',
+  backToSignIn: 'Back to sign in',
+  enterVerificationCode: 'Enter verification code',
+  invalidCode: 'Enter your email and the 6-digit code',
+  emailRequired: 'Enter your email first',
+  codeSent: 'If this account needs verification, a new code was sent',
+  signingIn: 'Signing in',
+  oauthWait: 'Finishing sign in…'
 } as const
 
 export const authMessages = i18n('auth', authMessageDefaults)

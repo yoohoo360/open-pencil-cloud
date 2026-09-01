@@ -26,7 +26,11 @@ const AUTH_REFRESH_SKIP_PATHS = [
   '/api/auth/register',
   '/api/auth/refresh',
   '/api/auth/forgot-password',
-  '/api/auth/reset-password'
+  '/api/auth/reset-password',
+  '/api/auth/verify-email',
+  '/api/auth/resend-verification',
+  '/api/auth/oauth/exchange',
+  '/api/auth/oauth/providers'
 ]
 
 export type APIResponse<T = unknown> = {
@@ -70,6 +74,23 @@ type AuthTokens = {
 export type LoginRequest = {
   username_or_email: string
   password: string
+}
+
+export type RegisterRequest = {
+  username: string
+  email: string
+  password: string
+  name: string
+}
+
+export type RegisterResponse = {
+  requires_verification: boolean
+  email: string
+}
+
+export type OauthProviders = {
+  github: boolean
+  google: boolean
 }
 
 export type CreateDocumentRequest = {
@@ -199,11 +220,6 @@ http.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryRequestConfig | undefined
     const status = error.response?.status
-    if (status === 401) {
-      clearTokensAndRedirect()
-      return
-    }
-
     if (
       !originalRequest ||
       shouldSkipRefresh(originalRequest) ||
@@ -321,6 +337,46 @@ export const authAPI = {
       username_or_email: data.username_or_email,
       password: data.password
     })
+    const tokens = unwrapAuthTokens(response)
+    setTokens(tokens.access_token, tokens.refresh_token)
+    if (tokens.user) writeStoredUserJSON(JSON.stringify(tokens.user))
+    return tokens
+  },
+
+  async register(data: RegisterRequest): Promise<RegisterResponse> {
+    const response = await apiClient.post<RegisterResponse>('/api/auth/register', data)
+    return {
+      requires_verification: Boolean(response.data?.requires_verification),
+      email: response.data?.email ?? data.email
+    }
+  },
+
+  async verifyEmail(data: { email: string; code: string }): Promise<AuthTokens> {
+    const response = await apiClient.post<AuthTokens>('/api/auth/verify-email', data)
+    const tokens = unwrapAuthTokens(response)
+    setTokens(tokens.access_token, tokens.refresh_token)
+    if (tokens.user) writeStoredUserJSON(JSON.stringify(tokens.user))
+    return tokens
+  },
+
+  async resendVerification(email: string): Promise<void> {
+    await apiClient.post('/api/auth/resend-verification', { email })
+  },
+
+  async oauthProviders(): Promise<OauthProviders> {
+    try {
+      const response = await apiClient.get<OauthProviders>('/api/auth/oauth/providers')
+      return {
+        github: Boolean(response.data?.github),
+        google: Boolean(response.data?.google)
+      }
+    } catch {
+      return { github: false, google: false }
+    }
+  },
+
+  async exchangeOauth(ticket: string): Promise<AuthTokens> {
+    const response = await apiClient.post<AuthTokens>('/api/auth/oauth/exchange', { ticket })
     const tokens = unwrapAuthTokens(response)
     setTokens(tokens.access_token, tokens.refresh_token)
     if (tokens.user) writeStoredUserJSON(JSON.stringify(tokens.user))

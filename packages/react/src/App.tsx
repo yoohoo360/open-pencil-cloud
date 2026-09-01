@@ -8,6 +8,9 @@ import CanvasView from './view/CanvasView'
 import DocumentListView from './view/DocumentListView'
 import DocumentView from './view/DocumentView'
 import LoginView from './view/LoginView'
+import OauthCallbackView from './view/OauthCallbackView'
+import RegisterView from './view/RegisterView'
+import VerifyEmailView from './view/VerifyEmailView'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
@@ -34,6 +37,30 @@ export function App() {
         element={
           <GuestOnly>
             <LoginView/>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/login/oauth"
+        element={
+          <GuestOnly>
+            <OauthCallbackView/>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <GuestOnly>
+            <RegisterView/>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/verify-email"
+        element={
+          <GuestOnly>
+            <VerifyEmailView/>
           </GuestOnly>
         }
       />

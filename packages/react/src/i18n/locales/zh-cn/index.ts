@@ -1,5 +1,6 @@
 import type { ComponentsJSON } from '@nanostores/i18n'
 
+import auth from './auth.json'
 import commands from './commands.json'
 import dialogs from './dialogs.json'
 import menu from './menu.json'
@@ -15,5 +16,6 @@ export default {
   panels: panels,
   variableTypes: variableTypes,
   pages: pages,
-  dialogs: dialogs
+  dialogs: dialogs,
+  auth: auth
 } satisfies ComponentsJSON

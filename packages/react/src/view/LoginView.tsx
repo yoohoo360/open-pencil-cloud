@@ -1,11 +1,13 @@
-import { type FormEvent, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { LoaderCircle, Pencil } from 'lucide-react'
+import { type FormEvent, useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { LoaderCircle } from 'lucide-react'
 
 import { safeRedirect } from '#react/app/auth/redirect'
 import { readRememberedUsername, writeRememberedUsername } from '#react/app/auth/storage'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
+import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/auth/AuthShell'
+import { OauthButtons } from '#react/view/auth/OauthButtons'
 
 export default function LoginView() {
   const { auth } = useI18n()
@@ -18,9 +20,16 @@ export default function LoginView() {
   const [usernameError, setUsernameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [generalError, setGeneralError] = useState('')
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const isDev = import.meta.env.DEV
   const isValid = username.trim().length > 0 && password.trim().length > 0
+  const redirect = searchParams.get('redirect')
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error')
+    if (oauthError) setGeneralError(oauthError)
+  }, [searchParams])
 
   function validate(): boolean {
     const nextUsernameError = username.trim() ? '' : 'Username or email is required'
@@ -33,6 +42,7 @@ export default function LoginView() {
   async function handleLogin(event?: FormEvent): Promise<void> {
     event?.preventDefault()
     setGeneralError('')
+    setNeedsVerification(false)
     if (!validate()) return
     setIsLoading(true)
     try {
@@ -41,52 +51,56 @@ export default function LoginView() {
         password
       })
       writeRememberedUsername(rememberMe ? username : '')
-      void navigate(safeRedirect(searchParams.get('redirect')))
+      void navigate(safeRedirect(redirect))
     } catch (error) {
-      setGeneralError(getAPIErrorMessage(error, 'Login failed. Please try again.'))
+      const message = getAPIErrorMessage(error, 'Login failed. Please try again.')
+      setGeneralError(message)
+      setNeedsVerification(/verify your email/i.test(message))
     } finally {
       setIsLoading(false)
     }
   }
 
+  const verifyHref = username.includes('@')
+    ? `/verify-email?email=${encodeURIComponent(username.trim())}&redirect=${encodeURIComponent(safeRedirect(redirect))}`
+    : `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+
   return (
     <div
-      className="flex h-full items-center justify-center overflow-y-auto bg-canvas px-4"
+      className="h-full"
       data-test-id="login-page"
       onKeyDown={(event) => {
         if (event.key === 'Enter' && !isLoading) void handleLogin()
       }}
     >
-      <div className="w-full max-w-md rounded-lg border border-border bg-panel p-8 shadow-lg">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
-            <Pencil className="size-8 text-accent" />
-          </div>
-          <h1 className="text-2xl font-bold text-surface">{auth.appName || 'Welcome Back'}</h1>
-          <p className="mt-2 text-sm text-muted">{auth.loginSubtitle || 'Sign in to your account'}</p>
-        </div>
+      <AuthShell
+        title={auth.appName || 'Welcome Back'}
+        subtitle={auth.loginSubtitle || 'Sign in to your account'}
+      >
+        {generalError ? <AuthAlert>{generalError}</AuthAlert> : null}
 
-        {generalError ? (
-          <div className="mb-4 rounded bg-danger/10 px-4 py-2 text-sm text-danger" role="alert">
-            {generalError}
-          </div>
+        {needsVerification ? (
+          <p className="mb-4 text-sm text-muted">
+            <Link className="text-accent hover:underline" to={verifyHref}>
+              {auth.enterVerificationCode || 'Enter verification code'}
+            </Link>
+          </p>
         ) : null}
 
+        <OauthButtons redirect={redirect} />
+
         <form className="space-y-4" onSubmit={(event) => void handleLogin(event)}>
-          <div>
-            <label htmlFor="username_or_email" className="block text-sm font-medium text-surface">
-              {auth.usernameOrEmail || 'Username or Email'}
-            </label>
+          <AuthField
+            id="username_or_email"
+            label={auth.usernameOrEmail || 'Username or Email'}
+            error={usernameError}
+          >
             <input
               id="username_or_email"
               value={username}
               type="text"
               autoComplete="username"
-              className={`mt-1.5 block w-full rounded border bg-input px-3 py-2 text-sm text-surface placeholder:text-muted focus:outline-none focus:ring-1 disabled:opacity-50 ${
-                usernameError
-                  ? 'border-danger focus:border-danger focus:ring-danger'
-                  : 'border-border focus:border-accent focus:ring-accent'
-              }`}
+              className={authInputClass(Boolean(usernameError))}
               placeholder={auth.usernameOrEmailPlaceholder || 'Enter your username or email'}
               disabled={isLoading}
               data-test-id="login-username"
@@ -95,23 +109,15 @@ export default function LoginView() {
                 setUsernameError(username.trim() ? '' : 'Username or email is required')
               }}
             />
-            {usernameError ? <p className="mt-1 text-xs text-danger">{usernameError}</p> : null}
-          </div>
+          </AuthField>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-surface">
-              {auth.password || 'Password'}
-            </label>
+          <AuthField id="password" label={auth.password || 'Password'} error={passwordError}>
             <input
               id="password"
               value={password}
               type="password"
               autoComplete="current-password"
-              className={`mt-1.5 block w-full rounded border bg-input px-3 py-2 text-sm text-surface placeholder:text-muted focus:outline-none focus:ring-1 disabled:opacity-50 ${
-                passwordError
-                  ? 'border-danger focus:border-danger focus:ring-danger'
-                  : 'border-border focus:border-accent focus:ring-accent'
-              }`}
+              className={authInputClass(Boolean(passwordError))}
               placeholder={auth.passwordPlaceholder || 'Enter your password'}
               disabled={isLoading}
               data-test-id="login-password"
@@ -120,8 +126,7 @@ export default function LoginView() {
                 setPasswordError(password.trim() ? '' : 'Password is required')
               }}
             />
-            {passwordError ? <p className="mt-1 text-xs text-danger">{passwordError}</p> : null}
-          </div>
+          </AuthField>
 
           <label className="flex cursor-pointer items-center gap-2 text-sm text-muted transition-colors hover:text-surface">
             <input
@@ -168,7 +173,17 @@ export default function LoginView() {
             )}
           </button>
         </form>
-      </div>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          {auth.noAccount || "Don't have an account?"}{' '}
+          <Link
+            className="font-medium text-accent hover:underline"
+            to={`/register${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+          >
+            {auth.signUp || 'Sign Up'}
+          </Link>
+        </p>
+      </AuthShell>
     </div>
   )
 }
