@@ -1,0 +1,56 @@
+spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 64MB
+      max-request-size: 64MB
+      file-size-threshold: 10MB
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jongwong}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      max-lifetime: 600000
+      idle-timeout: 300000
+      keepalive-time: 120000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  flyway:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jongwong}
+    user: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    schemas: public
+    baseline-on-migrate: true
+    validate-on-migrate: false  # 临时关闭校验（仅开发环境）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 30s
+      connect-timeout: 10s
+      lettuce:
+        pool:
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 30s
+
+storage:
+  type: local
+  local:
+    path: ${LOCAL_STORAGE_PATH:./storage}
+
+logging:
+  level:
+    root: INFO
+    com.jongwong: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+
+server:
+  address: 127.0.0.1

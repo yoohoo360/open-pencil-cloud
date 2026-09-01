@@ -1,0 +1,149 @@
+spring:
+  profiles:
+    default: dev
+  application:
+    name: jongwong-api-java
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://101.34.152.79:5432/yoohoo}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 64MB
+      max-request-size: 64MB
+      file-size-threshold: 10MB
+
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  port: ${PORT:8000}
+  error:
+    include-message: always
+    include-stacktrace: on_param
+  tomcat:
+    max-http-form-post-size: 64MB
+    max-swallow-size: 64MB
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:jongwong-secret-key-change-in-production-minimum-256-bits}
+  expiration: ${JWT_EXPIRATION:86400000} # 24 hours in milliseconds
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days in milliseconds
+
+# CORS Configuration
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS,PATCH}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+
+# API Documentation
+springdoc:
+  api-docs:
+    path: /docs
+  swagger-ui:
+    path: /api/swagger-ui
+    operations-sorter: method
+    tags-sorter: alpha
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.jongwong: ${LOG_LEVEL:DEBUG}
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:DEBUG}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Application Configuration
+app:
+  name: ${APP_NAME:Jongwong}
+  version: 1.0.0
+  api-prefix: /api
+  frontend-url: ${FRONTEND_URL:http://localhost:8080}
+  public-url: ${PUBLIC_URL:http://localhost:8000}
+
+oauth:
+  github:
+    client-id: ${OAUTH_GITHUB_CLIENT_ID:}
+    client-secret: ${OAUTH_GITHUB_CLIENT_SECRET:}
+  google:
+    client-id: ${OAUTH_GOOGLE_CLIENT_ID:}
+    client-secret: ${OAUTH_GOOGLE_CLIENT_SECRET:}
+
+# Share-room WebSocket relay (replaces browser WebRTC)
+collab:
+  max-message-bytes: ${COLLAB_MAX_MESSAGE_BYTES:8388608}
+  max-peers-per-room: ${COLLAB_MAX_PEERS_PER_ROOM:0}
+  leave-grace-ms: ${COLLAB_LEAVE_GRACE_MS:4000}
+
+# Actuator Configuration (Observability)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+
+# Cache Configuration (Caffeine)
+spring.cache:
+  type: caffeine
+  cache-names: dashboardStats,userRegistrationChart,userActivityChart
+  caffeine:
+    spec: maximumSize=1000,expireAfterWrite=300s
