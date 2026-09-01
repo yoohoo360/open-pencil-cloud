@@ -1,7 +1,8 @@
+import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
+import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
+
 import type { Editor } from '@open-pencil/core/editor'
 import type { Vector } from '@open-pencil/scene-graph/primitives'
-
-import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
 let memoryHtml = ''
 
@@ -72,6 +73,7 @@ export async function pasteEditorClipboard(editor: Editor, replace = false): Pro
   if (parentId !== editor.state.currentPageId) editor.state.enteredContainerId = parentId
   try {
     await editor.pasteFromHTML(html, cursorPos(editor), { replaceSelection: replace })
+    hydrateBuiltinInstances(editor)
   } finally {
     editor.state.enteredContainerId = previous
   }

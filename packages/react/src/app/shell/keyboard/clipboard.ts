@@ -1,6 +1,7 @@
-import type { EditorStore } from '#react/app/editor/store'
 import { getInMemoryClipboardHTML, rememberClipboardTransfer } from '#react/app/editor/clipboard'
-import { hasDocumentTextSelection, isEditing } from '#react/app/shell/keyboard/focus'
+import type { EditorStore } from '#react/app/editor/store'
+import { isEditing } from '#react/app/shell/keyboard/focus'
+import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
 import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
 const RASTER_IMAGE_TYPES = new Set([
@@ -46,12 +47,13 @@ function pasteIntoInsertionParent(
   if (parentId !== store.state.currentPageId) store.state.enteredContainerId = parentId
   return store.pasteFromHTML(html, cursorPos).finally(() => {
     store.state.enteredContainerId = previous
+    hydrateBuiltinInstances(store)
   })
 }
 
 export function bindEditorClipboard(store: EditorStore) {
   function onCopy(e: ClipboardEvent) {
-    if (isEditing(e) || hasDocumentTextSelection()) return
+    if (isEditing(e)) return
     e.preventDefault()
     if (e.clipboardData) {
       void store.writeCopyData(e.clipboardData).then(() => {

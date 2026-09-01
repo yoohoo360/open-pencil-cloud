@@ -3,6 +3,7 @@ import { addLib, getLib } from '#react/graph/remote-lib'
 import { SceneGraph, type Fill, type SceneNode } from '@open-pencil/scene-graph'
 
 export const BUILTIN_LIBRARY_KEY = 'builtin'
+export const BUILTIN_COMPONENT_NAME = 'Markdown'
 
 const PLUGIN_ID = 'open-pencil'
 const PLUGIN_KEY = 'builtin'
@@ -31,7 +32,7 @@ export function createBuiltinCatalog(): SceneGraph {
   const graph = new SceneGraph()
   const page = graph.getPages()[0]
   const rich = graph.createNode('COMPONENT', page.id, {
-    name: 'RichText',
+    name: BUILTIN_COMPONENT_NAME,
     x: 0,
     y: 0,
     width: 320,
@@ -47,7 +48,7 @@ export function createBuiltinCatalog(): SceneGraph {
   })
   markBuiltin(rich)
   graph.createNode('TEXT', rich.id, {
-    name: 'RichText',
+    name: BUILTIN_COMPONENT_NAME,
     text: 'Write here',
     x: 12,
     y: 12,
@@ -89,6 +90,21 @@ export function isBuiltinInstance(node: SceneNode | undefined, graph: SceneGraph
   return isBuiltinComponent(component, graph)
 }
 
+function renameBuiltinMarkdown(graph: SceneGraph): void {
+  for (const node of graph.getAllNodes()) {
+    if (node.name !== 'RichText') continue
+    const parent = node.parentId ? graph.getNode(node.parentId) : undefined
+    if (
+      isBuiltinComponent(node, graph) ||
+      isBuiltinInstance(node, graph) ||
+      isBuiltinDescendant(graph, node) ||
+      isBuiltinComponent(parent, graph)
+    ) {
+      graph.updateNode(node.id, { name: BUILTIN_COMPONENT_NAME })
+    }
+  }
+}
+
 function ensureWhiteFill(graph: SceneGraph): void {
   for (const node of graph.getAllNodes()) {
     if (node.type !== 'COMPONENT' && node.type !== 'INSTANCE') continue
@@ -101,6 +117,8 @@ function ensureWhiteFill(graph: SceneGraph): void {
 export function ensureBuiltinLibrary(graph: SceneGraph): boolean {
   const existing = getLib(graph, BUILTIN_LIBRARY_KEY)
   if (existing) {
+    renameBuiltinMarkdown(existing.graph)
+    renameBuiltinMarkdown(graph)
     ensureWhiteFill(existing.graph)
     ensureWhiteFill(graph)
     copyBuiltinImages(graph)

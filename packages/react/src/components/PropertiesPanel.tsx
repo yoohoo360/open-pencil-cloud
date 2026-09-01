@@ -1,11 +1,10 @@
-import { Code, Sparkles } from 'lucide-react'
-
-import { useI18n } from '#react/i18n'
+import { setPropertiesTab, usePropertiesTab } from '#react/app/shell/properties-tab'
 import { ChatPanel } from '#react/components/ChatPanel'
 import { CodePanel } from '#react/components/CodePanel'
 import { DesignPanel } from '#react/components/DesignPanel'
 import { ZoomDropdown } from '#react/components/editor/ZoomDropdown'
-import { setPropertiesTab, usePropertiesTab } from '#react/app/shell/properties-tab'
+import { useI18n } from '#react/i18n'
+import { Code, Sparkles } from 'lucide-react'
 
 const tabClass =
   'relative rounded px-2.5 py-1 text-[11px] text-muted hover:text-surface data-[state=active]:font-semibold data-[state=active]:text-surface after:absolute after:inset-x-2 after:-bottom-[9px] after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-accent'
@@ -56,10 +55,7 @@ export function PropertiesPanel() {
           </button>
           {activeTab === 'design' ? <ZoomDropdown /> : null}
         </div>
-        <div
-          hidden={activeTab !== 'design'}
-          className="flex min-h-0 flex-1 flex-col"
-        >
+        <div hidden={activeTab !== 'design'} className="flex min-h-0 flex-1 flex-col">
           <DesignPanel />
         </div>
         <div hidden={activeTab !== 'code'} className="flex min-h-0 flex-1 flex-col">

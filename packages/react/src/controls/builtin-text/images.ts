@@ -1,6 +1,7 @@
 import { uploadOSSImage } from '#react/app/document/oss'
 import type { RichBlock, RichImage } from '#react/controls/builtin-text/lists'
 import { flattenBlocks } from '#react/controls/builtin-text/lists'
+import { BUILTIN_COMPONENT_NAME } from '#react/graph/builtin'
 
 import { TRANSPARENT } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
@@ -17,21 +18,34 @@ const RASTER_IMAGE_TYPES = new Set([
 
 const BLACK = { r: 0.12, g: 0.12, b: 0.12, a: 1 }
 
-export function clipboardImageFiles(event: ClipboardEvent): File[] {
-  const files: File[] = []
+export function uniqueClipboardImages(files: File[], items: File[]): File[] {
+  const listed = uniqueImageFiles(files)
+  if (listed.length > 0) return listed
+  return uniqueImageFiles(items)
+}
+
+function uniqueImageFiles(files: File[]): File[] {
   const seen = new Set<string>()
-  function push(file: File | null) {
-    if (!file || !RASTER_IMAGE_TYPES.has(file.type)) return
-    const key = `${file.name}:${file.size}:${file.lastModified}`
-    if (seen.has(key)) return
-    seen.add(key)
-    files.push(file)
+  const unique: File[] = []
+  for (const file of files) {
+    if (!RASTER_IMAGE_TYPES.has(file.type)) continue
+    const identity = `${file.size}:${file.lastModified}`
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    unique.push(file)
   }
-  for (const file of event.clipboardData?.files ?? []) push(file)
+  return unique
+}
+
+export function clipboardImageFiles(event: ClipboardEvent): File[] {
+  const files = [...(event.clipboardData?.files ?? [])]
+  const items: File[] = []
   for (const item of event.clipboardData?.items ?? []) {
-    if (item.kind === 'file' && item.type.startsWith('image/')) push(item.getAsFile())
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (file) items.push(file)
   }
-  return files
+  return uniqueClipboardImages(files, items)
 }
 
 async function imageSize(file: Blob): Promise<{ width: number; height: number }> {
@@ -60,6 +74,8 @@ export async function prepareRichImage(editor: Editor, file: File): Promise<Rich
   }
 }
 
+const imageSourceCache = new Map<string, { bytes: Uint8Array; src: string }>()
+
 export function hydrateImageSources(
   html: string,
   graph: { images: Map<string, Uint8Array> }
@@ -69,7 +85,14 @@ export function hydrateImageSources(
     if (!hash) return full
     const bytes = graph.images.get(hash)
     if (!bytes) return full
-    const src = URL.createObjectURL(new Blob([bytes]))
+    const cached = imageSourceCache.get(hash)
+    let src = cached?.src
+    if (!cached || cached.bytes !== bytes) {
+      if (cached) URL.revokeObjectURL(cached.src)
+      src = URL.createObjectURL(new Blob([bytes]))
+      imageSourceCache.set(hash, { bytes, src })
+    }
+    if (!src) return full
     if (/\ssrc="/i.test(attrs)) {
       return `<img${attrs.replace(/\ssrc="[^"]*"/i, ` src="${src}"`)}>`
     }
@@ -142,7 +165,7 @@ function createTextNode(
   slot: Extract<ContentSlot, { kind: 'text' }>
 ) {
   return editor.graph.createNode('TEXT', host.id, {
-    name: 'RichText',
+    name: BUILTIN_COMPONENT_NAME,
     text: slot.text,
     styleRuns: slot.styleRuns,
     y: host.paddingTop,

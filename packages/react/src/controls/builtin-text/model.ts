@@ -305,15 +305,34 @@ function hrefFromAttrs(attrs: string): string | undefined {
   return quotedAttr(attrs, 'href')
 }
 
+function cssPx(css: string, property: 'width' | 'height'): number {
+  const match = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([\\d.]+)px`, 'i').exec(css)
+  return match ? Number(match[1]) : 0
+}
+
+function boxFromCss(attrs: string): { width: number; height: number } {
+  const css = cssFromAttrs(attrs)
+  return { width: cssPx(css, 'width'), height: cssPx(css, 'height') }
+}
+
+function applyImageBox(image: RichImage, box: { width: number; height: number }): RichImage {
+  return {
+    ...image,
+    width: box.width > 0 ? box.width : image.width,
+    height: box.height > 0 ? box.height : image.height
+  }
+}
+
 function imageFromAttrs(attrs: string): RichImage | null {
   const hash = quotedAttr(attrs, 'data-image-hash')
   if (!hash) return null
+  const box = boxFromCss(attrs)
   return {
     hash,
     ossPath: quotedAttr(attrs, 'data-oss-path') ?? '',
     src: quotedAttr(attrs, 'src') ?? '',
-    width: Number(quotedAttr(attrs, 'width') ?? 0) || 0,
-    height: Number(quotedAttr(attrs, 'height') ?? 0) || 0
+    width: box.width || Number(quotedAttr(attrs, 'width') ?? 0) || 0,
+    height: box.height || Number(quotedAttr(attrs, 'height') ?? 0) || 0
   }
 }
 
@@ -403,6 +422,7 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
   const listStack: ListKind[] = []
   let current: RichBlock | null = null
   let skipMarker = 0
+  let pendingImageBox = { width: 0, height: 0 }
 
   function flush() {
     if (!current) return
@@ -444,8 +464,9 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
       const image = imageFromAttrs(attr)
       if (image) {
         flush()
-        blocks.push(emptyBlock({ image }))
+        blocks.push(emptyBlock({ image: applyImageBox(image, pendingImageBox) }))
       }
+      pendingImageBox = { width: 0, height: 0 }
       continue
     }
     if (slash) {
@@ -470,6 +491,7 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
       continue
     }
     if (name === 'SPAN' && isImageWrap(attr)) {
+      pendingImageBox = boxFromCss(attr)
       stack.push(stack.at(-1) ?? {})
       continue
     }

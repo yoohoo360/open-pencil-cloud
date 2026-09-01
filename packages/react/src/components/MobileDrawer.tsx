@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { Code, Layers, SlidersHorizontal, Sparkles } from 'lucide-react'
-
-import { useI18n } from '#react/i18n'
+import { useEditorStore } from '#react/app/editor/store'
 import { ChatPanel } from '#react/components/ChatPanel'
 import { CodePanel } from '#react/components/CodePanel'
 import { DesignPanel } from '#react/components/DesignPanel'
 import { LayerTree } from '#react/components/LayerTree/LayerTree'
 import { PagesPanel } from '#react/components/PagesPanel'
 import { HALF_FRAC, HUD_TOP } from '#react/constants'
-import { useEditorStore } from '#react/app/editor/store'
+import { useI18n } from '#react/i18n'
+import { Code, Layers, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
 type Snap = 'closed' | 'half' | 'full'
@@ -94,7 +94,11 @@ export function MobileDrawer() {
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <nav ref={headerRef} aria-label={dialogs.mobilePanelNavigation} className="flex shrink-0 flex-col">
+        <nav
+          ref={headerRef}
+          aria-label={dialogs.mobilePanelNavigation}
+          className="flex shrink-0 flex-col"
+        >
           <div className="flex w-full justify-center pt-2">
             <div className="h-1 w-8 rounded-full bg-muted/40" />
           </div>

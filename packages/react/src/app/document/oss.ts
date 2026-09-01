@@ -1,4 +1,5 @@
 import { apiClient } from '#react/lib/client'
+import { v4 as uuid } from 'uuid'
 
 function extensionForImage(file: File): string {
   const fromName = file.name.split('.').pop()?.toLowerCase()
@@ -11,16 +12,24 @@ function extensionForImage(file: File): string {
   return 'png'
 }
 
+function getQuarterDirectory(date = new Date()): string {
+  const year = date.getFullYear()
+  const quarter = Math.floor(date.getMonth() / 3) + 1
+
+  return `${year}Q${quarter}`
+}
+
 export async function uploadOSSImage(file: File): Promise<string> {
-  const id = crypto.randomUUID()
+  const id = uuid()
+  const dir = `img/${getQuarterDirectory()}`
   const fileName = `${id}.${extensionForImage(file)}`
   const form = new FormData()
   form.append('file', file, fileName)
   await apiClient.post('/api/oss/upload', form, {
-    params: { path: id },
+    params: { path: dir },
     timeout: 120_000
   })
-  return `${id}/${fileName}`
+  return `${dir}/${fileName}`
 }
 
 export function splitOSSFigURL(url: string): { path: string; fileName: string } {

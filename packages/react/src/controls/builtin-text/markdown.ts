@@ -62,9 +62,24 @@ function inlineMarkdown(block: RichBlock): string {
   return markdown
 }
 
-function imageMarkdown(image: RichImage): string {
+export function imageMarkdown(image: RichImage): string {
   const target = image.ossPath || image.hash
   return `![image](${target}){width=${image.width} height=${image.height} hash=${image.hash}}`
+}
+
+export function insertMarkdownImages(
+  value: string,
+  start: number,
+  end: number,
+  images: RichImage[]
+): { value: string; cursor: number } {
+  if (images.length === 0) return { value, cursor: end }
+  const prefix = start > 0 && value[start - 1] !== '\n' ? '\n' : ''
+  const inserted = `${prefix}${images.map(imageMarkdown).join('\n\n')}\n`
+  return {
+    value: `${value.slice(0, start)}${inserted}${value.slice(end)}`,
+    cursor: start + inserted.length
+  }
 }
 
 export function blocksToMarkdown(blocks: RichBlock[]): string {
