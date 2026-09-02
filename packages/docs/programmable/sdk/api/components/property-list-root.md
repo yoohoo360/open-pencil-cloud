@@ -29,7 +29,7 @@ import {
   PropertyListItem,
   PropertyListRemove,
   PropertyListRoot
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const fills = ref<Fill[]>([])
 </script>

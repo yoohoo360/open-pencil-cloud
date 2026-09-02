@@ -1,10 +1,8 @@
 import process from 'node:process'
 
 import tailwindcss from '@tailwindcss/vite'
-import vue from '@vitejs/plugin-vue'
-import IconsResolver from 'unplugin-icons/resolver'
+import react from '@vitejs/plugin-react'
 import Icons from 'unplugin-icons/vite'
-import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 
 import packageJson from './package.json'
@@ -29,10 +27,9 @@ export default defineConfig(async ({ command }) => ({
     rawMarkdownPlugin(),
     copyCanvasKitAssetsPlugin(),
     tailwindcss(),
-    Icons({ compiler: 'vue3' }),
-    Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
+    Icons({ compiler: 'jsx' }),
     openPencilAutomationPlugin(command, host),
-    vue(),
+    react(),
     openPencilPwaPlugin()
   ],
   clearScreen: false,

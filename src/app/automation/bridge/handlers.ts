@@ -2,20 +2,10 @@ import type { FigmaAPI } from '@open-pencil/core/figma-api'
 
 import { createAutomationEvalHandler } from '@/app/automation/bridge/eval-handler'
 import { handleExport, handleExportJsx } from '@/app/automation/bridge/export-handlers'
-import {
-  handleNewDocument,
-  handleOpenFile,
-  handleSaveFile
-} from '@/app/automation/bridge/file-handlers'
+import { handleNewDocument, handleOpenFile, handleSaveFile } from '@/app/automation/bridge/file-handlers'
 import { handleRpcFallback } from '@/app/automation/bridge/rpc-handler'
 import { handleSelection } from '@/app/automation/bridge/selection-handler'
-import {
-  isUnknownRecord,
-  listAutomationDocuments,
-  resolveAutomationTarget,
-  responseWithTarget,
-  stripAutomationTargetArgs
-} from '@/app/automation/bridge/target'
+import { isUnknownRecord, listAutomationDocuments, resolveAutomationTarget, responseWithTarget, stripAutomationTargetArgs } from '@/app/automation/bridge/target'
 import { createAutomationToolHandler } from '@/app/automation/bridge/tool-handlers'
 import type { EditorStore } from '@/app/editor/active-store'
 

@@ -644,8 +644,7 @@ function drawGradientText(
 }
 
 export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fill?: Fill): void {
-  const text = node.text
-  if (!text) return
+  const text = node.text || ''
 
   canvas.save()
   const shouldClipText = node.textAutoResize === 'NONE' || node.textAutoResize === 'TRUNCATE'
@@ -663,32 +662,37 @@ export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fil
       return
     }
   }
-  if (drawFigmaDerivedText(r, canvas, node)) {
-    canvas.restore()
-    return
-  }
 
   if (!r.isNodeFontLoaded(node)) {
     canvas.restore()
     return
   }
-  if (
-    (shouldRenderTextAsOutline(fill) || shouldRenderCJKAsOutline(node)) &&
-    drawOutlinedText(r, canvas, node)
-  ) {
-    canvas.restore()
-    return
-  }
+
   if (isGradientFill(fill) && drawGradientText(r, canvas, node, paragraphY)) {
     canvas.restore()
     return
   }
   if (r.fontsLoaded && r.fontProvider) {
-    const paragraph = r.buildParagraph(node, r.fillPaint.getColor())
+    const paragraph = r.buildParagraph(node, r.fillPaint.getColor(), {
+      halfLeading: true
+    })
+
     canvas.drawParagraph(paragraph, 0, paragraphY)
     paragraph.delete()
   } else if (r.textFont) {
     canvas.drawText(text, 0, node.fontSize || r.DEFAULT_FONT_SIZE, r.fillPaint, r.textFont)
+  } else {
+    if (
+      (shouldRenderTextAsOutline(fill) || shouldRenderCJKAsOutline(node)) &&
+      drawOutlinedText(r, canvas, node)
+    ) {
+      canvas.restore()
+      return
+    }
+    if (drawFigmaDerivedText(r, canvas, node)) {
+      canvas.restore()
+      return
+    }
   }
 
   canvas.restore()

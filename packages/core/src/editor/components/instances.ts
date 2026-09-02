@@ -14,16 +14,35 @@ export function createComponentInstanceActions(ctx: EditorContext) {
     componentId: string,
     x?: number,
     y?: number,
-    parentId = ctx.state.currentPageId
+    parentId = ctx.state.currentPageId,
+    sourceLibraryKey?: string
   ) {
-    const component = ctx.graph.getNode(componentId)
+    const importGraph = sourceLibraryKey ? ctx.graph.getLib(sourceLibraryKey)?.graph : null
+
+    if (sourceLibraryKey && !importGraph) {
+      return
+    }
+
+    const component = sourceLibraryKey
+      ? importGraph?.getNode(componentId)
+      : ctx.graph.getNode(componentId)
+
+    if (sourceLibraryKey) {
+      const componentSet = importGraph?.getNode(component.parentId)
+      ctx.graph.addRemoteComponent(sourceLibraryKey, component, componentSet)
+    }
     if (component?.type !== 'COMPONENT') return null
 
     const previousSelection = new Set(ctx.state.selectedIds)
-    const instance = ctx.graph.createInstance(componentId, parentId, {
-      x: x ?? component.x + component.width + 40,
-      y: y ?? component.y
-    })
+    const instance = ctx.graph.createInstance(
+      component.id,
+      parentId,
+      {
+        x: x ?? component.x + component.width + 40,
+        y: y ?? component.y
+      },
+      sourceLibraryKey
+    )
     if (!instance) return null
 
     const instanceId = instance.id
@@ -33,12 +52,20 @@ export function createComponentInstanceActions(ctx: EditorContext) {
     ctx.undo.push({
       label: 'Create instance',
       forward: () => {
+        if (sourceLibraryKey) {
+          const componentSet = importGraph?.getNode(component.parentId)
+          ctx.graph.addRemoteComponent(sourceLibraryKey, component, componentSet)
+        }
         ctx.graph.createInstance(componentId, parentId, { ...snapshot })
         ctx.setSelectedIds(new Set([instanceId]))
       },
       inverse: () => {
         ctx.graph.deleteNode(instanceId)
         ctx.setSelectedIds(new Set(previousSelection))
+        if (sourceLibraryKey) {
+          const componentSet = importGraph?.getNode(component.parentId)
+          ctx.graph.removeRemoteComponent(sourceLibraryKey, component, componentSet)
+        }
       }
     })
     return instanceId

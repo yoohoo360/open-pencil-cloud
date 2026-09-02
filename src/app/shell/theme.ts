@@ -1,5 +1,4 @@
-import { useLocalStorage, usePreferredDark } from '@vueuse/core'
-import { computed, watch } from 'vue'
+import { atom, computed } from 'nanostores'
 
 import type { RulerTheme } from '@open-pencil/core/canvas'
 import { parseColor } from '@open-pencil/core/color'
@@ -12,11 +11,28 @@ export type AppTheme = 'dark' | 'light' | 'auto'
 const THEME_STORAGE_KEY = 'open-pencil:theme'
 const DEFAULT_THEME: AppTheme = 'dark'
 
-const theme = useLocalStorage<AppTheme>(THEME_STORAGE_KEY, DEFAULT_THEME)
-const prefersDark = usePreferredDark()
-const resolvedTheme = computed<'dark' | 'light'>(() => {
-  if (theme.value === 'auto') return prefersDark.value ? 'dark' : 'light'
-  return theme.value
+function readStoredTheme(): AppTheme {
+  if (!IS_BROWSER) return DEFAULT_THEME
+  return (localStorage.getItem(THEME_STORAGE_KEY) as AppTheme) ?? DEFAULT_THEME
+}
+
+function getSystemDark(): boolean {
+  if (!IS_BROWSER) return true
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+export const $theme = atom<AppTheme>(readStoredTheme())
+export const $prefersDark = atom<boolean>(getSystemDark())
+
+if (IS_BROWSER) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    $prefersDark.set(e.matches)
+  })
+}
+
+export const $resolvedTheme = computed([$theme, $prefersDark], (theme, prefersDark) => {
+  if (theme === 'auto') return prefersDark ? 'dark' : 'light'
+  return theme
 })
 
 function readRulerTheme(): RulerTheme | null {
@@ -46,22 +62,24 @@ function applyTheme(value: 'dark' | 'light', setting: AppTheme): void {
   updateCanvasTheme()
 }
 
-export function useAppTheme() {
-  watch([resolvedTheme, theme], ([value, setting]) => applyTheme(value, setting), {
-    immediate: true
-  })
+$resolvedTheme.subscribe((value) => {
+  localStorage.setItem(THEME_STORAGE_KEY, $theme.get())
+  applyTheme(value, $theme.get())
+})
 
-  const isLight = computed(() => resolvedTheme.value === 'light')
-
-  function setTheme(value: AppTheme): void {
-    theme.value = value
-  }
-
-  function toggleTheme(): void {
-    theme.value = isLight.value ? 'dark' : 'light'
-  }
-
-  return { theme, resolvedTheme, isLight, setTheme, toggleTheme }
+function setTheme(value: AppTheme): void {
+  $theme.set(value)
+  if (IS_BROWSER) localStorage.setItem(THEME_STORAGE_KEY, value)
 }
 
-applyTheme(resolvedTheme.value, theme.value)
+function toggleTheme(): void {
+  setTheme($resolvedTheme.get() === 'light' ? 'dark' : 'light')
+}
+
+/** React hook: subscribes to theme changes and keeps DOM in sync. Returns stable helpers. */
+export function useAppTheme() {
+  return { $theme, $resolvedTheme, setTheme, toggleTheme }
+}
+
+// Apply immediately on load
+applyTheme($resolvedTheme.get(), $theme.get())

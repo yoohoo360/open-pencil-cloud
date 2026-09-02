@@ -18,7 +18,7 @@ Es útil cuando construyes:
 ## Uso
 
 ```ts
-import { useEditorCommands } from '@open-pencil/vue'
+import { useEditorCommands } from '@open-pencil/react'
 
 const { commands, menuItem, runCommand, moveSelectionToPage, otherPages } = useEditorCommands()
 ```

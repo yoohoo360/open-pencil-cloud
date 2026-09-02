@@ -1,4 +1,4 @@
-import type { StorybookConfig } from '@storybook/vue3-vite'
+import type { StorybookConfig } from '@storybook/react-vite'
 import type { PluginOption } from 'vite'
 
 function flattenPlugins(plugins: PluginOption[]): PluginOption[] {
@@ -6,16 +6,11 @@ function flattenPlugins(plugins: PluginOption[]): PluginOption[] {
 }
 
 const config: StorybookConfig = {
-  stories: ['../src/**/*.stories.@(js|ts)', '../packages/vue/src/**/*.stories.@(js|ts)'],
+  stories: ['../src/**/*.stories.@(js|ts|tsx)'],
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
   framework: {
-    name: '@storybook/vue3-vite',
-    options: {
-      docgen: {
-        plugin: 'vue-component-meta',
-        tsconfig: 'tsconfig.json'
-      }
-    }
+    name: '@storybook/react-vite',
+    options: {}
   },
   viteFinal(config) {
     const excludedPluginPrefixes = [

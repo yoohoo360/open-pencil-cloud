@@ -12,7 +12,7 @@ description: Грубые флаги мобильного и десктопно�
 ## Использование
 
 ```ts
-import { useViewportKind } from '@open-pencil/vue'
+import { useViewportKind } from '@open-pencil/react'
 
 const { isMobile, isDesktop } = useViewportKind()
 ```

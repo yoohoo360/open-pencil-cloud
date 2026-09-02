@@ -14,7 +14,7 @@ description: Accede all'istanza corrente dell'editor OpenPencil iniettata.
 `useEditor()` deve essere chiamato all'interno di un sottoalbero dove `provideEditor(editor)` è già stato chiamato.
 
 ```ts
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 ```
@@ -25,7 +25,7 @@ const editor = useEditor()
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { useEditor } from '@open-pencil/vue'
+import { useEditor } from '@open-pencil/react'
 
 const editor = useEditor()
 const pageId = computed(() => editor.state.currentPageId)

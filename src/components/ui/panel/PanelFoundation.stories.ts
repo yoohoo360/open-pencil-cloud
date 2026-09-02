@@ -1,23 +1,21 @@
-import type { Meta, StoryObj } from '@storybook/vue3-vite'
-import { TooltipProvider } from 'reka-ui'
+import { TooltipProvider } from '@radix-ui/react-tooltip'
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import React, { useState } from 'react'
 import { expect, userEvent, within } from 'storybook/test'
-import { ref } from 'vue'
-import MoreIcon from '~icons/lucide/ellipsis'
 import EyeIcon from '~icons/lucide/eye'
 import LinkIcon from '~icons/lucide/link'
-import RotateIcon from '~icons/lucide/rotate-ccw'
 import SquareIcon from '~icons/lucide/square'
 
-import AppInput from '@/components/ui/AppInput.vue'
-import AppSelect from '@/components/ui/AppSelect.vue'
-import IconButton from '@/components/ui/IconButton.vue'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import { AppInput } from '@/components/ui/AppInput'
+import { AppSelect } from '@/components/ui/AppSelect'
+import { IconButton } from '@/components/ui/IconButton'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
-import PanelFieldGroup from './PanelFieldGroup.vue'
-import PanelGrid from './PanelGrid.vue'
-import PanelHeader from './PanelHeader.vue'
-import PanelRail from './PanelRail.vue'
-import PanelSection from './PanelSection.vue'
+import { PanelFieldGroup } from './PanelFieldGroup'
+import { PanelGrid } from './PanelGrid'
+import { PanelHeader } from './PanelHeader'
+import { PanelRail } from './PanelRail'
+import { PanelSection } from './PanelSection'
 
 const meta = {
   title: 'Design System/Properties/Panel Foundation',
@@ -35,113 +33,165 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+function PanelFoundationDemo() {
+  const [width, setWidth] = useState<string | number>(320)
+  const [height, setHeight] = useState<string | number>(240)
+  const blendMode = useState('NORMAL')
+  const alignment = useState('left')
+
+  const blendModes = [
+    { value: 'NORMAL', label: 'Normal' },
+    { value: 'MULTIPLY', label: 'Multiply' },
+    { value: 'SCREEN', label: 'Screen' }
+  ]
+  const alignmentOptions = [
+    { value: 'left', label: 'Left' },
+    { value: 'center', label: 'Center' },
+    { value: 'right', label: 'Right' }
+  ]
+
+  return React.createElement(
+    TooltipProvider,
+    null,
+    React.createElement(
+      'div',
+      { className: 'w-[320px] overflow-hidden rounded-lg border border-border bg-panel shadow-xl' },
+      React.createElement(
+        PanelHeader,
+        null,
+        React.createElement(SquareIcon, { className: 'size-panel-icon', slot: 'icon' }),
+        React.createElement('span', { role: 'heading', 'aria-level': 2 }, 'Rectangle')
+      ),
+      React.createElement(
+        PanelSection,
+        { label: 'Layout' },
+        React.createElement(
+          PanelGrid,
+          { columns: 'two-rail' },
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Width' },
+            React.createElement(AppInput, {
+              value: width,
+              onChange: (e) => setWidth(e.target.value),
+              tone: 'panel',
+              'data-story-control': '',
+              'data-state': 'idle',
+              'aria-label': 'Width'
+            })
+          ),
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Height' },
+            React.createElement(AppInput, {
+              value: height,
+              onChange: (e) => setHeight(e.target.value),
+              tone: 'panel',
+              'data-story-control': '',
+              'data-state': 'focus',
+              'aria-label': 'Height'
+            })
+          ),
+          React.createElement(
+            PanelRail,
+            null,
+            React.createElement(
+              IconButton,
+              { label: 'Constrain proportions', size: 'md' },
+              React.createElement(LinkIcon, { className: 'size-panel-icon' })
+            )
+          )
+        )
+      ),
+      React.createElement(
+        PanelSection,
+        { label: 'Appearance' },
+        React.createElement(
+          PanelGrid,
+          { columns: 'two-rail' },
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Blend mode' },
+            React.createElement(AppSelect, {
+              value: blendMode[0],
+              onChange: (value: string | number) => blendMode[1](String(value)),
+              options: blendModes,
+              'data-story-control': '',
+              'aria-label': 'Blend mode'
+            } as React.ComponentProps<typeof AppSelect>)
+          ),
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Opacity' },
+            React.createElement(AppInput, {
+              value: 'Mixed',
+              tone: 'panel',
+              state: 'mixed',
+              readOnly: true,
+              'data-story-control': '',
+              'aria-label': 'Mixed opacity'
+            })
+          ),
+          React.createElement(
+            PanelRail,
+            null,
+            React.createElement(
+              IconButton,
+              { label: 'Toggle visibility' },
+              React.createElement(EyeIcon, { className: 'size-panel-icon' })
+            )
+          )
+        )
+      ),
+      React.createElement(
+        PanelSection,
+        { label: 'States' },
+        React.createElement(
+          'div',
+          { className: 'grid grid-cols-2 gap-panel' },
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Bound' },
+            React.createElement(AppInput, {
+              value: 'spacing/md',
+              tone: 'panel',
+              state: 'bound',
+              readOnly: true,
+              'data-story-control': '',
+              'aria-label': 'Bound value'
+            })
+          ),
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Disabled' },
+            React.createElement(AppInput, {
+              value: 16,
+              tone: 'panel',
+              disabled: true,
+              'data-story-control': '',
+              'aria-label': 'Disabled value'
+            })
+          ),
+          React.createElement(
+            PanelFieldGroup,
+            { label: 'Alignment', className: 'col-span-2' },
+            React.createElement(SegmentedControl, {
+              value: alignment[0],
+              onChange: (value: string) => alignment[1](value),
+              className: 'w-full',
+              options: alignmentOptions,
+              label: 'Alignment',
+              'data-story-control': ''
+            })
+          )
+        )
+      )
+    )
+  )
+}
+
 export const StateMatrix: Story = {
-  render: () => ({
-    components: {
-      AppInput,
-      AppSelect,
-      EyeIcon,
-      IconButton,
-      LinkIcon,
-      MoreIcon,
-      PanelFieldGroup,
-      PanelGrid,
-      PanelHeader,
-      PanelRail,
-      PanelSection,
-      RotateIcon,
-      SegmentedControl,
-      SquareIcon,
-      TooltipProvider
-    },
-    setup() {
-      const width = ref<string | number>(320)
-      const height = ref<string | number>(240)
-      const mixed = ref<string | number>('Mixed')
-      const bound = ref<string | number>('spacing/md')
-      const disabled = ref<string | number>(16)
-      const blendMode = ref('NORMAL')
-      const alignment = ref('left')
-
-      return {
-        width,
-        height,
-        mixed,
-        bound,
-        disabled,
-        blendMode,
-        alignment,
-        blendModes: [
-          { value: 'NORMAL', label: 'Normal' },
-          { value: 'MULTIPLY', label: 'Multiply' },
-          { value: 'SCREEN', label: 'Screen' }
-        ],
-        alignmentOptions: [
-          { value: 'left', label: 'Left' },
-          { value: 'center', label: 'Center' },
-          { value: 'right', label: 'Right' }
-        ]
-      }
-    },
-    template: `
-      <TooltipProvider>
-        <div class="w-[320px] overflow-hidden rounded-lg border border-border bg-panel shadow-xl">
-          <PanelHeader>
-            <template #icon><SquareIcon class="size-panel-icon" /></template>
-            <span role="heading" aria-level="2">Rectangle</span>
-            <template #actions>
-              <IconButton label="Selection actions"><MoreIcon class="size-panel-icon" /></IconButton>
-            </template>
-          </PanelHeader>
-
-          <PanelSection label="Layout">
-            <template #actions>
-              <IconButton label="Reset layout"><RotateIcon class="size-panel-icon" /></IconButton>
-            </template>
-            <PanelGrid columns="two-rail">
-              <PanelFieldGroup label="Width">
-                <AppInput v-model="width" tone="panel" data-story-control data-state="idle" aria-label="Width" />
-              </PanelFieldGroup>
-              <PanelFieldGroup label="Height">
-                <AppInput v-model="height" tone="panel" data-story-control data-state="focus" aria-label="Height" />
-              </PanelFieldGroup>
-              <PanelRail>
-                <IconButton label="Constrain proportions" size="md"><LinkIcon class="size-panel-icon" /></IconButton>
-              </PanelRail>
-            </PanelGrid>
-          </PanelSection>
-
-          <PanelSection label="Appearance">
-            <PanelGrid columns="two-rail">
-              <PanelFieldGroup label="Blend mode">
-                <AppSelect v-model="blendMode" :options="blendModes" data-story-control aria-label="Blend mode" />
-              </PanelFieldGroup>
-              <PanelFieldGroup label="Opacity">
-                <AppInput v-model="mixed" tone="panel" state="mixed" readonly data-story-control aria-label="Mixed opacity" />
-              </PanelFieldGroup>
-              <PanelRail>
-                <IconButton label="Toggle visibility"><EyeIcon class="size-panel-icon" /></IconButton>
-              </PanelRail>
-            </PanelGrid>
-          </PanelSection>
-
-          <PanelSection label="States">
-            <div class="grid grid-cols-2 gap-panel">
-              <PanelFieldGroup label="Bound">
-                <AppInput v-model="bound" tone="panel" state="bound" readonly data-story-control aria-label="Bound value" />
-              </PanelFieldGroup>
-              <PanelFieldGroup label="Disabled">
-                <AppInput v-model="disabled" tone="panel" disabled data-story-control aria-label="Disabled value" />
-              </PanelFieldGroup>
-              <PanelFieldGroup label="Alignment" class="col-span-2">
-                <SegmentedControl v-model="alignment" class="w-full" :options="alignmentOptions" label="Alignment" data-story-control />
-              </PanelFieldGroup>
-            </div>
-          </PanelSection>
-        </div>
-      </TooltipProvider>
-    `
-  }),
+  render: () => React.createElement(PanelFoundationDemo),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const controls = Array.from(canvasElement.querySelectorAll<HTMLElement>('[data-story-control]'))

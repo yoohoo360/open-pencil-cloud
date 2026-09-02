@@ -12,7 +12,7 @@ Verwenden Sie es, wenn Sie direkte Kontrolle über Sammlungen, aktive Modi, Filt
 ## Verwendung
 
 ```ts
-import { useVariables } from '@open-pencil/vue'
+import { useVariables } from '@open-pencil/react'
 
 const variables = useVariables()
 ```

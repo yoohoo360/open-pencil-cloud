@@ -1,6 +1,6 @@
 # OpenPencil
 
-Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
+React + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
 
 **Roadmap:** `packages/docs/development/roadmap.md` tracks product direction, Figma compatibility gaps, and raw metadata coverage. This file keeps agent-facing architecture, conventions, and commands; detailed public docs live under `packages/docs/**`.
 
@@ -14,12 +14,12 @@ Bun workspace packages:
 - `packages/fig` — `@open-pencil/fig`: publishable `.fig` package shell and low-level smoke/test boundary. Production SceneGraph `.fig` policy still lives mostly in core while this package grows.
 - `packages/core` — `@open-pencil/core`: renderer, layout, editor core, Figma API, tools, clipboard, vector conversion, and app/CLI-facing document I/O. Depends on scene-graph/pen/kiwi but keeps browser DOM out of core.
 - `packages/dom-css` — `@open-pencil/dom-css`: DOM/CSS projection layer for HTML/CSS/JSX/Tailwind compatibility. Owns DesignDOM types and browser/headless CSS runtime adapters; keeps DOM/CSS parser dependencies out of core.
-- `packages/vue` — `@open-pencil/vue`: headless Vue 3 SDK (Reka UI-style) for building custom OpenPencil-powered editor shells and embedded editing surfaces. Renderless components and composables. The app is one consumer of the SDK.
+- `packages/react` — `@open-pencil/react`: headless React SDK for building custom OpenPencil-powered editor shells and embedded editing surfaces. Renderless components and hooks. The app is one consumer of the SDK.
 - `packages/cli` — `@open-pencil/cli`: headless CLI for .fig inspection, export, linting. Uses `citty` + `agentfmt`.
 - `packages/mcp` — `@open-pencil/mcp`: MCP server for AI coding tools. Stdio + HTTP (Hono). Reuses core tools.
 - `packages/docs` — `@open-pencil/docs`: published VitePress documentation site. Run with `bun run docs:dev`.
 
-The root app (`src/`) is the Tauri/Vite desktop editor. App-specific editor, document, AI, collaboration, shell, tabs, demo, and automation code lives under `src/app/*`. The app consumes scene graph primitives from `@open-pencil/scene-graph`, editor/rendering services through targeted `@open-pencil/core` subpath exports, and `@open-pencil/vue` through the public Vue SDK entrypoint.
+The root app (`src/`) is the Tauri/Vite desktop editor. App-specific editor, document, AI, collaboration, shell, tabs, demo, and automation code lives under `src/app/*`. The app consumes scene graph primitives from `@open-pencil/scene-graph`, editor/rendering services through targeted `@open-pencil/core` subpath exports, and `@open-pencil/react` through the public React SDK entrypoint.
 
 ### Public package exports
 
@@ -29,6 +29,7 @@ Use public package exports across package/app boundaries. Do not import workspac
 - `@open-pencil/core` — broad compatibility barrel for editor/rendering/tooling APIs.
 - Common targeted core subpaths keep imports smaller and dependency intent clearer: `@open-pencil/core/color`, `/text`, `/vector`, `/figma-api`, `/icons`, `/canvas`, `/design-jsx`, `/editor`, `/tools`, `/kiwi`, `/clipboard`, `/rpc`, `/lint`, `/profiler`, `/io`, `/canvaskit`, `/layout`.
 - Use `@open-pencil/kiwi` for low-level Kiwi/FIG schema-runtime, codec, container, GUID, and parse helpers.
+- Use `@open-pencil/react` for React SDK hooks and components (editor context, canvas, controls, i18n, variables, etc.).
 
 CanvasKit runtime loading is centralized in `@open-pencil/core/canvaskit` for app/browser use. Headless raster export may dynamically load `canvaskit-wasm/full`; elsewhere prefer `import type` and pass the CanvasKit instance in.
 
@@ -36,25 +37,24 @@ CanvasKit runtime loading is centralized in `@open-pencil/core/canvaskit` for ap
 
 `packages/core/src/editor/` is the framework-agnostic editor core. `createEditor()` in `create.ts` assembles an `EditorContext` plus domain action modules for viewport, selection, pages, shapes, structure, components, clipboard, undo/history, text, variables, layout, color space, graph reads, tool registry, and related helpers. Check the folder before adding editor behavior; keep new actions in the nearest domain module/folder instead of growing unrelated files.
 
-`Editor` type = `ReturnType<typeof createEditor>`. Core modules should share state through `EditorContext` rather than importing app code or Vue.
+`Editor` type = `ReturnType<typeof createEditor>`. Core modules should share state through `EditorContext` rather than importing app code or React.
 
 #### Editor event bus
 
-The editor exposes a typed nanoevents emitter. Event names/payloads live in `EditorEvents` in `packages/core/src/editor/types.ts`; graph events are bridged from SceneGraph by `graph-events.ts`. Subscribe with `editor.onEditorEvent(event, handler)`, or in Vue use `useEditorEvent(event, handler)` from `packages/vue/src/editor/events/use.ts`.
+The editor exposes a typed nanoevents emitter. Event names/payloads live in `EditorEvents` in `packages/core/src/editor/types.ts`; graph events are bridged from SceneGraph by `graph-events.ts`. Subscribe with `editor.onEditorEvent(event, handler)`, or in React use `useEditorEvent(event, handler)` from `packages/react/src/editor/events/use.ts`.
 
 Important invariant: all selection mutations in core go through `ctx.setSelectedIds()` and all tool changes go through `ctx.setActiveTool()` so events fire consistently. App-layer code should use editor actions such as `clearSelection()`, `select()`, or `setTool()` — never direct `state.selectedIds =` or `state.activeTool =` assignments.
 
-The app editor session (`src/app/editor/session/create.ts`) is a Vue wrapper around core: it creates reactive state, calls `createEditor()`, and assembles app-specific document I/O, autosave, export, vector edit, pen resume, flashes, profiler, and mobile clipboard. Tabs live in `src/app/tabs/`; active editor access lives in `src/app/editor/active-store/`.
+The app editor session (`src/app/editor/session/create.ts`) is a React-compatible wrapper around core: it creates mutable state, calls `createEditor()`, and assembles app-specific document I/O, autosave, export, vector edit, pen resume, flashes, profiler, and mobile clipboard. Tabs live in `src/app/tabs/`; active editor access lives in `src/app/editor/active-store/`.
 
-Headless SDK fields compose variable/token binding through `BindingProvider` and the `BindableValue` primitives in `packages/vue/src/controls/binding-provider/` and `packages/vue/src/primitives/BindableValue/`. Keep numeric interaction in `NumberField`; providers own binding lookup, mutation, and undo batching.
+Headless SDK fields compose variable/token binding through `BindingProvider` and the `BindableValue` primitives in `packages/react/src/controls/binding-provider/` and `packages/react/src/primitives/BindableValue/`. Keep numeric interaction in `NumberField`; providers own binding lookup, mutation, and undo batching.
 
-Property-panel anatomy in `packages/vue/src/primitives/PropertySection/`, `SegmentedControl/`, and `PropertyList/` is controlled and editor-agnostic. Connect PropertyList events to OpenPencil selection and undo through `useEditorPropertyList()` or an app adapter; never call `useEditor()` from these primitives.
+Property-panel anatomy in `packages/react/src/primitives/PropertySection/`, `SegmentedControl/`, and `PropertyList/` is controlled and editor-agnostic. Connect PropertyList events to OpenPencil selection and undo through `useEditorPropertyList()` or an app adapter; never call `useEditor()` from these primitives.
 
 ## Commands
 
 - `bun run check` — type-aware lint + typecheck via oxlint + tsgo + architecture checks (run before committing)
 - `bun run check:arch` — Steiger architecture lint for project-specific import boundaries
-- `bun run check:vue` — vue-tsc type-check for app and Vue SDK .vue files
 - `bun run test:dupes` — jscpd copy-paste detection across product TS sources
 - `bun run test:tools` — tests for private repo tooling under `tools/*`
 - `bun run format` — oxfmt with import sorting
@@ -102,7 +102,7 @@ Use Conventional Commits for regular development commits: `feat`, `fix`, `refact
 - Put rationale and implementation details in the commit body
 - Keep the commit type lowercase (`fix:`, `feat:`, `docs:`), but start each body line/bullet with an uppercase word
 - Preserve product/domain casing in subjects and bodies: `DOM/CSS`, `CSS`, `HTML`, `JSX`, `Tailwind`, `Kiwi`, `.fig`, `MCP`, `CLI`, `AI`, `ACP`, `i18n`. Do not flatten acronyms to lowercase prose such as `dom css documents`.
-- Prefer scopes that match the project structure: `app`, `tauri`, `core`, `cli`, `dom-css`, `mcp`, `vue`, `docs`, or focused domains like `editor`, `scene-graph`, `canvas`, `tools`, `kiwi`, `io`, `text`, `vector`, `color`, `acp`, `ai`, `collab`, `automation`, `i18n`
+- Prefer scopes that match the project structure: `app`, `tauri`, `core`, `cli`, `dom-css`, `mcp`, `react`, `docs`, or focused domains like `editor`, `scene-graph`, `canvas`, `tools`, `kiwi`, `io`, `text`, `vector`, `color`, `acp`, `ai`, `collab`, `automation`, `i18n`
 - Use the narrowest honest scope, or omit it if the change spans multiple unrelated areas
 
 Example:
@@ -153,10 +153,10 @@ Keep this section light; implementation details move often.
 OpenPencil uses domain namespaces rather than full Feature-Sliced Design ceremony:
 
 - App services/state/integration live under `src/app/**`; route/layout views live under `src/views/**`; app UI lives under `src/components/**`.
-- `src/components/ui/**` is the shared app design-system layer. `packages/vue/src/primitives/**` is the headless SDK primitive layer. App wrappers around SDK primitives should stay in app component domains and only move to `ui/**` when genuinely generic.
-- Root-level `src/components/*.vue` is reserved for broad editor panels/surfaces assembled by views or shell layout. Do not add new root-level base controls; create a domain namespace or use `src/components/ui/**` for reusable primitives.
-- App component domain folders should be lowercase or kebab-case (`chat/`, `properties/`, `fill-picker/`, `color-picker-panel/`, `canvas/`, `inputs/`). Avoid adding new `PascalCase/Component.vue` app folders; migrate existing ones gradually when touched.
-- Vue component files stay PascalCase: `ColorPickerRoot.vue`, `ToolbarItem.vue`. Component-scoped composables use camelCase: `useToolbarState.ts`, `usePageList.ts`.
+- `src/components/ui/**` is the shared app design-system layer. `packages/react/src/primitives/**` is the headless SDK primitive layer. App wrappers around SDK primitives should stay in app component domains and only move to `ui/**` when genuinely generic.
+- Root-level `src/components/*.tsx` is reserved for broad editor panels/surfaces assembled by views or shell layout. Do not add new root-level base controls; create a domain namespace or use `src/components/ui/**` for reusable primitives.
+- App component domain folders should be lowercase or kebab-case (`chat/`, `properties/`, `fill-picker/`, `color-picker-panel/`, `canvas/`, `inputs/`).
+- React component files stay PascalCase: `ColorPickerRoot.tsx`, `ToolbarItem.tsx`. Component-scoped hooks use camelCase: `useToolbarState.ts`, `usePageList.ts`.
 - Non-component domain folders use lowercase or kebab-case: `scene-graph/`, `figma-api/`, `node-edit/`. Non-component TypeScript files use lowercase or kebab-case unless they are conventional entrypoints such as `index.ts`, `types.ts`, `context.ts`, or `use.ts`.
 - Multi-file root components live inside their component namespace folder, not beside it. When a reusable picker/input/control grows beyond one file, create a namespace instead of leaving related files at `src/components/` root.
 - Use subfolders for multi-file domains instead of sibling files with repeated prefixes. Prefer `selection/container.ts`, `selection/hit-test.ts` over `selection-container.ts`, `selection-hit-test.ts`. When adding a second file for a domain (e.g. `eval-wrap.ts` next to `eval.ts`), create the folder immediately (`eval/index.ts` + `eval/wrap.ts`) instead of prefixing. Oxlint catches sibling prefix files when a sibling folder exists; Steiger catches 3+ sibling files with the same prefix. The convention applies even before either rule triggers.
@@ -176,7 +176,7 @@ tools/<domain>/
 Use `scripts/` only for tiny compatibility entrypoint shims that import `../tools/<domain>/src/...`; do not put implementation logic there. Workflow helpers, release packaging helpers, architecture rules, package checks, visual-oracle utilities, and other maintainable programs belong in `tools/` with focused tests when they contain logic. Steiger enforces tool layout and script shims. `bun run check` includes `bun run test:tools`, and lint/format cover `tools/`.
 
 - `@/` import alias for app cross-directory imports; app feature code lives under `src/app/*`
-- Use package-local aliases inside workspace packages: `#vue/*` in `packages/vue`, `#cli/*` in `packages/cli`, `#dom-css/*` in `packages/dom-css`, `#mcp/*` in `packages/mcp`, and `#core/*` when core code needs an alias. Prefer relative imports within nearby core modules when that is clearer than an alias.
+- Use package-local aliases inside workspace packages: `#react/*` in `packages/react`, `#cli/*` in `packages/cli`, `#dom-css/*` in `packages/dom-css`, `#mcp/*` in `packages/mcp`, and `#core/*` when core code needs an alias. Prefer relative imports within nearby core modules when that is clearer than an alias.
 - No `any` — use proper types, generics, declaration merging
 - No `!` non-null assertions — use guards, `?.`, `??`
 - No `Math.random()` — use `crypto.getRandomValues()` everywhere
@@ -184,8 +184,7 @@ Use `scripts/` only for tiny compatibility entrypoint shims that import `../tool
 - Shared geometry/color primitives live in `packages/scene-graph/src/primitives.ts`; scene/node domain types live in `packages/scene-graph/src/types.ts` and are exported from `@open-pencil/scene-graph`.
 - Window API extensions (showOpenFilePicker, queryLocalFonts) live in `src/global.d.ts` and `packages/core/src/global.d.ts`
 - Use `culori` for color conversions — don't reimplement parseColor/colorToRgba
-- Use `@vueuse/core` hooks — prefer higher-level composables (`useBreakpoints`, `useEventListener`, `onClickOutside`, etc.) over raw APIs (`useMediaQuery`, manual `addEventListener`)
-- Prefer VueUse utilities for simple browser/timer state: `refAutoReset` for temporary copied/saved flags, `promiseTimeout` for async sleeps/retry backoff, `useClipboard`/`useFileDialog`/`useLocalStorage` where they fit the local state model. Don't force VueUse when direct APIs are clearer: one-shot `requestAnimationFrame` focus/defer calls, explicit service-owned reconnect/permission timers, or nanostores-backed state can stay hand-rolled.
+- Use React hooks and browser APIs for DOM events, timers, and storage. Nanostores (`atom`, `computed`) manage global/shared state; React `useState`/`useRef`/`useEffect` for component-local state. `useSyncExternalStore` (via `@nanostores/react`'s `useStore`) subscribes to nanostores atoms.
 - No module-level mutable state in components — use the editor store
 - Prefer `tw-animate-css` for animations — don't hand-write `<style>` transition keyframes
 - No duplicated component logic — if two components share data (icon maps, util functions, constants), export from one place and import in both
@@ -217,7 +216,7 @@ Self-review checklist:
 - Don't hand-roll what a dependency already does. Check existing deps first (`package.json`, `packages/*/package.json`). If none covers it, find a quality library instead of inlining an implementation — e.g. use `diff` for unified diffs, not a custom line-by-line loop; use `culori` for color math, not manual RGB parsing.
 - Before custom UI/control/composable work, read upstream docs for the relevant dependency instead of guessing from local usage. Prefer their `llms.txt` entrypoints when available:
   - Reka UI (`https://reka-ui.com/llms.txt`) before building dialogs, popovers, dropdowns, menus, selects, tooltips, toasts, trees, splitters, or other primitives.
-  - VueUse (`https://vueuse.org/llms.txt`) before hand-rolling DOM events, browser APIs, refs/focus, media queries, timers, clipboard, storage, async state, or observers.
+  - React and browser APIs for DOM events, focus, media queries, timers, clipboard, storage, async state, and observers.
   - Tailwind / tailwind-variants docs before inventing one-off styling prop APIs or variant composition.
 - If upstream docs contradict local patterns, prefer current upstream APIs and update local wrappers deliberately.
 - `es-toolkit` is available in core for small, focused utility helpers when it clearly improves readability. Prefer subpath imports such as `es-toolkit/object`, `es-toolkit/array`, and `es-toolkit/predicate`; good fits include `omit` / `pick` for object key selection, `uniq` for dedupe, and `isNotNil` for typed nullish filtering. Do not replace clear native JavaScript just for consistency, and avoid `es-toolkit/compat` unless deliberately migrating lodash-compatible behavior.
@@ -269,24 +268,21 @@ Self-review checklist:
 - Treat existing root-level picker/input/control components as migration candidates when touched; do not expand that pattern.
 - Test locators follow Playwright's user-facing priority: role/name, label, and text first. Multi-part components expose scoped `data-slot` anatomy; app concepts use semantic attributes such as `data-property`, `data-command`, and `data-node-id` when accessible identity is insufficient. Reserve `data-test-id` for rare integration boundaries such as the canvas/editor host, never add `testId`/`testHook` props, and do not manufacture globally unique compound IDs inside shared components.
 
-- Use reka-ui for UI components (Splitter, ContextMenu, DropdownMenu, etc.)
-- Vue UI styling APIs follow the Nuxt UI architecture: static Tailwind Variants themes live under `src/theme/**` with `slots`, `variants`, `compoundVariants`, and `defaultVariants`; components resolve the theme with `tv()` and merge per-instance `ui` overrides at each rendered slot. Single-root components expose `class` rather than a one-slot `ui` object. Do not add one-off `fooClass`, `barClass`, `emptyActionClass`, etc. props. Use `UI` casing in type names (`SelectUI`, not `SelectUi`).
-- Storybook is the internal component-state workshop (`bun run storybook`, `bun run build-storybook`), while VitePress is the canonical public SDK documentation. Colocate `*.stories.ts` with app UI components and use toolbar themes for light/dark states instead of adding test-only routes or showcase pages to the app.
-- Reuse colocated Vue demo components between Storybook and VitePress rather than maintaining separate examples. Style shared demos with Tailwind; the docs theme scans Vue SDK primitive demos through its dedicated Tailwind source.
-- Public component API tables are generated from Vue source and JSDoc with `vue-component-meta`; do not manually duplicate props, events, slots, or exposed APIs in Markdown. SDK examples are processed by VitePress Twoslash and must resolve against the public `@open-pencil/vue` API.
-- Do not pass imperative setters/actions through slots as `:set-*`, `:update-*`, `:request-*`, `:toggle-*`, etc. unless the component is explicitly a renderless primitive whose whole contract is slot actions. Prefer `v-model`, emitted events, normal component props, or owned default UI. For DOM refs/focus, use VueUse (`templateRef`, `unrefElement`, `useFocus`, etc.) instead of ref callback plumbing through slots.
+- Use Radix UI (`@radix-ui/*`) for UI primitives (ContextMenu, DropdownMenu, Dialog, Popover, Select, Tooltip, etc.); use `react-resizable-panels` for Splitter
+- UI styling APIs follow a Tailwind Variants architecture: static themes live under `src/theme/**` with `slots`, `variants`, `compoundVariants`, and `defaultVariants`; components resolve the theme with `tv()` and merge per-instance `ui` overrides at each rendered slot. Single-root components expose `class` rather than a one-slot `ui` object. Do not add one-off `fooClass`, `barClass`, etc. props. Use `UI` casing in type names (`SelectUI`, not `SelectUi`).
+- Storybook is the internal component-state workshop (`bun run storybook`, `bun run build-storybook`). Colocate `*.stories.ts` with app UI components and use toolbar themes for light/dark states.
 - App wrappers around SDK primitives should compose a single `ui` object from shared UI helpers (`useSelectUI`, `usePopoverUI`, etc.) rather than bypassing the design system with raw Tailwind strings spread across multiple props.
-- Editor commands share `packages/vue/src/editor/commands/registry.ts` as the canonical source for shortcut display tokens, keyboard bindings, and context-menu test IDs. Store portable shortcuts such as `MOD+D`, `MOD+SHIFT+H`, and `MOD+ALT+K`; format them with `formatShortcut()` at render time so macOS shows `⌘`/`⌥` and Windows/Linux show `Ctrl`/`Alt`.
-- Labels and translations must not contain shortcut text. Keep labels semantic (`Add auto layout`, `Show/Hide`) and render shortcuts from command metadata. Steiger enforces this for `packages/vue/src/i18n/messages.ts` and locale JSON files.
-- Canvas context-menu structure lives in `packages/vue/src/editor/menu-model/canvas.ts`. Do not hand-build command grouping in `src/components/canvas/CanvasMenu.vue`; the component should render menu entries and provide app-specific actions only when unavoidable.
-- Browser and Tauri menus share `src/app/shell/menu/schema.ts` as the canonical menu model. Do not add menu items directly in `src/components/Shell/AppMenu.vue` or `desktop/src/menu.rs`.
+- Editor commands share `packages/react/src/editor/commands/registry.ts` as the canonical source for shortcut display tokens, keyboard bindings, and context-menu test IDs. Store portable shortcuts such as `MOD+D`, `MOD+SHIFT+H`, and `MOD+ALT+K`; format them with `formatShortcut()` at render time so macOS shows `⌘`/`⌥` and Windows/Linux show `Ctrl`/`Alt`.
+- Labels and translations must not contain shortcut text. Keep labels semantic (`Add auto layout`, `Show/Hide`) and render shortcuts from command metadata. Steiger enforces this for `packages/react/src/i18n/messages.ts` and locale JSON files.
+- Canvas context-menu structure lives in `packages/react/src/editor/menu-model/canvas.ts`. Do not hand-build command grouping in `src/components/canvas/CanvasMenu.tsx`; the component should render menu entries and provide app-specific actions only when unavoidable.
+- Browser and Tauri menus share `src/app/shell/menu/schema.ts` as the canonical menu model. Do not add menu items directly in `src/components/Shell/AppMenu.tsx` or `desktop/src/menu.rs`.
 - Regenerate the native menu with `bun run generate:tauri-menu` after editing the shared menu schema; `desktop/generated/menu.json` is consumed by the Tauri menu builder. Tauri also runs this generator from `desktop/tauri.conf.json` via `beforeDevCommand` and `beforeBuildCommand`.
 - Every shared menu item with an `id` must be handled by `src/app/shell/menu/use.ts`, an editor command, or explicitly marked browser/native-only in the schema.
 - Tailwind 4 for styling — no inline CSS, no component-level `<style>` blocks
-- Use `Tip` / tooltip components for hover help; do not add native `title` attributes in Vue UI.
+- Use `Tip` / tooltip components for hover help; do not add native `title` attributes in React components.
 - Mac keyboards: use `e.code` not `e.key` for shortcuts with modifiers (Option transforms characters)
-- Icons: use unplugin-icons with Iconify/Lucide (`<icon-lucide-*>`) — don't use raw SVG or Unicode symbols
-- App menu (`src/components/Shell/AppMenu.vue`) — browser-only menu bar using reka-ui Menubar components; Tauri uses native menus, so menu is hidden when `IS_TAURI` is true
+- Icons: use unplugin-icons with Iconify/Lucide (`~icons/lucide/*` imports) — don't use raw SVG or Unicode symbols
+- App menu (`src/components/Shell/AppMenu.tsx`) — browser-only menu bar using Radix UI Menubar components; Tauri uses native menus, so menu is hidden when `IS_TAURI` is true
 - Binding-aware fields must not mutate or detach on focus. Start detach/edit-variable transactions only on the first actual value mutation; opening the variable picker is also non-destructive.
 - Preserve established UI gotchas in nearby components before refactoring: splitter handle sizing, NumberField pointer ownership, section drag targets, side-panel containment, and global number-spinner styling.
 

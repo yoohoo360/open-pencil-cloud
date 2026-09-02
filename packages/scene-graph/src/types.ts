@@ -364,7 +364,7 @@ export interface SceneNode {
   textAlignHorizontal: 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED'
   textDirection: TextDirection
   textAlignVertical: TextAlignVertical
-  textAutoResize: TextAutoResize
+  textAutoResize: TextAutoResize | null
   textCase: TextCase
   textDecoration: TextDecoration
   textDecorationStyle: TextDecorationStyle
@@ -471,6 +471,7 @@ export interface SceneNode {
 
   internalOnly: boolean
 
+  remote?: boolean
   flipX: boolean
   flipY: boolean
 

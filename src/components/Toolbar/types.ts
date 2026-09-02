@@ -1,9 +1,9 @@
-import type { Component } from 'vue'
+import type { ComponentType } from 'react'
 
-import type { Tool } from '@open-pencil/vue'
+import type { Tool } from '@open-pencil/react'
 
 export interface ToolbarActionItem {
-  icon: Component
+  icon: ComponentType
   label: string
   action: () => void
 }
@@ -13,4 +13,4 @@ export interface ToolbarUI {
 }
 
 export type ToolLabels = Record<Tool, string>
-export type ToolIconMap = Record<Tool, Component>
+export type ToolIconMap = Record<Tool, ComponentType>

@@ -12,7 +12,7 @@ description: Construye definiciones de columnas de TanStack Table para interface
 ## Uso
 
 ```ts
-import { useVariablesTable } from '@open-pencil/vue'
+import { useVariablesTable } from '@open-pencil/react'
 
 const { columns } = useVariablesTable(options)
 ```

@@ -52,7 +52,7 @@ import {
   NumberFieldRoot,
   NumberFieldUnit,
   NumberFieldValue
-} from '@open-pencil/vue'
+} from '@open-pencil/react'
 
 const width = ref(120)
 //    ^?

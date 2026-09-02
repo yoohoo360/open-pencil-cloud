@@ -1,6 +1,6 @@
 ---
 title: Démarrage rapide SDK
-description: Configurez @open-pencil/vue avec createEditor, provideEditor et un canvas.
+description: Configurez @open-pencil/react avec createEditor, provideEditor et un canvas.
 ---
 
 # Démarrage rapide SDK
@@ -8,14 +8,14 @@ description: Configurez @open-pencil/vue avec createEditor, provideEditor et un 
 ## Installation
 
 ```bash
-bun add @open-pencil/core @open-pencil/vue canvaskit-wasm
+bun add @open-pencil/core @open-pencil/react canvaskit-wasm
 ```
 
-Le SDK est hébergé dans le monorepo et également publié sous le nom `@open-pencil/vue`.
+Le SDK est hébergé dans le monorepo et également publié sous le nom `@open-pencil/react`.
 
 ```ts
 import { createEditor } from '@open-pencil/core/editor'
-import { provideEditor, useCanvas } from '@open-pencil/vue'
+import { provideEditor, useCanvas } from '@open-pencil/react'
 ```
 
 ## Modèle mental
@@ -23,7 +23,7 @@ import { provideEditor, useCanvas } from '@open-pencil/vue'
 Il y a trois couches :
 
 1. `@open-pencil/core` — moteur d'édition indépendant du framework
-2. `@open-pencil/vue` — composables Vue et primitives headless
+2. `@open-pencil/react` — composables Vue et primitives headless
 3. votre application — styles, routage, flux de fichiers, UI spécifique au produit
 
 ## Configuration minimale
@@ -43,7 +43,7 @@ const editor = createEditor({
 
 ```vue
 <script setup lang="ts">
-import { provideEditor } from '@open-pencil/vue'
+import { provideEditor } from '@open-pencil/react'
 
 import type { Editor } from '@open-pencil/core/editor'
 
@@ -67,7 +67,7 @@ Vous pouvez voir ceci comme la couche provider de l'arbre éditeur. La documenta
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { useCanvas, useEditor } from '@open-pencil/vue'
+import { useCanvas, useEditor } from '@open-pencil/react'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const editor = useEditor()
@@ -85,7 +85,7 @@ useCanvas(canvasRef, editor)
 Une fois l'éditeur fourni, les composants enfants peuvent lire la sélection et émettre des commandes :
 
 ```ts
-import { useEditorCommands, useSelectionState } from '@open-pencil/vue'
+import { useEditorCommands, useSelectionState } from '@open-pencil/react'
 
 const selection = useSelectionState()
 const commands = useEditorCommands()
@@ -97,7 +97,7 @@ const commands = useEditorCommands()
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { useCanvas, useEditor, useSelectionState } from '@open-pencil/vue'
+import { useCanvas, useEditor, useSelectionState } from '@open-pencil/react'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const editor = useEditor()
