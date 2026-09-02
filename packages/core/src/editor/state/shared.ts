@@ -8,7 +8,6 @@ export function createDefaultEditorSharedState(): EditorSharedState {
     remoteCursors: [],
     documentName: 'Untitled',
     rulerTheme: undefined,
-    sceneVersion: 0,
-    loading: false
+    sceneVersion: 0
   }
 }

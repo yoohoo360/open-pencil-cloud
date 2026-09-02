@@ -39,7 +39,9 @@ export function useStrokeControls() {
   const capOptions = [
     { value: 'NONE' as const, label: panels.value.strokeCapButt },
     { value: 'ROUND' as const, label: panels.value.strokeCapRound },
-    { value: 'SQUARE' as const, label: panels.value.strokeCapSquare }
+    { value: 'SQUARE' as const, label: panels.value.strokeCapSquare },
+    { value: 'ARROW_LINES' as const, label: panels.value.strokeCapArrowLines },
+    { value: 'ARROW_EQUILATERAL' as const, label: panels.value.strokeCapArrowEquilateral }
   ]
   const joinOptions = [
     { value: 'MITER' as const, label: panels.value.strokeJoinMiter },

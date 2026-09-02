@@ -212,6 +212,34 @@ describe('FontManager loaded font cache', () => {
     expect(writes).toBe(0)
   })
 
+  test('forwards cancellation to fallback web-font requests', async () => {
+    const manager = new FontManager()
+    let remoteRequestStarted: (() => void) | null = null
+    const started = new Promise<void>((resolve) => {
+      remoteRequestStarted = resolve
+    })
+    const originalLoadRemoteFont = manager.loadRemoteFont.bind(manager)
+    manager.loadRemoteFont = async (_family, _style, _characters, signal) => {
+      remoteRequestStarted?.()
+      return new Promise<ArrayBuffer | null>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+          once: true
+        })
+      })
+    }
+    const abort = new AbortController()
+    const loading = manager.ensureFallbackPack(['cjk'], '字', abort.signal)
+
+    await started
+    abort.abort()
+
+    try {
+      await expect(loading).rejects.toHaveProperty('name', 'AbortError')
+    } finally {
+      manager.loadRemoteFont = originalLoadRemoteFont
+    }
+  })
+
   test('loads bundled Inter ExtraBold without network access', async () => {
     const manager = new FontManager()
     const recording = createRecordingProvider()

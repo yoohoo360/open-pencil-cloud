@@ -1,6 +1,8 @@
 /// <reference types="@figma/plugin-typings" />
 
 import type { FigmaAPI } from './index'
+import type { FigmaComponentNode, FigmaComponentSetNode } from './node-types'
+import type { FigmaNodeProxy } from './proxy'
 
 type Expect<T extends true> = T
 
@@ -35,3 +37,49 @@ export type SupportedPluginAPI = Pick<
 
 export type FigmaAPIIncompatibleKeys = IncompatibleKeys<FigmaAPI, SupportedPluginAPI>
 export type FigmaAPICompatibility = Expect<FigmaAPIIncompatibleKeys extends never ? true : false>
+
+type Extends<Actual, Expected> = Actual extends Expected ? true : false
+
+type Equal<Actual, Expected> = [Actual] extends [Expected]
+  ? [Expected] extends [Actual]
+    ? true
+    : false
+  : false
+
+type ComponentPropertyDefinitionsMatch = Expect<
+  Equal<FigmaComponentNode['componentPropertyDefinitions'], ComponentPropertyDefinitions>
+>
+const _componentPropertyDefinitionsMatch: ComponentPropertyDefinitionsMatch = true
+
+type ComponentPropertyMethodsMatch = Expect<
+  Extends<FigmaComponentNode['addComponentProperty'], ComponentNode['addComponentProperty']>
+>
+const _componentPropertyMethodsMatch: ComponentPropertyMethodsMatch = true
+
+type ComponentSetPropertyMethodsMatch = Expect<
+  Extends<FigmaComponentSetNode['editComponentProperty'], ComponentSetNode['editComponentProperty']>
+>
+const _componentSetPropertyMethodsMatch: ComponentSetPropertyMethodsMatch = true
+
+type InstancePropertySurfaceMatch = Expect<
+  Extends<
+    Pick<
+      FigmaNodeProxy & InstanceNode,
+      | 'componentProperties'
+      | 'componentPropertyReferences'
+      | 'setProperties'
+      | 'isExposedInstance'
+      | 'exposedInstances'
+    >,
+    Pick<
+      InstanceNode,
+      | 'componentProperties'
+      | 'componentPropertyReferences'
+      | 'setProperties'
+      | 'isExposedInstance'
+      | 'exposedInstances'
+    >
+  >
+>
+
+const _instancePropertySurfaceMatch: InstancePropertySurfaceMatch = true

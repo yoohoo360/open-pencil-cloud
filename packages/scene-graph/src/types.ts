@@ -1,4 +1,5 @@
 import type { CanvasGuide } from './guides'
+import type { InstanceOverrideState } from './instance-overrides'
 import type { Color, Matrix, Rect, Vector } from './primitives'
 
 export interface SceneGraphEvents {
@@ -530,7 +531,7 @@ export interface SceneNode {
   starInnerRadius: number
 
   componentId: string | null
-  overrides: Record<string, unknown>
+  instanceOverrides: InstanceOverrideState
   componentPropertyDefinitions: ComponentPropertyDefinition[]
   componentPropertyReferences: ComponentPropertyReference[]
   componentPropertyAssignments: Record<string, string>

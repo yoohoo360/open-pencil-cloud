@@ -1,5 +1,10 @@
 export { createPage, createShape, createSlice } from './create/basic'
-export { combineAsVariants, createComponent, createInstance } from './create/components'
+export {
+  combineAsVariants,
+  createComponent,
+  createInstance,
+  exposeInstanceSwap
+} from './create/components'
 export { fetchIconsTool, insertIcon, searchIconsTool } from './create/icons'
 export { render } from './create/render'
 export { importSVG } from './create/svg'

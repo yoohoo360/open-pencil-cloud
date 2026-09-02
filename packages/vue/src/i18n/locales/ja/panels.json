@@ -190,6 +190,8 @@
   "strokeCapButt": "フラット線端",
   "strokeCapRound": "丸型線端",
   "strokeCapSquare": "角型線端",
+  "strokeCapArrowLines": "ライン矢印",
+  "strokeCapArrowEquilateral": "三角矢印",
   "strokeJoin": "線の結合",
   "strokeJoinMiter": "マイター結合",
   "strokeJoinBevel": "ベベル結合",

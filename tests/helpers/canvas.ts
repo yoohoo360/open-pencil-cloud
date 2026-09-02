@@ -41,6 +41,10 @@ export class CanvasHelper {
     await this.waitForRender()
   }
 
+  async screenshotCanvas() {
+    return this.canvas.screenshot()
+  }
+
   async screenshotCanvasRegion(width = 900, height = 700) {
     const box = await this.canvas.boundingBox()
     if (!box) throw new Error('Canvas has no bounding box — is it visible?')

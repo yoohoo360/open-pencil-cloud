@@ -173,6 +173,8 @@
   "strokeCapButt": "Estremità piatta",
   "strokeCapRound": "Estremità arrotondata",
   "strokeCapSquare": "Estremità quadrata",
+  "strokeCapArrowLines": "Freccia a linee",
+  "strokeCapArrowEquilateral": "Freccia triangolare",
   "strokeJoin": "Giunzione del tratto",
   "strokeJoinMiter": "Giunzione a mitra",
   "strokeJoinBevel": "Giunzione smussata",

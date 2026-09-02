@@ -173,6 +173,8 @@
   "strokeCapButt": "Extrémité plate",
   "strokeCapRound": "Extrémité arrondie",
   "strokeCapSquare": "Extrémité carrée",
+  "strokeCapArrowLines": "Flèche en lignes",
+  "strokeCapArrowEquilateral": "Flèche triangulaire",
   "strokeJoin": "Jonction du trait",
   "strokeJoinMiter": "Jonction en onglet",
   "strokeJoinBevel": "Jonction biseautée",

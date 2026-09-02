@@ -6,6 +6,7 @@ import { rotatedCorners } from '@open-pencil/scene-graph/geometry'
 
 import type { SkiaRenderer, RenderOverlays } from '#core/canvas/renderer'
 import {
+  LABEL_FONT_SIZE,
   LABEL_OFFSET_Y,
   SIZE_PILL_PADDING_X,
   SIZE_PILL_PADDING_Y,
@@ -13,8 +14,6 @@ import {
   SIZE_PILL_RADIUS,
   SIZE_PILL_TEXT_OFFSET_Y
 } from '#core/constants'
-
-import { ellipsizeLabelText } from './text'
 
 function getOverlayRotation(node: SceneNode, overlays?: RenderOverlays): number {
   return overlays?.rotationPreview?.nodeId === node.id
@@ -63,12 +62,12 @@ function drawSingleFrameTitle(
   canvas: Canvas,
   graph: SceneGraph,
   node: SceneNode,
-  overlays: RenderOverlays,
-  labelFont: NonNullable<SkiaRenderer['labelFont']>
+  overlays: RenderOverlays
 ): void {
   const parentNode = node.parentId ? graph.getNode(node.parentId) : null
   const isTopLevel = !parentNode || parentNode.type === 'CANVAS' || parentNode.type === 'SECTION'
-  if (node.type !== 'FRAME' || !isTopLevel) return
+  const provider = r.fontProvider
+  if (node.type !== 'FRAME' || !isTopLevel || !provider) return
 
   const overlayRotation = getOverlayRotation(node, overlays) // degrees
 
@@ -78,13 +77,24 @@ function drawSingleFrameTitle(
 
   r.auxFill.setColor(r.selColor())
 
-  const displayText = ellipsizeLabelText(labelFont, node.name, node.width * r.zoom)
-  if (!displayText) return
+  const maxTextWidth = node.width * r.zoom
+  if (maxTextWidth <= 0) return
 
   canvas.save()
   canvas.translate(origin[0] * r.zoom + r.panX, origin[1] * r.zoom + r.panY)
   if (overlayRotation !== 0) canvas.rotate(overlayRotation, 0, 0)
-  canvas.drawText(displayText, 0, -LABEL_OFFSET_Y, r.auxFill, labelFont)
+  r.labelParagraphCache.draw(
+    r.ck,
+    canvas,
+    provider,
+    node.name,
+    LABEL_FONT_SIZE,
+    maxTextWidth,
+    r.selColor(),
+    r.fontGeneration,
+    0,
+    -LABEL_OFFSET_Y - LABEL_FONT_SIZE
+  )
   canvas.restore()
 }
 
@@ -194,7 +204,7 @@ export function drawSelectionLabels(
   if (nodes.length === 0) return
 
   if (nodes.length === 1) {
-    drawSingleFrameTitle(r, canvas, graph, nodes[0], activeOverlays, labelFont)
+    drawSingleFrameTitle(r, canvas, graph, nodes[0], activeOverlays)
     drawSingleSelectionSize(r, canvas, graph, nodes[0], activeOverlays, sizeFont)
     return
   }

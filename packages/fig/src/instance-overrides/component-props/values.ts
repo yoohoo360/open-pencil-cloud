@@ -17,7 +17,8 @@ export function propTextCharacters(value: ComponentPropValue): string | undefine
   return value.textValue?.characters ?? value.textDataValue?.characters
 }
 
-function isEmptyPropValue(v: ComponentPropValue): boolean {
+function isEmptyPropValue(v: ComponentPropValue | undefined): boolean {
+  if (!v) return true
   return (
     v.boolValue === undefined &&
     v.textValue === undefined &&
@@ -31,8 +32,9 @@ function resolveAssignmentValue(
   assignment: ComponentPropAssignment,
   key: string,
   resolveDefaults: boolean
-): ComponentPropValue {
-  if (!isEmptyPropValue(assignment.value)) return assignment.value
+): ComponentPropValue | undefined {
+  const value = assignment.value
+  if (value && !isEmptyPropValue(value)) return value
 
   const variableValue = assignment.varValue?.value
   if (variableValue?.symbolIdValue?.guid) return { guidValue: variableValue.symbolIdValue.guid }
@@ -53,7 +55,8 @@ export function assignmentsToValueMap(
   for (const assignment of assignments) {
     if (!assignment.defID) continue
     const key = guidToString(assignment.defID)
-    valueByDef.set(key, resolveAssignmentValue(ctx, assignment, key, resolveDefaults))
+    const value = resolveAssignmentValue(ctx, assignment, key, resolveDefaults)
+    if (value) valueByDef.set(key, value)
   }
   return valueByDef
 }

@@ -402,6 +402,35 @@ describe('computeVisualBounds', () => {
     expect(outsideBounds).toEqual({ minX: 9, minY: 19, maxX: 111, maxY: 71 })
   })
 
+  test('descendant bounds include arrow overflow', () => {
+    const nodes = {
+      root: {
+        id: 'root',
+        type: 'FRAME',
+        width: 100,
+        height: 50,
+        visible: true,
+        childIds: ['line']
+      },
+      line: {
+        id: 'line',
+        type: 'LINE',
+        width: 100,
+        height: 0,
+        visible: true,
+        strokeCap: 'ARROW_EQUILATERAL' as const,
+        strokes: [{ weight: 4, visible: true, align: 'CENTER' as const }],
+        childIds: []
+      }
+    }
+    const bounds = computeDescendantVisualBounds(
+      ['root'],
+      (id) => nodes[id as keyof typeof nodes],
+      () => ({ x: 0, y: 0 })
+    )
+    expect(bounds?.minY).toBe(-18)
+  })
+
   test('nested clipping stops descendants outside the ancestor clip', () => {
     const nodes = {
       root: {

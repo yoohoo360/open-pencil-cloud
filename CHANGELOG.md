@@ -4,7 +4,11 @@
 
 ### Added
 
-- Browse file and remote libraries in the Assets panel, add a remote library from the catalog, and insert or drag instances from the selected library.
+- Add a searchable command palette for editor and application actions.
+- Render triangle and line arrow stroke caps on lines and open vector paths, and choose them from the stroke cap picker.
+- Add a timestamp-faithful pan and zoom benchmark workflow with physical macOS trackpad recording, CDP and DOM replay, Chromium traces, frame-pacing and latency distributions, zoom-anchor drift and viewport-jump detection, retained-backing settlement metrics, and a documented native Instruments acceptance procedure.
+
+- Choose and persist the app interface language from General settings.
 - Duplicate guides with Option/Alt-drag, show active guide coordinates in rulers, measure ruler-created guides against selected frames and their contents, and remove guides from the context menu.
 - Create, select, move, transfer, and delete canvas and frame guides directly from rulers, with undoable edits and `.fig` round-trip fidelity.
 - Open to a unified home with recent and configured storage documents, including grid or list layouts.
@@ -46,6 +50,8 @@
 
 ### Changed
 
+- Vertically center shaped section titles and allow renaming a section by double-clicking its canvas label.
+- Load supported online fonts in the browser before revealing imported pages, preserve substituted text during editing, and shape canvas labels with bundled Inter typography.
 - Upgrade CanvasKit to 0.41 and migrate renderer geometry to immutable paths built through `PathBuilder`.
 - Upgrade direct model chat providers and transports to AI SDK 7 while retaining the local ACP execution path.
 - Localize file, clipboard, collaboration, chat, vectorization, storage, recovery, and component-library notifications in every supported language.
@@ -54,6 +60,8 @@
 
 ### Performance
 
+- Keep rapid trackpad zoom reversals responsive on complex documents by cancelling obsolete high-resolution scene reconstruction and settling only after navigation becomes idle.
+- Keep zooming responsive on effect-heavy documents by reusing bounded, invalidation-aware raster snapshots for supported shadow effects while retaining vector-picture fallbacks for backdrop-dependent and oversized effects.
 - Show the FIG page list from a lightweight Kiwi scan before materializing the full document, making large files feel responsive sooner.
 - Avoid redundant collaboration writes when synchronized node fields have not changed.
 - Release obsolete streamed Markdown parser history after each AI response completes, preventing chat memory from multiplying with every streamed chunk. (#544)
@@ -65,6 +73,10 @@
 
 ### Fixed
 
+- Make published package export conditions resolve to files included in npm tarballs.
+- Use the user's home directory as the default MCP file root on Windows, avoiding the caller's unreliable working directory.
+- Open legacy raw `.fig` files that store the Kiwi document and thumbnail without a ZIP wrapper. (#582)
+- Preserve a frame's auto-layout HUG sizing mode when converting it into a component with `create_component`, so later padding changes still resize the component as expected.
 - Run `openpencil import` on Node so the npm-installed CLI no longer fails with `Bun is not defined`. (#575)
 - Isolate browser-development MCP servers behind worktree-aware Portless WebSocket routes and per-runtime socket/discovery paths, preventing concurrent worktrees from competing for port 7600 or the global MCP socket.
 

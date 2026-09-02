@@ -1,3 +1,5 @@
+import { limitAsync } from 'es-toolkit/promise'
+
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { populateLazyFigImportRoots } from '#core/kiwi/fig/lazy-import'
@@ -13,6 +15,30 @@ import { missingGraphFontScripts } from '#core/text/resolved-requirements'
 import { createPageViewportStore } from './page-viewports'
 import type { EditorContext } from './types'
 
+export interface PageSwitchProgress {
+  phase: 'populating-page' | 'resolving-fonts' | 'resolving-fallbacks' | 'layout'
+  detail?: string
+  completed?: number
+  total?: number
+}
+
+export interface PreparePageOptions {
+  onProgress?: (progress: PageSwitchProgress) => void
+  signal?: AbortSignal
+}
+
+export interface PreparedPage {
+  pageId: string
+  generation: number
+}
+
+export type SwitchPageOptions = PreparePageOptions
+
+function throwIfAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted()
+}
+
+const MAX_CONCURRENT_FONT_LOADS = 4
 export function createPageActions(ctx: EditorContext) {
   const pageViewportStore = createPageViewportStore(ctx)
   let populationWorkerInstance: ReturnType<typeof createFigPopulationWorker> | undefined
@@ -25,53 +51,79 @@ export function createPageActions(ctx: EditorContext) {
     return populationWorkerInstance
   }
 
-  async function switchPage(pageId: string) {
-    const page = ctx.graph.getNode(pageId)
-    if (page?.type !== 'CANVAS') return
-    const switchGeneration = ++pageSwitchGeneration
-
-    pageViewportStore.saveCurrentPageViewport()
-
-    const previousPageId = ctx.state.currentPageId
-    ctx.state.currentPageId = pageId
-    ctx.state.enteredContainerId = null
-    ctx.setSelectedIds(new Set())
-    if (previousPageId !== pageId) ctx.emitEditorEvent('page:changed', pageId, previousPageId)
-
-    pageViewportStore.restorePageViewport(pageId)
-
-    ctx.state.loading = true
-    let populated: boolean
-    try {
-      const worker = populationWorker()
-      const workerGeneration = populationWorkerGeneration
-      const workerResult = worker ? await worker.populate(pageId) : null
-      if (workerGeneration !== populationWorkerGeneration) return
-      if (workerResult === null) {
-        worker?.terminate()
-        populationWorkerInstance = undefined
-        populated = populateLazyFigImportRoots(ctx.graph, [pageId])
-      } else {
-        populated = workerResult
-      }
-    } finally {
-      if (switchGeneration === pageSwitchGeneration) ctx.state.loading = false
+  async function populatePage(
+    pageId: string,
+    switchGeneration: number,
+    signal?: AbortSignal
+  ): Promise<boolean | null> {
+    throwIfAborted(signal)
+    const worker = populationWorker()
+    const workerGeneration = populationWorkerGeneration
+    const workerResult = worker ? await worker.populate(pageId, signal) : null
+    throwIfAborted(signal)
+    if (
+      workerGeneration !== populationWorkerGeneration ||
+      switchGeneration !== pageSwitchGeneration
+    ) {
+      return null
     }
-    if (switchGeneration !== pageSwitchGeneration) return
+    if (workerResult !== null) return workerResult
+    worker?.terminate()
+    populationWorkerInstance = undefined
+    return populateLazyFigImportRoots(ctx.graph, [pageId])
+  }
 
+  async function resolvePageFonts(
+    pageId: string,
+    pageName: string,
+    options: PreparePageOptions
+  ): Promise<void> {
     const childIds = ctx.graph.getChildren(pageId).map((node) => node.id)
     const toLoad = fontManager.collectFontKeys(ctx.graph, childIds)
     const requirements = collectGraphFontRequirements(ctx.graph, childIds)
+    options.onProgress?.({
+      phase: 'resolving-fonts',
+      detail: pageName,
+      completed: 0,
+      total: toLoad.length
+    })
     fontManager.blockNodesUntilFontsResolve(childIds)
     try {
-      const results = await Promise.all(
-        toLoad.map(([family, style]) => ctx.loadFont(family, style, requirements.characters))
-      )
+      let completedFaces = 0
+      const loadFace = limitAsync(async ([family, style]: [string, string]) => {
+        throwIfAborted(options.signal)
+        const result = await ctx.loadFont(family, style, requirements.characters, options.signal)
+        throwIfAborted(options.signal)
+        completedFaces++
+        options.onProgress?.({
+          phase: 'resolving-fonts',
+          detail: `${family} ${style}`,
+          completed: completedFaces,
+          total: toLoad.length
+        })
+        return result
+      }, MAX_CONCURRENT_FONT_LOADS)
+      const results = await Promise.all(toLoad.map(loadFace))
+      throwIfAborted(options.signal)
       const requiredFallbacks = missingGraphFontScripts(requirements)
+      options.onProgress?.({
+        phase: 'resolving-fallbacks',
+        detail: pageName,
+        completed: 0,
+        total: requiredFallbacks.length
+      })
       const fallbacks = await fontManager.ensureFallbackPack(
         requiredFallbacks,
-        requirements.characters
+        requirements.characters,
+        options.signal
       )
+      throwIfAborted(options.signal)
+      options.onProgress?.({
+        phase: 'resolving-fallbacks',
+        detail: pageName,
+        completed: requiredFallbacks.length,
+        total: requiredFallbacks.length
+      })
       const facesReady = results.every((result) => result !== null)
       const fallbacksReady = requiredFallbacks.every(
         (script) => (fallbacks[script]?.length ?? 0) > 0
@@ -83,16 +135,58 @@ export function createPageActions(ctx: EditorContext) {
       fontManager.unblockNodes(childIds)
       ctx.getRenderer()?.invalidateAllPictures()
     }
+  }
+
+  async function preparePage(
+    pageId: string,
+    options: PreparePageOptions = {}
+  ): Promise<PreparedPage | null> {
+    const page = ctx.graph.getNode(pageId)
+    if (page?.type !== 'CANVAS') return null
+    const generation = ++pageSwitchGeneration
+    throwIfAborted(options.signal)
+
+    options.onProgress?.({ phase: 'populating-page', detail: page.name })
+    const populated = await populatePage(pageId, generation, options.signal)
+    if (populated === null || generation !== pageSwitchGeneration) return null
+
+    await resolvePageFonts(pageId, page.name, options)
+    throwIfAborted(options.signal)
+    if (generation !== pageSwitchGeneration) return null
     if (ctx.getRenderer() || populated) {
+      options.onProgress?.({ phase: 'layout', detail: page.name })
       computeAllLayouts(ctx.graph, pageId)
     }
+    throwIfAborted(options.signal)
+    return generation === pageSwitchGeneration ? { pageId, generation } : null
+  }
+
+  function commitPageSwitch(prepared: PreparedPage): boolean {
+    if (prepared.generation !== pageSwitchGeneration) return false
+    const page = ctx.graph.getNode(prepared.pageId)
+    if (page?.type !== 'CANVAS') return false
+
+    pageViewportStore.saveCurrentPageViewport()
+    const previousPageId = ctx.state.currentPageId
+    ctx.state.currentPageId = prepared.pageId
+    ctx.state.enteredContainerId = null
+    ctx.setSelectedIds(new Set())
+    pageViewportStore.restorePageViewport(prepared.pageId)
+    if (previousPageId !== prepared.pageId) {
+      ctx.emitEditorEvent('page:changed', prepared.pageId, previousPageId)
+    }
     ctx.requestRender()
+    return true
+  }
+
+  async function switchPage(pageId: string, options: SwitchPageOptions = {}): Promise<void> {
+    const prepared = await preparePage(pageId, options)
+    if (prepared) commitPageSwitch(prepared)
   }
 
   function clearPageViewports() {
     populationWorkerGeneration++
     pageSwitchGeneration++
-    ctx.state.loading = false
     populationWorkerInstance?.terminate()
     populationWorkerInstance = undefined
     pageViewportStore.clearPageViewports()
@@ -140,6 +234,8 @@ export function createPageActions(ctx: EditorContext) {
   }
 
   return {
+    preparePage,
+    commitPageSwitch,
     switchPage,
     addPage,
     deletePage,

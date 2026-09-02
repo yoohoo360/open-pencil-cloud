@@ -9,6 +9,7 @@ import type { ViewportSize } from '@/app/document/io/types'
 import { createFlashActions } from '@/app/editor/flash'
 import { createMobileClipboardActions } from '@/app/editor/mobile-clipboard'
 import { createPenActions } from '@/app/editor/pen'
+import type { EditorPreparationController } from '@/app/editor/preparation/controller'
 import { createProfilerActions } from '@/app/editor/profiler'
 import type { AppEditorState } from '@/app/editor/session/types'
 import { createVectorEditActions } from '@/app/editor/vector'
@@ -22,6 +23,10 @@ export function defineEditorStoreAccessors(store: object, editor: Editor) {
     renderer: {
       enumerable: true,
       get: () => editor.renderer
+    },
+    canvasRenderers: {
+      enumerable: true,
+      get: () => editor.canvasRenderers
     },
     textEditor: {
       enumerable: true,
@@ -52,12 +57,13 @@ export function createEditorStoreModules(
   editor: Editor,
   state: AppEditorState,
   io: IORegistry,
-  viewportSize: ViewportSize
+  viewportSize: ViewportSize,
+  preparationController: EditorPreparationController
 ) {
   const flash = createFlashActions(editor, state)
   const pen = createPenActions(editor, state)
   const vectorEdit = createVectorEditActions(editor, state)
-  const documentIO = createDocumentIOActions(editor, state, viewportSize)
+  const documentIO = createDocumentIOActions(editor, state, viewportSize, preparationController)
   const documentExport = createDocumentExportActions(editor, state, io, documentIO.downloadBlob)
   const mobileClipboard = createMobileClipboardActions(editor, state)
   const profiler = createProfilerActions(editor)
@@ -85,9 +91,11 @@ export function createEditorStoreModules(
     setPlannedFilePath: documentIO.setPlannedFilePath,
     startWatchingCurrentFile: documentIO.startWatchingCurrentFile,
     dispose: () => {
+      editor.releaseGraphResources()
       editor.dispose()
       editor.clearPageViewports()
       documentIO.disposeDocumentIO()
+      preparationController.dispose()
     },
     ...documentExport,
     ...mobileClipboard,

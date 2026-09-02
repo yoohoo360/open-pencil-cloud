@@ -22,12 +22,14 @@ import type { FontResolutionSnapshot } from '#core/text/resolver'
 
 import { LabelCache } from './labels/cache'
 import * as LabelHitTest from './labels/hit-test'
+import { LabelParagraphCache } from './labels/paragraph-cache'
 import * as RenderColors from './renderer/colors'
 import * as RendererFonts from './renderer/fonts'
 import { destroyRenderer } from './renderer/lifecycle'
 import { installRendererDomainMethods } from './renderer/methods'
 import { initializeRendererPaints } from './renderer/paints'
 import * as RenderPipeline from './renderer/pipeline'
+import type { SceneBacking, SceneBackingBuild } from './renderer/retained-backing/types'
 import * as RendererState from './renderer/state'
 import * as RenderText from './text'
 export type { MeasurementMode, RenderOverlays, RulerTheme } from './renderer/types'
@@ -60,6 +62,8 @@ export interface PendingFontNode {
   keys: Set<string>
 }
 
+import type { EffectRasterCacheEntry } from './renderer/effect-raster-cache'
+import { TiledSceneController } from './renderer/tiles'
 import type { RenderOverlays, RulerTheme } from './renderer/types'
 
 export class SkiaRenderer {
@@ -100,64 +104,39 @@ export class SkiaRenderer {
   strokeGeometryCache = new Map<string, Path[]>()
   /** Path-text glyph silhouettes (stroke-and-union, font units) keyed by blob hash + relative weight. */
   glyphSilhouetteCache = new Map<string, Path>()
+  renderingSceneBacking = false
   scenePicture: SkPicture | null = null
   scenePictureVersion = -1
   scenePictureFontGeneration = -1
   scenePicturePositionPreviewVersion = -1
   scenePicturePageId: string | null = null
-  sceneBacking: {
-    image: CKImage
-    pageId: string | null
-    sceneVersion: number
-    positionPreviewVersion: number
-    fontGeneration: number
-    panX: number
-    panY: number
-    zoom: number
-    width: number
-    height: number
-    dpr: number
-    worldX: number
-    worldY: number
-    worldWidth: number
-    worldHeight: number
-  } | null = null
+  sceneBacking: SceneBacking | null = null
   sceneBackingPreviewUntil = 0
   sceneBackingNeedsCrispRender = false
   sceneBackingAllocationFailed = false
-  sceneBackingBuild: {
-    surface: Surface
-    graph: SceneGraph
-    childIds: string[]
-    index: number
-    startedAt: number
-    pageId: string | null
-    sceneVersion: number
-    positionPreviewVersion: number
-    fontGeneration: number
-    panX: number
-    panY: number
-    zoom: number
-    width: number
-    height: number
-    dpr: number
-    worldX: number
-    worldY: number
-    worldWidth: number
-    worldHeight: number
-  } | null = null
+  sceneBackingBuild: SceneBackingBuild | null = null
   sceneBackingAverageRecordMs = 40
   sceneBackingAverageViewportIntervalMs = 80
   sceneBackingLastViewportEventAt = 0
+  navigationPhase: EditorState['navigation']['phase'] = 'idle'
+  navigationGeneration = 0
+  tiledSceneEnabled = false
+  tracksSceneSettlement = true
+  tiledScenePending = false
+  tiledSceneCovered = false
   lastSceneViewport: { panX: number; panY: number; zoom: number } | null = null
   nodePictureCache = new Map<string, SkPicture | null>()
   nodePictureCacheGenerations = new Map<string, number>()
+  nodePictureCacheDependencies = new Map<string, readonly string[]>()
+  effectRasterCache = new Map<string, EffectRasterCacheEntry>()
   subtreePictureCache = new Map<string, SubtreePictureCacheEntry>()
   subtreePictureCachePageId: string | null = null
   subtreePictureCacheSceneVersion = -1
   subtreePictureCachePositionPreviewVersion = -1
   subtreePictureCacheFontGeneration = -1
   readonly labelCache = new LabelCache()
+  readonly labelParagraphCache = new LabelParagraphCache()
+  readonly tiledScene = new TiledSceneController()
   readonly profiler: RenderProfiler
 
   declare rulerBgPaint: Paint
@@ -183,6 +162,7 @@ export class SkiaRenderer {
   rulerTheme: RulerTheme | null = null
   pageId: string | null = null
 
+  boundEffectLayersToViewport = false
   worldViewport = { x: 0, y: 0, w: 0, h: 0 }
   _nodeCount = 0
   _culledCount = 0
@@ -276,6 +256,12 @@ export class SkiaRenderer {
   ) => void
   declare drawSectionTitles: (canvas: Canvas, graph: SceneGraph) => void
   declare drawComponentLabels: (canvas: Canvas, graph: SceneGraph) => void
+  declare renderNodeSelf: (
+    canvas: Canvas,
+    graph: SceneGraph,
+    nodeId: string,
+    overlays?: RenderOverlays
+  ) => void
   declare renderNode: (
     canvas: Canvas,
     graph: SceneGraph,
@@ -464,6 +450,7 @@ export class SkiaRenderer {
   }
 
   replaceSurface(surface: Surface): void {
+    this.tiledScene.destroy()
     this.surface.delete()
     this.surface = surface
     this.sceneBackingAllocationFailed = false
@@ -617,7 +604,7 @@ export class SkiaRenderer {
   }
 
   isNodeFontLoaded(node: SceneNode): boolean {
-    return this.nodeFontReadiness(node) === 'ready'
+    return RenderText.isNodeFontLoaded(this, node)
   }
 
   buildTextPicture(node: SceneNode): Uint8Array | null {

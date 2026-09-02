@@ -214,8 +214,8 @@ describe('@open-pencil/fig NodeChange policy', () => {
       ],
       regions: []
     }
-    const { table, mirroringToId } = buildStyleOverrideTable(network)
-    expect(decodeVectorNetworkBlob(encodeVectorNetworkBlob(network, mirroringToId), table)).toEqual(
+    const { table, styleToId } = buildStyleOverrideTable(network)
+    expect(decodeVectorNetworkBlob(encodeVectorNetworkBlob(network, styleToId), table)).toEqual(
       network
     )
   })
@@ -238,5 +238,30 @@ describe('@open-pencil/fig NodeChange policy', () => {
       fields
     )
     expect(fields.fillPaints).toEqual([{ type: 'SOLID', visible: true }])
+  })
+})
+
+describe('one-ended arrow import', () => {
+  test('a per-vertex arrow cap does not become the node-wide cap', () => {
+    const network = {
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0, strokeCap: 'ARROW_EQUILATERAL' }
+      ],
+      segments: [{ start: 0, end: 1, tangentStart: { x: 0, y: 0 }, tangentEnd: { x: 0, y: 0 } }],
+      regions: []
+    }
+    const { table, styleToId } = buildStyleOverrideTable(network)
+    const props = nodeChangeToProps(
+      {
+        type: 'VECTOR',
+        vectorData: { vectorNetworkBlob: 0, styleOverrideTable: table }
+      } as NodeChange,
+      [encodeVectorNetworkBlob(network, styleToId)]
+    )
+
+    expect(props.strokeCap).toBe('NONE')
+    expect(props.vectorNetwork?.vertices[1].strokeCap).toBe('ARROW_EQUILATERAL')
+    expect(props.vectorNetwork?.vertices[0].strokeCap).toBeUndefined()
   })
 })

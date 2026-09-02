@@ -1,6 +1,7 @@
 import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
+import type { CanvasLabelKind } from '#vue/canvas/labels/edit'
 import type { DragState } from '#vue/shared/input/types'
 
 type NodeEditMethods = Partial<{ enterNodeEditMode: (nodeId: string) => void }>
@@ -16,6 +17,7 @@ type TextEditInputOptions = {
   hitTestComponentLabel: (cx: number, cy: number) => SceneNode | null
   getClickCount: () => number
   wasSelectedBeforeClickSequence: (id: string) => boolean
+  onEditCanvasLabel?: (kind: CanvasLabelKind, node: SceneNode) => void
   setDrag: SetDrag
 }
 
@@ -28,6 +30,7 @@ export function createTextEditInput(options: TextEditInputOptions) {
     hitTestComponentLabel,
     getClickCount,
     wasSelectedBeforeClickSequence,
+    onEditCanvasLabel,
     setDrag
   } = options
 
@@ -86,30 +89,46 @@ export function createTextEditInput(options: TextEditInputOptions) {
     return null
   }
 
+  function startSectionTitleRename(cx: number, cy: number): boolean {
+    const sectionTitle = hitTestSectionTitle(cx, cy)
+    if (sectionTitle?.type !== 'SECTION') return false
+    editor.select([sectionTitle.id])
+    onEditCanvasLabel?.('section-title', sectionTitle)
+    return true
+  }
+
+  function handleContainerDoubleClick(
+    selectedId: string | undefined,
+    cx: number,
+    cy: number
+  ): boolean {
+    const selectedNode = selectedId ? editor.graph.getNode(selectedId) : undefined
+    if (
+      !selectedNode ||
+      !selectedId ||
+      !editor.graph.isContainer(selectedId) ||
+      selectedNode.locked
+    ) {
+      return false
+    }
+    const hit = getContainerDescendantHit(selectedId, cx, cy)
+    editor.enterContainer(selectedId)
+    if (hit?.type === 'TEXT') startTextEditingAt(hit, cx, cy)
+    else if (hit) editor.select([hit.id])
+    else editor.clearSelection()
+    return true
+  }
+
   function onDblClick(e: MouseEvent) {
     const nodeEditEditor = editor as Editor & NodeEditMethods
     if (editor.state.editingTextId) return
 
     const { cx, cy } = getCoords(e)
+    if (startSectionTitleRename(cx, cy)) return
 
     const selectedId =
       editor.state.selectedIds.size === 1 ? [...editor.state.selectedIds][0] : undefined
-    const selectedNode = selectedId ? editor.graph.getNode(selectedId) : undefined
-    const canEnter =
-      selectedNode && selectedId && editor.graph.isContainer(selectedId) && !selectedNode.locked
-
-    if (canEnter) {
-      const hit = getContainerDescendantHit(selectedId, cx, cy)
-      editor.enterContainer(selectedId)
-      if (hit?.type === 'TEXT') {
-        startTextEditingAt(hit, cx, cy)
-      } else if (hit) {
-        editor.select([hit.id])
-      } else {
-        editor.clearSelection()
-      }
-      return
-    }
+    if (handleContainerDoubleClick(selectedId, cx, cy)) return
 
     const hit =
       hitTestSectionTitle(cx, cy) ?? hitTestComponentLabel(cx, cy) ?? hitTestInScope(cx, cy, true)

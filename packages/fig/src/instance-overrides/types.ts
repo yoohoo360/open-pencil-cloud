@@ -38,7 +38,7 @@ export type ComponentPropValue = {
 
 export interface ComponentPropAssignment {
   defID?: GUID
-  value: ComponentPropValue
+  value?: ComponentPropValue
   varValue?: {
     value?: {
       boolValue?: boolean

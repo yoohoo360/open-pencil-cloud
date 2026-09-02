@@ -173,6 +173,8 @@
   "strokeCapButt": "Płaskie zakończenie",
   "strokeCapRound": "Okrągłe zakończenie",
   "strokeCapSquare": "Kwadratowe zakończenie",
+  "strokeCapArrowLines": "Strzałka liniowa",
+  "strokeCapArrowEquilateral": "Strzałka trójkątna",
   "strokeJoin": "Łączenie obrysu",
   "strokeJoinMiter": "Łączenie ostre",
   "strokeJoinBevel": "Łączenie ścięte",

@@ -65,6 +65,8 @@ export function createCanvasSurfaceManager({
 
     const glCtx = canvas.getContext('webgl2') ?? null
     state.renderer = new SkiaRenderer(ck, surface, glCtx)
+    state.renderer.tracksSceneSettlement = options?.layer !== 'overlays'
+    state.renderer.tiledSceneEnabled = options?.sceneRenderer === 'tiled'
     editor.setCanvasKit(ck, state.renderer)
     canvas.dataset.ready = '1'
 
@@ -79,6 +81,14 @@ export function createCanvasSurfaceManager({
     }
   }
 
+  function acknowledgePresentation() {
+    const renderedState = options?.getRenderState?.() ?? editor.state
+    options?.onPresented?.({
+      renderVersion: renderedState.renderVersion,
+      sceneVersion: renderedState.sceneVersion
+    })
+  }
+
   function renderNow() {
     if (!state.renderer || isDestroyed()) return
     state.renderer.renderFromEditorState(
@@ -91,7 +101,11 @@ export function createCanvasSurfaceManager({
       options?.layer ?? 'full'
     )
     renderLoop.markRendered()
+    acknowledgePresentation()
     clearSceneBackingRenderTimer()
+    if (options?.layer === 'scene' && state.renderer.tiledScenePending) {
+      renderLoop.markDirty()
+    }
     if (options?.layer === 'scene' && state.renderer.sceneBackingNeedsCrispRender) {
       const delay = Math.max(0, state.renderer.sceneBackingPreviewUntil - performance.now())
       sceneBackingRenderTimer = setTimeout(() => renderLoop.markDirty(), delay)
@@ -100,7 +114,8 @@ export function createCanvasSurfaceManager({
 
   const renderLoop = createCanvasRenderLoop(editor, renderNow, {
     layer: options?.layer,
-    getRenderState: options?.getRenderState
+    getRenderState: options?.getRenderState,
+    shouldSuspendRender: options?.shouldSuspendRender
   })
 
   function resizeCanvas(canvas: HTMLCanvasElement) {

@@ -1,5 +1,4 @@
 import type { Editor, EditorState } from '@open-pencil/core/editor'
-import { computeAllLayouts } from '@open-pencil/core/layout'
 
 import { describeDiagnosticError, recordDocumentFailure } from '@/app/diagnostics'
 import { yieldToUI } from '@/app/document/io/browser'
@@ -7,12 +6,12 @@ import { readFigDocument } from '@/app/document/io/fig'
 import { applyImportedDocument } from '@/app/document/io/imported-document'
 import { readReloadSource } from '@/app/document/io/reload-source'
 import { captureReloadState, restoreReloadState } from '@/app/document/io/reload-state'
+import type { EditorPreparationController } from '@/app/editor/preparation/controller'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { toast } from '@/app/shell/ui'
 
 type OpenDocumentState = EditorState & {
   documentName: string
-  loading: boolean
 }
 
 type ReloadDocumentState = EditorState & { documentName: string }
@@ -27,6 +26,7 @@ type OpenFigFileOptions = {
     path?: string
   ) => void
   fitCurrentPageToViewport: () => Promise<void>
+  preparationController: EditorPreparationController
 }
 
 type ReloadActionsOptions = {
@@ -35,32 +35,48 @@ type ReloadActionsOptions = {
   getFilePath: () => string | null
   getFileHandle: () => FileSystemFileHandle | null
   setSavedVersion: (version: number) => void
+  preparationController: EditorPreparationController
 }
 
 export function createOpenActions({
   editor,
   state,
   setDocumentSource,
-  fitCurrentPageToViewport
+  fitCurrentPageToViewport,
+  preparationController
 }: OpenFigFileOptions) {
   async function openFigFile(file: File, handle?: FileSystemFileHandle, path?: string) {
+    const load = preparationController.begin({ kind: 'document-open', subject: file.name })
+    let succeeded = false
     try {
-      state.loading = true
+      load.update({ phase: 'reading', detail: file.name })
       await yieldToUI()
-      const imported = await readFigDocument(file, editor)
+      load.update({ phase: 'decoding', detail: file.name })
+      const imported = await readFigDocument(file, load.signal)
       await yieldToUI()
-      await applyImportedDocument(editor, imported)
+      load.update({ phase: 'materializing', detail: file.name })
+      await applyImportedDocument(editor, imported, load)
       state.documentName = file.name.replace(/\.fig$/i, '')
       setDocumentSource(file.name, 'fig', handle, path)
       await fitCurrentPageToViewport()
+      load.update({ phase: 'preparing-render', detail: state.documentName })
       editor.requestRender()
+      succeeded = true
     } catch (e) {
+      if (load.signal.aborted) return
+      const diagnostic = describeDiagnosticError(e)
+      load.fail({
+        code: 'decode-failed',
+        message: e instanceof Error ? e.message : String(e),
+        retryable: diagnostic.retryable ?? true
+      })
       recordDocumentFailure({
         operation: 'open',
         format: 'fig',
-        ...describeDiagnosticError(e),
-        retryable: describeDiagnosticError(e).retryable
+        ...diagnostic,
+        retryable: diagnostic.retryable
       })
+      console.error('Failed to open .fig file:', e)
       toast.error(
         notificationMessages.get().openFileFailed({
           name: file.name,
@@ -68,7 +84,7 @@ export function createOpenActions({
         })
       )
     } finally {
-      state.loading = false
+      if (succeeded) load.complete()
     }
   }
 
@@ -80,27 +96,56 @@ export function createReloadActions({
   state,
   getFilePath,
   getFileHandle,
-  setSavedVersion
+  setSavedVersion,
+  preparationController
 }: ReloadActionsOptions) {
   async function reloadFromDisk() {
-    const snapshot = captureReloadState(state)
-    const filePath = getFilePath()
-    const fileHandle = getFileHandle()
-
-    const imported = await readReloadSource({
-      documentName: state.documentName,
-      filePath,
-      fileHandle
+    const load = preparationController.begin({
+      kind: 'document-reload',
+      subject: state.documentName
     })
-    if (!imported) return
-    const pageId = imported.getNode(snapshot.pageId) ? snapshot.pageId : imported.getPages()[0]?.id
-    if (pageId) computeAllLayouts(imported, pageId)
-    editor.replaceGraph(imported)
-
-    editor.undo.clear()
-    restoreReloadState(editor, state, snapshot)
-    editor.requestRender()
-    setSavedVersion(state.sceneVersion)
+    let succeeded = false
+    try {
+      const snapshot = captureReloadState(state)
+      load.update({ phase: 'reading', detail: state.documentName })
+      const imported = await readReloadSource({
+        documentName: state.documentName,
+        filePath: getFilePath(),
+        fileHandle: getFileHandle(),
+        signal: load.signal
+      })
+      if (!imported) {
+        succeeded = true
+        return
+      }
+      await applyImportedDocument(editor, imported, load)
+      restoreReloadState(editor, state, snapshot)
+      editor.requestRender()
+      setSavedVersion(state.sceneVersion)
+      succeeded = true
+    } catch (error) {
+      if (load.signal.aborted) return
+      const diagnostic = describeDiagnosticError(error)
+      load.fail({
+        code: 'decode-failed',
+        message: error instanceof Error ? error.message : String(error),
+        retryable: diagnostic.retryable ?? true
+      })
+      recordDocumentFailure({
+        operation: 'open',
+        format: 'fig',
+        ...diagnostic,
+        retryable: diagnostic.retryable
+      })
+      toast.error(
+        notificationMessages.get().openFileFailed({
+          name: state.documentName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      )
+    } finally {
+      if (succeeded) load.complete()
+    }
   }
 
   return { reloadFromDisk }

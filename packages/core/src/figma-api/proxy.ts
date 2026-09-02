@@ -1,3 +1,4 @@
+import { recordInstanceOverride } from '@open-pencil/scene-graph'
 import type {
   SceneGraph,
   SceneNode,
@@ -27,6 +28,7 @@ import {
   type FigmaVectorPath
 } from './accessors/vector'
 import { installVisualNodeProxyAccessors } from './accessors/visual'
+import { installComponentPropertyAccessors } from './components'
 import type { FigmaFontName } from './fonts'
 import { getPageBackgrounds, setPageBackgrounds } from './page-backgrounds'
 import * as PluginData from './plugin-data'
@@ -136,7 +138,10 @@ export class FigmaNodeProxy {
 
   private _update(changes: Partial<SceneNode>): void {
     assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
-    this[INTERNAL_GRAPH].updateNode(this[INTERNAL_ID], changes)
+    const graph = this[INTERNAL_GRAPH]
+    const id = this[INTERNAL_ID]
+    graph.updateNode(id, changes)
+    recordInstanceOverride(graph, id, Object.keys(changes))
   }
 
   private _raw(): SceneNode {
@@ -596,3 +601,4 @@ const proxyInternals = {
 
 installLayoutNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
 installVariableModeNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
+installComponentPropertyAccessors(FigmaNodeProxy.prototype, proxyInternals)

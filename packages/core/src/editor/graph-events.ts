@@ -21,6 +21,13 @@ const GEOMETRY_CACHE_KEYS = new Set<keyof SceneNode>([
   'strokeGeometry'
 ])
 
+const TILED_CHUNK_TOPOLOGY_KEYS = new Set<keyof SceneNode>([
+  'type',
+  'visible',
+  'isMask',
+  'maskType'
+])
+
 const NODE_PICTURE_STABLE_PREVIEW_KEYS = new Set<keyof SceneNode>([
   'x',
   'y',
@@ -48,6 +55,7 @@ export function rendererInvalidationForChanges(
 }
 
 function invalidateRenderersForChange(
+  graph: SceneGraph,
   renderers: Iterable<SkiaRenderer>,
   id: string,
   changes: Partial<SceneNode>,
@@ -57,6 +65,11 @@ function invalidateRenderersForChange(
   for (const renderer of renderers) {
     if (invalidation.geometryCache) renderer.invalidateVectorPath(id)
     if (invalidation.nodePicture) renderer.invalidateNodePicture(id)
+    if (Object.keys(changes).some((key) => TILED_CHUNK_TOPOLOGY_KEYS.has(key as keyof SceneNode))) {
+      renderer.tiledScene.invalidateStructure()
+    } else {
+      renderer.tiledScene.invalidateNode(id, graph)
+    }
   }
 }
 
@@ -64,7 +77,7 @@ export function createGraphEventSubscription(options: GraphEventOptions) {
   let unbindGraphEvents: (() => void) | null = null
 
   function onNodeUpdated(id: string, changes: Partial<SceneNode>) {
-    invalidateRenderersForChange(options.getRenderers(), id, changes, true)
+    invalidateRenderersForChange(options.getGraph(), options.getRenderers(), id, changes, true)
     options.emitEditorEvent('node:updated', id, changes)
     options.scheduleComponentSync(id)
     options.requestRender()
@@ -72,10 +85,20 @@ export function createGraphEventSubscription(options: GraphEventOptions) {
 
   function onNodePreviewUpdated(id: string, changes: Partial<SceneNode>) {
     const { nodePicture } = rendererInvalidationForChanges(changes, { preview: true })
-    invalidateRenderersForChange(options.getRenderers(), id, changes, nodePicture)
+    invalidateRenderersForChange(
+      options.getGraph(),
+      options.getRenderers(),
+      id,
+      changes,
+      nodePicture
+    )
   }
 
   function onNodeStructureChanged(nodeId: string) {
+    for (const renderer of options.getRenderers()) {
+      renderer.invalidateNodePicture(nodeId)
+      renderer.tiledScene.invalidateStructure()
+    }
     options.scheduleComponentSync(nodeId)
     options.requestRender()
   }
@@ -104,5 +127,10 @@ export function createGraphEventSubscription(options: GraphEventOptions) {
     })
   }
 
-  return { subscribeToGraph }
+  function unsubscribeFromGraph() {
+    unbindGraphEvents?.()
+    unbindGraphEvents = null
+  }
+
+  return { subscribeToGraph, unsubscribeFromGraph }
 }

@@ -31,6 +31,7 @@ import {
   makeCanvasNodeChange
 } from '#core/kiwi/fig/node-change/serialize'
 import { cloneSceneGraphForFigExport } from '#core/kiwi/fig/parse/transfer'
+import { originalFigArchive } from '#core/kiwi/fig/session/original-archive'
 
 const THUMBNAIL_1X1 = decodeBase64(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
@@ -445,8 +446,8 @@ export async function exportFigFile(
   pageId?: string,
   renderHeadlessThumbnail = false
 ): Promise<Uint8Array> {
-  // Lazy population synchronizes component trees and therefore mutates its graph. Saving must not
-  // rewrite the live editor document or restore component values over edits made by the user.
+  const originalArchive = await originalFigArchive(sourceGraph)
+  if (originalArchive) return originalArchive.slice()
   const graph = cloneSceneGraphForFigExport(sourceGraph)
   populateAllLazyFigImportRoots(graph)
   await initCodec()

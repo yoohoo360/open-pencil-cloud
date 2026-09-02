@@ -8,17 +8,13 @@ import {
   serializedSceneGraphTransferList
 } from '#core/kiwi/fig/parse/transfer'
 import { buildFigPopulationDelta, installFigMutationJournal } from '#core/kiwi/fig/population/delta'
+import type { FigSessionPopulateRequest } from '#core/kiwi/fig/session/protocol'
 
 interface WorkerParseRequest {
   buffer: ArrayBuffer
   options?: { populate?: 'all' | 'first-page' }
 }
-interface PopulateRequest {
-  type: 'populate'
-  requestId: string
-  baseRevision: number
-  pageId: string
-}
+type PopulateRequest = FigSessionPopulateRequest
 type WorkerRequest = ArrayBuffer | WorkerParseRequest | PopulateRequest
 type WorkerPostMessage = (message: unknown, transfer: Transferable[]) => void
 const postWorkerMessage: WorkerPostMessage = (message, transfer) => {

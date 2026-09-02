@@ -5,6 +5,7 @@ import type { Editor } from '@open-pencil/core/editor'
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import { createGuideInput, selectedTopLevelGuideFrameId } from '#vue/canvas/guides/input'
+import { createCanvasLabelEdit } from '#vue/canvas/labels/edit'
 import { handlePenDragMove, updatePenHover } from '#vue/canvas/pen/input'
 import { createCanvasPointer } from '#vue/canvas/pointer/use'
 import { createTextEditInput } from '#vue/canvas/text-edit/input'
@@ -44,6 +45,7 @@ export function useCanvasInput(
   isEnabled: () => boolean = () => true
 ) {
   const drag = ref<DragState | null>(null)
+  const canvasLabelEdit = createCanvasLabelEdit(editor)
   const cursorOverride = ref<string | null>(null)
   const autoLayoutPaddingEdit = ref<{
     nodeId: string
@@ -138,6 +140,7 @@ export function useCanvasInput(
     hitTestComponentLabel,
     getClickCount,
     wasSelectedBeforeClickSequence: (id) => selectedIdsBeforeClickSequence.value.has(id),
+    onEditCanvasLabel: canvasLabelEdit.start,
     setDrag
   })
 
@@ -474,6 +477,10 @@ export function useCanvasInput(
   return {
     drag,
     cursorOverride,
+    canvasLabelEdit: canvasLabelEdit.edit,
+    updateCanvasLabelEdit: canvasLabelEdit.update,
+    commitCanvasLabelEdit: canvasLabelEdit.commit,
+    cancelCanvasLabelEdit: canvasLabelEdit.cancel,
     autoLayoutPaddingEdit,
     updateAutoLayoutPaddingEdit,
     commitAutoLayoutPaddingEdit,

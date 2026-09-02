@@ -278,7 +278,7 @@ function computeNodeVisualBounds(node: SceneNode, graph: SceneGraph): VisualBoun
   // through the world matrix. Expanding the already-rotated AABB by `stroke`
   // underestimates the stroked bounds for rotated nodes (the true stroked AABB
   // grows by `stroke * (|cos θ| + |sin θ|)`, not `stroke`).
-  const stroke = strokeOverflow(node.strokes)
+  const stroke = strokeOverflow(node.strokes, node.strokeCap, node.vectorNetwork)
   const baseCorners = Matrix.mapPoints(matrix, [
     -stroke,
     -stroke,

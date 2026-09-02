@@ -113,6 +113,8 @@ export const developmentSidebar = (
       ...(!prefix
         ? [
             { text: 'Roadmap', link: '/development/roadmap' },
+            { text: 'Navigation Performance', link: '/development/navigation-performance' },
+            { text: 'Renderer Lifecycle', link: '/development/renderer-lifecycle' },
             { text: 'Renderer Profiler', link: '/development/renderer-profiler' },
             { text: 'Vector Conversion', link: '/development/vector-conversion' },
           ]

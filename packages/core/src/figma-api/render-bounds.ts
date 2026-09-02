@@ -76,7 +76,7 @@ function ownRenderBounds(node: SceneNode, graph: SceneGraph): VisualBounds | nul
   if (!hasRenderableGeometry(node)) return null
 
   const base = transformedRect(node, graph, 0, 0, node.width, node.height)
-  const stroke = strokeOverflow(node.strokes)
+  const stroke = strokeOverflow(node.strokes, node.strokeCap, node.vectorNetwork)
   let bounds = transformedRect(
     node,
     graph,

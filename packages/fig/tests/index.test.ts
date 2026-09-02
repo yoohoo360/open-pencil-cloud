@@ -18,6 +18,16 @@ import {
   writeFigContainer
 } from '../src/index'
 
+const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+function appendChunk(container: Uint8Array, chunk: Uint8Array): Uint8Array {
+  const bytes = new Uint8Array(container.byteLength + 4 + chunk.byteLength)
+  bytes.set(container)
+  new DataView(bytes.buffer).setUint32(container.byteLength, chunk.byteLength, true)
+  bytes.set(chunk, container.byteLength + 4)
+  return bytes
+}
+
 describe('@open-pencil/fig package API', () => {
   beforeAll(async () => {
     await initCodec()
@@ -66,6 +76,34 @@ describe('@open-pencil/fig package API', () => {
     expect(parsed.images).toEqual([['hash', new Uint8Array([9, 8, 7])]])
     expect(parsed.thumbnailPNG).toEqual(thumbnailPNG)
     expect(parsed.metaJSON).toBe(metaJSON)
+  })
+
+  it('parses legacy raw fig-kiwi files and preserves their thumbnail chunk', () => {
+    const container = writeFigContainer(
+      {
+        schemaDeflated: deflateSync(getSchemaBytes()),
+        dataRaw: encodeMessage(
+          createNodeChangesMessage(0, 0, [
+            {
+              guid: { sessionID: 0, localID: 0 },
+              type: 'DOCUMENT',
+              phase: 'CREATED',
+              name: 'Document'
+            }
+          ])
+        )
+      },
+      { version: 1 }
+    )
+    const thumbnailPNG = new Uint8Array([...PNG_SIGNATURE, 1, 2, 3])
+    const bytes = appendChunk(container, thumbnailPNG)
+    const parsed = parseFigBuffer(bytes.buffer as ArrayBuffer)
+
+    expect(parsed.nodeChanges).toHaveLength(1)
+    expect(parsed.figKiwiVersion).toBe(1)
+    expect(parsed.images).toEqual([])
+    expect(parsed.thumbnailPNG).toEqual(thumbnailPNG)
+    expect(parsed.metaJSON).toBeNull()
   })
 
   it('rejects invalid fig-kiwi containers', () => {

@@ -1,6 +1,7 @@
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import { getLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
+import type { FigSessionResponse } from '#core/kiwi/fig/session/protocol'
 import { randomHex } from '#core/random'
 
 import { applyFigPopulationDelta, type FigPopulationDelta } from './delta'
@@ -17,6 +18,12 @@ type WorkerResult = PopulationResult | { type: 'population-error'; error: string
 const MAX_FIG_POPULATION_WORKER_NODES = 200_000
 const FIG_POPULATION_WORKER_TIMEOUT_MS = 30_000
 const populationWorkers = new WeakMap<SceneGraph, FigPopulationWorker>()
+interface OriginalArchiveRequest {
+  request: () => Promise<Uint8Array>
+  valid: boolean
+  unbind: () => void
+}
+const originalArchiveRequests = new WeakMap<SceneGraph, OriginalArchiveRequest>()
 
 export interface FigPopulationWorkerTelemetry {
   event: 'registered' | 'populate' | 'fallback' | 'stale' | 'terminated'
@@ -33,13 +40,21 @@ function emitTelemetry(detail: FigPopulationWorkerTelemetry): void {
   globalThis.dispatchEvent(new CustomEvent('openpencil:fig-population-worker', { detail }))
 }
 
-export function registerFigPopulationWorker(graph: SceneGraph, worker: Worker): void {
+export function registerFigPopulationWorker(
+  graph: SceneGraph,
+  worker: Worker,
+  port?: MessagePort
+): void {
   if (graph.nodes.size > MAX_FIG_POPULATION_WORKER_NODES) {
     emitTelemetry({ event: 'fallback', reason: 'oversized' })
-    worker.terminate()
+    if (!port) {
+      worker.terminate()
+      return
+    }
+    populationWorkers.set(graph, createDisposalOnlyWorker(worker, port))
     return
   }
-  const client = createPopulationWorkerClient(graph, worker)
+  const client = createPopulationWorkerClient(graph, worker, port)
   populationWorkers.set(graph, client)
   emitTelemetry({ event: 'registered' })
 }
@@ -56,9 +71,59 @@ export function canUseFigPopulationWorker(graph: SceneGraph): boolean {
   )
 }
 
+export function registerOriginalArchiveRequest(
+  graph: SceneGraph,
+  request: () => Promise<Uint8Array>
+): void {
+  const entry: OriginalArchiveRequest = { request, valid: true, unbind: () => undefined }
+  const invalidate = () => {
+    if (!graph.isApplyingLayout) entry.valid = false
+  }
+  entry.unbind = graph.onNodeEvents({
+    created: invalidate,
+    updated: invalidate,
+    deleted: invalidate,
+    reparented: invalidate,
+    reordered: invalidate
+  })
+  originalArchiveRequests.set(graph, entry)
+}
+
+export async function requestOriginalArchive(graph: SceneGraph): Promise<Uint8Array | null> {
+  const entry = originalArchiveRequests.get(graph)
+  if (!entry?.valid) return null
+  const archive = await entry.request()
+  return originalArchiveRequests.get(graph)?.valid === true &&
+    originalArchiveRequests.get(graph) === entry
+    ? archive
+    : null
+}
+
+export function releaseFigPopulationWorker(graph: SceneGraph): void {
+  populationWorkers.get(graph)?.terminate()
+  populationWorkers.delete(graph)
+  originalArchiveRequests.get(graph)?.unbind()
+  originalArchiveRequests.delete(graph)
+}
+
 export interface FigPopulationWorker {
-  populate: (pageId: string) => Promise<boolean | null>
+  populate: (pageId: string, signal?: AbortSignal) => Promise<boolean | null>
   terminate: () => void
+}
+
+function createDisposalOnlyWorker(worker: Worker, port: MessagePort): FigPopulationWorker {
+  let disposed = false
+  return {
+    populate: () => Promise.resolve(null),
+    terminate() {
+      if (disposed) return
+      disposed = true
+      emitTelemetry({ event: 'terminated' })
+      port.postMessage({ type: 'dispose' })
+      port.close()
+      worker.terminate()
+    }
+  }
 }
 
 export function createFigPopulationWorker(graph: SceneGraph): FigPopulationWorker | null {
@@ -66,11 +131,16 @@ export function createFigPopulationWorker(graph: SceneGraph): FigPopulationWorke
   return populationWorkers.get(graph) ?? null
 }
 
-function createPopulationWorkerClient(graph: SceneGraph, worker: Worker): FigPopulationWorker {
+function createPopulationWorkerClient(
+  graph: SceneGraph,
+  worker: Worker,
+  port?: MessagePort
+): FigPopulationWorker {
   const pending = new Map<
     string,
     {
       resolve: (value: boolean | null) => void
+      abort?: () => void
       revision: number
       startedAt: number
       timeout: ReturnType<typeof setTimeout>
@@ -99,6 +169,7 @@ function createPopulationWorkerClient(graph: SceneGraph, worker: Worker): FigPop
     if (emit) emitTelemetry({ event: 'fallback', reason: 'worker-error' })
     for (const request of pending.values()) {
       clearTimeout(request.timeout)
+      request.abort?.()
       request.resolve(null)
     }
     pending.clear()
@@ -113,12 +184,12 @@ function createPopulationWorkerClient(graph: SceneGraph, worker: Worker): FigPop
     reparented: invalidate,
     reordered: invalidate
   })
-  worker.onmessage = (event: MessageEvent<WorkerResult>) => {
-    const result = event.data
+  const receive = (result: WorkerResult) => {
     if (result.type === 'population-error') return fail()
     const request = pending.get(result.requestId)
     if (!request) return
     clearTimeout(request.timeout)
+    request.abort?.()
     pending.delete(result.requestId)
     if (stale || revision !== request.revision || result.baseRevision !== request.revision) {
       emitTelemetry({ event: 'stale', reason: 'graph-mutation' })
@@ -147,27 +218,48 @@ function createPopulationWorkerClient(graph: SceneGraph, worker: Worker): FigPop
       deleted: result.delta.deleted.length
     })
   }
+  if (port) {
+    port.onmessage = (event: MessageEvent<FigSessionResponse>) =>
+      receive(event.data as WorkerResult)
+    port.start()
+  } else {
+    worker.onmessage = (event: MessageEvent<WorkerResult>) => receive(event.data)
+  }
   worker.onerror = () => fail()
   return {
-    populate(pageId) {
+    populate(pageId, signal) {
+      signal?.throwIfAborted()
       if (stale) return Promise.resolve(null)
       const requestId = randomHex()
       const baseRevision = revision
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
+        const abort = () => {
+          const request = pending.get(requestId)
+          if (!request) return
+          clearTimeout(request.timeout)
+          pending.delete(requestId)
+          fail(false)
+          reject(new DOMException('Aborted', 'AbortError'))
+        }
+        signal?.addEventListener('abort', abort, { once: true })
         const timeout = setTimeout(() => fail(), FIG_POPULATION_WORKER_TIMEOUT_MS)
         pending.set(requestId, {
           resolve,
+          abort: () => signal?.removeEventListener('abort', abort),
           revision: baseRevision,
           startedAt: performance.now(),
           timeout
         })
-        worker.postMessage({ type: 'populate', requestId, baseRevision, pageId }, [])
+        if (port) port.postMessage({ type: 'populate', requestId, baseRevision, pageId })
+        else worker.postMessage({ type: 'populate', requestId, baseRevision, pageId }, [])
       })
     },
     terminate() {
       if (disposed) return
       disposed = true
       emitTelemetry({ event: 'terminated' })
+      port?.postMessage({ type: 'dispose' })
+      port?.close()
       fail(false)
     }
   }

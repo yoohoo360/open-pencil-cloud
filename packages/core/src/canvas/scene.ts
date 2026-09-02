@@ -3,11 +3,19 @@ import type { Canvas, Path } from 'canvaskit-wasm'
 
 import {
   getAbsolutePositionFull,
+  getWorldMatrix,
   type SceneNode,
   type SceneGraph,
   type Fill
 } from '@open-pencil/scene-graph'
+import type { ArrowEndpoint } from '@open-pencil/scene-graph/arrow-caps'
+import {
+  arrowCapOverflow,
+  collectArrowEndpoints,
+  lineArrowEndpoints
+} from '@open-pencil/scene-graph/arrow-caps'
 import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
+import Matrix from '@open-pencil/scene-graph/matrix'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { DROP_HIGHLIGHT_ALPHA, DROP_HIGHLIGHT_STROKE, SECTION_CORNER_RADIUS } from '#core/constants'
@@ -21,13 +29,23 @@ import { drawVectorMultiStyleFills, paintFills } from './fills'
 import { drawLayoutGrids } from './layout-grids'
 import { renderMaskedChildIds } from './masks'
 import type { SkiaRenderer, RenderOverlays } from './renderer'
+import {
+  canCacheEffectRaster,
+  deleteEffectRaster,
+  effectRasterScale,
+  effectRasterScaleMatches,
+  installEffectRaster,
+  touchEffectRaster
+} from './renderer/effect-raster-cache'
 import { makeSmoothRRectPath, nodeHasRadius, nodeHasSmoothCorners } from './shapes'
 import {
   configureStrokePaint,
+  drawArrowHeads,
   drawDashedRRectWithSolidCorners,
   drawStyledRRectStroke,
   getStrokeCapEntity,
-  getStrokeJoinEntity
+  getStrokeJoinEntity,
+  normalizeDashPattern
 } from './strokes'
 import { drawParagraphWithHighlights } from './text'
 import {
@@ -225,6 +243,81 @@ function renderChildren(
     renderChildIds(r, canvas, graph, node.childIds, overlays, absX, absY, hasTransformedAncestor)
   }
 }
+export function renderNodeSelf(
+  r: SkiaRenderer,
+  canvas: Canvas,
+  graph: SceneGraph,
+  nodeId: string,
+  overlays: RenderOverlays = {}
+): void {
+  const node = graph.getNode(nodeId)
+  if (
+    !node ||
+    node.internalOnly ||
+    !node.visible ||
+    node.isMask ||
+    fontManager.isNodeBlocked(nodeId)
+  ) {
+    return
+  }
+  canvas.save()
+  canvas.translate(node.x, node.y)
+  applyNodeTransforms(r, canvas, node, nodeId, overlays)
+  renderNodeContent(r, canvas, graph, node, nodeId, overlays)
+  drawLayoutGrids(r, canvas, node)
+  canvas.restore()
+}
+
+function viewportLayerBounds(
+  r: SkiaRenderer,
+  graph: SceneGraph,
+  node: SceneNode,
+  padding: number
+): Float32Array | null {
+  if (!r.boundEffectLayersToViewport) return null
+  const inverse = Matrix.invert(getWorldMatrix(node, graph))
+  if (!inverse) return null
+  const viewport = r.worldViewport
+  const points = Matrix.mapPoints(inverse, [
+    viewport.x,
+    viewport.y,
+    viewport.x + viewport.w,
+    viewport.y,
+    viewport.x + viewport.w,
+    viewport.y + viewport.h,
+    viewport.x,
+    viewport.y + viewport.h
+  ])
+  const xs = [points[0], points[2], points[4], points[6]]
+  const ys = [points[1], points[3], points[5], points[7]]
+  return r.ck.LTRBRect(
+    Math.min(...xs) - padding,
+    Math.min(...ys) - padding,
+    Math.max(...xs) + padding,
+    Math.max(...ys) + padding
+  )
+}
+
+function nodeIsolationLayerBounds(
+  r: SkiaRenderer,
+  graph: SceneGraph,
+  node: SceneNode,
+  nodeId: string,
+  absX: number,
+  absY: number
+): Float32Array {
+  const viewportBounds = viewportLayerBounds(r, graph, node, 0)
+  if (viewportBounds) return viewportBounds
+  const bounds = computeDescendantVisualBounds(
+    [nodeId],
+    (id) => graph.getNode(id) ?? undefined,
+    (id) => graph.getAbsolutePosition(id)
+  )
+  return bounds
+    ? r.ck.LTRBRect(bounds.minX - absX, bounds.minY - absY, bounds.maxX - absX, bounds.maxY - absY)
+    : r.ck.LTRBRect(0, 0, node.width, node.height)
+}
+
 export function renderNode(
   r: SkiaRenderer,
   canvas: Canvas,
@@ -264,19 +357,7 @@ export function renderNode(
 
   const needsNodeLayer = node.opacity < 1 || needsIsolatedBlendLayer(node.blendMode)
   if (needsNodeLayer) {
-    const bounds = computeDescendantVisualBounds(
-      [nodeId],
-      (id) => graph.getNode(id) ?? undefined,
-      (id) => graph.getAbsolutePosition(id)
-    )
-    const layerBounds = bounds
-      ? r.ck.LTRBRect(
-          bounds.minX - absX,
-          bounds.minY - absY,
-          bounds.maxX - absX,
-          bounds.maxY - absY
-        )
-      : r.ck.LTRBRect(0, 0, node.width, node.height)
+    const layerBounds = nodeIsolationLayerBounds(r, graph, node, nodeId, absX, absY)
     r.opacityPaint.setAlphaf(node.opacity)
     r.opacityPaint.setBlendMode(figmaBlendModeToSkia(r.ck, node.blendMode))
     canvas.saveLayer(r.opacityPaint, layerBounds)
@@ -295,7 +376,13 @@ export function renderNode(
     const blurPadding = layerBlur.radius * 2
     canvas.saveLayer(
       r.effectLayerPaint,
-      r.ck.LTRBRect(-blurPadding, -blurPadding, node.width + blurPadding, node.height + blurPadding)
+      viewportLayerBounds(r, graph, node, blurPadding) ??
+        r.ck.LTRBRect(
+          -blurPadding,
+          -blurPadding,
+          node.width + blurPadding,
+          node.height + blurPadding
+        )
     )
   }
 
@@ -396,37 +483,126 @@ export function renderComponentSet(
   r.auxStroke.setPathEffect(null)
 }
 
+function canRasterCacheEffects(node: SceneNode): boolean {
+  const visibleEffects = node.effects.filter((effect) => effect.visible)
+  return (
+    visibleEffects.length > 0 &&
+    visibleEffects.every(
+      (effect) => effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW'
+    )
+  )
+}
+
 export function renderShape(
   r: SkiaRenderer,
   canvas: Canvas,
   node: SceneNode,
   graph: SceneGraph
 ): void {
-  const hasEffects = node.effects.length > 0 && node.effects.some((e) => e.visible)
+  const hasEffects = node.effects.some((effect) => effect.visible)
+  if (!hasEffects) {
+    r.renderShapeUncached(canvas, node, graph)
+    return
+  }
 
-  if (hasEffects) {
-    const cached = r.nodePictureCache.get(node.id)
-    const cachedGeneration = r.nodePictureCacheGenerations.get(node.id)
-    if (cached && cachedGeneration === r.fontGeneration) {
-      canvas.drawPicture(cached)
+  const canRasterCache = r.renderingSceneBacking && canRasterCacheEffects(node)
+  const targetScale = effectRasterScale(r.zoom * r.dpr)
+  const cachedRaster = canRasterCache ? touchEffectRaster(r.effectRasterCache, node.id) : null
+  if (
+    cachedRaster &&
+    (cachedRaster.fontGeneration !== r.fontGeneration ||
+      !effectRasterScaleMatches(cachedRaster.scale, targetScale))
+  ) {
+    deleteEffectRaster(r.effectRasterCache, node.id)
+  } else if (cachedRaster) {
+    canvas.drawImageRectOptions(
+      cachedRaster.image,
+      r.ck.LTRBRect(0, 0, cachedRaster.image.width(), cachedRaster.image.height()),
+      r.ck.LTRBRect(
+        cachedRaster.left,
+        cachedRaster.top,
+        cachedRaster.left + cachedRaster.width,
+        cachedRaster.top + cachedRaster.height
+      ),
+      r.ck.FilterMode.Linear,
+      r.ck.MipmapMode.None,
+      null
+    )
+    return
+  }
+
+  const margin = Math.max(
+    r.effectOverflow(node),
+    arrowCapOverflow(node.strokes, node.strokeCap, node.vectorNetwork)
+  )
+  const width = node.width + margin * 2
+  const height = node.height + margin * 2
+  const scale = targetScale
+  if (canRasterCache && canCacheEffectRaster(width, height, scale)) {
+    const surface = r.surface.makeSurface({
+      width: Math.ceil(width * scale),
+      height: Math.ceil(height * scale),
+      colorType: r.ck.ColorType.RGBA_8888,
+      alphaType: r.ck.AlphaType.Premul,
+      colorSpace: r.ck.ColorSpace.SRGB
+    })
+    const rasterCanvas = surface.getCanvas()
+    try {
+      rasterCanvas.clear(r.ck.TRANSPARENT)
+      rasterCanvas.scale(scale, scale)
+      rasterCanvas.translate(margin, margin)
+      r.renderShapeUncached(rasterCanvas, node, graph)
+      surface.flush()
+      const image = surface.makeImageSnapshot()
+      installEffectRaster(r.effectRasterCache, node.id, {
+        image,
+        left: -margin,
+        top: -margin,
+        width,
+        height,
+        scale,
+        pixels: image.width() * image.height(),
+        fontGeneration: r.fontGeneration,
+        dependencyIds: node.childIds.slice(0, 1)
+      })
+      canvas.drawImageRectOptions(
+        image,
+        r.ck.LTRBRect(0, 0, image.width(), image.height()),
+        r.ck.LTRBRect(-margin, -margin, node.width + margin, node.height + margin),
+        r.ck.FilterMode.Linear,
+        r.ck.MipmapMode.None,
+        null
+      )
       return
+    } finally {
+      surface.delete()
     }
-    if (cached) cached.delete()
-    r.nodePictureCache.delete(node.id)
-    r.nodePictureCacheGenerations.delete(node.id)
+  }
 
-    const margin = r.effectOverflow(node)
-    const bounds = r.ck.LTRBRect(-margin, -margin, node.width + margin, node.height + margin)
-    const recorder = new r.ck.PictureRecorder()
+  const cached = r.nodePictureCache.get(node.id)
+  const cachedGeneration = r.nodePictureCacheGenerations.get(node.id)
+  if (cached && cachedGeneration === r.fontGeneration) {
+    canvas.drawPicture(cached)
+    return
+  }
+  if (cached) cached.delete()
+  r.nodePictureCache.delete(node.id)
+  r.nodePictureCacheGenerations.delete(node.id)
+  r.nodePictureCacheDependencies.delete(node.id)
+
+  const bounds = r.ck.LTRBRect(-margin, -margin, node.width + margin, node.height + margin)
+  const recorder = new r.ck.PictureRecorder()
+  try {
     const recCanvas = recorder.beginRecording(bounds)
     r.renderShapeUncached(recCanvas, node, graph)
     const picture = recorder.finishRecordingAsPicture()
-    recorder.delete()
     r.nodePictureCache.set(node.id, picture)
     r.nodePictureCacheGenerations.set(node.id, r.fontGeneration)
+    const shadowChild = getShadowShapeChild(node, graph)
+    r.nodePictureCacheDependencies.set(node.id, shadowChild ? [shadowChild.id] : [])
     canvas.drawPicture(picture)
-  } else {
-    r.renderShapeUncached(canvas, node, graph)
+  } finally {
+    recorder.delete()
   }
 }
 
@@ -498,8 +674,8 @@ function drawVectorPathStrokes(
   miterLimit: number,
   outlineCacheKey?: string
 ): void {
-  const dash = stroke.dashPattern
-  if (dash && dash.length > 0) {
+  const dash = normalizeDashPattern(stroke.dashPattern)
+  if (dash.length > 0) {
     r.strokePaint.setColor(r.ck.Color4f(sc.r, sc.g, sc.b, sc.a))
     r.strokePaint.setAlphaf(stroke.opacity)
     r.strokePaint.setStrokeWidth(stroke.weight)
@@ -620,6 +796,30 @@ function isPathTextWithStrokeGeometry(node: SceneNode): boolean {
   )
 }
 
+/**
+ * Draws arrow-cap heads for a stroke on the node types that carry open path
+ * ends. Runs after the shaft regardless of which branch painted it, so heads
+ * survive fills, non-center alignment, corner radii, and dashed shafts.
+ */
+function drawNodeArrowHeads(
+  r: SkiaRenderer,
+  canvas: Canvas,
+  node: SceneNode,
+  stroke: SceneNode['strokes'][0],
+  color: Color
+): void {
+  const cap = stroke.cap ?? node.strokeCap
+  let endpoints: ArrowEndpoint[] = []
+  if (node.type === 'LINE') {
+    endpoints = lineArrowEndpoints(node.width, node.height, cap)
+  } else if (node.type === 'VECTOR' && node.vectorNetwork) {
+    endpoints = collectArrowEndpoints(node.vectorNetwork, cap)
+  }
+  if (endpoints.length > 0) {
+    drawArrowHeads(r, canvas, endpoints, stroke.weight, color, stroke.opacity)
+  }
+}
+
 function paintNodeStrokes(
   r: SkiaRenderer,
   canvas: Canvas,
@@ -641,9 +841,11 @@ function paintNodeStrokes(
       const centerline = vectorNetworkToCenterlinePath(r.ck, node.vectorNetwork)
       drawVectorPathStrokes(r, canvas, [centerline], stroke, color, node.strokeMiterLimit)
       centerline.delete()
+      drawNodeArrowHeads(r, canvas, node, stroke, color)
       return
     }
     drawNodeStroke(r, canvas, node, rect, hasRadius, stroke, color, sg, vectorPaths, vectorStroke)
+    drawNodeArrowHeads(r, canvas, node, stroke, color)
   })
 }
 
@@ -755,6 +957,19 @@ function shouldClipTextToLayoutBox(node: SceneNode): boolean {
   )
 }
 
+function drawSubstitutedPathText(
+  r: SkiaRenderer,
+  canvas: Canvas,
+  node: SceneNode,
+  fontReadiness: ReturnType<SkiaRenderer['nodeFontReadiness']>
+): boolean {
+  return (
+    fontReadiness === 'substituted' &&
+    node.textPathData !== null &&
+    drawDerivedText(r, canvas, node)
+  )
+}
+
 export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fill?: Fill): void {
   const text = node.text
   if (!text) return
@@ -765,21 +980,27 @@ export function renderText(r: SkiaRenderer, canvas: Canvas, node: SceneNode, fil
   }
 
   const fontReadiness = r.nodeFontReadiness(node)
-  if (fontReadiness !== 'ready') {
-    if (fontReadiness === 'exhausted') {
-      if (node.textPicture && r.isTextPictureCurrent(node)) {
-        const pic = r.ck.MakePicture(node.textPicture)
-        if (pic) {
-          canvas.drawPicture(pic)
-          pic.delete()
-          canvas.restore()
-          return
-        }
-      }
-      if (drawDerivedText(r, canvas, node)) {
+  if (fontReadiness === 'pending') {
+    canvas.restore()
+    return
+  }
+  if (drawSubstitutedPathText(r, canvas, node, fontReadiness)) {
+    canvas.restore()
+    return
+  }
+  if (fontReadiness === 'exhausted') {
+    if (node.textPicture && r.isTextPictureCurrent(node)) {
+      const pic = r.ck.MakePicture(node.textPicture)
+      if (pic) {
+        canvas.drawPicture(pic)
+        pic.delete()
         canvas.restore()
         return
       }
+    }
+    if (drawDerivedText(r, canvas, node)) {
+      canvas.restore()
+      return
     }
     canvas.restore()
     return

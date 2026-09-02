@@ -2,6 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
+import { resolveMCPRoot } from '#mcp/root'
 import { MCP_VERSION, registerTools } from '#mcp/server'
 import { createStdioRPCBridge } from '#mcp/stdio/bridge'
 import type { ToolPolicy } from '#mcp/tool/metadata'
@@ -22,7 +23,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
       `  OPENPENCIL_MCP_SOCKET        Override socket path (auto-discovered from discovery file when unset)\n` +
       `  OPENPENCIL_MCP_AUTH_TOKEN    Bearer token for RPC auth\n` +
       `  OPENPENCIL_MCP_ROOT          Allowed directory for file-scoped tools\n` +
-      `                               (default: cwd when run standalone, home directory when app-spawned)\n` +
+      `                               (default: home directory on Windows, cwd elsewhere)\n` +
       `  OPENPENCIL_MCP_EVAL          Set to 1 to enable the eval tool\n` +
       `  OPENPENCIL_MCP_DISABLED_TOOLS Comma-separated tool names to omit; defaults to the app setting\n`
   )
@@ -36,7 +37,7 @@ const toolPolicy: ToolPolicy = {
       ? ((await readDiscoveryFile())?.disabledTools ?? [])
       : parseDisabledTools(process.env.OPENPENCIL_MCP_DISABLED_TOOLS)
 }
-const mcpRoot = process.env.OPENPENCIL_MCP_ROOT?.trim() || process.cwd()
+const mcpRoot = resolveMCPRoot(process.env.OPENPENCIL_MCP_ROOT)
 // Auth token: undefined → auto-discover from discovery file, empty string →
 // disable auth, whitespace-only → reject (same fail-fast as index.ts to catch
 // misconfiguration), otherwise → use the trimmed value.

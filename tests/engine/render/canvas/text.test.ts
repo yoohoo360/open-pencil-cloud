@@ -31,7 +31,9 @@ function createMockCanvas() {
     saveLayer: mock(() => undefined),
     restore: mock(() => undefined),
     clipRect: mock(() => undefined),
-    translate: mock(() => undefined)
+    translate: mock(() => undefined),
+    scale: mock(() => undefined),
+    rotate: mock(() => undefined)
   }
 }
 
@@ -63,8 +65,12 @@ function createMockRenderer(overrides: Partial<Record<string, unknown>> = {}) {
         cubicTo = mock(() => this)
         quadTo = mock(() => this)
         close = mock(() => this)
+        setFillType = mock(() => this)
         delete = mock(() => undefined)
-        detachAndDelete = mock(() => ({ delete: mock(() => undefined) }))
+        detachAndDelete = mock(() => ({
+          delete: mock(() => undefined),
+          setFillType: mock(() => undefined)
+        }))
       },
       LTRBRect: mock((...args: number[]) => args),
       Color4f: mock((...args: number[]) => new Float32Array(args)),
@@ -208,6 +214,52 @@ describe('renderText', () => {
     expect(r.buildParagraph).toHaveBeenCalledTimes(1)
   })
 
+  test('renders a live paragraph for finalized default-family substitution', () => {
+    const r = createMockRenderer({ nodeFontReadiness: mock(() => 'substituted') })
+    const canvas = createMockCanvas()
+    const node = textNode({
+      fontFamily: 'Geist',
+      text: 'Edited text',
+      textPicture: null,
+      derivedTextGlyphs: null
+    })
+
+    renderText(r, canvas as never, node)
+
+    expect(r.buildParagraph).toHaveBeenCalledTimes(1)
+    expect(canvas.drawParagraph).toHaveBeenCalledTimes(1)
+  })
+
+  test('keeps derived path-text glyphs when its face is finalized as substituted', () => {
+    const base = createMockRenderer()
+    const r = createMockRenderer({
+      nodeFontReadiness: mock(() => 'substituted'),
+      ck: { ...base.ck, FillType: { EvenOdd: 0, Winding: 1 } }
+    })
+    const canvas = createMockCanvas()
+    const node = textNode({
+      fontFamily: 'Missing Path Font',
+      textPathData: {
+        network: { vertices: [], segments: [], regions: [] },
+        normalizedSize: { x: 100, y: 20 },
+        tValue: 0,
+        forward: true
+      },
+      derivedTextGlyphs: [
+        {
+          commandsBlob: new Uint8Array(),
+          x: 0,
+          y: 0,
+          rotation: 0,
+          fontSize: 12
+        }
+      ]
+    })
+
+    renderText(r, canvas as never, node)
+
+    expect(r.buildParagraph).not.toHaveBeenCalled()
+  })
   test('uses baked text pictures after font resolution is exhausted', () => {
     const r = createMockRenderer({ nodeFontReadiness: mock(() => 'exhausted') })
     const canvas = createMockCanvas()

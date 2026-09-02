@@ -132,6 +132,10 @@ export class FontManager {
     this.webFonts.setRemoteFetch(fetcher)
   }
 
+  resetWebFontFailures(family?: string, style?: string): void {
+    this.webFonts.resetFailures(family, style)
+  }
+
   enabledOnlineFontProviders(): WebFontProviderId[] {
     return this.webFonts.enabledProviders()
   }
@@ -249,8 +253,10 @@ export class FontManager {
   async loadRemoteFont(
     family: string,
     style = 'Regular',
-    characters = ''
+    characters = '',
+    signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
+    signal?.throwIfAborted()
     if (typeof fetch === 'undefined') return null
     const coverage = this.remoteCoverage.get(`${family}|${style}`)
     if (
@@ -266,7 +272,7 @@ export class FontManager {
       )
       const normalized = normalizeFontFamily(family)
       const families = normalized === family ? [family] : [family, normalized]
-      const resolved = await this.webFonts.fetchFont(families, style, requestedCharacters)
+      const resolved = await this.webFonts.fetchFont(families, style, requestedCharacters, signal)
       if (!resolved || resolved.buffers.length === 0) return null
       const primary = resolved.buffers[0]
       await this.writeDownloadedFont(family, style, primary, requestedCharacters)
@@ -279,12 +285,19 @@ export class FontManager {
       }
       return registered
     } catch (e) {
+      if (signal?.aborted) throw e
       console.warn(`Web font fetch failed for "${family}" ${style}:`, e)
       return null
     }
   }
 
-  async loadFont(family: string, style = 'Regular', characters = ''): Promise<ArrayBuffer | null> {
+  async loadFont(
+    family: string,
+    style = 'Regular',
+    characters = '',
+    signal?: AbortSignal
+  ): Promise<ArrayBuffer | null> {
+    signal?.throwIfAborted()
     const loaded = this.loadedData(family, style)
     if (loaded) {
       this.registerFontInCanvasKit(family, loaded)
@@ -295,14 +308,14 @@ export class FontManager {
         Array.from(characters).some((character) => !remoteCoverage.has(character))
       )
       return missingRemoteCoverage
-        ? ((await this.loadRemoteFont(family, style, characters)) ?? loaded)
+        ? ((await this.loadRemoteFont(family, style, characters, signal)) ?? loaded)
         : loaded
     }
 
     return (
       (await this.loadLocalFont(family, style)) ??
       (await this.loadCachedFont(family, style, characters)) ??
-      (await this.loadRemoteFont(family, style, characters))
+      (await this.loadRemoteFont(family, style, characters, signal))
     )
   }
 
@@ -381,20 +394,33 @@ export class FontManager {
 
   async ensureFallbackPack(
     scripts: FontFallbackScript[] = ['cjk', 'arabic'],
-    characters = ''
+    characters = '',
+    signal?: AbortSignal
   ): Promise<Partial<Record<FontFallbackScript, string[]>>> {
+    signal?.throwIfAborted()
     const result: Partial<Record<FontFallbackScript, string[]>> = {}
     await Promise.all(
       scripts.map(async (script) => {
-        if (script === 'arabic' && !characters) result[script] = await this.ensureArabicFallback()
-        else if (script === 'cjk' && !characters) result[script] = await this.ensureCJKFallback()
-        else {
-          const target =
-            script === 'arabic' ? this.arabicFallbackFamilies : this.cjkFallbackFamilies
+        signal?.throwIfAborted()
+        const target = script === 'arabic' ? this.arabicFallbackFamilies : this.cjkFallbackFamilies
+        if (signal) {
+          result[script] = await this.ensureFallbackFamilies(
+            script,
+            target,
+            { allowVariableLocalFonts: script === 'cjk' },
+            characters,
+            signal
+          )
+        } else if (script === 'arabic' && !characters) {
+          result[script] = await this.ensureArabicFallback()
+        } else if (script === 'cjk' && !characters) {
+          result[script] = await this.ensureCJKFallback()
+        } else {
           result[script] = await this.ensureFallbackFamilies(script, target, {}, characters)
         }
       })
     )
+    signal?.throwIfAborted()
     return result
   }
 
@@ -412,11 +438,14 @@ export class FontManager {
     script: FontFallbackScript,
     targetFamilies: string[],
     options: { allowVariableLocalFonts?: boolean } = {},
-    characters = ''
+    characters = '',
+    signal?: AbortSignal
   ): Promise<string[]> {
+    signal?.throwIfAborted()
     const manifest = fontFallbackEntry(script, this.fallbackUserAgent)
 
     for (const family of manifest.localFamilies) {
+      signal?.throwIfAborted()
       const buffer =
         (await this.loadHostFont(family, 'Regular')) ??
         (await this.findLocalFont(family, undefined, {
@@ -434,7 +463,9 @@ export class FontManager {
     if (targetFamilies.length === 0 || characters) {
       const results = await Promise.allSettled(
         manifest.remoteFamilies.map(async (family) => {
-          const data = await this.loadRemoteFont(family, 'Regular', characters)
+          signal?.throwIfAborted()
+          const data = await this.loadRemoteFont(family, 'Regular', characters, signal)
+          signal?.throwIfAborted()
           return data ? family : null
         })
       )

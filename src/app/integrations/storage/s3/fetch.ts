@@ -3,20 +3,16 @@ import { isTauri } from '@/app/tauri/env'
 /** Avoid hung “Test connection” when CORS/network never resolves. */
 const STORAGE_FETCH_TIMEOUT_MS = 20_000
 
-function withTimeoutSignal(init?: RequestInit): {
+interface StorageFetchSignal {
   signal: AbortSignal
-  cleanup: () => void
-} {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), STORAGE_FETCH_TIMEOUT_MS)
-  const external = init?.signal
-  if (external) {
-    if (external.aborted) controller.abort()
-    else external.addEventListener('abort', () => controller.abort(), { once: true })
-  }
+  timedOut: () => boolean
+}
+
+function storageFetchSignal(external?: AbortSignal | null): StorageFetchSignal {
+  const timeout = AbortSignal.timeout(STORAGE_FETCH_TIMEOUT_MS)
   return {
-    signal: controller.signal,
-    cleanup: () => clearTimeout(timer)
+    signal: external ? AbortSignal.any([external, timeout]) : timeout,
+    timedOut: () => timeout.aborted
   }
 }
 
@@ -25,7 +21,7 @@ export async function storageFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const { signal, cleanup } = withTimeoutSignal(init)
+  const { signal, timedOut } = storageFetchSignal(init?.signal)
   try {
     if (isTauri()) {
       const { tauriFetch } = await import('@/app/tauri/http')
@@ -37,13 +33,11 @@ export async function storageFetch(
     }
     return await fetch(input, { ...init, signal })
   } catch (error) {
-    if (signal.aborted) {
+    if (timedOut()) {
       throw new Error(
         'Storage request timed out. Check the endpoint URL, network, and bucket CORS settings.'
       )
     }
     throw error
-  } finally {
-    cleanup()
   }
 }

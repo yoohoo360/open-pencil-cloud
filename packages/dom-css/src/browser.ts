@@ -13,6 +13,7 @@ export type { JSXChild, JSXElementProps, JSXStyleInput, JSXTag } from './jsx/cor
 export interface BrowserToDesignDocumentOptions extends BrowserCSSRuntimeOptions {
   cssText?: string
   compute?: CSSComputeOptions
+  signal?: AbortSignal
 }
 
 export type BrowserHTMLToDesignDocumentOptions = BrowserToDesignDocumentOptions
@@ -69,6 +70,7 @@ export async function browserHTMLToDesignDocument(
   html: string,
   options: BrowserHTMLToDesignDocumentOptions = {}
 ): Promise<DesignDocument> {
+  options.signal?.throwIfAborted()
   const browserDocument = resolveBrowserDocument(options.document)
   const runtime = createRuntime({ ...options, document: browserDocument })
   const document = runtime.parseHTML(html)
@@ -81,7 +83,10 @@ export async function browserHTMLToSceneGraph(
   options: BrowserHTMLToSceneGraphOptions = {}
 ): Promise<SceneGraph> {
   const document = await browserHTMLToDesignDocument(html, options)
-  return designDocumentToSceneGraph(document, options)
+  options.signal?.throwIfAborted()
+  const graph = designDocumentToSceneGraph(document, options)
+  options.signal?.throwIfAborted()
+  return graph
 }
 
 export async function browserTailwindHTMLToDesignDocument(
@@ -99,7 +104,10 @@ export async function browserTailwindHTMLToSceneGraph(
   options: BrowserTailwindHTMLToSceneGraphOptions = {}
 ): Promise<SceneGraph> {
   const document = await browserTailwindHTMLToDesignDocument(html, candidates, options)
-  return designDocumentToSceneGraph(document, options)
+  options.signal?.throwIfAborted()
+  const graph = designDocumentToSceneGraph(document, options)
+  options.signal?.throwIfAborted()
+  return graph
 }
 
 export async function browserJSXToDesignDocument(

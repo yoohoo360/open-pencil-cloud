@@ -1,4 +1,4 @@
-import type { FigmaComponentNode } from '#core/figma-api'
+import type { FigmaComponentNode, FigmaNodeProxy } from '#core/figma-api'
 import { defineTool, nodeSummary, requireNodes } from '#core/tools/schema'
 
 export const createComponent = defineTool({
@@ -58,6 +58,38 @@ export const combineAsVariants = defineTool({
     try {
       const componentSet = figma.combineAsVariants(nodes, parent)
       return nodeSummary(componentSet)
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+})
+
+export const exposeInstanceSwap = defineTool({
+  name: 'expose_instance_swap',
+  mutates: true,
+  description: 'Expose nested instances as an instance-swap slot on their component.',
+  params: {
+    instance_ids: { type: 'string[]', description: 'Instance node IDs', required: true },
+    candidate_ids: {
+      type: 'string[]',
+      description: 'Candidate component node IDs',
+      required: true
+    },
+    property_name: { type: 'string', description: 'Property name' }
+  },
+  execute: (figma, { instance_ids, candidate_ids, property_name }) => {
+    const slots = instance_ids
+      .map((id) => figma.getNodeById(id))
+      .filter((node): node is FigmaNodeProxy => node !== null)
+    if (slots.length !== instance_ids.length)
+      return { error: 'One or more instance IDs were not found' }
+    const candidates = candidate_ids
+      .map((id) => figma.getNodeById(id))
+      .filter((node): node is FigmaNodeProxy => node !== null)
+    if (candidates.length !== candidate_ids.length)
+      return { error: 'One or more candidate IDs were not found' }
+    try {
+      return nodeSummary(figma.exposeInstanceSwap(slots, candidates, property_name))
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
     }

@@ -5,6 +5,7 @@ import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry
 
 import type { RenderOverlays, SkiaRenderer } from '#core/canvas/renderer'
 import type { EditorState } from '#core/editor/types'
+import { emitNavigationTrace } from '#core/profiler'
 
 import { drawChromePass, drawLabelPass, drawOverlayPass } from './overlay-pass'
 import { renderSceneBacking, updateSceneBackingPreviewState } from './retained-backing'
@@ -49,6 +50,8 @@ export function renderFromEditorState(
   r.pageColor = state.pageColor
   r.rulerTheme = state.rulerTheme ?? null
   r.pageId = state.currentPageId
+  r.navigationPhase = state.navigation.phase
+  r.navigationGeneration = state.navigation.generation
   render(
     r,
     graph,
@@ -140,6 +143,13 @@ export function render(
   sceneVersion = -1,
   layer: RenderLayer = 'full'
 ): void {
+  emitNavigationTrace('render:start', {
+    layer,
+    sceneVersion,
+    panX: r.panX,
+    panY: r.panY,
+    zoom: r.zoom
+  })
   r.syncFontGeneration()
   const p = r.profiler
   p.beginFrame()
@@ -183,13 +193,41 @@ export function render(
     canvas.scale(r.dpr, r.dpr)
 
     p.beginPhase('render:scene')
+    let renderedScene = false
+    if (layer === 'scene' && !requiresUncachedSceneRender && r.tiledSceneEnabled) {
+      const backingPresented = renderSceneBacking(r, canvas, graph, sceneVersion)
+      if (!backingPresented) {
+        canvas.save()
+        canvas.translate(r.panX, r.panY)
+        canvas.scale(r.zoom, r.zoom)
+        renderSceneContent(
+          r,
+          canvas,
+          graph,
+          overlays,
+          sceneVersion,
+          canUsePicture,
+          cacheMissReason,
+          requiresUncachedSceneRender
+        )
+        canvas.restore()
+      }
+      const tiled = r.tiledScene.renderFrame(r, canvas, graph, sceneVersion, r.navigationGeneration)
+      r.tiledScenePending = tiled.pending
+      r.tiledSceneCovered = tiled.covered
+      renderedScene = true
+      p.setScenePictureMode('hit', tiled.covered ? 'tiled' : 'tiled-fallback')
+    }
     if (
+      !renderedScene &&
       layer === 'scene' &&
       !requiresUncachedSceneRender &&
       renderSceneBacking(r, canvas, graph, sceneVersion)
     ) {
+      renderedScene = true
       p.setScenePictureMode('hit', 'backing')
-    } else {
+    }
+    if (!renderedScene) {
       canvas.translate(r.panX, r.panY)
       canvas.scale(r.zoom, r.zoom)
       renderSceneContent(
@@ -231,6 +269,17 @@ export function render(
 
   p.setNodeCounts(r._nodeCount, r._culledCount)
   p.endFrame()
+  emitNavigationTrace('render:end', {
+    layer,
+    sceneVersion,
+    panX: r.panX,
+    panY: r.panY,
+    zoom: r.zoom,
+    flushMs: flushDuration,
+    nodes: r._nodeCount,
+    culledNodes: r._culledCount,
+    backingCrisp: !r.sceneBackingNeedsCrispRender
+  })
 }
 
 function renderSceneContent(
@@ -291,44 +340,48 @@ function recordScenePicture(
   sceneVersion: number
 ): void {
   r.scenePicture?.delete()
+  r.scenePicture = null
   const prevViewport = r.worldViewport
   r.worldViewport = { x: -1e6, y: -1e6, w: 2e6, h: 2e6 }
   const recorder = new r.ck.PictureRecorder()
-  const pageNode = graph.getNode(r.pageId ?? graph.rootId)
-  const sceneContentBounds = pageNode
-    ? computeDescendantVisualBounds(
-        pageNode.childIds,
-        (id) => graph.getNode(id),
-        (id) => graph.getAbsolutePosition(id)
-      )
-    : null
-  const sceneBounds = sceneContentBounds
-    ? {
-        x: sceneContentBounds.minX,
-        y: sceneContentBounds.minY,
-        width: sceneContentBounds.maxX - sceneContentBounds.minX,
-        height: sceneContentBounds.maxY - sceneContentBounds.minY
+  try {
+    const pageNode = graph.getNode(r.pageId ?? graph.rootId)
+    const sceneContentBounds = pageNode
+      ? computeDescendantVisualBounds(
+          pageNode.childIds,
+          (id) => graph.getNode(id),
+          (id) => graph.getAbsolutePosition(id)
+        )
+      : null
+    const sceneBounds = sceneContentBounds
+      ? {
+          x: sceneContentBounds.minX,
+          y: sceneContentBounds.minY,
+          width: sceneContentBounds.maxX - sceneContentBounds.minX,
+          height: sceneContentBounds.maxY - sceneContentBounds.minY
+        }
+      : { x: 0, y: 0, width: 1, height: 1 }
+    const padding = 1024
+    const bounds = r.ck.LTRBRect(
+      sceneBounds.x - padding,
+      sceneBounds.y - padding,
+      sceneBounds.x + sceneBounds.width + padding,
+      sceneBounds.y + sceneBounds.height + padding
+    )
+    const recCanvas = recorder.beginRecording(bounds)
+    if (pageNode) {
+      for (const childId of pageNode.childIds) {
+        r.renderNode(recCanvas, graph, childId, {})
       }
-    : { x: 0, y: 0, width: 1, height: 1 }
-  const padding = 1024
-  const bounds = r.ck.LTRBRect(
-    sceneBounds.x - padding,
-    sceneBounds.y - padding,
-    sceneBounds.x + sceneBounds.width + padding,
-    sceneBounds.y + sceneBounds.height + padding
-  )
-  const recCanvas = recorder.beginRecording(bounds)
-  if (pageNode) {
-    for (const childId of pageNode.childIds) {
-      r.renderNode(recCanvas, graph, childId, {})
     }
+    r.scenePicture = recorder.finishRecordingAsPicture()
+    r.scenePictureVersion = sceneVersion
+    r.scenePictureFontGeneration = r.fontGeneration
+    r.scenePicturePositionPreviewVersion = graph.positionPreviewVersion
+    r.scenePicturePageId = r.pageId
+    canvas.drawPicture(r.scenePicture)
+  } finally {
+    recorder.delete()
+    r.worldViewport = prevViewport
   }
-  r.scenePicture = recorder.finishRecordingAsPicture()
-  recorder.delete()
-  r.worldViewport = prevViewport
-  r.scenePictureVersion = sceneVersion
-  r.scenePictureFontGeneration = r.fontGeneration
-  r.scenePicturePositionPreviewVersion = graph.positionPreviewVersion
-  r.scenePicturePageId = r.pageId
-  canvas.drawPicture(r.scenePicture)
 }

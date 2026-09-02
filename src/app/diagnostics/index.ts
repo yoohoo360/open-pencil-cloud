@@ -5,6 +5,8 @@ export {
   recordDocumentFailure,
   recordMCPConnectionFailure,
   recordModelStepCompleted,
+  preparationDurationBucket,
+  recordPreparationOutcome,
   recordStorageFailure,
   storageOperationForJob
 } from './events'

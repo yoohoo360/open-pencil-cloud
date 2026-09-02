@@ -173,6 +173,8 @@
   "strokeCapButt": "Flaches Ende",
   "strokeCapRound": "Rundes Ende",
   "strokeCapSquare": "Quadratisches Ende",
+  "strokeCapArrowLines": "Linienpfeil",
+  "strokeCapArrowEquilateral": "Dreieckspfeil",
   "strokeJoin": "Linienverbindung",
   "strokeJoinMiter": "Gehrungsverbindung",
   "strokeJoinBevel": "Abgeschrägte Verbindung",

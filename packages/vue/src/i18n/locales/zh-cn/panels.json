@@ -173,6 +173,8 @@
   "strokeCapButt": "平直端点",
   "strokeCapRound": "圆形端点",
   "strokeCapSquare": "方形端点",
+  "strokeCapArrowLines": "线条箭头",
+  "strokeCapArrowEquilateral": "三角箭头",
   "strokeJoin": "描边连接",
   "strokeJoinMiter": "尖角连接",
   "strokeJoinBevel": "斜角连接",

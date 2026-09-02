@@ -173,6 +173,8 @@
   "strokeCapButt": "Плоский конец",
   "strokeCapRound": "Круглый конец",
   "strokeCapSquare": "Квадратный конец",
+  "strokeCapArrowLines": "Линейная стрелка",
+  "strokeCapArrowEquilateral": "Треугольная стрелка",
   "strokeJoin": "Соединение обводки",
   "strokeJoinMiter": "Острое соединение",
   "strokeJoinBevel": "Скошенное соединение",

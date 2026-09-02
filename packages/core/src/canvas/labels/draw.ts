@@ -1,88 +1,70 @@
-import type { Canvas, Font } from 'canvaskit-wasm'
+import type { Canvas } from 'canvaskit-wasm'
 
 import type { SceneNode, SceneGraph } from '@open-pencil/scene-graph'
 
+import { canvasLabelForeground } from '#core/canvas/labels/color'
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import {
   SECTION_TITLE_HEIGHT,
   SECTION_TITLE_PADDING_X,
   SECTION_TITLE_RADIUS,
   SECTION_TITLE_GAP,
+  SECTION_TITLE_FONT_SIZE,
   COMPONENT_LABEL_FONT_SIZE,
   COMPONENT_LABEL_GAP,
   COMPONENT_LABEL_ICON_SIZE,
   COMPONENT_LABEL_ICON_GAP
 } from '#core/constants'
 
-import { ellipsizeLabelText } from './text'
-
 export function drawSectionTitles(r: SkiaRenderer, canvas: Canvas, graph: SceneGraph): void {
-  if (!r.sectionTitleFont) return
+  const provider = r.fontProvider
+  if (!r.sectionTitleFont || !provider) return
 
   const sections = r.labelCache.getSections(graph, r.worldViewport)
   if (sections.length === 0) return
 
-  const font = r.sectionTitleFont
-  const ellipsis = '…'
-  const ellipsisGlyphs = font.getGlyphIDs(ellipsis)
-  const ellipsisWidth = font.getGlyphWidths(ellipsisGlyphs)[0]
-
   for (const { node, absX, absY, nested } of sections) {
-    drawSectionTitle(r, canvas, font, node, graph, absX, absY, nested, ellipsis, ellipsisWidth)
+    drawSectionTitle(r, canvas, provider, node, graph, absX, absY, nested)
   }
 }
 
 function drawSectionTitle(
   r: SkiaRenderer,
   canvas: Canvas,
-  font: Font,
+  provider: NonNullable<SkiaRenderer['fontProvider']>,
   node: SceneNode,
   graph: SceneGraph,
   absX: number,
   absY: number,
-  nested: boolean,
-  ellipsis: string,
-  ellipsisWidth: number
+  nested: boolean
 ): void {
   const screenX = absX * r.zoom + r.panX
   const screenY = absY * r.zoom + r.panY
   const screenW = node.width * r.zoom
   const maxPillW = Math.max(screenW, 0)
-
-  const glyphIds = font.getGlyphIDs(node.name)
-  const widths = font.getGlyphWidths(glyphIds)
-
-  let fullTextWidth = 0
-  for (const w of widths) fullTextWidth += w
-
-  const maxTextW = maxPillW - SECTION_TITLE_PADDING_X * 2
-  let displayText = node.name
-  let textWidth = fullTextWidth
-
-  if (textWidth > maxTextW && maxTextW > ellipsisWidth) {
-    let truncW = 0
-    let truncIdx = 0
-    for (let i = 0; i < widths.length; i++) {
-      if (truncW + widths[i] + ellipsisWidth > maxTextW) break
-      truncW += widths[i]
-      truncIdx = i + 1
-    }
-    displayText = node.name.slice(0, truncIdx) + ellipsis
-    textWidth = truncW + ellipsisWidth
-  } else if (maxTextW <= ellipsisWidth) {
-    displayText = ellipsis
-    textWidth = ellipsisWidth
-  }
-
-  const pillW = Math.min(textWidth + SECTION_TITLE_PADDING_X * 2, maxPillW)
-  const pillH = SECTION_TITLE_HEIGHT
-  const localPillX = 0
-  const localPillY = nested ? SECTION_TITLE_GAP : -pillH - SECTION_TITLE_GAP
+  if (maxPillW <= 0) return
 
   const pillColor =
     node.fills.length > 0 && node.fills[0].visible
       ? r.resolveFillColor(node.fills[0], 0, node, graph)
       : { r: 0.37, g: 0.37, b: 0.37, a: 1 }
+  const foreground = canvasLabelForeground(pillColor, r.pageColor)
+  const textColor = r.ck.Color4f(foreground.r, foreground.g, foreground.b, foreground.a)
+
+  const maxTextW = Math.max(1, maxPillW - SECTION_TITLE_PADDING_X * 2)
+  const textMetrics = r.labelParagraphCache.measure(
+    r.ck,
+    provider,
+    node.name,
+    SECTION_TITLE_FONT_SIZE,
+    maxTextW,
+    textColor,
+    r.fontGeneration
+  )
+  const pillW = Math.min(textMetrics.width + SECTION_TITLE_PADDING_X * 2, maxPillW)
+  const pillH = SECTION_TITLE_HEIGHT
+  const localPillX = 0
+  const localPillY = nested ? SECTION_TITLE_GAP : -pillH - SECTION_TITLE_GAP
 
   canvas.save()
   canvas.translate(screenX, screenY)
@@ -94,20 +76,29 @@ function drawSectionTitle(
   const pillRect = r.ck.LTRBRect(localPillX, localPillY, localPillX + pillW, localPillY + pillH)
   canvas.drawRRect(r.ck.RRectXY(pillRect, SECTION_TITLE_RADIUS, SECTION_TITLE_RADIUS), r.auxFill)
 
-  const lum = 0.299 * pillColor.r + 0.587 * pillColor.g + 0.114 * pillColor.b
-  r.auxFill.setColor(lum > 0.5 ? r.ck.BLACK : r.ck.WHITE)
-  const textY = localPillY + pillH * 0.7
-  canvas.drawText(displayText, localPillX + SECTION_TITLE_PADDING_X, textY, r.auxFill, font)
+  r.auxFill.setColor(textColor)
+  r.labelParagraphCache.draw(
+    r.ck,
+    canvas,
+    provider,
+    node.name,
+    SECTION_TITLE_FONT_SIZE,
+    maxTextW,
+    textColor,
+    r.fontGeneration,
+    localPillX + SECTION_TITLE_PADDING_X,
+    localPillY + (pillH - textMetrics.height) / 2
+  )
   canvas.restore()
 }
 
 export function drawComponentLabels(r: SkiaRenderer, canvas: Canvas, graph: SceneGraph): void {
-  if (!r.componentLabelFont) return
+  if (!r.componentLabelFont || !r.fontProvider) return
 
   const components = r.labelCache.getComponents(graph, r.worldViewport)
   if (components.length === 0) return
 
-  const font = r.componentLabelFont
+  const provider = r.fontProvider
   const compColor = r.compColor()
   const iconS = COMPONENT_LABEL_ICON_SIZE
 
@@ -124,8 +115,7 @@ export function drawComponentLabels(r: SkiaRenderer, canvas: Canvas, graph: Scen
     }
 
     const maxTextWidth = node.width * r.zoom - iconS - COMPONENT_LABEL_ICON_GAP
-    const displayText = ellipsizeLabelText(font, node.name, maxTextWidth)
-    if (!displayText) continue
+    if (maxTextWidth <= 0) continue
 
     const iconX = labelX
     const iconY = labelY - COMPONENT_LABEL_FONT_SIZE * 0.75
@@ -168,6 +158,17 @@ export function drawComponentLabels(r: SkiaRenderer, canvas: Canvas, graph: Scen
       immutablePath.delete()
     }
 
-    canvas.drawText(displayText, labelX + iconS + COMPONENT_LABEL_ICON_GAP, labelY, r.auxFill, font)
+    r.labelParagraphCache.draw(
+      r.ck,
+      canvas,
+      provider,
+      node.name,
+      COMPONENT_LABEL_FONT_SIZE,
+      maxTextWidth,
+      compColor,
+      r.fontGeneration,
+      labelX + iconS + COMPONENT_LABEL_ICON_GAP,
+      labelY - COMPONENT_LABEL_FONT_SIZE
+    )
   }
 }

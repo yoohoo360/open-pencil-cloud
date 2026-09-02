@@ -3,12 +3,13 @@ import { computed } from 'vue'
 import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui'
 import { tv } from 'tailwind-variants'
 
+import PreparationIndicator from '@/components/preparation/tab/Indicator.vue'
 import Tip from '@/components/ui/Tip.vue'
 import tabBarTheme from '@/theme/tab-bar'
 import { useTabsStore, createHomeTab } from '@/app/tabs'
 import { useI18n } from '@open-pencil/vue'
 
-const { dialogs } = useI18n()
+const { files } = useI18n()
 
 const { tabs, activeTabId, switchTab, closeTab } = useTabsStore()
 const tabBarStyles = tv(tabBarTheme)
@@ -56,17 +57,18 @@ function onClose(e: MouseEvent, tabId: string) {
         @mousedown="onMiddleClick($event, tab.id, tab.isHome)"
       >
         <icon-lucide-house v-if="tab.isHome" :class="baseStyles.icon()" />
+        <PreparationIndicator v-else-if="tab.isPreparing" :progress="tab.preparationProgress" />
         <icon-lucide-file v-else :class="baseStyles.icon()" />
-        <span :class="baseStyles.label()">{{ tab.isHome ? dialogs.newTab : tab.name }}</span>
+        <span :class="baseStyles.label()">{{ tab.isHome ? files.newTab : tab.name }}</span>
         <Tip
           v-if="!tab.isHome || tabs.length > 1"
-          :label="dialogs.closeTab({ name: tab.isHome ? dialogs.newTab : tab.name })"
+          :label="files.closeTab({ name: tab.isHome ? files.newTab : tab.name })"
         >
           <button
             data-test-id="tabbar-close"
             :class="tabBarStyles({ active: tab.isActive }).close()"
             :data-active="tab.isActive || undefined"
-            :aria-label="dialogs.closeTab({ name: tab.isHome ? dialogs.newTab : tab.name })"
+            :aria-label="files.closeTab({ name: tab.isHome ? files.newTab : tab.name })"
             tabindex="-1"
             @click="onClose($event, tab.id)"
           >
@@ -75,11 +77,11 @@ function onClose(e: MouseEvent, tabId: string) {
         </Tip>
       </TabsTrigger>
     </TabsList>
-    <Tip :label="dialogs.newTab">
+    <Tip :label="files.newTab">
       <button
         data-test-id="tabbar-new"
         :class="baseStyles.newAction()"
-        :aria-label="dialogs.newTab"
+        :aria-label="files.newTab"
         @click="createNewTab"
       >
         <icon-lucide-plus :class="baseStyles.newIcon()" />

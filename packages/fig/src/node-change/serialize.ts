@@ -411,10 +411,10 @@ function serializeGeometry(node: SceneNode, nc: KiwiNodeChange, blobs: Uint8Arra
   let styleOverrides: StyleOverride[] = []
   const vectorData: Record<string, unknown> = {}
   if (node.vectorNetwork && node.type === 'VECTOR') {
-    const { table, mirroringToId } = buildStyleOverrideTable(node.vectorNetwork)
+    const { table, styleToId } = buildStyleOverrideTable(node.vectorNetwork)
     styleOverrides = table
     const blobIdx = blobs.length
-    blobs.push(encodeVectorNetworkBlob(node.vectorNetwork, mirroringToId))
+    blobs.push(encodeVectorNetworkBlob(node.vectorNetwork, styleToId))
     vectorData.vectorNetworkBlob = blobIdx
     vectorData.normalizedSize = { x: node.width, y: node.height }
   }

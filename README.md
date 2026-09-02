@@ -318,4 +318,6 @@ Thanks to [@sld0Ant](https://github.com/sld0Ant) (Anton Soldatov) for creating a
 
 ## License
 
-MIT
+OpenPencil is licensed under the [MIT License](./LICENSE).
+
+Copyright (c) 2026 Danila Poyarkov and OpenPencil contributors.

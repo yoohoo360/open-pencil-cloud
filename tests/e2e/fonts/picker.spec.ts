@@ -21,6 +21,10 @@ async function openFontPicker(page: Page) {
   await page.getByTestId('font-picker-trigger').click()
 }
 
+async function searchFonts(page: Page, query: string) {
+  await page.getByRole('combobox', { name: 'Search fonts…' }).fill(query)
+}
+
 async function installGoogleFontsMock(page: Page, families = ['Inter', 'OpenPencil Google Font']) {
   await page.addInitScript((googleFamilies) => {
     const win = window as Window & {
@@ -88,6 +92,7 @@ test('font picker selects local fonts without browser web-font access', async ({
 
   const textId = await openTypographyForText(page)
   await openFontPicker(page)
+  await searchFonts(page, 'OpenPencil Local Font')
 
   await expect(
     page.getByTestId('font-picker-item').filter({ hasText: 'OpenPencil Local Font' })
@@ -121,8 +126,11 @@ test('font picker keeps bundled fonts when local and web fonts are unavailable',
 
   await openTypographyForText(page)
   await openFontPicker(page)
+  await searchFonts(page, 'Inter')
 
-  await expect(page.getByTestId('font-picker-item').filter({ hasText: 'Inter' })).toBeVisible()
+  await expect(
+    page.getByTestId('font-picker-item').filter({ hasText: /^Interbundled$/ })
+  ).toBeVisible()
   await expect(
     page.getByTestId('font-picker-item').filter({ hasText: 'OpenPencil Google Font' })
   ).toHaveCount(0)
@@ -146,8 +154,11 @@ test('font picker keeps bundled fonts when local font permission is rejected', a
 
   await openTypographyForText(page)
   await openFontPicker(page)
+  await searchFonts(page, 'Inter')
 
-  await expect(page.getByTestId('font-picker-item').filter({ hasText: 'Inter' })).toBeVisible()
+  await expect(
+    page.getByTestId('font-picker-item').filter({ hasText: /^Interbundled$/ })
+  ).toBeVisible()
   await expect(
     page.getByTestId('font-picker-item').filter({ hasText: 'OpenPencil Google Font' })
   ).toHaveCount(0)
@@ -168,6 +179,9 @@ test('font picker keeps bundled Inter available when local and Google fonts are 
 
   await openTypographyForText(page)
   await openFontPicker(page)
+  await searchFonts(page, 'Inter')
 
-  await expect(page.getByTestId('font-picker-item').filter({ hasText: 'Inter' })).toBeVisible()
+  await expect(
+    page.getByTestId('font-picker-item').filter({ hasText: /^Interbundled$/ })
+  ).toBeVisible()
 })

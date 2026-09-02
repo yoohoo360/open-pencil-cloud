@@ -1,4 +1,5 @@
-import type { Effect, Stroke } from './index'
+import { arrowCapOverflow } from './arrow-caps'
+import type { Effect, Stroke, StrokeCap, VectorNetwork } from './index'
 import type { Rect, Vector } from './primitives'
 
 export function degToRad(degrees: number): number {
@@ -137,7 +138,11 @@ export function polygonVertices(node: {
   })
 }
 
-export function strokeOverflow(strokes?: Stroke[]): number {
+export function strokeOverflow(
+  strokes?: Stroke[],
+  fallbackCap?: StrokeCap,
+  network?: VectorNetwork | null
+): number {
   let overflow = 0
   for (const stroke of strokes ?? []) {
     if (!stroke.visible) continue
@@ -146,7 +151,7 @@ export function strokeOverflow(strokes?: Stroke[]): number {
     else if (stroke.align === 'CENTER') extra = stroke.weight / 2
     overflow = Math.max(overflow, extra)
   }
-  return overflow
+  return Math.max(overflow, arrowCapOverflow(strokes, fallbackCap, network))
 }
 
 export function effectOverflow(effects?: Effect[]) {
@@ -193,6 +198,8 @@ export function computeVisualBounds(
     height: number
     rotation?: number
     strokes?: Stroke[]
+    strokeCap?: StrokeCap
+    vectorNetwork?: VectorNetwork | null
     effects?: Effect[]
   }>,
   getAbsolutePosition: (id: string) => Vector
@@ -202,7 +209,7 @@ export function computeVisualBounds(
   for (const n of nodes) {
     const abs = getAbsolutePosition(n.id)
     const bbox = rotatedBBox(abs.x, abs.y, n.width, n.height, n.rotation ?? 0)
-    const stroke = strokeOverflow(n.strokes)
+    const stroke = strokeOverflow(n.strokes, n.strokeCap, n.vectorNetwork)
     const effects = effectOverflow(n.effects)
     includePoint(bounds, bbox.left - stroke - effects.left, bbox.top - stroke - effects.top)
     includePoint(bounds, bbox.right + stroke + effects.right, bbox.bottom + stroke + effects.bottom)
@@ -219,6 +226,8 @@ export interface VisualBoundsNode {
   flipX?: boolean
   flipY?: boolean
   strokes?: Stroke[]
+  strokeCap?: StrokeCap
+  vectorNetwork?: VectorNetwork | null
   effects?: Effect[]
   fillGeometry?: Array<{ commandsBlob: Uint8Array }>
   strokeGeometry?: Array<{ commandsBlob: Uint8Array }>

@@ -190,6 +190,8 @@
   "strokeCapButt": "Extremo plano",
   "strokeCapRound": "Extremo redondo",
   "strokeCapSquare": "Extremo cuadrado",
+  "strokeCapArrowLines": "Flecha de líneas",
+  "strokeCapArrowEquilateral": "Flecha triangular",
   "strokeJoin": "Unión del trazo",
   "strokeJoinMiter": "Unión en inglete",
   "strokeJoinBevel": "Unión biselada",
