@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { File, FolderOpen, LoaderCircle, Plus, RefreshCw, Search, Trash, X } from 'lucide-react'
-
 import {
-  API_BASE_URL,
   authAPI,
   documentAPI,
   getAPIErrorMessage,
+  getHttpClientBaseUrl,
   type PencilDocument
 } from '#react/lib/client'
+import { File, FolderOpen, LoaderCircle, Plus, RefreshCw, Search, Trash, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 function toMillis(value: string | number | undefined): number {
   if (typeof value === 'number') return value
@@ -32,7 +31,7 @@ function formatTime(timestamp: string | number | undefined): string {
 function thumbnailSrc(file: PencilDocument): string {
   if (!file.thumbnail_url) return ''
   if (/^https?:\/\//i.test(file.thumbnail_url)) return file.thumbnail_url
-  return `${API_BASE_URL}${file.thumbnail_url}`
+  return `${getHttpClientBaseUrl()}${file.thumbnail_url}`
 }
 
 export default function DocumentListView() {
@@ -125,7 +124,10 @@ export default function DocumentListView() {
   }
 
   return (
-    <main className="flex h-full flex-col overflow-y-auto bg-canvas text-surface" data-test-id="file-workspace">
+    <main
+      className="flex h-full flex-col overflow-y-auto bg-canvas text-surface"
+      data-test-id="file-workspace"
+    >
       <header className="flex h-14 items-center border-b border-border px-6">
         <div>
           <h1 className="text-sm font-semibold">文件管理</h1>

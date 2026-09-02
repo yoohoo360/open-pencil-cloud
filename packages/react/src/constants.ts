@@ -1,7 +1,7 @@
-import { API_BASE_URL } from '#react/lib/client'
-
 import { IS_BROWSER } from '@open-pencil/core/constants'
 import type { Color } from '@open-pencil/scene-graph/primitives'
+
+import { getHttpClientBaseUrl } from './lib/client'
 
 export const ASSET_GRID_THUMBNAIL_SIZE = 96
 export const ASSET_LIST_THUMBNAIL_SIZE = 40
@@ -38,11 +38,11 @@ export function getCollabWebSocketURL(roomId: string): string {
     return `${configured.replace(/\/$/, '')}/${encodeURIComponent(roomId)}`
   }
   if (IS_BROWSER) {
-    const protocol = API_BASE_URL.startsWith('https:') ? 'wss:' : 'ws:'
+    const protocol = getHttpClientBaseUrl().startsWith('https:') ? 'wss:' : 'ws:'
 
-    const _url = API_BASE_URL?.startsWith('https:')
-      ? API_BASE_URL.replace('https://', '')
-      : API_BASE_URL.replace('http://', '')
+    const _url = getHttpClientBaseUrl()?.startsWith('https:')
+      ? getHttpClientBaseUrl().replace('https://', '')
+      : getHttpClientBaseUrl().replace('http://', '')
     return `${protocol}//${_url}/ws/collab/${encodeURIComponent(roomId)}`
   }
   const apiOrigin = (import.meta.env.VITE_API_URL ?? DEFAULT_COLLAB_API_ORIGIN).replace(

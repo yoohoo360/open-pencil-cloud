@@ -1,4 +1,4 @@
-import { API_BASE_URL, type OauthProviders } from '#react/lib/client'
+import { getHttpClientBaseUrl, type OauthProviders } from '#react/lib/client'
 
 import { safeRedirect } from './redirect'
 
@@ -10,5 +10,5 @@ export function oauthStartUrl(provider: OauthProvider, redirect: string | null):
   const path = safeRedirect(redirect)
   const params = new URLSearchParams()
   params.set('redirect', path)
-  return `${API_BASE_URL}/api/auth/oauth/${provider}?${params.toString()}`
+  return `${getHttpClientBaseUrl()}/api/auth/oauth/${provider}?${params.toString()}`
 }
