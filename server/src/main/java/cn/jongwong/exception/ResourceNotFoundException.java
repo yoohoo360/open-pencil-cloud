@@ -1,4 +1,4 @@
-package cn.jongwong.exception;
+package main.java.cn.jongwong.exception;
 
 import org.springframework.http.HttpStatus;
 

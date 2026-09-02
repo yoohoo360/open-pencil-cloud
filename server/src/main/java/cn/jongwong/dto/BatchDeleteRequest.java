@@ -1,4 +1,4 @@
-package cn.jongwong.dto;
+package main.java.cn.jongwong.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;

@@ -1,4 +1,4 @@
-package cn.jongwong.config;
+package main.java.cn.jongwong.config;
 
 import cn.jongwong.service.OssService;
 import cn.jongwong.service.impl.AliOssServiceImpl;

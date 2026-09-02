@@ -1,4 +1,4 @@
-package cn.jongwong.collab;
+package main.java.cn.jongwong.collab;
 
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;

@@ -1,4 +1,4 @@
-package cn.jongwong.domain.repository;
+package main.java.cn.jongwong.domain.repository;
 
 import cn.jongwong.domain.entity.UserRole;
 import cn.jongwong.domain.entity.id.UserRoleId;

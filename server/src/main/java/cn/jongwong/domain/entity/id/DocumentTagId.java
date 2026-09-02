@@ -1,4 +1,4 @@
-package cn.jongwong.domain.entity.id;
+package main.java.cn.jongwong.domain.entity.id;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;

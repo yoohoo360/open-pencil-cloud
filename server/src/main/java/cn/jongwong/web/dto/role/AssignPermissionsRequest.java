@@ -1,4 +1,4 @@
-package cn.jongwong.web.dto.role;
+package main.java.cn.jongwong.web.dto.role;
 
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;

@@ -1,4 +1,4 @@
-package cn.jongwong.collab;
+package main.java.cn.jongwong.collab;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

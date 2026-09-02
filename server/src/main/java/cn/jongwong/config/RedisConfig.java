@@ -1,4 +1,4 @@
-package cn.jongwong.config;
+package main.java.cn.jongwong.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;

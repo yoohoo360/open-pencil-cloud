@@ -1,4 +1,4 @@
-package cn.jongwong.service;
+package main.java.cn.jongwong.service;
 
 import cn.jongwong.dto.FileInfo;
 

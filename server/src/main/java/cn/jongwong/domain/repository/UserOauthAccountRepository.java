@@ -1,4 +1,4 @@
-package cn.jongwong.domain.repository;
+package main.java.cn.jongwong.domain.repository;
 
 import cn.jongwong.domain.entity.UserOauthAccount;
 import org.springframework.data.jpa.repository.JpaRepository;

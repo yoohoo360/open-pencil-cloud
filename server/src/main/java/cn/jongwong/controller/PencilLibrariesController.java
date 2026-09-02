@@ -1,4 +1,4 @@
-package cn.jongwong.controller;
+package main.java.cn.jongwong.controller;
 
 import cn.jongwong.common.ConvertUtils;
 import cn.jongwong.dto.ApiResponse;

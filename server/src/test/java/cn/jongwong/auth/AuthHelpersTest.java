@@ -1,4 +1,4 @@
-package cn.jongwong.auth;
+package test.java.cn.jongwong.auth;
 
 import org.junit.jupiter.api.Test;
 

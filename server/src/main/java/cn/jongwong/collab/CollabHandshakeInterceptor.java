@@ -1,4 +1,4 @@
-package cn.jongwong.collab;
+package main.java.cn.jongwong.collab;
 
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;

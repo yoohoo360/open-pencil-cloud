@@ -1,4 +1,4 @@
-package cn.jongwong.repository;
+package main.java.cn.jongwong.repository;
 
 import cn.jongwong.entity.PencilDocumentLibraryRef;
 import org.springframework.data.jpa.repository.JpaRepository;

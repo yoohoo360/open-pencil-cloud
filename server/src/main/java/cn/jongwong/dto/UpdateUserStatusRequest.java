@@ -1,4 +1,4 @@
-package cn.jongwong.dto;
+package main.java.cn.jongwong.dto;
 
 import cn.jongwong.domain.entity.enums.UserStatus;
 import jakarta.validation.constraints.NotNull;

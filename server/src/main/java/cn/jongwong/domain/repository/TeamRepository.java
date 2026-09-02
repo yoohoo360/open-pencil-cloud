@@ -1,4 +1,4 @@
-package cn.jongwong.domain.repository;
+package main.java.cn.jongwong.domain.repository;
 
 import cn.jongwong.domain.entity.Team;
 import org.springframework.data.domain.Page;

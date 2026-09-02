@@ -1,4 +1,4 @@
-package cn.jongwong.entity;
+package main.java.cn.jongwong.entity;
 
 import lombok.*;
 

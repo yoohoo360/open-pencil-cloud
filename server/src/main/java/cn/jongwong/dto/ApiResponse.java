@@ -1,4 +1,4 @@
-package cn.jongwong.dto;
+package main.java.cn.jongwong.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

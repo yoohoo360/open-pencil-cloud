@@ -1,4 +1,4 @@
-package cn.jongwong.controller;
+package main.java.cn.jongwong.controller;
 
 import cn.jongwong.domain.entity.enums.UserStatus;
 import cn.jongwong.dto.*;

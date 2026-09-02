@@ -1,4 +1,4 @@
-package cn.jongwong.auth;
+package main.java.cn.jongwong.auth;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

@@ -1,4 +1,4 @@
-package cn.jongwong.security;
+package main.java.cn.jongwong.security;
 
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.domain.repository.UserRepository;

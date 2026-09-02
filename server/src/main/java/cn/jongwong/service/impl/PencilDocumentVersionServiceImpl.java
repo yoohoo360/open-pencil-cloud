@@ -1,4 +1,4 @@
-package cn.jongwong.service.impl;
+package main.java.cn.jongwong.service.impl;
 
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.domain.repository.UserRepository;

@@ -1,4 +1,4 @@
-package cn.jongwong.security;
+package main.java.cn.jongwong.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;

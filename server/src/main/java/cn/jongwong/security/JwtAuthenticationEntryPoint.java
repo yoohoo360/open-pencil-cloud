@@ -1,4 +1,4 @@
-package cn.jongwong.security;
+package main.java.cn.jongwong.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;

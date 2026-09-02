@@ -1,4 +1,4 @@
-package cn.jongwong.auth;
+package main.java.cn.jongwong.auth;
 
 import lombok.Getter;
 import lombok.Setter;

@@ -1,4 +1,4 @@
-package cn.jongwong.service.impl;
+package test.java.cn.jongwong.service.impl;
 
 import org.junit.jupiter.api.Test;
 

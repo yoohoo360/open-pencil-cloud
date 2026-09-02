@@ -1,4 +1,4 @@
-package cn.jongwong.config;
+package main.java.cn.jongwong.config;
 
 import cn.jongwong.collab.CollabHandshakeInterceptor;
 import cn.jongwong.collab.CollabProperties;

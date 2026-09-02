@@ -1,4 +1,4 @@
-package cn.jongwong.exception;
+package main.java.cn.jongwong.exception;
 
 import cn.jongwong.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;

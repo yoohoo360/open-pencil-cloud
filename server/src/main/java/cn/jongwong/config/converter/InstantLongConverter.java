@@ -1,4 +1,4 @@
-package cn.jongwong.config.converter;
+package main.java.cn.jongwong.config.converter;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;

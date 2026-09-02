@@ -1,4 +1,4 @@
-package cn.jongwong.domain.entity;
+package main.java.cn.jongwong.domain.entity;
 
 import cn.jongwong.domain.entity.id.TeamMemberId;
 import jakarta.persistence.*;

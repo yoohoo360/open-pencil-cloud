@@ -1,4 +1,4 @@
-package cn.jongwong.config;
+package main.java.cn.jongwong.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

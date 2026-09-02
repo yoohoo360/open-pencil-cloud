@@ -1,4 +1,4 @@
-package cn.jongwong.web.dto.team;
+package main.java.cn.jongwong.web.dto.team;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
