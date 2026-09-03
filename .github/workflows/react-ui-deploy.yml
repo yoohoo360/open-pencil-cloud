@@ -123,9 +123,17 @@ jobs:
           ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "mkdir -p /data/docker-mnt/nginx/html/open-pencil-react"
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
+          TMP_DIR="/data/docker-mnt/nginx/html/open-pencil-react.tmp"
+          TARGET_DIR="/data/docker-mnt/nginx/html/open-pencil-react"
       
-          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" -r packages/react/dist/* "$USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/"
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "mkdir -p '$TMP_DIR'"
       
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload"
+          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" -r packages/react/dist/* "$USERNAME@$SERVER_IP:$TMP_DIR/"
+      
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "
+            rm -rf '${TARGET_DIR}.bak' &&
+            if [ -d '$TARGET_DIR' ]; then mv '$TARGET_DIR' '${TARGET_DIR}.bak'; fi &&
+            mv '$TMP_DIR' '$TARGET_DIR' &&
+            rm -rf '${TARGET_DIR}.bak' &&
+            docker compose -f /data/docker-mnt/docker-compose.yml exec -T nginx nginx -s reload
+          "
