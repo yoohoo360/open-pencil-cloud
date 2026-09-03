@@ -113,16 +113,9 @@ jobs:
           PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          cat > ~/.ssh/config <<EOF
-          Host $SERVER_IP
-            Port $SSH_PORT
-            User $USERNAME
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no
-          EOF
-          ssh $USERNAME@$SERVER_IP "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
-          scp -r packages/react/dist/* $USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/
-          ssh $USERNAME@$SERVER_IP "cd /data/docker-mnt"
-          ssh $USERNAME@$SERVER_IP "docker compose exec -T nginx nginx -s reload"
+          echo "$PRIVATE_KEY" > ~/.ssh/target-server.key
+          chmod 600  ~/.ssh/target-server.key
+          ssh -i ~/.ssh/target-server.key  $USERNAME@$SERVER_IP "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
+          scp -i ~/.ssh/target-server.key  -r packages/react/dist/* $USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/
+          ssh ~/.ssh/target-server.key $USERNAME@$SERVER_IP "cd /data/docker-mnt"
+          ssh ~/.ssh/target-server.key $USERNAME@$SERVER_IP "docker compose exec -T nginx nginx -s reload"
