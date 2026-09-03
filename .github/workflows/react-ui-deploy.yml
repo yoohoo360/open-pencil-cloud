@@ -117,5 +117,5 @@ jobs:
           chmod 600  ~/.ssh/target-server.key
           ssh -i ~/.ssh/target-server.key  $USERNAME@$SERVER_IP "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
           scp -i ~/.ssh/target-server.key  -r packages/react/dist/* $USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/
-          ssh ~/.ssh/target-server.key $USERNAME@$SERVER_IP "cd /data/docker-mnt"
-          ssh ~/.ssh/target-server.key $USERNAME@$SERVER_IP "docker compose exec -T nginx nginx -s reload"
+          ssh -i ~/.ssh/target-server.key $USERNAME@$SERVER_IP "cd /data/docker-mnt"
+          ssh -i ~/.ssh/target-server.key $USERNAME@$SERVER_IP "docker compose exec -T nginx nginx -s reload"
