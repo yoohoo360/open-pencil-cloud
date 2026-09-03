@@ -32,7 +32,8 @@
   },
   "scripts": {
     "dev": "vite --config ./vite.config.ts --port 8080 --strictPort",
-    "build": "vite build && bun run build:dts",
+    "build:test": "cross-env NODE_ENV=production VITE_APP_ENV=dev  vite build",
+    "build:prod": "cross-env NODE_ENV=production VITE_APP_ENV=prod vite build",
     "build:dts": "bunx tsc --emitDeclarationOnly -p tsconfig.build.json",
     "check": "bun run typecheck && bun run build && bun run smoke:dist",
     "prepack": "bun run build",
