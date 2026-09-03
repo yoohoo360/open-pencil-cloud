@@ -123,17 +123,20 @@ jobs:
           ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       
-          TMP_DIR="/data/docker-mnt/nginx/html/open-pencil-react.tmp"
+          TAR_FILE="dist.tar.gz"
           TARGET_DIR="/data/docker-mnt/nginx/html/open-pencil-react"
       
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "mkdir -p '$TMP_DIR'"
+          tar -czf "$TAR_FILE" -C packages/react dist
       
-          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" -r packages/react/dist/* "$USERNAME@$SERVER_IP:$TMP_DIR/"
+          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$USERNAME@$SERVER_IP:/tmp/$TAR_FILE"
       
           ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "
-            rm -rf '${TARGET_DIR}.bak' &&
-            if [ -d '$TARGET_DIR' ]; then mv '$TARGET_DIR' '${TARGET_DIR}.bak'; fi &&
-            mv '$TMP_DIR' '$TARGET_DIR' &&
-            rm -rf '${TARGET_DIR}.bak' &&
-            docker compose -f /data/docker-mnt/docker-compose.yml exec -T nginx nginx -s reload
+            set -e
+            mkdir -p '$TARGET_DIR'
+            rm -rf '$TARGET_DIR'/*
+            tar -xzf /tmp/$TAR_FILE -C '$TARGET_DIR' --strip-components=1
+            rm -f /tmp/$TAR_FILE
+            cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
           "
+      
+          rm -f "$TAR_FILE"
