@@ -122,9 +122,7 @@ jobs:
             IdentityFile ~/.ssh/id_rsa
             StrictHostKeyChecking no
           EOF
-          ssh $USERNAME@$SERVER_IP "rm -rf /data/docker-mnt/nginx/html/.open-pencil-react-temp/*"
-          scp -r packages/react/admin/dist/* $USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/.open-pencil-react-temp/
           ssh $USERNAME@$SERVER_IP "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
-          ssh $USERNAME@$SERVER_IP "mv /data/docker-mnt/nginx/html/.open-pencil-react-temp/* /data/docker-mnt/nginx/html/open-pencil-react/"
+          scp -r packages/react/dist/* $USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/
           ssh $USERNAME@$SERVER_IP "cd /data/docker-mnt"
           ssh $USERNAME@$SERVER_IP "docker compose exec -T nginx nginx -s reload"
