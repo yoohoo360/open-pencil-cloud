@@ -105,27 +105,27 @@ jobs:
           git config user.email "yoohoo360@qq.com"
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
-          - name: Set up SSH and deploy
-            env:
-              SERVER_IP: 101.34.152.79
-              SSH_PORT: 22
-              USERNAME: root
-              PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
-            run: |
-              set -e
-          
-              mkdir -p ~/.ssh
-              chmod 700 ~/.ssh
-          
-              printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
-              chmod 600 ~/.ssh/target-server.key
-          
-              ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
-              chmod 600 ~/.ssh/known_hosts
-          
-              ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "mkdir -p /data/docker-mnt/nginx/html/open-pencil-react"
-              ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
-          
-              scp -i ~/.ssh/target-server.key -P "$SSH_PORT" -r packages/react/dist/* "$USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/"
-          
-              ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload"
+      - name: Set up SSH and deploy
+        env:
+          SERVER_IP: 101.34.152.79
+          SSH_PORT: 22
+          USERNAME: root
+          PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+      
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+      
+          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
+          chmod 600 ~/.ssh/target-server.key
+      
+          ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "mkdir -p /data/docker-mnt/nginx/html/open-pencil-react"
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "rm -rf /data/docker-mnt/nginx/html/open-pencil-react/*"
+      
+          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" -r packages/react/dist/* "$USERNAME@$SERVER_IP:/data/docker-mnt/nginx/html/open-pencil-react/"
+      
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload"
