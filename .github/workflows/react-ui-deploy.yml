@@ -1,0 +1,142 @@
+name: react ui deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "Version type (major, minor, patch)"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+      release_type:
+        description: "Release type (prod or beta)"
+        required: true
+        type: choice
+        options:
+          - beta
+          - prod
+
+      offset:
+        description: "Version offset (default is 0)"
+        required: false
+        type: number
+        default: 0
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: ./
+        run: bun install
+
+      - name: Build project
+        working-directory: packages/react
+        run: |
+          if [ "${{ github.event.inputs.release_type }}" = "prod" ]; then
+            bun run build:prod
+          else
+            bun run build:test
+          fi
+      - name: Get latest version tag
+        id: latest
+        run: |
+          git fetch --tags
+          TAG=$(git tag --sort=-v:refname | grep -E '^open-pencil-react-v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          echo "Found latest tag: $TAG"
+          if [ -z "$TAG" ]; then
+            echo "base_version=0.0.0" >> $GITHUB_OUTPUT
+          else
+            echo "base_version=${TAG#open-pencil-react-v}" >> $GITHUB_OUTPUT
+          fi
+      - name: Compute new version
+        id: version
+        run: |
+          BASE="${{ steps.latest.outputs.base_version }}"
+          VERSION_TYPE="${{ github.event.inputs.version_type }}"
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          OFFSET="${{ github.event.inputs.offset }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+          if [ "$VERSION_TYPE" = "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "$VERSION_TYPE" = "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          PATCH=$((PATCH + OFFSET))
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          if [ "$RELEASE_TYPE" = "beta" ]; then
+            COUNT=$(git tag | grep "^open-pencil-react-v$VERSION-beta" | wc -l)
+            VERSION="$VERSION-beta.$((COUNT + 1))"
+          fi
+          echo "✅ version=$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Create Git Tag
+        run: |
+          TAG_NAME="open-pencil-react-v${{ steps.version.outputs.version }}"
+          git config user.name "jongwong"
+          git config user.email "yoohoo360@qq.com"
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+      - name: Set up SSH and deploy
+        env:
+          SERVER_IP: 101.34.152.79
+          SSH_PORT: 22
+          USERNAME: root
+          PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+      
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+      
+          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
+          chmod 600 ~/.ssh/target-server.key
+      
+          ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      
+          TAR_FILE="dist.tar.gz"
+          TARGET_DIR="/data/docker-mnt/nginx/html/open-pencil-react"
+      
+          tar -czf "$TAR_FILE" -C packages/react dist
+      
+          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$USERNAME@$SERVER_IP:/tmp/$TAR_FILE"
+      
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "
+            set -e
+            mkdir -p '$TARGET_DIR'
+            rm -rf '$TARGET_DIR'/*
+            tar -xzf /tmp/$TAR_FILE -C '$TARGET_DIR' --strip-components=1
+            rm -f /tmp/$TAR_FILE
+            cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
+          "
+      
+          rm -f "$TAR_FILE"

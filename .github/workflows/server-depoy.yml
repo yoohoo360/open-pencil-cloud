@@ -1,0 +1,172 @@
+name: yoohoo-server
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "Version type (major, minor, patch)"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+      release_type:
+        description: "Release type (prod or beta)"
+        required: true
+        type: choice
+        options:
+          - beta
+          - prod
+
+      offset:
+        description: "Version offset (default is 0)"
+        required: false
+        type: number
+        default: 0
+
+env:
+  MODULE_NAME: open-pencil-server
+  MODULE_PATH: ./server
+  DOCKER_REGISTRY: registry.cn-hangzhou.aliyuncs.com/jongwong
+  IMAGE_NAME: open-pencil-server
+  REMOTE_COMPOSE_PATH: /data/docker-mnt/open-pencil-server.yml
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: corretto
+  SERVER_IP: 101.34.152.79
+  SSH_PORT: 22
+  SSH_USERNAME: root
+
+permissions:
+  contents: write
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    outputs:
+      docker_tag: ${{ steps.version.outputs.docker_tag }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest version tag (exclude beta)
+        id: latest_version
+        run: |
+          git fetch --tags
+          LATEST=$(git tag --sort=-v:refname | grep -E '^${{ env.MODULE_NAME }}-v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          echo "Found latest stable tag: $LATEST"
+          if [ -z "$LATEST" ]; then
+            echo "base_version=0.0.0" >> $GITHUB_OUTPUT
+          else
+            echo "base_version=${LATEST#${{ env.MODULE_NAME }}-v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compute new version
+        id: version
+        run: |
+          BASE="${{ steps.latest_version.outputs.base_version }}"
+          VERSION_TYPE="${{ github.event.inputs.version_type }}"
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          OFFSET="${{ github.event.inputs.offset }}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+
+          if [ "$VERSION_TYPE" = "major" ]; then
+            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+          elif [ "$VERSION_TYPE" = "minor" ]; then
+            MINOR=$((MINOR + 1)); PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          PATCH=$((PATCH + OFFSET))
+
+          VERSION="$MAJOR.$MINOR.$PATCH"
+
+          if [ "$RELEASE_TYPE" = "beta" ]; then
+            COUNT=$(git tag | grep "^${{ env.MODULE_NAME }}-v$VERSION-beta" | wc -l)
+            VERSION="$VERSION-beta.$((COUNT + 1))"
+          fi
+
+          DOCKER_TAG="$VERSION"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
+          echo "module=${{ env.MODULE_NAME }}" >> $GITHUB_OUTPUT
+
+      - name: Show computed version
+        run: |
+          echo "✅ Computed version: ${{ steps.version.outputs.version }}"
+          echo "🐳 Docker tag: ${{ steps.version.outputs.docker_tag }}"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: Verify module structure
+        run: |
+          echo "Verifying ${{ env.MODULE_PATH }} module..."
+          if [ ! -d "${{ env.MODULE_PATH }}" ]; then
+            echo "::error::${{ env.MODULE_PATH }} module directory not found!"
+            exit 1
+          fi
+          ls -la ${{ env.MODULE_PATH }}/
+
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_DOCKER_USERNAME }}
+          password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        env:
+          BUILDKIT_PROGRESS: plain
+        with:
+          context: ${{ env.MODULE_PATH }}
+          file: ${{ env.MODULE_PATH }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.docker_tag }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Tag and push version tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}
+          git push origin ${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}
+
+      - name: Set up SSH and deploy
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
+          PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+
+          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          echo "Host ${{ env.SERVER_IP }}
+           Port ${{ env.SSH_PORT }}
+           User ${{ env.SSH_USERNAME }}
+           IdentityFile ~/.ssh/id_rsa
+           StrictHostKeyChecking no
+          " > ~/.ssh/config
+
+          echo "Replacing docker tag in remote docker-compose.yml..."
+          ssh ${{ env.SSH_USERNAME }}@${{ env.SERVER_IP }} "sed -i 's|image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:.*|image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${NEW_VERSION}|' ${{ env.REMOTE_COMPOSE_PATH }}"
+
+          echo "Restarting container..."
+          ssh ${{ env.SSH_USERNAME }}@${{ env.SERVER_IP }} "cd /data/docker-mnt && nerdctl compose -f ${{ env.REMOTE_COMPOSE_PATH }} up -d"
