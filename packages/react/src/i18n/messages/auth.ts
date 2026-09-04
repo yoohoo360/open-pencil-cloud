@@ -4,8 +4,8 @@ export const authMessageDefaults = {
   appName: 'Canvas',
   welcomeBack: 'Welcome Back',
   loginSubtitle: 'Sign in to your account',
-  usernameOrEmail: 'Username or Email',
-  usernameOrEmailPlaceholder: 'Enter your username or email',
+  usernameOrEmail: 'Email',
+  usernameOrEmailPlaceholder: 'Enter your email',
   password: 'Password',
   passwordPlaceholder: 'Enter your password',
   rememberMe: 'Remember me',
@@ -17,7 +17,7 @@ export const authMessageDefaults = {
   createAccount: 'Create an account',
   registerSubtitle: 'Register with email, then enter the verification code',
   username: 'Username',
-  name: 'Name',
+  name: 'Nickname',
   email: 'Email',
   confirmPassword: 'Confirm password',
   creatingAccount: 'Creating account...',
@@ -37,7 +37,9 @@ export const authMessageDefaults = {
   emailRequired: 'Enter your email first',
   codeSent: 'If this account needs verification, a new code was sent',
   signingIn: 'Signing in',
-  oauthWait: 'Finishing sign in…'
+  oauthWait: 'Finishing sign in…',
+  oauthUnlinked:
+    'This GitHub or Google account is not linked yet. Register first, then click GitHub or Google again to link it.'
 } as const
 
 export const authMessages = i18n('auth', authMessageDefaults)

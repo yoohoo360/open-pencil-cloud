@@ -77,3 +77,4 @@ scratch/
 
 # OpenCode
 .opencode/
+/server/storage/

@@ -1,12 +1,12 @@
-const env = import.meta.env.VITE_APP_ENV
+const env = import.meta.env.APP_ENV
 
-let _API_BASE_URL = 'http://localhost:8000'
-
-if (env === 'dev') {
-  _API_BASE_URL = 'https://dev.api.yoohoo.cn'
-} else if (env === 'prod') {
-  _API_BASE_URL = 'https://api.yoohoo.cn'
+function resolveAPIBaseURL(): string {
+  if (import.meta.env.DEV) return ''
+  if (env === 'dev') return 'http://pencil.api.dev.yoohoo.cn'
+  if (env === 'prod') return 'https://api.yoohoo.cn'
+  return 'http://localhost:8000'
 }
+
 export default {
-  API_BASE_URL: _API_BASE_URL
+  API_BASE_URL: resolveAPIBaseURL()
 }

@@ -1,3 +1,10 @@
+/// <reference types="unplugin-icons/types/react" />
+
+declare const __OPENPENCIL_APP_VERSION__: string
+declare const __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__: string | null
+declare const __OPENPENCIL_LOCAL_AUTOMATION_URL__: string
+declare const __OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__: string
+
 interface FontData {
   family: string
   fullName: string
@@ -39,6 +46,7 @@ interface ImportMetaEnv {
   DEV: boolean
   PROD: boolean
   MODE: string
+  APP_ENV?: string
   VITE_API_URL?: string
   VITE_COLLAB_WS_URL?: string
 }

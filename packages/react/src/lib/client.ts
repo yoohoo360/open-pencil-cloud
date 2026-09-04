@@ -33,9 +33,7 @@ const AUTH_REFRESH_SKIP_PATHS = [
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/auth/verify-email',
-  '/api/auth/resend-verification',
-  '/api/auth/oauth/exchange',
-  '/api/auth/oauth/providers'
+  '/api/auth/resend-verification'
 ]
 
 export type APIResponse<T = unknown> = {
@@ -91,11 +89,6 @@ export type RegisterRequest = {
 export type RegisterResponse = {
   requires_verification: boolean
   email: string
-}
-
-export type OauthProviders = {
-  github: boolean
-  google: boolean
 }
 
 export type CreateDocumentRequest = {
@@ -366,26 +359,6 @@ export const authAPI = {
 
   async resendVerification(email: string): Promise<void> {
     await apiClient.post('/api/auth/resend-verification', { email })
-  },
-
-  async oauthProviders(): Promise<OauthProviders> {
-    try {
-      const response = await apiClient.get<OauthProviders>('/api/auth/oauth/providers')
-      return {
-        github: Boolean(response.data?.github),
-        google: Boolean(response.data?.google)
-      }
-    } catch {
-      return { github: false, google: false }
-    }
-  },
-
-  async exchangeOauth(ticket: string): Promise<AuthTokens> {
-    const response = await apiClient.post<AuthTokens>('/api/auth/oauth/exchange', { ticket })
-    const tokens = unwrapAuthTokens(response)
-    setTokens(tokens.access_token, tokens.refresh_token)
-    if (tokens.user) writeStoredUserJSON(JSON.stringify(tokens.user))
-    return tokens
   },
 
   async logout(): Promise<void> {

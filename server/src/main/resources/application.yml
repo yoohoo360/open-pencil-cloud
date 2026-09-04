@@ -53,6 +53,7 @@ spring:
 
 server:
   port: ${PORT:8000}
+  forward-headers-strategy: framework
   error:
     include-message: always
     include-stacktrace: on_param
@@ -100,6 +101,8 @@ app:
   api-prefix: /api
   frontend-url: ${FRONTEND_URL:http://localhost:8080}
   public-url: ${PUBLIC_URL:http://localhost:8000}
+  auth:
+    require-email-verification: true
 
 oauth:
   github:

@@ -1,12 +1,11 @@
-import { type FormEvent, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { LoaderCircle } from 'lucide-react'
-
 import { safeRedirect } from '#react/app/auth/redirect'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
 import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/auth/AuthShell'
 import { OauthButtons } from '#react/view/auth/OauthButtons'
+import { LoaderCircle } from 'lucide-react'
+import { type FormEvent, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function RegisterView() {
   const { auth } = useI18n()
@@ -24,7 +23,7 @@ export default function RegisterView() {
 
   function validate(): boolean {
     const next: Record<string, string> = {}
-    if (!name.trim()) next.name = 'Name is required'
+    if (!name.trim()) next.name = 'Nickname is required'
     if (username.trim().length < 3) next.username = 'Username must be at least 3 characters'
     if (!email.includes('@')) next.email = 'A valid email is required'
     if (password.length < 6) next.password = 'Password must be at least 6 characters'
@@ -32,6 +31,8 @@ export default function RegisterView() {
     setErrors(next)
     return Object.keys(next).length === 0
   }
+
+  const loginHref = `/login${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault()
@@ -45,6 +46,18 @@ export default function RegisterView() {
         email: email.trim(),
         password
       })
+      if (!result.requires_verification && import.meta.env.DEV) {
+        await authAPI.login({
+          username_or_email: email.trim(),
+          password
+        })
+        void navigate(safeRedirect(redirect))
+        return
+      }
+      if (!result.requires_verification) {
+        void navigate(loginHref)
+        return
+      }
       const params = new URLSearchParams()
       params.set('email', result.email)
       const next = safeRedirect(redirect)
@@ -57,8 +70,6 @@ export default function RegisterView() {
     }
   }
 
-  const loginHref = `/login${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`
-
   return (
     <div className="h-full" data-test-id="register-page">
       <AuthShell
@@ -66,14 +77,13 @@ export default function RegisterView() {
         subtitle={auth.registerSubtitle || 'Register with email, then enter the verification code'}
       >
         {generalError ? <AuthAlert>{generalError}</AuthAlert> : null}
-        <OauthButtons redirect={redirect} />
         <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
-          <AuthField id="name" label={auth.name || 'Name'} error={errors.name}>
+          <AuthField id="name" label={auth.name || 'Nickname'} error={errors.name}>
             <input
               id="name"
               value={name}
               type="text"
-              autoComplete="name"
+              autoComplete="nickname"
               className={authInputClass(Boolean(errors.name))}
               disabled={isLoading}
               data-test-id="register-name"
@@ -132,6 +142,7 @@ export default function RegisterView() {
               onChange={(event) => setConfirm(event.target.value)}
             />
           </AuthField>
+          <OauthButtons redirect={redirect} />
           <button
             type="submit"
             className="mt-6 w-full rounded bg-accent py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"

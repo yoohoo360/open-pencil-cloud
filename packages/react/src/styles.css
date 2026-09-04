@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@source './**/*.{ts,tsx}';
+
 @utility scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -93,6 +95,7 @@
   --color-muted: #888888;
   --color-input: #1e1e1e;
   --color-component: #9747ff;
+  --color-danger: #ef4444;
   --color-ruler-bg: rgb(36, 36, 36);
   --color-ruler-tick: rgb(102, 102, 102);
   --color-ruler-text: rgb(140, 140, 140);
@@ -115,6 +118,7 @@ html[data-theme='light'] {
   --color-muted: #6b7280;
   --color-input: #ffffff;
   --color-component: #7c3aed;
+  --color-danger: #dc2626;
   --color-ruler-bg: rgb(250, 250, 251);
   --color-ruler-tick: rgb(163, 171, 182);
   --color-ruler-text: rgb(90, 99, 112);

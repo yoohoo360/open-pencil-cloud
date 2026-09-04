@@ -1,42 +1,49 @@
-import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { LoaderCircle } from 'lucide-react'
-
 import { safeRedirect } from '#react/app/auth/redirect'
 import { readRememberedUsername, writeRememberedUsername } from '#react/app/auth/storage'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
 import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/auth/AuthShell'
 import { OauthButtons } from '#react/view/auth/OauthButtons'
+import { LoaderCircle } from 'lucide-react'
+import { type FormEvent, useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function LoginView() {
   const { auth } = useI18n()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const remembered = readRememberedUsername()
-  const [username, setUsername] = useState(remembered)
+  const [email, setEmail] = useState(remembered)
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(Boolean(remembered))
-  const [usernameError, setUsernameError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [generalError, setGeneralError] = useState('')
   const [needsVerification, setNeedsVerification] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const isDev = import.meta.env.DEV
-  const isValid = username.trim().length > 0 && password.trim().length > 0
+  const isValid = email.includes('@') && password.trim().length > 0
   const redirect = searchParams.get('redirect')
 
   useEffect(() => {
     const oauthError = searchParams.get('error')
-    if (oauthError) setGeneralError(oauthError)
-  }, [searchParams])
+    if (!oauthError) return
+    if (oauthError === 'oauth_unlinked') {
+      setGeneralError(
+        auth.oauthUnlinked ||
+          'This GitHub or Google account is not linked yet. Register first, then click GitHub or Google again to link it.'
+      )
+      return
+    }
+    setGeneralError(oauthError)
+  }, [auth.oauthUnlinked, searchParams])
 
   function validate(): boolean {
-    const nextUsernameError = username.trim() ? '' : 'Username or email is required'
-    const nextPasswordError = password.trim() ? '' : 'Password is required'
-    setUsernameError(nextUsernameError)
+    const nextEmailError = email.includes('@') ? '' : auth.emailRequired || 'Enter your email first'
+    const nextPasswordError = password.trim() ? '' : auth.password || 'Password is required'
+    setEmailError(nextEmailError)
     setPasswordError(nextPasswordError)
-    return !nextUsernameError && !nextPasswordError
+    return !nextEmailError && !nextPasswordError
   }
 
   async function handleLogin(event?: FormEvent): Promise<void> {
@@ -47,10 +54,10 @@ export default function LoginView() {
     setIsLoading(true)
     try {
       await authAPI.login({
-        username_or_email: username,
+        username_or_email: email.trim(),
         password
       })
-      writeRememberedUsername(rememberMe ? username : '')
+      writeRememberedUsername(rememberMe ? email.trim() : '')
       void navigate(safeRedirect(redirect))
     } catch (error) {
       const message = getAPIErrorMessage(error, 'Login failed. Please try again.')
@@ -61,9 +68,7 @@ export default function LoginView() {
     }
   }
 
-  const verifyHref = username.includes('@')
-    ? `/verify-email?email=${encodeURIComponent(username.trim())}&redirect=${encodeURIComponent(safeRedirect(redirect))}`
-    : `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+  const verifyHref = `/verify-email?email=${encodeURIComponent(email.trim())}&redirect=${encodeURIComponent(safeRedirect(redirect))}`
 
   return (
     <div
@@ -87,26 +92,24 @@ export default function LoginView() {
           </p>
         ) : null}
 
-        <OauthButtons redirect={redirect} />
-
         <form className="space-y-4" onSubmit={(event) => void handleLogin(event)}>
           <AuthField
-            id="username_or_email"
-            label={auth.usernameOrEmail || 'Username or Email'}
-            error={usernameError}
+            id="email"
+            label={auth.email || 'Email'}
+            error={emailError}
           >
             <input
-              id="username_or_email"
-              value={username}
-              type="text"
-              autoComplete="username"
-              className={authInputClass(Boolean(usernameError))}
-              placeholder={auth.usernameOrEmailPlaceholder || 'Enter your username or email'}
+              id="email"
+              value={email}
+              type="email"
+              autoComplete="email"
+              className={authInputClass(Boolean(emailError))}
+              placeholder={auth.usernameOrEmailPlaceholder || 'Enter your email'}
               disabled={isLoading}
-              data-test-id="login-username"
-              onChange={(event) => setUsername(event.target.value)}
+              data-test-id="login-email"
+              onChange={(event) => setEmail(event.target.value)}
               onBlur={() => {
-                setUsernameError(username.trim() ? '' : 'Username or email is required')
+                setEmailError(email.includes('@') ? '' : auth.emailRequired || 'Enter your email first')
               }}
             />
           </AuthField>
@@ -139,6 +142,8 @@ export default function LoginView() {
             {auth.rememberMe || 'Remember me'}
           </label>
 
+          <OauthButtons redirect={redirect} />
+
           {isDev ? (
             <div className="relative my-2">
               <div className="absolute inset-0 flex items-center">
@@ -148,7 +153,7 @@ export default function LoginView() {
                 type="button"
                 className="relative flex w-full cursor-pointer justify-center text-xs"
                 onClick={() => {
-                  setUsername('admin@jongwong.cn')
+                  setEmail('admin@jongwong.cn')
                   setPassword('123456')
                 }}
               >

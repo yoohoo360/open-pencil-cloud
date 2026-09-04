@@ -2,11 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -20,81 +16,32 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "moduleSuffixes": [".override", ""],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "#vue/*": [
-        "./packages/vue/src/*",
-        "./packages/vue/src/*.vue"
-      ],
-      "#react/*": [
-        "./packages/react/src/*"
-      ],
-      "#core/*": [
-        "./packages/core/src/*"
-      ],
-      "#cli/*": [
-        "./packages/cli/src/*"
-      ],
-      "#mcp/*": [
-        "./packages/mcp/src/*"
-      ],
-      "@open-pencil/harness": [
-        "./packages/harness/src/index.ts"
-      ],
-      "#dom-css/*": [
-        "./packages/dom-css/src/*"
-      ],
-      "#tests/*": [
-        "./tests/*"
-      ],
-      "#docs-config/*": [
-        "./packages/docs/.vitepress/*"
-      ],
-      "tinykeys": [
-        "./node_modules/tinykeys/dist/tinykeys.d.ts"
-      ],
-      "@open-pencil/cli/library": [
-        "./packages/cli/src/library/index.ts"
-      ],
-      "@open-pencil/vue": [
-        "./packages/vue/src/index.ts"
-      ],
-      "@open-pencil/core": [
-        "./packages/core/src/index.ts"
-      ],
-      "@open-pencil/core/*": [
-        "./packages/core/src/*"
-      ],
-      "@open-pencil/dom-css": [
-        "./packages/dom-css/src/index.ts"
-      ],
-      "#scene-graph/*": [
-        "./packages/scene-graph/src/*"
-      ],
-      "@open-pencil/scene-graph": [
-        "./packages/scene-graph/src/index.ts"
-      ],
-      "@open-pencil/scene-graph/*": [
-        "./packages/scene-graph/src/*"
-      ],
-      "#pen/*": [
-        "./packages/pen/src/*"
-      ],
-      "@open-pencil/pen": [
-        "./packages/pen/src/index.ts"
-      ],
-      "@open-pencil/pen/*": [
-        "./packages/pen/src/*"
-      ]
+      "@/*": ["./src/*"],
+      "#vue/*": ["./packages/vue/src/*", "./packages/vue/src/*.vue"],
+      "#react/*": ["./packages/react/src/*"],
+      "#core/*": ["./packages/core/src/*"],
+      "#cli/*": ["./packages/cli/src/*"],
+      "#mcp/*": ["./packages/mcp/src/*"],
+      "@open-pencil/harness": ["./packages/harness/src/index.ts"],
+      "#dom-css/*": ["./packages/dom-css/src/*"],
+      "#tests/*": ["./tests/*"],
+      "#docs-config/*": ["./packages/docs/.vitepress/*"],
+      "tinykeys": ["./node_modules/tinykeys/dist/tinykeys.d.ts"],
+      "@open-pencil/cli/library": ["./packages/cli/src/library/index.ts"],
+      "@open-pencil/vue": ["./packages/vue/src/index.ts"],
+      "@open-pencil/core": ["./packages/core/src/index.ts"],
+      "@open-pencil/core/*": ["./packages/core/src/*"],
+      "@open-pencil/dom-css": ["./packages/dom-css/src/index.ts"],
+      "#scene-graph/*": ["./packages/scene-graph/src/*"],
+      "@open-pencil/scene-graph": ["./packages/scene-graph/src/index.ts"],
+      "@open-pencil/scene-graph/*": ["./packages/scene-graph/src/*"],
+      "#pen/*": ["./packages/pen/src/*"],
+      "@open-pencil/pen": ["./packages/pen/src/index.ts"],
+      "@open-pencil/pen/*": ["./packages/pen/src/*"]
     }
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.vue"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.vue"],
   "references": [
     {
       "path": "./tsconfig.node.json"

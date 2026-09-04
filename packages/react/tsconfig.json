@@ -14,13 +14,30 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "moduleSuffixes": [".override", ""],
     "paths": {
+      "@/*": ["./src/*"],
+      "#vue/*": ["../../packages/vue/src/*", "../../packages/vue/src/*.vue"],
       "#react/*": ["./src/*"],
-      "#core/*": ["../core/src/*"],
-      "@open-pencil/react": ["./src/index.ts"],
-      "@open-pencil/core": ["../core/src/index.ts"],
-      "@open-pencil/core/*": ["../core/src/*"]
+      "#core/*": ["../../packages/core/src/*"],
+
+      "#cli/*": ["../../packages/cli/src/*"],
+      "#mcp/*": ["../../packages/mcp/src/*"],
+
+      "@open-pencil/harness": ["../../packages/harness/src/index.ts"],
+      "#dom-css/*": ["../../packages/dom-css/src/*"],
+      "#tests/*": ["./tests/*"],
+      "#docs-config/*": ["../../packages/docs/.vitepress/*"],
+      "@open-pencil/cli/library": ["../../packages/cli/src/library/index.ts"],
+      "@open-pencil/vue": ["../../packages/vue/src/index.ts"],
+      "@open-pencil/core": ["../../packages/core/src/index.ts"],
+      "@open-pencil/core/*": ["../../packages/core/src/*"],
+      "@open-pencil/dom-css": ["../../packages/dom-css/src/index.ts"],
+      "#scene-graph/*": ["../../packages/scene-graph/src/*"],
+      "@open-pencil/scene-graph": ["../../packages/scene-graph/src/index.ts"],
+      "@open-pencil/scene-graph/*": ["../../packages/scene-graph/src/*"],
+      "#pen/*": ["../../packages/pen/src/*"],
+      "@open-pencil/pen": ["../../packages/pen/src/index.ts"],
+      "@open-pencil/pen/*": ["../../packages/pen/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "app/**/*.ts", "app/**/*.tsx"],

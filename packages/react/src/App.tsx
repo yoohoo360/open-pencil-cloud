@@ -8,7 +8,6 @@ import CanvasView from './view/CanvasView'
 import DocumentListView from './view/DocumentListView'
 import DocumentView from './view/DocumentView'
 import LoginView from './view/LoginView'
-import OauthCallbackView from './view/OauthCallbackView'
 import RegisterView from './view/RegisterView'
 import VerifyEmailView from './view/VerifyEmailView'
 
@@ -37,14 +36,6 @@ export function App() {
         element={
           <GuestOnly>
             <LoginView/>
-          </GuestOnly>
-        }
-      />
-      <Route
-        path="/login/oauth"
-        element={
-          <GuestOnly>
-            <OauthCallbackView/>
           </GuestOnly>
         }
       />

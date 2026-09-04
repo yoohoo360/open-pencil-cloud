@@ -59,6 +59,7 @@ const repoRoot = resolve(__dirname, '../..')
 export default defineConfig(({ command }) => ({
   root: __dirname,
   publicDir: resolve(__dirname, 'public'),
+  envPrefix: 'APP_',
   plugins: [
     overrideAliasPlugin(),
     {
@@ -89,6 +90,19 @@ export default defineConfig(({ command }) => ({
       allow: [__dirname, repoRoot]
     },
     proxy: {
+      '/api': {
+        target: process.env.APP_API_PROXY || 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        cookiePathRewrite: '/',
+        xfwd: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            if (req.headers.host) {
+              proxyReq.setHeader('X-Forwarded-Host', req.headers.host)
+            }
+          })
+        }
+      },
       '/ws/collab': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,

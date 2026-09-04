@@ -38,12 +38,10 @@ export function getCollabWebSocketURL(roomId: string): string {
     return `${configured.replace(/\/$/, '')}/${encodeURIComponent(roomId)}`
   }
   if (IS_BROWSER) {
-    const protocol = getHttpClientBaseUrl().startsWith('https:') ? 'wss:' : 'ws:'
-
-    const _url = getHttpClientBaseUrl()?.startsWith('https:')
-      ? getHttpClientBaseUrl().replace('https://', '')
-      : getHttpClientBaseUrl().replace('http://', '')
-    return `${protocol}//${_url}/ws/collab/${encodeURIComponent(roomId)}`
+    const base = getHttpClientBaseUrl().trim()
+    const origin = base || window.location.origin
+    const wsOrigin = origin.replace(/^http/i, 'ws')
+    return `${wsOrigin.replace(/\/$/, '')}/ws/collab/${encodeURIComponent(roomId)}`
   }
   const apiOrigin = (import.meta.env.VITE_API_URL ?? DEFAULT_COLLAB_API_ORIGIN).replace(
     'localhost',

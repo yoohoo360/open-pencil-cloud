@@ -1,6 +1,6 @@
 package cn.jongwong.service;
 
-import cn.jongwong.auth.AuthUsernames;
+import cn.jongwong.auth.AppAuthProperties;
 import cn.jongwong.auth.EmailVerificationService;
 import cn.jongwong.auth.OauthService.OauthProfile;
 import cn.jongwong.domain.entity.Role;
@@ -12,6 +12,7 @@ import cn.jongwong.domain.entity.id.UserRoleId;
 import cn.jongwong.domain.repository.RoleRepository;
 import cn.jongwong.domain.repository.UserOauthAccountRepository;
 import cn.jongwong.domain.repository.UserRepository;
+import cn.jongwong.domain.repository.UserRoleRepository;
 import cn.jongwong.dto.AuthResponse;
 import cn.jongwong.dto.LoginRequest;
 import cn.jongwong.dto.RegisterRequest;
@@ -27,9 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.UUID;
@@ -39,32 +38,37 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final UserRepository userRepository;
     private final UserOauthAccountRepository oauthAccountRepository;
     private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
     private final RefreshTokenService refreshTokenService;
     private final EmailVerificationService emailVerificationService;
+    private final AppAuthProperties appAuthProperties;
 
     @Transactional
     public AuthResponse login(LoginRequest loginRequest) {
         log.debug("Attempting login for user: {}", loginRequest.getUsernameOrEmail());
 
-        User user = userRepository.findByEmail(loginRequest.getUsernameOrEmail())
-                .or(() -> userRepository.findByUsername(loginRequest.getUsernameOrEmail()))
-                .orElseThrow(() -> new AuthenticationException("Invalid username/email or password"));
+        User user = userRepository.findByEmail(EmailVerificationService.normalize(loginRequest.getUsernameOrEmail()))
+                .orElseThrow(() -> new AuthenticationException("Invalid email or password"));
 
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
             log.warn("Failed login attempt for user: {}", loginRequest.getUsernameOrEmail());
-            throw new AuthenticationException("Invalid username/email or password");
+            throw new AuthenticationException("Invalid email or password");
         }
 
-        if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
+        if (appAuthProperties.requireEmailVerification()
+                && (!Integer.valueOf(1).equals(user.getEmailVerified())
+                        || user.getStatus() == UserStatus.PENDING_VERIFICATION)) {
             throw new AuthenticationException("Please verify your email before signing in");
+        }
+        if (!appAuthProperties.requireEmailVerification()
+                && user.getStatus() == UserStatus.PENDING_VERIFICATION) {
+            activateRegisteredUser(user);
         }
         if (user.getStatus() != UserStatus.ACTIVE) {
             log.warn("Login attempt for inactive user: {}", user.getUsername());
@@ -82,6 +86,14 @@ public class AuthService {
         User existing = userRepository.findByEmail(email).orElse(null);
         if (existing != null) {
             if (existing.getStatus() == UserStatus.PENDING_VERIFICATION) {
+                if (!appAuthProperties.requireEmailVerification()) {
+                    existing.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+                    if (registerRequest.getName() != null && !registerRequest.getName().isBlank()) {
+                        existing.setName(registerRequest.getName().trim());
+                    }
+                    activateRegisteredUser(existing);
+                    return RegisterResponse.builder().requiresVerification(false).email(email).build();
+                }
                 emailVerificationService.sendCode(email);
                 return RegisterResponse.builder().requiresVerification(true).email(email).build();
             }
@@ -98,22 +110,27 @@ public class AuthService {
             }
         }
 
+        boolean verifyEmail = appAuthProperties.requireEmailVerification();
         User user = User.builder()
                 .username(registerRequest.getUsername().trim())
                 .email(email)
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .name(registerRequest.getName().trim())
                 .phone(registerRequest.getPhone())
-                .status(UserStatus.PENDING_VERIFICATION)
-                .emailVerified(0)
+                .status(verifyEmail ? UserStatus.PENDING_VERIFICATION : UserStatus.ACTIVE)
+                .emailVerified(verifyEmail ? 0 : 1)
                 .roles(new LinkedHashSet<>())
                 .build();
 
         user = userRepository.save(user);
         assignDefaultRole(user);
-        emailVerificationService.sendCode(email);
-        log.info("User registered, pending email verification: {}", user.getUsername());
-        return RegisterResponse.builder().requiresVerification(true).email(email).build();
+        if (verifyEmail) {
+            emailVerificationService.sendCode(email);
+            log.info("User registered, pending email verification: {}", user.getUsername());
+            return RegisterResponse.builder().requiresVerification(true).email(email).build();
+        }
+        log.info("User registered without email verification (local): {}", user.getUsername());
+        return RegisterResponse.builder().requiresVerification(false).email(email).build();
     }
 
     @Transactional
@@ -152,7 +169,7 @@ public class AuthService {
                     activateVerified(user, profile);
                     return user.getId();
                 })
-                .orElseGet(() -> linkOrCreateOauthUser(profile).getId());
+                .orElseGet(() -> linkExistingOauthUser(profile).getId());
     }
 
     @Transactional
@@ -223,30 +240,13 @@ public class AuthService {
         }
     }
 
-    private User linkOrCreateOauthUser(OauthProfile profile) {
+    private User linkExistingOauthUser(OauthProfile profile) {
         String email = profile.email().trim().toLowerCase(Locale.ROOT);
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            String username = AuthUsernames.unique(
-                    AuthUsernames.fromHandle(profile.usernameHint(), email),
-                    userRepository::existsByUsername
-            );
-            user = User.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode(randomSecret()))
-                    .name(profile.name() == null || profile.name().isBlank() ? username : profile.name())
-                    .avatar(blankToNull(profile.avatar()))
-                    .status(UserStatus.ACTIVE)
-                    .emailVerified(1)
-                    .roles(new LinkedHashSet<>())
-                    .build();
-            user = userRepository.save(user);
-            assignDefaultRole(user);
-            log.info("Created user {} from {}", user.getUsername(), profile.provider());
-        } else {
-            activateVerified(user, profile);
+            throw ApiException.badRequest("oauth_unlinked");
         }
+        activateVerified(user, profile);
         oauthAccountRepository.save(UserOauthAccount.builder()
                 .id(UUID.randomUUID().toString())
                 .userId(user.getId())
@@ -255,6 +255,12 @@ public class AuthService {
                 .createdAt(Instant.now())
                 .build());
         return user;
+    }
+
+    private void activateRegisteredUser(User user) {
+        user.setStatus(UserStatus.ACTIVE);
+        user.setEmailVerified(1);
+        userRepository.save(user);
     }
 
     private void activateVerified(User user, OauthProfile profile) {
@@ -287,9 +293,8 @@ public class AuthService {
                 .user(user)
                 .role(userRole)
                 .build();
-
+        userRoleRepository.save(userRoleEntity);
         user.getRoles().add(userRoleEntity);
-        userRepository.save(user);
     }
 
     private Role createDefaultUserRole() {
@@ -327,18 +332,5 @@ public class AuthService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
-    }
-
-    private static String randomSecret() {
-        byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        return HexFormat.of().formatHex(bytes);
-    }
-
-    private static String blankToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
     }
 }

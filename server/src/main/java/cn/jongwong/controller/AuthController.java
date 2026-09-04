@@ -1,11 +1,12 @@
 package cn.jongwong.controller;
 
+import cn.jongwong.auth.AuthCookies;
 import cn.jongwong.auth.OauthService;
+import cn.jongwong.auth.OauthService.OauthCallbackResult;
 import cn.jongwong.dto.ApiResponse;
 import cn.jongwong.dto.AuthResponse;
 import cn.jongwong.dto.ForgotPasswordRequest;
 import cn.jongwong.dto.LoginRequest;
-import cn.jongwong.dto.OauthExchangeRequest;
 import cn.jongwong.dto.OauthProvidersResponse;
 import cn.jongwong.dto.RegisterRequest;
 import cn.jongwong.dto.RegisterResponse;
@@ -17,8 +18,10 @@ import cn.jongwong.dto.VerifyEmailRequest;
 import cn.jongwong.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,7 +52,10 @@ public class AuthController {
     @Operation(summary = "User registration", description = "Register a new user and send an email verification code")
     @PostMapping("/register")
     public ApiResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        return ApiResponse.ok("Verification email sent", authService.register(registerRequest));
+        RegisterResponse result = authService.register(registerRequest);
+        return ApiResponse.ok(
+                result.isRequiresVerification() ? "Verification email sent" : "Registered",
+                result);
     }
 
     @Operation(summary = "Verify email", description = "Activate a new account with the emailed code")
@@ -73,9 +79,13 @@ public class AuthController {
     @GetMapping("/oauth/{provider}")
     public ResponseEntity<Void> startOauth(
             @PathVariable String provider,
-            @RequestParam(value = "redirect", required = false) String redirect
+            @RequestParam(value = "redirect", required = false) String redirect,
+            @RequestParam(value = "code", required = false) String code,
+            @RequestParam(value = "state", required = false) String state,
+            @RequestParam(value = "error", required = false) String error,
+            HttpServletRequest request
     ) {
-        return redirectTo(oauthService.authorizationUrl(provider, redirect));
+        return finishOauth(provider, redirect, code, state, error, request);
     }
 
     @GetMapping("/oauth/{provider}/callback")
@@ -83,18 +93,10 @@ public class AuthController {
             @PathVariable String provider,
             @RequestParam(value = "code", required = false) String code,
             @RequestParam(value = "state", required = false) String state,
-            @RequestParam(value = "error", required = false) String error
+            @RequestParam(value = "error", required = false) String error,
+            HttpServletRequest request
     ) {
-        String location = error != null && !error.isBlank()
-                ? oauthService.frontendLoginError(error)
-                : oauthService.handleCallback(provider, code, state);
-        return redirectTo(location);
-    }
-
-    @PostMapping("/oauth/exchange")
-    public ApiResponse<AuthResponse> exchangeOauth(@Valid @RequestBody OauthExchangeRequest request) {
-        String userId = oauthService.consumeTicket(request.getTicket());
-        return ApiResponse.ok("Login successful", authService.issueSessionByUserId(userId));
+        return finishOauth(provider, null, code, state, error, request);
     }
 
     @Operation(summary = "Refresh token", description = "Get a new access token using refresh token")
@@ -130,7 +132,33 @@ public class AuthController {
         return ApiResponse.ok("Password reset successful", null);
     }
 
-    private static ResponseEntity<Void> redirectTo(String location) {
-        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(location)).build();
+    private ResponseEntity<Void> finishOauth(
+            String provider,
+            String redirect,
+            String code,
+            String state,
+            String error,
+            HttpServletRequest request
+    ) {
+        String origin = oauthService.requestOrigin(request);
+        if (error != null && !error.isBlank()) {
+            return redirectTo(oauthService.frontendLoginError(error, origin), null);
+        }
+        if (code != null && !code.isBlank()) {
+            OauthCallbackResult result = oauthService.handleCallback(provider, code, state, origin);
+            return redirectTo(result.location(), result.session());
+        }
+        return redirectTo(oauthService.authorizationUrl(provider, redirect, origin), null);
+    }
+
+    private ResponseEntity<Void> redirectTo(String location, AuthResponse session) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(URI.create(location));
+        if (session != null && session.getAccessToken() != null && session.getRefreshToken() != null) {
+            boolean secure = location.startsWith("https://");
+            headers.add(HttpHeaders.SET_COOKIE, AuthCookies.accessToken(session.getAccessToken(), secure).toString());
+            headers.add(HttpHeaders.SET_COOKIE, AuthCookies.refreshToken(session.getRefreshToken(), secure).toString());
+        }
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
     }
 }

@@ -54,3 +54,8 @@ logging:
 
 server:
   address: 127.0.0.1
+
+# Password signup/login skip the email code on this local profile.
+app:
+  auth:
+    require-email-verification: false
