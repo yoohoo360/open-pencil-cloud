@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.domain.entity.enums;
+package cn.jongwong.domain.entity.enums;
 
 public enum UserStatus {
     ACTIVE,

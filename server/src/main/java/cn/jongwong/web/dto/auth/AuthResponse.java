@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.web.dto.auth;
+package cn.jongwong.web.dto.auth;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

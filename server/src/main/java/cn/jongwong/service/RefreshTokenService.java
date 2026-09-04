@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.service;
+package cn.jongwong.service;
 
 import cn.jongwong.dto.RefreshToken;
 import cn.jongwong.exception.AuthenticationException;

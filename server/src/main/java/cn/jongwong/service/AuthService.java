@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.service;
+package cn.jongwong.service;
 
 import cn.jongwong.auth.AuthUsernames;
 import cn.jongwong.auth.EmailVerificationService;

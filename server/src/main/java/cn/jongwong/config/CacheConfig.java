@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.config;
+package cn.jongwong.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;

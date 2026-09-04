@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.domain.repository;
+package cn.jongwong.domain.repository;
 
 import cn.jongwong.domain.entity.TeamMember;
 import cn.jongwong.domain.entity.id.TeamMemberId;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.collab;
+package cn.jongwong.collab;
 
 import java.io.IOException;
 

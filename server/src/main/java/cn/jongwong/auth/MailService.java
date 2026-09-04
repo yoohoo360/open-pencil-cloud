@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.auth;
+package cn.jongwong.auth;
 
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;

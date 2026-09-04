@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.config;
+package cn.jongwong.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

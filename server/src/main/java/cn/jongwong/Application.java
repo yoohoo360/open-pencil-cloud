@@ -1,4 +1,4 @@
-package main.java.cn.jongwong;
+package cn.jongwong;
 
 import cn.jongwong.auth.AppAuthProperties;
 import cn.jongwong.auth.OauthProperties;

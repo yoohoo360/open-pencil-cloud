@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.controller;
+package cn.jongwong.controller;
 
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.dto.FileInfo;

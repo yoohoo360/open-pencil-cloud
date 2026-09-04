@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.config;
+package cn.jongwong.config;
 
 import cn.jongwong.security.JwtAuthenticationEntryPoint;
 import cn.jongwong.security.JwtAuthenticationFilter;

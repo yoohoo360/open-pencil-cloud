@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.dto;
+package cn.jongwong.dto;
 
 import cn.jongwong.domain.entity.User;
 import jakarta.persistence.*;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.collab;
+package cn.jongwong.collab;
 
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;

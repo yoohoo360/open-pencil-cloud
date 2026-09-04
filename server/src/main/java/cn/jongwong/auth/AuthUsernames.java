@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.auth;
+package cn.jongwong.auth;
 
 import java.security.SecureRandom;
 import java.util.Locale;

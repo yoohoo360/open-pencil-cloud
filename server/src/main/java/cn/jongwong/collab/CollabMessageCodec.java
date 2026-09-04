@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.collab;
+package cn.jongwong.collab;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

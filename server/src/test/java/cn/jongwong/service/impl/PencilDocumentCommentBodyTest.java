@@ -1,4 +1,4 @@
-package test.java.cn.jongwong.service.impl;
+package cn.jongwong.service.impl;
 
 import cn.jongwong.exception.ApiException;
 import org.junit.jupiter.api.Test;

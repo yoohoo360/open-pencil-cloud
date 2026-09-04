@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.repository;
+package cn.jongwong.repository;
 
 import cn.jongwong.entity.PencilDocumentHistory;
 import org.springframework.data.domain.Pageable;

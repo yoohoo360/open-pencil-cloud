@@ -1,4 +1,4 @@
-package test.java.cn.jongwong.collab;
+package cn.jongwong.collab;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

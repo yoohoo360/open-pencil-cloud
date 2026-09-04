@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.ro;
+package cn.jongwong.ro;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

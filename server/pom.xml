@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.jongwong</groupId>
-    <artifactId>jongwong-api-java</artifactId>
+    <artifactId>open-pencil-server</artifactId>
     <version>1.0.0</version>
-    <name>HaloLight API Java</name>
-    <description>HaloLight Admin System - Spring Boot Backend API</description>
+    <name>Open Pencil Server</name>
+    <description>Open Pencil Server - Spring Boot Backend API</description>
 
     <properties>
         <java.version>21</java.version>

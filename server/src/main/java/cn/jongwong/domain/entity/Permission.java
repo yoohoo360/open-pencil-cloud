@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.domain.entity;
+package cn.jongwong.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

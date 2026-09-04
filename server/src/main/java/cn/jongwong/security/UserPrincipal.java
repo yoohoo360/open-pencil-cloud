@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.security;
+package cn.jongwong.security;
 
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.domain.entity.enums.UserStatus;

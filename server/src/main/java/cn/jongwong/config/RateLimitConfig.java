@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.config;
+package cn.jongwong.config;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;

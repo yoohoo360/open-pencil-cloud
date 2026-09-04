@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.entity;
+package cn.jongwong.entity;
 
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

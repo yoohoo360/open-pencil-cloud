@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.security;
+package cn.jongwong.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cn.jongwong.config.RateLimitConfig;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.common;
+package cn.jongwong.common;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.CollectionUtils;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.service.impl;
+package cn.jongwong.service.impl;
 
 import cn.jongwong.config.StorageProperties;
 import cn.jongwong.dto.FileInfo;

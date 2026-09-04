@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.web.dto.auth;
+package cn.jongwong.web.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

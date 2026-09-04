@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.auth;
+package cn.jongwong.auth;
 
 import cn.jongwong.dto.OauthProvidersResponse;
 import cn.jongwong.exception.ApiException;

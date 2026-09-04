@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.web.dto.role;
+package cn.jongwong.web.dto.role;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.controller;
+package cn.jongwong.controller;
 
 import cn.jongwong.auth.OauthService;
 import cn.jongwong.dto.ApiResponse;

@@ -1,4 +1,4 @@
-package main.java.cn.jongwong.web.dto.team;
+package cn.jongwong.web.dto.team;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
