@@ -155,9 +155,9 @@ jobs:
 
           tar -czf "$TAR_FILE"  "$DIST_DIR" 
 
-          scp  -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
+          scp target-server:"$TAR_FILE" target-server:"$REMOTE_TMP_TAR"
 
-          ssh "
+          ssh target-server "
             set -e
             mkdir -p '$TARGET_DIR'
             rm -rf '$TARGET_DIR'/*
