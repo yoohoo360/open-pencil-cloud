@@ -38,7 +38,7 @@ env:
   DIST_DIR: packages/react/dist
   REMOTE_TMP_TAR: /tmp/dist.tar.gz
   TAR_FILE: dist.tar.gz
-  SSH_PORT: ${{ vars.SSH_PORT }}
+  SSH_PORT: 22
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
 
 jobs:
