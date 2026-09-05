@@ -1,4 +1,4 @@
-name: yoohoo-server
+name: server deploy
 
 on:
   workflow_dispatch:
