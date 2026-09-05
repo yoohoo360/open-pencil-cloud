@@ -65,9 +65,9 @@ jobs:
           LATEST=$(git tag --sort=-v:refname | grep -E '^${{ env.MODULE_NAME }}-v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           echo "Found latest stable tag: $LATEST"
           if [ -z "$LATEST" ]; then
-            echo "base_version=0.0.0" >> $GITHUB_OUTPUT
+            echo "base_version=0.0.0" >> "$GITHUB_OUTPUT"
           else
-            echo "base_version=${LATEST#${{ env.MODULE_NAME }}-v}" >> $GITHUB_OUTPUT
+            echo "base_version=${LATEST#${{ env.MODULE_NAME }}-v}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Compute new version
@@ -104,9 +104,9 @@ jobs:
 
           DOCKER_TAG="$VERSION"
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
-          echo "module=${{ env.MODULE_NAME }}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "docker_tag=$DOCKER_TAG" >> "$GITHUB_OUTPUT"
+          echo "module=${{ env.MODULE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Show computed version
         run: |
@@ -127,7 +127,7 @@ jobs:
             echo "::error::${{ env.MODULE_PATH }} module directory not found!"
             exit 1
           fi
-          ls -la ${{ env.MODULE_PATH }}/
+          ls -la "${{ env.MODULE_PATH }}/"
 
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
@@ -154,12 +154,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag ${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}
-          git push origin ${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}
+          git tag "${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}"
+          git push origin "${{ env.MODULE_NAME }}-v${{ steps.version.outputs.version }}"
 
       - name: Set up SSH and deploy
-        env:
-          NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
           set -e
 
@@ -174,7 +172,13 @@ jobs:
           echo "Replacing docker tag in remote docker-compose.yml..."
           ssh -i ~/.ssh/id_rsa -p "$SSH_PORT" -o StrictHostKeyChecking=yes "$SSH_USERNAME@$SERVER_IP" "
             set -e
-            sed -i 's|image: $DOCKER_REGISTRY/$IMAGE_NAME:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:${NEW_VERSION}|' '$REMOTE_COMPOSE_PATH'
+            sed -i 's|image: $DOCKER_REGISTRY/$IMAGE_NAME:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:${{ steps.version.outputs.docker_tag }}|' '$REMOTE_COMPOSE_PATH'
+          "
+
+          echo "Logging in to Aliyun registry on remote server..."
+          ssh -i ~/.ssh/id_rsa -p "$SSH_PORT" -o StrictHostKeyChecking=yes "$SSH_USERNAME@$SERVER_IP" "
+            set -e
+            echo '$ALIYUN_DOCKER_PASSWORD' | nerdctl login 'DOCKER_REGISTRY' -u '$ALIYUN_DOCKER_USERNAME' --password-stdin
           "
 
           echo "Restarting container..."
