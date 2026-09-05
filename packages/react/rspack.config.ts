@@ -330,7 +330,7 @@ export default defineConfig({
     proxy: [
       {
         context: ['/api'],
-        target: 'http://127.0.0.1:8000',
+        target: process.env.APP_API_PROXY || 'http://127.0.0.1:8000',
         changeOrigin: true,
         cookiePathRewrite: '/',
         xfwd: true,
@@ -342,7 +342,7 @@ export default defineConfig({
       },
       {
         context: ['/ws/collab'],
-        target: 'http://127.0.0.1:8000',
+        target: process.env.APP_API_PROXY || 'http://127.0.0.1:8000',
         changeOrigin: true,
         ws: true,
         timeout: 0,

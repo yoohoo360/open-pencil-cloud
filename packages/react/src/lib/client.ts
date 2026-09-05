@@ -114,7 +114,6 @@ export type AttachDocumentLibraryRequest = {
 }
 
 type RetryRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean }
-
 const http = axios.create({
   baseURL: getHttpClientBaseUrl(),
   timeout: 20_000,
@@ -138,6 +137,18 @@ function setTokens(accessToken: string, refreshToken: string): void {
   Cookies.set(ACCESS_TOKEN_COOKIE, accessToken, { expires: 7 })
   Cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, { expires: 30 })
 }
+
+function adoptOauthSessionFromHash(): void {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const accessToken = params.get('access_token')
+  const refreshToken = params.get('refresh_token')
+  if (!accessToken || !refreshToken) return
+  setTokens(accessToken, refreshToken)
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+}
+
+adoptOauthSessionFromHash()
 
 function clearTokens(): void {
   Cookies.remove(ACCESS_TOKEN_COOKIE)

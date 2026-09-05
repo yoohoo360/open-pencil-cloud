@@ -1,4 +1,5 @@
-import { safeRedirect } from '#react/app/auth/redirect'
+import { oauthLoginErrorMessage } from '#react/app/auth/oauth'
+import { consumeReturnTo } from '#react/app/auth/redirect'
 import { readRememberedUsername, writeRememberedUsername } from '#react/app/auth/storage'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
@@ -6,11 +7,12 @@ import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/aut
 import { OauthButtons } from '#react/view/auth/OauthButtons'
 import { LoaderCircle } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function LoginView() {
   const { auth } = useI18n()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const remembered = readRememberedUsername()
   const [email, setEmail] = useState(remembered)
@@ -23,19 +25,16 @@ export default function LoginView() {
   const [isLoading, setIsLoading] = useState(false)
   const isDev = import.meta.env.DEV
   const isValid = email.includes('@') && password.trim().length > 0
-  const redirect = searchParams.get('redirect')
 
   useEffect(() => {
     const oauthError = searchParams.get('error')
-    if (!oauthError) return
-    if (oauthError === 'oauth_unlinked') {
-      setGeneralError(
-        auth.oauthUnlinked ||
-          'This GitHub or Google account is not linked yet. Register first, then click GitHub or Google again to link it.'
-      )
-      return
-    }
-    setGeneralError(oauthError)
+    const message = oauthLoginErrorMessage(
+      oauthError,
+      auth.oauthUnlinked ||
+        'This account is not linked yet. Register first, then click GitHub or Google again to link it.'
+    )
+    if (!message) return
+    setGeneralError(message)
   }, [auth.oauthUnlinked, searchParams])
 
   function validate(): boolean {
@@ -58,7 +57,7 @@ export default function LoginView() {
         password
       })
       writeRememberedUsername(rememberMe ? email.trim() : '')
-      void navigate(safeRedirect(redirect))
+      void navigate(consumeReturnTo(location.state))
     } catch (error) {
       const message = getAPIErrorMessage(error, 'Login failed. Please try again.')
       setGeneralError(message)
@@ -68,7 +67,7 @@ export default function LoginView() {
     }
   }
 
-  const verifyHref = `/verify-email?email=${encodeURIComponent(email.trim())}&redirect=${encodeURIComponent(safeRedirect(redirect))}`
+  const verifyHref = `/verify-email?email=${encodeURIComponent(email.trim())}`
 
   return (
     <div
@@ -82,22 +81,22 @@ export default function LoginView() {
         title={auth.appName || 'Welcome Back'}
         subtitle={auth.loginSubtitle || 'Sign in to your account'}
       >
-        {generalError ? <AuthAlert>{generalError}</AuthAlert> : null}
+        {generalError ? (
+          <AuthAlert>
+            <p>{generalError}</p>
+          </AuthAlert>
+        ) : null}
 
         {needsVerification ? (
           <p className="mb-4 text-sm text-muted">
-            <Link className="text-accent hover:underline" to={verifyHref}>
+            <Link className="text-accent hover:underline" to={verifyHref} state={location.state}>
               {auth.enterVerificationCode || 'Enter verification code'}
             </Link>
           </p>
         ) : null}
 
         <form className="space-y-4" onSubmit={(event) => void handleLogin(event)}>
-          <AuthField
-            id="email"
-            label={auth.email || 'Email'}
-            error={emailError}
-          >
+          <AuthField id="email" label={auth.email || 'Email'} error={emailError}>
             <input
               id="email"
               value={email}
@@ -109,7 +108,9 @@ export default function LoginView() {
               data-test-id="login-email"
               onChange={(event) => setEmail(event.target.value)}
               onBlur={() => {
-                setEmailError(email.includes('@') ? '' : auth.emailRequired || 'Enter your email first')
+                setEmailError(
+                  email.includes('@') ? '' : auth.emailRequired || 'Enter your email first'
+                )
               }}
             />
           </AuthField>
@@ -142,7 +143,7 @@ export default function LoginView() {
             {auth.rememberMe || 'Remember me'}
           </label>
 
-          <OauthButtons redirect={redirect} />
+          <OauthButtons />
 
           {isDev ? (
             <div className="relative my-2">
@@ -183,7 +184,8 @@ export default function LoginView() {
           {auth.noAccount || "Don't have an account?"}{' '}
           <Link
             className="font-medium text-accent hover:underline"
-            to={`/register${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+            to="/register"
+            state={location.state}
           >
             {auth.signUp || 'Sign Up'}
           </Link>

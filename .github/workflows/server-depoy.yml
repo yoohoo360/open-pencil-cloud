@@ -3,8 +3,16 @@ name: yoohoo-server
 on:
   workflow_dispatch:
     inputs:
+      target_env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
       version_type:
-        description: "Version type (major, minor, patch)"
+        description: 'Version type (major, minor, patch)'
         required: true
         type: choice
         options:
@@ -12,38 +20,34 @@ on:
           - minor
           - major
 
-      release_type:
-        description: "Release type (prod or beta)"
-        required: true
-        type: choice
-        options:
-          - beta
-          - prod
-
       offset:
-        description: "Version offset (default is 0)"
+        description: 'Version offset (default is 0)'
         required: false
         type: number
         default: 0
 
+permissions:
+  contents: write
+
 env:
   MODULE_NAME: open-pencil-server
   MODULE_PATH: ./server
-  DOCKER_REGISTRY: registry.cn-hangzhou.aliyuncs.com/jongwong
   IMAGE_NAME: open-pencil-server
-  REMOTE_COMPOSE_PATH: /data/docker-mnt/open-pencil-server.yml
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: corretto
-  SERVER_IP: 101.34.152.79
+  SERVER_IP: ${{ vars.SERVER_IP }}
+  SSH_USERNAME: ${{ vars.SSH_USERNAME }}
+  DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+  REMOTE_COMPOSE_PATH: ${{ vars.REMOTE_COMPOSE_PATH }}
   SSH_PORT: 22
-  SSH_USERNAME: root
-
-permissions:
-  contents: write
+  ALIYUN_DOCKER_USERNAME: ${{ vars.ALIYUN_DOCKER_USERNAME }}
+  ALIYUN_DOCKER_PASSWORD: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target_env }}
     outputs:
       docker_tag: ${{ steps.version.outputs.docker_tag }}
       version: ${{ steps.version.outputs.version }}
@@ -71,24 +75,29 @@ jobs:
         run: |
           BASE="${{ steps.latest_version.outputs.base_version }}"
           VERSION_TYPE="${{ github.event.inputs.version_type }}"
-          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          TARGET_ENV="${{ github.event.inputs.target_env }}"
           OFFSET="${{ github.event.inputs.offset }}"
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
 
           if [ "$VERSION_TYPE" = "major" ]; then
-            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
           elif [ "$VERSION_TYPE" = "minor" ]; then
-            MINOR=$((MINOR + 1)); PATCH=0
+            MINOR=$((MINOR + 1))
+            PATCH=0
           else
             PATCH=$((PATCH + 1))
           fi
 
           PATCH=$((PATCH + OFFSET))
-
           VERSION="$MAJOR.$MINOR.$PATCH"
 
-          if [ "$RELEASE_TYPE" = "beta" ]; then
+          if [ "$TARGET_ENV" = "dev" ]; then
             COUNT=$(git tag | grep "^${{ env.MODULE_NAME }}-v$VERSION-beta" | wc -l)
             VERSION="$VERSION-beta.$((COUNT + 1))"
           fi
@@ -124,8 +133,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: registry.cn-hangzhou.aliyuncs.com
-          username: ${{ secrets.ALIYUN_DOCKER_USERNAME }}
-          password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
+          username: ${{ env.ALIYUN_DOCKER_USERNAME }}
+          password: ${{ env.ALIYUN_DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -151,22 +160,23 @@ jobs:
       - name: Set up SSH and deploy
         env:
           NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
-          PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
 
-          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-          echo "Host ${{ env.SERVER_IP }}
-           Port ${{ env.SSH_PORT }}
-           User ${{ env.SSH_USERNAME }}
-           IdentityFile ~/.ssh/id_rsa
-           StrictHostKeyChecking no
-          " > ~/.ssh/config
+          cat > ~/.ssh/config <<EOF
+          Host target-server
+            HostName $SERVER_IP
+            Port $SSH_PORT
+            User $SSH_USERNAME
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          EOF
 
           echo "Replacing docker tag in remote docker-compose.yml..."
-          ssh ${{ env.SSH_USERNAME }}@${{ env.SERVER_IP }} "sed -i 's|image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:.*|image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${NEW_VERSION}|' ${{ env.REMOTE_COMPOSE_PATH }}"
+          ssh target-server "sed -i 's|image: $DOCKER_REGISTRY/$IMAGE_NAME:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:${NEW_VERSION}|' $REMOTE_COMPOSE_PATH"
 
           echo "Restarting container..."
-          ssh ${{ env.SSH_USERNAME }}@${{ env.SERVER_IP }} "cd /data/docker-mnt && nerdctl compose -f ${{ env.REMOTE_COMPOSE_PATH }} up -d"
+          ssh target-server "cd /data/docker-mnt && nerdctl compose -f $REMOTE_COMPOSE_PATH up -d"

@@ -142,7 +142,7 @@ public class AuthController {
     ) {
         String origin = oauthService.requestOrigin(request);
         if (error != null && !error.isBlank()) {
-            return redirectTo(oauthService.frontendLoginError(error, origin), null);
+            return redirectTo(oauthService.frontendLoginError(error, oauthService.frontendOriginFromState(state)), null);
         }
         if (code != null && !code.isBlank()) {
             OauthCallbackResult result = oauthService.handleCallback(provider, code, state, origin);
@@ -153,12 +153,25 @@ public class AuthController {
 
     private ResponseEntity<Void> redirectTo(String location, AuthResponse session) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setLocation(URI.create(location));
         if (session != null && session.getAccessToken() != null && session.getRefreshToken() != null) {
             boolean secure = location.startsWith("https://");
             headers.add(HttpHeaders.SET_COOKIE, AuthCookies.accessToken(session.getAccessToken(), secure).toString());
             headers.add(HttpHeaders.SET_COOKIE, AuthCookies.refreshToken(session.getRefreshToken(), secure).toString());
+            location = appendSessionHash(location, session);
         }
+        headers.setLocation(URI.create(location));
         return new ResponseEntity<>(headers, HttpStatus.FOUND);
+    }
+
+    private static String appendSessionHash(String location, AuthResponse session) {
+        int hashAt = location.indexOf('#');
+        String base = hashAt >= 0 ? location.substring(0, hashAt) : location;
+        return base
+                + "#access_token=" + urlEncode(session.getAccessToken())
+                + "&refresh_token=" + urlEncode(session.getRefreshToken());
+    }
+
+    private static String urlEncode(String value) {
+        return java.net.URLEncoder.encode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

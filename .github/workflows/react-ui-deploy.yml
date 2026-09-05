@@ -3,8 +3,16 @@ name: react ui deploy
 on:
   workflow_dispatch:
     inputs:
+      target_env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
       version_type:
-        description: "Version type (major, minor, patch)"
+        description: 'Version type (major, minor, patch)'
         required: true
         type: choice
         options:
@@ -12,16 +20,8 @@ on:
           - minor
           - major
 
-      release_type:
-        description: "Release type (prod or beta)"
-        required: true
-        type: choice
-        options:
-          - beta
-          - prod
-
       offset:
-        description: "Version offset (default is 0)"
+        description: 'Version offset (default is 0)'
         required: false
         type: number
         default: 0
@@ -29,9 +29,23 @@ on:
 permissions:
   contents: write
 
+env:
+  GIT_USER_NAME: ${{ vars.GIT_USER_NAME }}
+  GIT_USER_EMAIL: ${{ vars.GIT_USER_EMAIL }}
+  APP_NAME: open-pencil-react
+  TAG_PREFIX: open-pencil-react-v
+  BUILD_DIR: packages/react
+  DIST_DIR: packages/react/dist
+  REMOTE_TMP_TAR: /tmp/dist.tar.gz
+  TAR_FILE: dist.tar.gz
+  SSH_PORT: 22
+  SSH_USERNAME: ${{ vars.SSH_USERNAME }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target_env }}
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -51,35 +65,39 @@ jobs:
         run: bun install
 
       - name: Build project
-        working-directory: packages/react
+        working-directory: ${{ env.BUILD_DIR }}
         run: |
-          if [ "${{ github.event.inputs.release_type }}" = "prod" ]; then
+          if [ "${{ github.event.inputs.target_env }}" = "prod" ]; then
             bun run build:prod
           else
             bun run build:test
           fi
+
       - name: Get latest version tag
         id: latest
         run: |
           git fetch --tags
-          TAG=$(git tag --sort=-v:refname | grep -E '^open-pencil-react-v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          TAG=$(git tag --sort=-v:refname | grep -E '^${{ env.TAG_PREFIX }}[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           echo "Found latest tag: $TAG"
           if [ -z "$TAG" ]; then
             echo "base_version=0.0.0" >> $GITHUB_OUTPUT
           else
-            echo "base_version=${TAG#open-pencil-react-v}" >> $GITHUB_OUTPUT
+            echo "base_version=${TAG#${{ env.TAG_PREFIX }}}" >> $GITHUB_OUTPUT
           fi
+
       - name: Compute new version
         id: version
         run: |
           BASE="${{ steps.latest.outputs.base_version }}"
           VERSION_TYPE="${{ github.event.inputs.version_type }}"
-          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          TARGET_ENV="${{ github.event.inputs.target_env }}"
           OFFSET="${{ github.event.inputs.offset }}"
+
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
           MAJOR=${MAJOR:-0}
           MINOR=${MINOR:-0}
           PATCH=${PATCH:-0}
+
           if [ "$VERSION_TYPE" = "major" ]; then
             MAJOR=$((MAJOR + 1))
             MINOR=0
@@ -90,53 +108,54 @@ jobs:
           else
             PATCH=$((PATCH + 1))
           fi
+
           PATCH=$((PATCH + OFFSET))
           VERSION="$MAJOR.$MINOR.$PATCH"
-          if [ "$RELEASE_TYPE" = "beta" ]; then
-            COUNT=$(git tag | grep "^open-pencil-react-v$VERSION-beta" | wc -l)
+
+          if [ "$TARGET_ENV" = "dev" ]; then
+            COUNT=$(git tag | grep "^${{ env.TAG_PREFIX }}$VERSION-beta" | wc -l)
             VERSION="$VERSION-beta.$((COUNT + 1))"
           fi
+
           echo "✅ version=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Create Git Tag
         run: |
-          TAG_NAME="open-pencil-react-v${{ steps.version.outputs.version }}"
-          git config user.name "jongwong"
-          git config user.email "yoohoo360@qq.com"
+          TAG_NAME="${{ env.TAG_PREFIX }}${{ steps.version.outputs.version }}"
+          git config user.name "$GIT_USER_NAME"
+          git config user.email "$GIT_USER_EMAIL"
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
+
       - name: Set up SSH and deploy
         env:
-          SERVER_IP: 101.34.152.79
-          SSH_PORT: 22
-          USERNAME: root
-          PRIVATE_KEY: ${{ secrets.DEV_SERVER_SSH_PRIVATE_KEY }}
+          SERVER_IP: ${{ vars.SERVER_IP }}
+          TARGET_DIR: ${{ vars.TARGET_DIR }}
+          PRIVATE_KEY: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
         run: |
           set -e
-      
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-      
+
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
           chmod 600 ~/.ssh/target-server.key
-      
+
           ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      
-          TAR_FILE="dist.tar.gz"
-          TARGET_DIR="/data/docker-mnt/nginx/html/open-pencil-react"
-      
-          tar -czf "$TAR_FILE" -C packages/react dist
-      
-          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$USERNAME@$SERVER_IP:/tmp/$TAR_FILE"
-      
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$USERNAME@$SERVER_IP" "
+
+          tar -czf "$TAR_FILE" -C "$DIST_DIR" dist
+
+          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
+
+          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
             set -e
             mkdir -p '$TARGET_DIR'
             rm -rf '$TARGET_DIR'/*
-            tar -xzf /tmp/$TAR_FILE -C '$TARGET_DIR' --strip-components=1
-            rm -f /tmp/$TAR_FILE
+            tar -xzf '$REMOTE_TMP_TAR' -C '$TARGET_DIR' --strip-components=1
+            rm -f '$REMOTE_TMP_TAR'
             cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
           "
-      
+
           rm -f "$TAR_FILE"

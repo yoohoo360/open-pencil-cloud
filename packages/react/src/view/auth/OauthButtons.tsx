@@ -40,7 +40,7 @@ function ProviderIcon({ id }: { id: OauthProvider }) {
   return <Github className="size-5" />
 }
 
-export function OauthButtons({ redirect }: { redirect: string | null }) {
+export function OauthButtons() {
   const { auth } = useI18n()
 
   return (
@@ -50,7 +50,7 @@ export function OauthButtons({ redirect }: { redirect: string | null }) {
         return (
           <Tip key={provider.id} label={label}>
             <a
-              href={oauthStartUrl(provider.id, redirect)}
+              href={oauthStartUrl(provider.id)}
               className="flex size-10 items-center justify-center rounded-full border border-border bg-input text-surface transition-colors hover:bg-canvas"
               aria-label={label}
               data-test-id={`oauth-${provider.id}`}

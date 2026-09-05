@@ -1,8 +1,8 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 
-import { safeRedirect } from '#react/app/auth/redirect'
+import { consumeReturnTo } from '#react/app/auth/redirect'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
 import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/auth/AuthShell'
@@ -10,8 +10,8 @@ import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/aut
 export default function VerifyEmailView() {
   const { auth } = useI18n()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
-  const redirect = searchParams.get('redirect')
   const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [code, setCode] = useState('')
   const [generalError, setGeneralError] = useState('')
@@ -30,7 +30,7 @@ export default function VerifyEmailView() {
     setIsLoading(true)
     try {
       await authAPI.verifyEmail({ email: email.trim(), code: code.trim() })
-      void navigate(safeRedirect(redirect))
+      void navigate(consumeReturnTo(location.state))
     } catch (error) {
       setGeneralError(getAPIErrorMessage(error, 'Verification failed'))
     } finally {
@@ -116,7 +116,7 @@ export default function VerifyEmailView() {
           {auth.resendCode || 'Resend code'}
         </button>
         <p className="mt-6 text-center text-sm text-muted">
-          <Link className="font-medium text-accent hover:underline" to="/login">
+          <Link className="font-medium text-accent hover:underline" to="/login" state={location.state}>
             {auth.backToSignIn || 'Back to sign in'}
           </Link>
         </p>

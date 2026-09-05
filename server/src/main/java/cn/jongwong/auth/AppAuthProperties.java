@@ -10,13 +10,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AppAuthProperties {
 
     /**
-     * Public browser origin of the React app, e.g. http://localhost:8080.
+     * Default React app origin when the OAuth start request does not send one.
      */
     private String frontendUrl = "http://localhost:8080";
 
     /**
-     * Public origin of this API. OAuth callbacks must use {@link #frontendUrl}
-     * so the browser returns through the SPA proxy, not this address.
+     * Public origin of this API. GitHub/Google {@code redirect_uri} must hit
+     * this host; the browser is then sent back to an allowlisted frontend.
      */
     private String publicUrl = "http://localhost:8000";
 

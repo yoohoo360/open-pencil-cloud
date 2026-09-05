@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
-import { loginPathWithRedirect, safeRedirect } from '#react/app/auth/redirect'
+import { consumeReturnTo, finishReturnTo, rememberReturnTo } from '#react/app/auth/redirect'
 import '#react/app/shell/theme'
 import { hasAccessToken } from '#react/lib/client'
 import CanvasView from './view/CanvasView'
@@ -14,7 +14,12 @@ import VerifyEmailView from './view/VerifyEmailView'
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (!hasAccessToken()) {
-    return <Navigate to={loginPathWithRedirect(location.pathname, location.search)} replace/>
+    rememberReturnTo(location.pathname, location.search)
+    return <Navigate to="/login" state={{ from: location }} replace/>
+  }
+  const pending = finishReturnTo(location.pathname, location.search)
+  if (pending) {
+    return <Navigate to={pending} replace/>
   }
   return children
 }
@@ -22,8 +27,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 function GuestOnly({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (hasAccessToken()) {
-    const redirect = new URLSearchParams(location.search).get('redirect')
-    return <Navigate to={safeRedirect(redirect)} replace/>
+    return <Navigate to={consumeReturnTo(location.state)} replace/>
   }
   return children
 }

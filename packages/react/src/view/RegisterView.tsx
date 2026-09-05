@@ -1,17 +1,16 @@
-import { safeRedirect } from '#react/app/auth/redirect'
+import { consumeReturnTo } from '#react/app/auth/redirect'
 import { useI18n } from '#react/i18n'
 import { authAPI, getAPIErrorMessage } from '#react/lib/client'
 import { AuthAlert, AuthField, AuthShell, authInputClass } from '#react/view/auth/AuthShell'
 import { OauthButtons } from '#react/view/auth/OauthButtons'
 import { LoaderCircle } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 export default function RegisterView() {
   const { auth } = useI18n()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const redirect = searchParams.get('redirect')
+  const location = useLocation()
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -32,7 +31,7 @@ export default function RegisterView() {
     return Object.keys(next).length === 0
   }
 
-  const loginHref = `/login${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`
+  const loginHref = '/login'
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault()
@@ -51,18 +50,16 @@ export default function RegisterView() {
           username_or_email: email.trim(),
           password
         })
-        void navigate(safeRedirect(redirect))
+        void navigate(consumeReturnTo(location.state))
         return
       }
       if (!result.requires_verification) {
-        void navigate(loginHref)
+        void navigate(loginHref, { state: location.state })
         return
       }
       const params = new URLSearchParams()
       params.set('email', result.email)
-      const next = safeRedirect(redirect)
-      if (next !== '/dashboard') params.set('redirect', next)
-      void navigate(`/verify-email?${params.toString()}`)
+      void navigate(`/verify-email?${params.toString()}`, { state: location.state })
     } catch (error) {
       setGeneralError(getAPIErrorMessage(error, 'Could not create the account'))
     } finally {
@@ -142,7 +139,7 @@ export default function RegisterView() {
               onChange={(event) => setConfirm(event.target.value)}
             />
           </AuthField>
-          <OauthButtons redirect={redirect} />
+          <OauthButtons />
           <button
             type="submit"
             className="mt-6 w-full rounded bg-accent py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
@@ -161,7 +158,7 @@ export default function RegisterView() {
         </form>
         <p className="mt-6 text-center text-sm text-muted">
           {auth.hasAccount || 'Already have an account?'}{' '}
-          <Link className="font-medium text-accent hover:underline" to={loginHref}>
+          <Link className="font-medium text-accent hover:underline" to={loginHref} state={location.state}>
             {auth.signIn || 'Sign In'}
           </Link>
         </p>

@@ -23,7 +23,7 @@
   },
   "scripts": {
     "dev": "vite --config ./vite.config.ts --port 8080 --strictPort",
-    "start": "cross-env NODE_ENV=development APP_ENV=dev rspack server",
+    "start": "cross-env NODE_ENV=development APP_ENV=local rspack server",
     "build": "vite build && bun run build:dts",
     "build:test": "cross-env NODE_ENV=production APP_ENV=test rspack --mode production ",
     "build:prod": "cross-env NODE_ENV=production APP_ENV=prod rspack --mode production ",
