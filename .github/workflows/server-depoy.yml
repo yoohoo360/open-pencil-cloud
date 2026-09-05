@@ -161,22 +161,24 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
-          mkdir -p ~/.ssh
+          set -e
 
+          mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-          cat > ~/.ssh/config <<EOF
-          Host target-server
-            HostName $SERVER_IP
-            Port $SSH_PORT
-            User $SSH_USERNAME
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no
-          EOF
+          ssh-keygen -R "$SERVER_IP" 2>/dev/null || true
+          ssh-keyscan -p "$SSH_PORT" "$SERVER_IP" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
           echo "Replacing docker tag in remote docker-compose.yml..."
-          ssh target-server "sed -i 's|image: $DOCKER_REGISTRY/$IMAGE_NAME:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:${NEW_VERSION}|' $REMOTE_COMPOSE_PATH"
+          ssh -i ~/.ssh/id_rsa -p "$SSH_PORT" -o StrictHostKeyChecking=yes "$SSH_USERNAME@$SERVER_IP" "
+            set -e
+            sed -i 's|image: $DOCKER_REGISTRY/$IMAGE_NAME:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:${NEW_VERSION}|' '$REMOTE_COMPOSE_PATH'
+          "
 
           echo "Restarting container..."
-          ssh target-server "cd /data/docker-mnt && nerdctl compose -f $REMOTE_COMPOSE_PATH up -d"
+          ssh -i ~/.ssh/id_rsa -p "$SSH_PORT" -o StrictHostKeyChecking=yes "$SSH_USERNAME@$SERVER_IP" "
+            set -e
+            cd /data/docker-mnt && nerdctl compose -f '$REMOTE_COMPOSE_PATH' up -d
+          "
