@@ -139,20 +139,25 @@ jobs:
         run: |
           set -e
 
-            mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
+          mkdir -p ~/.ssh
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/target-server.key
-          chmod 600 ~/.ssh/target-server.key
-
-          ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host target-server
+            HostName $SERVER_IP
+            Port $SSH_PORT
+            User $SSH_USERNAME
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          EOF
 
           tar -czf "$TAR_FILE"  "$DIST_DIR" 
 
-          scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
+          scp  -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
 
-          ssh -i ~/.ssh/target-server.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
+          ssh "
             set -e
             mkdir -p '$TARGET_DIR'
             rm -rf '$TARGET_DIR'/*
