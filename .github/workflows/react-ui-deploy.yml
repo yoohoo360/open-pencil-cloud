@@ -40,7 +40,7 @@ env:
   TAR_FILE: dist.tar.gz
   SSH_PORT: 22
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
-  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
 
 jobs:
   build:
