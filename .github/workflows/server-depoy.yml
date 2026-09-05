@@ -178,7 +178,7 @@ jobs:
           echo "Logging in to Aliyun registry on remote server..."
           ssh -i ~/.ssh/id_rsa -p "$SSH_PORT" -o StrictHostKeyChecking=yes "$SSH_USERNAME@$SERVER_IP" "
             set -e
-            echo '$ALIYUN_DOCKER_PASSWORD' | nerdctl login 'DOCKER_REGISTRY' -u '$ALIYUN_DOCKER_USERNAME' --password-stdin
+            echo '$ALIYUN_DOCKER_PASSWORD' | nerdctl login '$DOCKER_REGISTRY' -u '$ALIYUN_DOCKER_USERNAME' --password-stdin
           "
 
           echo "Restarting container..."
