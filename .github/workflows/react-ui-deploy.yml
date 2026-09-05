@@ -134,7 +134,7 @@ jobs:
         env:
           SERVER_IP: ${{ vars.SERVER_IP }}
           TARGET_DIR: ${{ vars.TARGET_DIR }}
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
           set -e
@@ -142,7 +142,7 @@ jobs:
             mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/target-server.key
           chmod 600 ~/.ssh/target-server.key
 
           ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
