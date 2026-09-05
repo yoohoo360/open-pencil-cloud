@@ -9,12 +9,12 @@ import IconsResolver from 'unplugin-icons/resolver'
 import Icons from 'unplugin-icons/rspack'
 import Components from 'unplugin-vue-components/rspack'
 
-import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
-
 import { devAutomationRoute } from '../../src/app/automation/bridge/portless-route'
+import { AUTOMATION_HTTP_PORT } from '../core/src/constants'
 import { localAutomationToken, openPencilAutomationRspackPlugin } from './rspack/automation'
 import { openPencilPwaRspackPlugin } from './rspack/pwa'
 import { tailwindcss, tailwindcssRule } from './rspack/tailwind'
+import { openPencilViteIgnorePlugin } from './rspack/vite-ignore'
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.APP_ENV === 'prod'
@@ -62,26 +62,24 @@ function toOverride(request: string) {
   const candidate = `${match[1]}.override.${match[2]}`
   return existsSync(candidate) ? candidate : null
 }
-function isExternal(id: string) {
-  if (isDev) {
-    return id === 'canvaskit-wasm'
+
+function workspaceSourceAliases() {
+  const pkgSrc = (name: string) => path.resolve(repoRoot, 'packages', name, 'src')
+  return {
+    '@open-pencil/scene-graph$': path.join(pkgSrc('scene-graph'), 'index.ts'),
+    '@open-pencil/scene-graph': pkgSrc('scene-graph'),
+    '@open-pencil/pen$': path.join(pkgSrc('pen'), 'index.ts'),
+    '@open-pencil/pen': pkgSrc('pen'),
+    '@open-pencil/kiwi$': path.join(pkgSrc('kiwi'), 'index.ts'),
+    '@open-pencil/kiwi': pkgSrc('kiwi'),
+    '@open-pencil/fig$': path.join(pkgSrc('fig'), 'index.ts'),
+    '@open-pencil/fig': pkgSrc('fig'),
+    '@open-pencil/core$': path.join(pkgSrc('core'), 'index.ts'),
+    '@open-pencil/core': pkgSrc('core'),
+    '@open-pencil/dom-css/browser$': path.join(pkgSrc('dom-css'), 'browser.ts'),
+    '@open-pencil/dom-css$': path.join(pkgSrc('dom-css'), 'index.ts'),
+    '@open-pencil/dom-css': pkgSrc('dom-css')
   }
-  return (
-    id === 'react' ||
-    id === 'react-dom' ||
-    id.startsWith('react/') ||
-    id.startsWith('react-dom/') ||
-    id.startsWith('@open-pencil/') ||
-    id === 'canvaskit-wasm' ||
-    id.startsWith('canvaskit-wasm/') ||
-    id === 'nanostores' ||
-    id.startsWith('nanostores/') ||
-    id.startsWith('@nanostores/') ||
-    id === 'lucide-react' ||
-    id === 'tailwind-variants' ||
-    id === 'tailwind-merge' ||
-    id === 'react-resizable-panels'
-  )
 }
 
 function resolveTsconfigPaths() {
@@ -93,15 +91,17 @@ function resolveTsconfigPaths() {
     const values = value as string[]
     if (!values?.[0]) continue
 
+    const wildcard = key.endsWith('/*')
     const alias = key.replace(/\/\*$/, '')
     const target = values[0].replace(/\/\*$/, '')
-    aliases[alias] = path.resolve(__dirname, target)
+    aliases[wildcard ? alias : `${alias}$`] = path.resolve(__dirname, target)
   }
   return aliases
 }
 
 export default defineConfig({
   context: __dirname,
+  target: 'web',
 
   entry: {
     main: './src/main.tsx'
@@ -113,7 +113,7 @@ export default defineConfig({
 
   experiments: {
     css: true,
-    nativeWatcher: true
+    nativeWatcher: isDev
   },
 
   output: {
@@ -130,8 +130,8 @@ export default defineConfig({
   externals: [
     (op: any, callback: any) => {
       const { request } = op
-      if (request && request === 'canvaskit-wasm') {
-        return callback(null, `CanvasKitInit`)
+      if (request === 'canvaskit-wasm') {
+        return callback(null, 'CanvasKitInit')
       }
       callback()
     }
@@ -139,12 +139,20 @@ export default defineConfig({
 
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.json', '.css', '.less'],
+    aliasFields: ['browser'],
     mainFields: ['browser', 'module', 'main'],
-    conditionNames: ['browser', 'import', 'module', 'default'],
+    conditionNames: ['bun', 'browser', 'import', 'module', 'default'],
+    fallback: {
+      fs: false,
+      'fs/promises': false,
+      path: false,
+      url: false,
+      http: false,
+      https: false
+    },
     alias: {
       ...resolveTsconfigPaths(),
-      '@open-pencil/fig': path.resolve(repoRoot, 'packages/fig/src/index.ts'),
-      '@open-pencil/kiwi': path.resolve(repoRoot, 'packages/kiwi/src/index.ts')
+      ...workspaceSourceAliases()
     }
   },
 
@@ -158,7 +166,6 @@ export default defineConfig({
     },
     rules: [
       {
-        test: /\.md$/,
         resourceQuery: /raw/,
         type: 'asset/source'
       },
@@ -220,6 +227,10 @@ export default defineConfig({
         include: /[\\/]packages[\\/]react[\\/]src[\\/]/,
         exclude: /[\\/]node_modules[\\/]/
       }),
+    openPencilViteIgnorePlugin(),
+    new rspack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+      resource.request = resource.request.slice('node:'.length)
+    }),
     new rspack.NormalModuleReplacementPlugin(/.*/, (resource: any) => {
       if (resource.request === '#core/design-jsx/render.js') {
         resource.request = '#core/design-jsx/render'

@@ -37,7 +37,9 @@
       "@open-pencil/scene-graph/*": ["../../packages/scene-graph/src/*"],
       "#pen/*": ["../../packages/pen/src/*"],
       "@open-pencil/pen": ["../../packages/pen/src/index.ts"],
-      "@open-pencil/pen/*": ["../../packages/pen/src/*"]
+      "@open-pencil/pen/*": ["../../packages/pen/src/*"],
+      "@open-pencil/fig": ["../../packages/fig/src/index.ts"],
+      "@open-pencil/fig/*": ["../../packages/fig/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "app/**/*.ts", "app/**/*.tsx"],

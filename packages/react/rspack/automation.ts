@@ -2,11 +2,9 @@ import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import process from 'node:process'
 
-import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
-
 import { devAutomationRoute } from '../../../src/app/automation/bridge/portless-route'
 import { DEV_MCP_RESTART_PATH } from '../../../src/app/automation/mcp/dev-control'
-
+import { AUTOMATION_HTTP_PORT } from '../../core/src/constants'
 import { createAutomationController } from './mcp-controller'
 
 const REACT_DEV_SERVER_PORT = 8000
