@@ -139,13 +139,16 @@ jobs:
         run: |
           set -e
 
-          mkdir -p ~/.ssh
+            mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
           chmod 600 ~/.ssh/target-server.key
 
-          tar -czf "$TAR_FILE" "$DIST_DIR"
+          ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          tar -czf "$TAR_FILE" -C "$DIST_DIR" dist
 
           scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
 
