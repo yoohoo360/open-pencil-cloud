@@ -148,7 +148,7 @@ jobs:
           ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          tar -czf "$TAR_FILE" -C "$DIST_DIR" dist
+          tar -czf "$TAR_FILE" -C "$DIST_DIR" 
 
           scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
 
