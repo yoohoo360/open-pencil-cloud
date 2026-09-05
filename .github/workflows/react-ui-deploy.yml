@@ -38,9 +38,8 @@ env:
   DIST_DIR: packages/react/dist
   REMOTE_TMP_TAR: /tmp/dist.tar.gz
   TAR_FILE: dist.tar.gz
-  SSH_PORT: 22
+  SSH_PORT: ${{ vars.SSH_PORT }}
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
-  SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
 
 jobs:
   build:
@@ -61,7 +60,6 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        working-directory: ./
         run: bun install
 
       - name: Build project
@@ -72,19 +70,21 @@ jobs:
           else
             bun run build:test
           fi
+
       - name: Show build dist dir
         run: |
-          ls -al ${{ env.DIST_DIR }}
+          ls -al "${{ env.DIST_DIR }}"
+
       - name: Get latest version tag
         id: latest
         run: |
           git fetch --tags
-          TAG=$(git tag --sort=-v:refname | grep -E '^${{ env.TAG_PREFIX }}[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          TAG=$(git tag --sort=-v:refname | grep -E "^${{ env.TAG_PREFIX }}[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
           echo "Found latest tag: $TAG"
           if [ -z "$TAG" ]; then
-            echo "base_version=0.0.0" >> $GITHUB_OUTPUT
+            echo "base_version=0.0.0" >> "$GITHUB_OUTPUT"
           else
-            echo "base_version=${TAG#${{ env.TAG_PREFIX }}}" >> $GITHUB_OUTPUT
+            echo "base_version=${TAG#${{ env.TAG_PREFIX }}}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Compute new version
@@ -120,7 +120,7 @@ jobs:
           fi
 
           echo "✅ version=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Git Tag
         run: |
@@ -132,23 +132,26 @@ jobs:
 
       - name: Set up SSH and deploy
         env:
-          SERVER_IP: ${{ env.SERVER_IP }}
-          TARGET_DIR: ${{ env.TARGET_DIR }}
-          SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
-          NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
+          SERVER_IP: ${{ vars.SERVER_IP }}
+          TARGET_DIR: ${{ vars.TARGET_DIR }}
+          SSH_PORT: ${{ env.SSH_PORT }}
+          SSH_USERNAME: ${{ env.SSH_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+          NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
+
           mkdir -p ~/.ssh
-          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/dev.key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/dev.key
           chmod 600 ~/.ssh/dev.key
-          
+
           ssh-keyscan -p "$SSH_PORT" "$SERVER_IP" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          
+
           tar -czf "$TAR_FILE" "$DIST_DIR"
-          
+
           scp -i ~/.ssh/dev.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
-          
+
           ssh -i ~/.ssh/dev.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
             set -e
             mkdir -p '$TARGET_DIR'
@@ -157,5 +160,5 @@ jobs:
             rm -f '$REMOTE_TMP_TAR'
             cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
           "
-        
+
           rm -f "$TAR_FILE"
