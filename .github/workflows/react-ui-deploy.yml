@@ -138,26 +138,16 @@ jobs:
           NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
           set -e
-
+        
           mkdir -p ~/.ssh
-          mkdir -p ~/.ssh
-          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-          cat > ~/.ssh/config <<EOF
-          Host target-server
-            HostName $SERVER_IP
-            Port $SSH_PORT
-            User $SSH_USERNAME
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no
-          EOF
-
-          tar -czf "$TAR_FILE"  "$DIST_DIR" 
-
-          scp target-server:"$TAR_FILE" target-server:"$REMOTE_TMP_TAR"
-
-          ssh target-server "
+          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/dev.key
+          chmod 600 ~/.ssh/dev.key
+        
+          tar -czf "$TAR_FILE" "$DIST_DIR"
+        
+          scp -i ~/.ssh/dev.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
+        
+          ssh -i ~/.ssh/dev.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
             set -e
             mkdir -p '$TARGET_DIR'
             rm -rf '$TARGET_DIR'/*
@@ -165,5 +155,5 @@ jobs:
             rm -f '$REMOTE_TMP_TAR'
             cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
           "
-
+        
           rm -f "$TAR_FILE"
