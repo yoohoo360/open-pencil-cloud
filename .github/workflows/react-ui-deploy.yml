@@ -131,6 +131,11 @@ jobs:
           git push origin "$TAG_NAME"
 
       - name: Set up SSH and deploy
+        env:
+          SERVER_IP: ${{ vars.SERVER_IP }}
+          TARGET_DIR: ${{ vars.TARGET_DIR }}
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
           set -e
 
