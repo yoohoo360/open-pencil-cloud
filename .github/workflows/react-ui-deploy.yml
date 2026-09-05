@@ -74,7 +74,7 @@ jobs:
           fi
       - name: Show build dist dir
         run: |
-          ls -al ${{ env.BUILD_DIR }}/dist
+          ls -al ${{ env.DIST_DIR }}
       - name: Get latest version tag
         id: latest
         run: |
@@ -140,10 +140,7 @@ jobs:
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/target-server.key
           chmod 600 ~/.ssh/target-server.key
 
-          ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-          tar -czf "$TAR_FILE" -C "$DIST_DIR" ${{ env.BUILD_DIR }}/dist
+          tar -czf "$TAR_FILE" "$DIST_DIR"
 
           scp -i ~/.ssh/target-server.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
 
