@@ -138,15 +138,17 @@ jobs:
           NEW_VERSION: ${{ steps.version.outputs.docker_tag }}
         run: |
           set -e
-        
           mkdir -p ~/.ssh
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/dev.key
           chmod 600 ~/.ssh/dev.key
-        
+          
+          ssh-keyscan -p "$SSH_PORT" "$SERVER_IP" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          
           tar -czf "$TAR_FILE" "$DIST_DIR"
-        
+          
           scp -i ~/.ssh/dev.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
-        
+          
           ssh -i ~/.ssh/dev.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
             set -e
             mkdir -p '$TARGET_DIR'
