@@ -8,7 +8,7 @@ import type { EditorCommandId } from '@open-pencil/vue'
 import { requestRenameSelection } from '@/app/editor/selection/rename-dialog'
 import { TOOL_SHORTCUTS } from '@/app/editor/session'
 import { openSettingsDialog } from '@/app/settings/dialog'
-import { isEditing } from '@/app/shell/keyboard/focus'
+import { isButtonActivation, isEditing } from '@/app/shell/keyboard/focus'
 import { bindSpaceHandTool } from '@/app/shell/keyboard/space-tool'
 import type {
   KeyboardShortcutOptions,
@@ -40,6 +40,13 @@ function commandShortcuts(...commands: EditorCommandId[]): ShortcutDefinition[] 
   })
 }
 
+function zoomAtViewportCenter(delta: number): ShortcutAction {
+  return ({ store }) => {
+    const center = store.viewportCanvasCenter()
+    store.applyZoom(delta, center.x, center.y)
+  }
+}
+
 function opacityBindings(): ShortcutDefinition[] {
   return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => ({
     id: `selection-opacity-${digit}`,
@@ -68,6 +75,7 @@ function hasOpenDismissableLayer() {
 
 function shouldIgnoreShortcut(event: KeyboardEvent, options: KeyboardShortcutOptions) {
   return (
+    isButtonActivation(event) ||
     hasOpenDismissableLayer() ||
     originatedInOverlay(event) ||
     isEditing(event) ||
@@ -137,6 +145,28 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
       keys: appMenuTinykeysShortcut('settings') ?? '$mod+Comma',
       run: () => openSettingsDialog(),
       global: true
+    },
+    {
+      id: 'zoom-in',
+      keys: [appMenuTinykeysShortcut('zoom-in') ?? '$mod+Equal', '$mod+Shift+Equal'],
+      run: zoomAtViewportCenter(-100),
+      global: true
+    },
+    {
+      id: 'zoom-out',
+      keys: appMenuTinykeysShortcut('zoom-out') ?? '$mod+Minus',
+      run: zoomAtViewportCenter(100),
+      global: true
+    },
+    {
+      id: 'zoom-in-unmodified',
+      keys: 'Shift+Equal',
+      run: zoomAtViewportCenter(-100)
+    },
+    {
+      id: 'zoom-out-unmodified',
+      keys: 'Minus',
+      run: zoomAtViewportCenter(100)
     },
     {
       id: 'close-tab',

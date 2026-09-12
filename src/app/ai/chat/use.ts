@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
+import { createConversationHistory } from '@/app/ai/chat/history/controller'
 import {
   apiKeyStatus,
   browserCredentialsRemembered,
@@ -14,20 +15,23 @@ import {
   isConfigured,
   maxOutputTokens,
   modelID,
-  pexelsKeyStatus,
   providerDef,
   providerID,
   registerAIChatEffects,
   resolveAPIKey,
-  setAPIKey,
-  setPexelsKey,
-  setRememberCredentials,
-  setUnsplashKey,
-  unsplashKeyStatus
+  setAPIKey
 } from '@/app/ai/chat/storage'
 import { createChatSessionManager } from '@/app/ai/chat/transports'
+import { designModelProfile } from '@/app/ai/models'
 import { exposeChatTransportOverride } from '@/app/browser-bridge'
 import { getActiveEditorStore } from '@/app/editor/active-store'
+import {
+  pexelsKeyStatus,
+  unsplashKeyStatus,
+  setPexelsKey,
+  setUnsplashKey,
+  setRememberCredentials
+} from '@/app/settings/credentials/media'
 
 const activeTab = ref<'design' | 'code' | 'ai'>('design')
 
@@ -38,6 +42,17 @@ const chatSession = createChatSessionManager({
   providerID,
   credentialsReady,
   getActiveEditorStore
+})
+
+const history = createConversationHistory({
+  profileId: () => designModelProfile.value?.id ?? null,
+  getEditor: getActiveEditorStore,
+  ensureChat: chatSession.ensureChat,
+  resetChat: chatSession.resetChat,
+  backend: () => {
+    if (isACPProvider.value) return 'acp'
+    return isHarnessProvider.value ? 'harness' : 'direct'
+  }
 })
 
 registerAIChatEffects(chatSession.markTransportDirty)
@@ -68,8 +83,9 @@ export function useAIChat() {
     setUnsplashKey,
     activeTab,
     isConfigured,
-    ensureChat: chatSession.ensureChat,
-    resetChat: chatSession.resetChat,
+    history,
+    ensureChat: history.ensureChat,
+    resetChat: history.newChat,
     chatFailure: chatSession.failure,
     clearChatFailure: chatSession.clearFailure
   }

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
 import { seedLargeDocument } from '#tests/helpers/large-document'
+import { measureHitTesting } from '#tests/helpers/performance/hit-testing'
 
 type TimingSummary = {
   hitTestMissMs: number
@@ -31,36 +32,13 @@ test.describe.serial('large-document performance', () => {
       const fixture = await seedLargeDocument(page, nodeCount)
       await canvas.waitForRender()
 
-      await page.evaluate(() => {
-        const store = window.openPencil?.getStore?.()
-        if (!store) throw new Error('OpenPencil store not initialized')
-        const originalHitTest = store.graph.hitTest.bind(store.graph)
-        let calls = 0
-        let totalMs = 0
-        store.graph.hitTest = ((...args) => {
-          const startedAt = performance.now()
-          const result = originalHitTest(...args)
-          totalMs += performance.now() - startedAt
-          calls++
-          return result
-        }) as typeof store.graph.hitTest
-        Object.assign(window, {
-          __largeDocumentPointerProfile: () => ({ calls, totalMs })
-        })
-      })
       const bounds = await canvas.canvas.boundingBox()
       if (!bounds) throw new Error('Canvas bounds unavailable')
-      await page.mouse.move(bounds.x + 10, bounds.y + 10)
-      await page.mouse.move(bounds.x + bounds.width - 10, bounds.y + bounds.height - 10, {
-        steps: 40
-      })
-      const pointerProfile = await page.evaluate(() => {
-        const profile = (
-          window as typeof window & {
-            __largeDocumentPointerProfile?: () => { calls: number; totalMs: number }
-          }
-        ).__largeDocumentPointerProfile
-        return profile?.() ?? { calls: 0, totalMs: 0 }
+      const pointerProfile = await measureHitTesting(page, async () => {
+        await page.mouse.move(bounds.x + 10, bounds.y + 10)
+        await page.mouse.move(bounds.x + bounds.width - 10, bounds.y + bounds.height - 10, {
+          steps: 40
+        })
       })
 
       const result = await page.evaluate((profile): Promise<TimingSummary> => {

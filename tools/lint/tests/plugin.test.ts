@@ -74,6 +74,31 @@ async function runRule(ruleName: string, source: string, filename: string): Prom
   return reports
 }
 
+test('domain naming uses ownership prefixes, not control-kind suffixes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'open-pencil-domains-'))
+  temporaryDirectories.push(directory)
+  await mkdir(join(directory, 'list'))
+  expect(
+    await runRule('no-sibling-domain-prefixed-files', '', join(directory, 'page-list.ts'))
+  ).toBe(0)
+  expect(
+    await runRule('no-sibling-domain-prefixed-files', '', join(directory, 'list-actions.ts'))
+  ).toBe(1)
+})
+
+test('storage rule permits data keys but rejects storage access', async () => {
+  const rule = 'no-direct-storage-access'
+  for (const [source, count] of [
+    ['const state = {localStorage: []}', 0],
+    ['localStorage.clear()', 1],
+    ['window.sessionStorage.clear()', 1],
+    ['const value = {localStorage}', 1]
+  ] as const) {
+    const diagnostics = await lint(source, { [`open-pencil/${rule}`]: 'error' })
+    expect(ruleDiagnostics(diagnostics, rule)).toHaveLength(count)
+  }
+})
+
 function ruleDiagnostics(diagnostics: Diagnostic[], rule: string): Diagnostic[] {
   return diagnostics.filter((diagnostic) => diagnostic.code === `open-pencil(${rule})`)
 }

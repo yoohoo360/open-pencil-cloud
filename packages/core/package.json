@@ -9,6 +9,7 @@
   },
   "files": [
     "dist",
+    "src",
     "assets"
   ],
   "type": "module",
@@ -16,7 +17,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "imports": {
-    "#core/*": "./src/*"
+    "#core/*": "./src/*.ts"
   },
   "exports": {
     "./package.json": "./package.json",

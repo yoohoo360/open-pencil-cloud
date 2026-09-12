@@ -10,19 +10,6 @@ async function dragLayerAndObserveIndicator(
   targetId: string,
   targetPosition: Vector
 ) {
-  await page.evaluate(() => {
-    const positions: string[] = []
-    new MutationObserver(() => {
-      for (const element of document.querySelectorAll<HTMLElement>(
-        '[data-slot="drop-indicator"]'
-      )) {
-        const position = element.dataset.dropPosition
-        if (position) positions.push(position)
-      }
-    }).observe(document.body, { subtree: true, childList: true, attributes: true })
-    Object.assign(window, { __layerDropPositions: positions })
-  })
-
   const source = page.locator(`[data-node-id="${sourceId}"]`)
   const target = page.locator(`[data-node-id="${targetId}"]`)
   const sourceBox = await source.boundingBox()
@@ -35,12 +22,11 @@ async function dragLayerAndObserveIndicator(
   await page.mouse.move(targetBox.x + targetPosition.x, targetBox.y + targetPosition.y, {
     steps: 20
   })
-  await expect(target.locator('[data-slot="drop-indicator"]')).toBeVisible()
+  const indicator = target.locator('[data-slot="drop-indicator"]')
+  await expect(indicator).toBeVisible()
+  const position = await indicator.getAttribute('data-drop-position')
   await page.mouse.up()
-
-  return page.evaluate(
-    () => (window as typeof window & { __layerDropPositions?: string[] }).__layerDropPositions ?? []
-  )
+  return position
 }
 
 test('layer reorder exposes a visible drop indicator before dropping', async ({ page }) => {
@@ -67,7 +53,7 @@ test('layer reorder exposes a visible drop indicator before dropping', async ({ 
     y: 2
   })
 
-  expect(positions).toContain('above')
+  expect(positions).toBe('above')
   canvas.assertNoErrors()
 })
 
@@ -98,6 +84,6 @@ test('layer child drop exposes a visible container highlight before dropping', a
     y: 12
   })
 
-  expect(positions).toContain('child')
+  expect(positions).toBe('child')
   canvas.assertNoErrors()
 })

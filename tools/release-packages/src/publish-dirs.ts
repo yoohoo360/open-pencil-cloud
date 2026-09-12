@@ -1,13 +1,22 @@
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
-interface PackagePublishConfig {
-  dir: string
-  extraFiles: string[]
-  include: string[]
+import {
+  discoverPublicPackages,
+  parseNpmPack,
+  readPackageManifest,
+  runCommand,
+  type PackageManifest,
+  type WorkspacePackage
+} from '@open-pencil/package-artifacts'
+
+import { NPM_RELEASE_POLICY } from './policy'
+
+export interface PackagePublishConfig {
+  directory: string
 }
 
-interface PreparePublishDirectoriesOptions {
+export interface PreparePublishDirectoriesOptions {
   coreVersion: string
   packages: PackagePublishConfig[]
   root: string
@@ -15,78 +24,34 @@ interface PreparePublishDirectoriesOptions {
   log?: (message: string) => void
 }
 
-type PackageJSON = Record<string, unknown> & {
-  dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
-  peerDependencies?: Record<string, string>
-  publishConfig?: Record<string, unknown>
-  scripts?: unknown
-}
-
-const PACKAGE_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies'] as const
+const PACKAGE_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies'
+] as const satisfies ReadonlyArray<keyof PackageManifest>
 const PUBLISH_CONFIG_FIELDS = new Set(['access', 'provenance', 'registry'])
 
-export const DEFAULT_PACKAGES: PackagePublishConfig[] = [
-  { dir: 'packages/scene-graph', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/pen', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/kiwi', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/fig', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/core', include: ['dist', 'src', 'assets'], extraFiles: [] },
-  { dir: 'packages/dom-css', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/cli', include: ['bin', 'dist'], extraFiles: [] },
-  { dir: 'packages/mcp', include: ['dist'], extraFiles: [] },
-  { dir: 'packages/harness', include: ['dist'], extraFiles: ['README.md'] },
-  { dir: 'packages/vue', include: ['dist'], extraFiles: ['README.md'] }
-]
-
-async function exists(path: string) {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function copyRecursive(from: string, to: string): Promise<void> {
-  const sourceStat = await stat(from)
-  if (sourceStat.isDirectory()) {
-    await mkdir(to, { recursive: true })
-    for (const entry of await readdir(from)) {
-      await copyRecursive(join(from, entry), join(to, entry))
+export function publishPackageJSON(source: PackageManifest, coreVersion: string): PackageManifest {
+  if (source.publishConfig) {
+    for (const [field, expected] of Object.entries(NPM_RELEASE_POLICY)) {
+      if (field in source.publishConfig && source.publishConfig[field] !== expected) {
+        throw new Error(
+          `${source.name}: publishConfig.${field} conflicts with the public npm release policy`
+        )
+      }
     }
-    return
   }
-
-  await mkdir(dirname(to), { recursive: true })
-  await copyFile(from, to)
-}
-
-interface PackageExports {
-  [key: string]: PackageExports | string | undefined
-}
-
-interface PublishPackageJSON extends PackageJSON {
-  exports?: PackageExports
-  imports?: PackageExports
-}
-
-function isPackageExports(value: unknown): value is PackageExports {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function removeUnpublishedConditions(value: PackageExports | undefined): void {
-  if (!value) return
-  delete value.bun
-  for (const child of Object.values(value)) {
-    if (isPackageExports(child)) removeUnpublishedConditions(child)
+  const json = structuredClone(source)
+  for (const field of ['exports', 'imports', 'main', 'types', 'bin'] as const) {
+    if (
+      source.publishConfig &&
+      field in source.publishConfig &&
+      JSON.stringify(source.publishConfig[field]) !== JSON.stringify(source[field])
+    ) {
+      throw new Error(`${source.name}: publishConfig must not rewrite ${field}`)
+    }
   }
-}
-
-export function publishPackageJSON(source: PackageJSON, coreVersion: string): PackageJSON {
-  const json = structuredClone(source) as PublishPackageJSON
-  removeUnpublishedConditions(json.exports)
-  removeUnpublishedConditions(json.imports)
 
   for (const field of PACKAGE_FIELDS) {
     const dependencies = json[field]
@@ -109,38 +74,45 @@ export function publishPackageJSON(source: PackageJSON, coreVersion: string): Pa
   return json
 }
 
+export function packagePublishConfig(pkg: WorkspacePackage): PackagePublishConfig {
+  return { directory: pkg.directory }
+}
+
+export async function discoverPublishPackages(root: string): Promise<PackagePublishConfig[]> {
+  return (await discoverPublicPackages(root)).map(packagePublishConfig)
+}
+
 export async function preparePublishDirectories(
   options: PreparePublishDirectoriesOptions
 ): Promise<void> {
   const outRoot = options.outRoot ?? join(options.root, '.publish')
-  const log = options.log
-
   await rm(outRoot, { recursive: true, force: true })
   await mkdir(outRoot, { recursive: true })
 
   for (const pkg of options.packages) {
-    const sourceDir = join(options.root, pkg.dir)
-    const destinationDir = join(outRoot, basename(pkg.dir))
+    const sourceDir = join(options.root, pkg.directory)
+    const destinationDir = join(outRoot, basename(pkg.directory))
     await mkdir(destinationDir, { recursive: true })
 
-    for (const relativePath of pkg.include) {
-      const from = join(sourceDir, relativePath)
-      if (await exists(from)) await copyRecursive(from, join(destinationDir, relativePath))
+    const listing = await runCommand({
+      command: 'npm',
+      args: ['pack', '--dry-run', '--json', '--ignore-scripts'],
+      cwd: sourceDir,
+      timeoutMs: 60_000
+    })
+    const files = parseNpmPack(listing.stdout).files
+    for (const relativePath of files) {
+      const destination = join(destinationDir, relativePath)
+      await mkdir(dirname(destination), { recursive: true })
+      await cp(join(sourceDir, relativePath), destination, { dereference: false })
     }
 
-    for (const relativePath of pkg.extraFiles) {
-      const from = join(sourceDir, relativePath)
-      if (await exists(from)) await copyRecursive(from, join(destinationDir, relativePath))
-    }
-
-    const packageJSON = JSON.parse(
-      await readFile(join(sourceDir, 'package.json'), 'utf8')
-    ) as PackageJSON
+    const packageJSON = await readPackageManifest(join(sourceDir, 'package.json'))
     const publishJSON = publishPackageJSON(packageJSON, options.coreVersion)
     await writeFile(
       join(destinationDir, 'package.json'),
       `${JSON.stringify(publishJSON, null, 2)}\n`
     )
-    log?.(`Prepared ${destinationDir}`)
+    options.log?.(`Prepared ${destinationDir}`)
   }
 }

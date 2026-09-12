@@ -1,13 +1,14 @@
 <script lang="ts">
+import type { VNode } from 'vue'
+
 import type {
   NumberExpressionError,
   NumberFieldEditPolicy,
   NumberFieldSlotProps
 } from '@open-pencil/vue'
-import type { VNode } from 'vue'
 
 import type { ComponentUI } from '@/components/ui/types'
-import type { NumberFieldTheme } from '@/theme/number-field'
+import type { NumberFieldTheme } from '@/theme/input/number-field'
 
 export type NumberFieldUI = ComponentUI<NumberFieldTheme>
 
@@ -22,6 +23,7 @@ export interface NumberFieldProps {
   sensitivity?: number
   placeholder?: string
   disabled?: boolean
+  inheritBinding?: boolean
   bound?: boolean
   editPolicy?: NumberFieldEditPolicy
   ui?: NumberFieldUI
@@ -36,11 +38,13 @@ export interface NumberFieldSlots {
 </script>
 
 <script setup lang="ts">
-import { computed, normalizeClass, useAttrs } from 'vue'
 import { tv } from 'tailwind-variants'
+import { computed, normalizeClass, useAttrs } from 'vue'
+
 import { NumberFieldRoot, NumberFieldInput, NumberFieldValue, useI18n } from '@open-pencil/vue'
+
 import { useEditorStore } from '@/app/editor/active-store'
-import theme from '@/theme/number-field'
+import theme from '@/theme/input/number-field'
 
 const attrs = useAttrs()
 const slots = defineSlots<NumberFieldSlots>()
@@ -58,6 +62,7 @@ const {
   sensitivity,
   placeholder,
   disabled,
+  inheritBinding = true,
   bound,
   editPolicy,
   ui
@@ -90,6 +95,7 @@ defineOptions({ inheritAttrs: false })
     :placeholder="placeholder ?? panels.mixed"
     :aria-label="accessibleLabel"
     :disabled="disabled"
+    :inherit-binding="inheritBinding"
     :bound="bound"
     :edit-policy="editPolicy"
     @update:model-value="emit('update:modelValue', $event)"
@@ -115,14 +121,16 @@ defineOptions({ inheritAttrs: false })
         actions.startScrub($event)
       "
     >
-      <span :class="styles.leading({ class: ui?.leading })">
+      <span
+        v-if="editing || !slots.bound || rootAttrs['data-bound'] === undefined"
+        :class="styles.leading({ class: ui?.leading })"
+      >
         <slot name="icon">
           <span v-if="icon" class="text-[11px] leading-none">{{ icon }}</span>
         </slot>
         <span v-if="label" class="text-[11px] leading-none">{{ label }}</span>
       </span>
       <NumberFieldInput :class="styles.field({ class: ui?.field })" />
-      <slot v-if="editing" name="suffix" />
       <NumberFieldValue :class="styles.display({ class: ui?.display })">
         <template #default="display">
           <slot name="display" v-bind="display">
@@ -138,9 +146,18 @@ defineOptions({ inheritAttrs: false })
               <span v-if="suffix" :class="styles.suffix({ class: ui?.suffix })">{{ suffix }}</span>
             </template>
           </slot>
-          <slot name="suffix" />
         </template>
       </NumberFieldValue>
+      <span v-if="editing && suffix" :class="styles.suffix({ class: ui?.suffix })">{{
+        suffix
+      }}</span>
+      <span
+        v-if="slots.suffix"
+        data-slot="trailing"
+        :class="styles.trailing({ class: ui?.trailing })"
+      >
+        <slot name="suffix" />
+      </span>
     </div>
   </NumberFieldRoot>
 </template>

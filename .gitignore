@@ -40,6 +40,8 @@ test-results/
 playwright-report/
 blob-report/
 storybook-static/
+.publish/
+.npm-packages/
 .vite/
 .turbo/
 

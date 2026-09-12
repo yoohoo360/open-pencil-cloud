@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ToolbarButton } from 'reka-ui'
 import { tv } from 'tailwind-variants'
-
-import toolbarTheme from '@/theme/toolbar'
-
+import { computed } from 'vue'
 import type { Component } from 'vue'
+
 import type { ToolbarUI } from '@/components/Toolbar/types'
+import toolbarTheme from '@/theme/toolbar'
 
 interface ToolButtonProps {
   icon: Component
-  label?: string
+  label: string
   active?: boolean
   mobile?: boolean
   ui?: ToolbarUI
@@ -25,7 +25,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <button
+  <ToolbarButton
+    :aria-pressed="active"
     :data-active="active || undefined"
     :data-mobile="mobile || undefined"
     :aria-label="label"
@@ -33,5 +34,5 @@ const emit = defineEmits<{
     @click="emit('click')"
   >
     <component :is="icon" :class="styles.icon({ class: ui?.icon })" />
-  </button>
+  </ToolbarButton>
 </template>

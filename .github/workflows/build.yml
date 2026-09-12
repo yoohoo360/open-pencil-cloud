@@ -105,61 +105,13 @@ jobs:
       - uses: ./.github/actions/setup-bun
 
       - name: Build packages for publish
-        run: |
-          publish_packages="packages/scene-graph packages/pen packages/kiwi packages/fig packages/core packages/dom-css packages/cli packages/mcp packages/harness packages/vue"
-          for dir in $publish_packages; do
-            if [ -f "$dir/package.json" ] && node -p "require('./$dir/package.json').scripts?.build" 2>/dev/null | grep -qv undefined; then
-              echo "Building $dir..."
-              (cd "$dir" && bun run build)
-            fi
-          done
+        run: bun tools/release-packages/src/cli.ts build
 
       - name: Prepare publish directories
-        run: |
-          bun tools/release-packages/src/prepare-publish-dirs.ts
-          find .publish -maxdepth 3 -type f | sort
+        run: bun tools/release-packages/src/cli.ts prepare
 
-      - name: Pack packages for publish
-        run: |
-          mkdir -p .npm-packages
-          pack_if_new() {
-            local dir=$1
-            local name=$(node -p "require('./$dir/package.json').name")
-            local version=$(node -p "require('./$dir/package.json').version")
-            local publish_dir=".publish/$(basename "$dir")"
-            if npm view "${name}@${version}" version 2>/dev/null; then
-              echo "${name}@${version} already published, skipping pack"
-            else
-              (cd "$publish_dir" && npm pack --pack-destination "$root_dir/.npm-packages")
-            fi
-          }
-          root_dir="$PWD"
-          publish_packages="packages/scene-graph packages/pen packages/kiwi packages/fig packages/core packages/dom-css packages/cli packages/mcp packages/harness packages/vue"
-          for dir in $publish_packages; do
-            pack_if_new "$dir"
-          done
-          ls -la .npm-packages
-          for tarball in .npm-packages/open-pencil-*.tgz; do
-            echo "Contents of $tarball"
-            tar -tf "$tarball" | sed -n '1,60p' || true
-          done
-          bun tools/release-packages/src/validate-tarballs.ts
+      - name: Pack and validate packages for publish
+        run: bun tools/release-packages/src/cli.ts pack
 
-      - name: Publish packages to npm
-        run: |
-          publish_if_new() {
-            local dir=$1
-            local name=$(node -p "require('./$dir/package.json').name")
-            local version=$(node -p "require('./$dir/package.json').version")
-            if npm view "${name}@${version}" version 2>/dev/null; then
-              echo "${name}@${version} already published, skipping"
-            else
-              local tarball
-              tarball=$(cd .npm-packages && ls open-pencil-$(basename "$dir")-${version}.tgz)
-              npm publish "./.npm-packages/${tarball}" --access public --provenance
-            fi
-          }
-          publish_packages="packages/scene-graph packages/pen packages/kiwi packages/fig packages/core packages/dom-css packages/cli packages/mcp packages/harness packages/vue"
-          for dir in $publish_packages; do
-            publish_if_new "$dir"
-          done
+      - name: Publish verified packages to npm
+        run: bun tools/release-packages/src/cli.ts publish

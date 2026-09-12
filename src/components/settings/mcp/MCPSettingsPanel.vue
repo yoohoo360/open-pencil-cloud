@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ToolEffect } from '@open-pencil/mcp/tools'
-import { computed, onMounted, ref } from 'vue'
+import { computed } from 'vue'
+
 import { useI18n } from '@open-pencil/vue'
 
 import {
@@ -11,10 +11,12 @@ import {
   setMCPToolCategoryEnabled,
   setMCPToolEnabled
 } from '@/app/automation/mcp/preferences'
-import { mcpRuntime, refreshMCPRuntime, restartMCPRuntime } from '@/app/automation/mcp/runtime'
+import { mcpRuntime } from '@/app/automation/mcp/runtime'
+import { useMCPSettings } from '@/app/automation/mcp/settings/use'
 import { isTauri } from '@/app/tauri/env'
-import AppInput from '@/components/ui/AppInput.vue'
-import AppSwitch from '@/components/ui/AppSwitch.vue'
+import AppButton from '@/components/ui/button/AppButton.vue'
+import AppInput from '@/components/ui/input/AppInput.vue'
+import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const { settings, automation, common } = useI18n()
 const statusMessage = computed(() => {
@@ -29,54 +31,22 @@ const statusMessage = computed(() => {
       return automation.value.statusStopped
     case 'error':
       return automation.value.statusError
+    default:
+      return automation.value.statusIdle
   }
 })
-const toolSearch = ref('')
-const disabledToolNames = computed(() => new Set(disabledMCPTools.value))
-function categoryStatus(effect: ToolEffect) {
-  const tools = configurableMCPTools.value.filter((tool) => tool.effect === effect)
-  const enabled = tools.filter((tool) => !disabledToolNames.value.has(tool.name)).length
-  return {
-    enabled: enabled > 0,
-    state: enabled > 0 && enabled < tools.length ? ('mixed' as const) : ('idle' as const)
-  }
-}
-const inspectionToolsStatus = computed(() => categoryStatus('read'))
-const modificationToolsStatus = computed(() => categoryStatus('write'))
-const enabledToolCount = computed(
-  () => configurableMCPTools.value.filter((tool) => !disabledToolNames.value.has(tool.name)).length
-)
-const visibleTools = computed(() => {
-  const query = toolSearch.value.trim().toLowerCase()
-  if (!query) return configurableMCPTools.value
-  return configurableMCPTools.value.filter(
-    (tool) =>
-      tool.name.toLowerCase().includes(query) || tool.description.toLowerCase().includes(query)
-  )
-})
 
-onMounted(() => {
-  void refreshMCPRuntime()
-})
-
-function restart(): void {
-  void restartMCPRuntime()
-}
-
-async function chooseRootDirectory(): Promise<void> {
-  if (!isTauri()) return
-  const { open } = await import('@tauri-apps/plugin-dialog')
-  const directory = await open({ directory: true, multiple: false })
-  if (typeof directory === 'string') mcpRootDirectory.value = directory
-}
-
-function isToolEnabled(name: string): boolean {
-  return !disabledToolNames.value.has(name)
-}
-
-function enableAllTools(): void {
-  disabledMCPTools.value = []
-}
+const {
+  toolSearch,
+  inspectionToolsStatus,
+  modificationToolsStatus,
+  enabledToolCount,
+  visibleTools,
+  restart,
+  chooseRootDirectory,
+  isToolEnabled,
+  enableAllTools
+} = useMCPSettings()
 </script>
 
 <template>
@@ -137,23 +107,23 @@ function enableAllTools(): void {
             </p>
           </div>
           <div class="flex shrink-0 gap-1.5">
-            <button
+            <AppButton
               v-if="mcpRootDirectory"
-              type="button"
-              class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:bg-hover hover:text-surface"
+              size="xs"
+              variant="outline"
               @click="mcpRootDirectory = ''"
             >
               {{ automation.useDefaultRoot }}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               v-if="isTauri()"
-              type="button"
-              class="rounded border border-border px-2 py-1 text-[10px] text-surface hover:bg-hover"
+              size="xs"
+              variant="outline"
               data-test-id="settings-mcp-root-directory"
               @click="chooseRootDirectory"
             >
               {{ automation.chooseRootDirectory }}
-            </button>
+            </AppButton>
           </div>
         </div>
         <p class="mt-1.5 text-[10px] leading-relaxed text-muted">
@@ -182,14 +152,15 @@ function enableAllTools(): void {
             }}
           </p>
         </div>
-        <button
+        <AppButton
           v-if="disabledMCPTools.length"
-          type="button"
-          class="text-[10px] text-accent hover:underline"
+          size="xs"
+          color="primary"
+          variant="link"
           @click="enableAllTools"
         >
           {{ automation.enableAllTools }}
-        </button>
+        </AppButton>
       </div>
 
       <div class="border-b border-border p-2">
@@ -251,9 +222,9 @@ function enableAllTools(): void {
     </div>
 
     <div>
-      <button
-        type="button"
-        class="rounded bg-accent px-3 py-1.5 text-[11px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+      <AppButton
+        color="primary"
+        variant="solid"
         :disabled="mcpRuntime.status === 'starting' || mcpRuntime.externallyManaged"
         data-test-id="settings-mcp-restart"
         @click="restart"
@@ -265,7 +236,7 @@ function enableAllTools(): void {
               ? automation.externallyManaged
               : automation.restart
         }}
-      </button>
+      </AppButton>
     </div>
   </section>
 </template>

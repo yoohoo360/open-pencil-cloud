@@ -1,20 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useEventListener } from '@vueuse/core'
+import { DialogDescription, DialogTitle, VisuallyHidden } from 'reka-ui'
+import { computed } from 'vue'
+import Search from '~icons/lucide/search'
+import X from '~icons/lucide/x'
+
 import {
   CommandPaletteRoot,
   shortcutPlatform,
   useCommandMessages,
   useCommonMessages
 } from '@open-pencil/vue'
-import { DialogDescription, DialogTitle, VisuallyHidden } from 'reka-ui'
 
-import Search from '~icons/lucide/search'
-import X from '~icons/lucide/x'
-
-import { IS_BROWSER } from '@/constants'
 import { useAppMenu } from '@/app/shell/menu/app-menu'
+import IconButton from '@/components/ui/button/IconButton.vue'
 import AppDialogRoot from '@/components/ui/dialog/AppDialogRoot.vue'
+import { IS_BROWSER } from '@/constants'
+
 import { useCommandPaletteUI } from './ui'
 
 const { commandGroups: groups } = useAppMenu()
@@ -66,14 +68,9 @@ if (IS_BROWSER) {
         <Search class="mx-2 size-5 shrink-0 text-muted" />
       </template>
       <template #search-trailing>
-        <button
-          type="button"
-          class="ml-2 inline-flex size-8 shrink-0 items-center justify-center rounded text-muted hover:bg-hover hover:text-surface"
-          :aria-label="common.close"
-          @click="close"
-        >
+        <IconButton class="ml-2" size="md" :label="common.close" @click="close">
           <X class="size-5" />
-        </button>
+        </IconButton>
       </template>
       <template #empty>
         <p class="px-4 py-8 text-center text-xs text-muted">

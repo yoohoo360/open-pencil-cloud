@@ -2,9 +2,12 @@ import { useLocalStorage } from '@vueuse/core'
 
 import { DEFAULT_SNAPPING_PREFERENCES, type SnappingPreferences } from '@open-pencil/core/editor'
 
+export type ReasoningDisplay = 'collapsed' | 'while-thinking' | 'expanded'
+
 export type CanvasRenderingMode = 'retained' | 'tiled'
 
 export interface AppPreferences {
+  chat: { reasoningDisplay: ReasoningDisplay }
   version: 1
   recovery: {
     enabled: boolean
@@ -18,6 +21,7 @@ export interface AppPreferences {
 }
 
 export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
+  chat: { reasoningDisplay: 'collapsed' },
   version: 1,
   recovery: { enabled: true },
   editing: {
@@ -39,6 +43,7 @@ interface StoredSnappingPreferences {
 }
 
 interface StoredAppPreferences {
+  chat?: { reasoningDisplay?: unknown }
   recovery?: { enabled?: unknown }
   editing?: { snapping?: StoredSnappingPreferences }
   rendering?: { canvasMode?: unknown }
@@ -53,6 +58,13 @@ function normalizePreferences(value: unknown): AppPreferences {
   const snapping = stored?.editing?.snapping
 
   return {
+    chat: {
+      reasoningDisplay:
+        stored?.chat?.reasoningDisplay === 'expanded' ||
+        stored?.chat?.reasoningDisplay === 'while-thinking'
+          ? stored.chat.reasoningDisplay
+          : 'collapsed'
+    },
     version: 1,
     recovery: {
       enabled: booleanOrDefault(stored?.recovery?.enabled, DEFAULT_APP_PREFERENCES.recovery.enabled)

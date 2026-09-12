@@ -1,24 +1,12 @@
-import { fileURLToPath } from 'node:url'
-
 import { publicPackageDirs } from '../packages'
+import { runPackageChecks } from './run'
 
-const rootDir = fileURLToPath(new URL('../../../..', import.meta.url))
-
-for (const packageDir of publicPackageDirs) {
-  const proc = Bun.spawnSync(['bun', 'publint', packageDir, '--strict'], {
-    cwd: rootDir,
-    stdout: 'pipe',
-    stderr: 'pipe'
-  })
-
-  const stdout = proc.stdout.toString()
-  const stderr = proc.stderr.toString()
-  if (!proc.success) {
-    console.error(`publint failed for ${packageDir}`)
-    if (stdout) console.error(stdout)
-    if (stderr) console.error(stderr)
-    process.exit(proc.exitCode || 1)
-  }
+export async function checkPublint(root: string): Promise<void> {
+  await runPackageChecks(
+    (await publicPackageDirs(root)).map((packageDir) => ({
+      command: 'bun',
+      args: ['publint', packageDir, '--strict'],
+      cwd: root
+    }))
+  )
 }
-
-console.log('Publint package checks passed.')

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { tv } from 'tailwind-variants'
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui'
+import { tv } from 'tailwind-variants'
 
 import { formatShortcut, useI18n, useViewportKind } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { appRuntimeConfig } from '@/app/runtime/config'
+import { loadEditorLayout, saveEditorLayout } from '@/app/shell/layout-storage'
 import { appMenuShortcut } from '@/app/shell/menu/shortcut'
 import { activeTab } from '@/app/tabs'
 import CanvasSplitRoot from '@/components/canvas/CanvasSplitRoot.vue'
@@ -15,9 +16,8 @@ import LayersPanel from '@/components/LayersPanel.vue'
 import MobileDrawer from '@/components/MobileDrawer.vue'
 import MobileHud from '@/components/MobileHud/MobileHud.vue'
 import PropertiesPanel from '@/components/PropertiesPanel.vue'
-import Tip from '@/components/ui/Tip.vue'
 import Toolbar from '@/components/Toolbar/Toolbar.vue'
-import { loadEditorLayout, saveEditorLayout } from '@/app/shell/layout-storage'
+import IconButton from '@/components/ui/button/IconButton.vue'
 import splitterTheme from '@/theme/splitter'
 
 const showChrome = appRuntimeConfig.showChrome
@@ -102,17 +102,14 @@ const horizontalSplitterStyles = tv(splitterTheme)({ direction: 'horizontal' })
         <span data-test-id="editor-document-name" class="text-xs text-surface">{{
           store.state.documentName
         }}</span>
-        <Tip
+        <IconButton
           :label="editor.showUI({ shortcut: formatShortcut(appMenuShortcut('toggle-ui')) ?? '' })"
+          data-test-id="editor-show-ui"
+          class="ml-1"
+          @click="store.state.showUI = true"
         >
-          <button
-            data-test-id="editor-show-ui"
-            class="ml-1 flex size-6 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface"
-            @click="store.state.showUI = true"
-          >
-            <icon-lucide-sidebar class="size-3.5" />
-          </button>
-        </Tip>
+          <icon-lucide-sidebar class="size-3.5" />
+        </IconButton>
       </div>
     </div>
   </div>

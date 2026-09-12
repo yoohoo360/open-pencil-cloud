@@ -30,6 +30,12 @@ describe('Portless MCP routing', () => {
     })
   })
 
+  test('preserves a nonstandard HTTPS proxy port', () => {
+    const route = devAutomationRoute('https://chat-history.open-pencil.localhost:1355', 7600)
+    expect(route.browserURL).toBe('wss://chat-history.mcp.open-pencil.localhost:1355')
+    expect(route.corsOrigin).toBe('https://chat-history.open-pencil.localhost:1355')
+  })
+
   test('rejects unrelated Portless hostnames', () => {
     expect(() => devAutomationRoute('https://other.localhost', 7600)).toThrow(
       'Unexpected OpenPencil Portless URL'

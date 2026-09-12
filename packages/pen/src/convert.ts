@@ -66,6 +66,11 @@ interface PenFillObject {
 }
 
 type PenFill = string | PenFillObject | PenFillObject[]
+type PenSpacingValue = number | string
+type PenPadding =
+  | PenSpacingValue
+  | [PenSpacingValue, PenSpacingValue]
+  | [PenSpacingValue, PenSpacingValue, PenSpacingValue, PenSpacingValue]
 
 export interface PenNode {
   type: string
@@ -88,7 +93,7 @@ export interface PenNode {
   effect?: PenEffect | PenEffect[]
   layout?: string
   gap?: number | string
-  padding?: number | string | (number | string)[]
+  padding?: PenPadding
   justifyContent?: string
   alignItems?: string
   children?: PenNode[]
@@ -145,7 +150,7 @@ function defaultForType(type: VariableType): VariableValue {
 }
 
 export function isVarRef(val: unknown): val is string {
-  return typeof val === 'string' && val.startsWith('$--')
+  return typeof val === 'string' && val.startsWith('$') && val.length > 1
 }
 
 function varName(ref: string): string {
@@ -386,6 +391,15 @@ export function applyPadding(node: SceneNode, padding: PenNode['padding'], ctx?:
   const resolve = (v: number | string): number =>
     typeof v === 'string' ? (isVarRef(v) && ctx ? ctx.resolveNumber(v) : Number(v) || 0) : v
   if (Array.isArray(padding)) {
+    if (padding.length === 2) {
+      const vertical = resolve(padding[0])
+      const horizontal = resolve(padding[1])
+      node.paddingTop = vertical
+      node.paddingRight = horizontal
+      node.paddingBottom = vertical
+      node.paddingLeft = horizontal
+      return
+    }
     node.paddingTop = resolve(padding[0] ?? 0)
     node.paddingRight = resolve(padding[1] ?? 0)
     node.paddingBottom = resolve(padding[2] ?? 0)
@@ -399,20 +413,63 @@ export function applyPadding(node: SceneNode, padding: PenNode['padding'], ctx?:
   node.paddingLeft = resolved
 }
 
-export function parseSize(value: number | string | undefined, fallback: number, ctx?: VarContext) {
-  if (value === undefined) return { value: fallback, sizing: 'FIXED' as LayoutSizing }
-  if (typeof value === 'number') return { value, sizing: 'FIXED' as LayoutSizing }
-  if (value === 'fill_container') return { value: fallback, sizing: 'FILL' as LayoutSizing }
-  if (value === 'hug_content') return { value: fallback, sizing: 'HUG' as LayoutSizing }
-  if (isVarRef(value) && ctx)
-    return { value: ctx.resolveNumber(value), sizing: 'FIXED' as LayoutSizing }
+interface ParsedSize {
+  value: number
+  sizing: LayoutSizing
+  /** Fallback used only when fit_content(N) has no children. */
+  fitContentFallback?: number
+}
+
+function parseParameterizedFallback(value: string, behavior: string): number | undefined {
+  const prefix = `${behavior}(`
+  if (!value.startsWith(prefix) || !value.endsWith(')')) return undefined
+
+  const rawFallback = value.slice(prefix.length, -1).trim()
+  if (rawFallback === '') return undefined
+
+  const parsedFallback = Number(rawFallback)
+  return Number.isFinite(parsedFallback) ? parsedFallback : undefined
+}
+
+function parseSizingBehavior(value: string, fallback: number): ParsedSize | undefined {
+  if (value === 'fill_container') return { value: fallback, sizing: 'FILL' }
+  if (value === 'fit_content') return { value: fallback, sizing: 'HUG' }
+
+  // Older generated .pen files used hug_content as an alias for fit_content.
+  if (value === 'hug_content') return { value: fallback, sizing: 'HUG' }
+
+  const fillFallback = parseParameterizedFallback(value, 'fill_container')
+  if (fillFallback !== undefined) return { value: fillFallback, sizing: 'FILL' }
+
+  const fitFallback =
+    parseParameterizedFallback(value, 'fit_content') ??
+    parseParameterizedFallback(value, 'hug_content')
+  if (fitFallback !== undefined) {
+    return { value: fitFallback, sizing: 'HUG', fitContentFallback: fitFallback }
+  }
+  return undefined
+}
+
+export function parseSize(
+  value: number | string | undefined,
+  fallback: number,
+  ctx?: VarContext
+): ParsedSize {
+  if (value === undefined) return { value: fallback, sizing: 'FIXED' }
+  if (typeof value === 'number') return { value, sizing: 'FIXED' }
+
+  const behavior = parseSizingBehavior(value, fallback)
+  if (behavior) return behavior
+
+  if (isVarRef(value) && ctx) return { value: ctx.resolveNumber(value), sizing: 'FIXED' }
   const parsed = Number(value)
-  return { value: Number.isFinite(parsed) ? parsed : fallback, sizing: 'FIXED' as LayoutSizing }
+  return { value: Number.isFinite(parsed) ? parsed : fallback, sizing: 'FIXED' }
 }
 
 export function mapLayoutMode(pen: PenNode): LayoutMode {
   if (pen.layout === 'row' || pen.layout === 'horizontal') return 'HORIZONTAL'
   if (pen.layout === 'column' || pen.layout === 'vertical') return 'VERTICAL'
+  if (pen.type === 'frame' && pen.layout === undefined) return 'HORIZONTAL'
   return 'NONE'
 }
 

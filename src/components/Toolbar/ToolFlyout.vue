@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { tv } from 'tailwind-variants'
 import {
+  ToolbarButton,
   DropdownMenuContent,
   DropdownMenuItemIndicator,
   DropdownMenuPortal,
@@ -10,13 +9,11 @@ import {
   DropdownMenuRoot,
   DropdownMenuTrigger
 } from 'reka-ui'
-
+import { tv } from 'tailwind-variants'
+import { computed } from 'vue'
 import IconChevronDown from '~icons/lucide/chevron-down'
 
-import AppShortcutText from '@/components/ui/AppShortcutText.vue'
-import { menu } from '@/components/ui/menu'
-import toolbarTheme from '@/theme/toolbar'
-import ToolButton from '@/components/Toolbar/ToolButton.vue'
+import type { EditorToolDef } from '@open-pencil/core/editor'
 import {
   isToolbarToolActive,
   toolbarFlyoutItemTestId,
@@ -25,10 +22,13 @@ import {
   useI18n,
   vTestId
 } from '@open-pencil/vue'
-
 import type { Tool } from '@open-pencil/vue'
-import type { EditorToolDef } from '@open-pencil/core/editor'
+
+import ToolButton from '@/components/Toolbar/ToolButton.vue'
 import type { ToolbarUI, ToolIconMap, ToolLabels } from '@/components/Toolbar/types'
+import AppShortcutText from '@/components/ui/menu/AppShortcutText.vue'
+import { menu } from '@/components/ui/menu/menu'
+import toolbarTheme from '@/theme/toolbar'
 
 const {
   tool,
@@ -86,14 +86,14 @@ function flyoutItemClass() {
 
     <DropdownMenuRoot>
       <DropdownMenuTrigger as-child>
-        <button
+        <ToolbarButton
           v-test-id="toolbarFlyoutTestId(tool.key, mobile)"
           :data-mobile="mobile || undefined"
           :aria-label="editor.toolOptions({ tool: toolLabels[tool.key] })"
           :class="styles.flyoutTrigger({ class: ui?.flyoutTrigger })"
         >
           <IconChevronDown :class="styles.flyoutTriggerIcon({ class: ui?.flyoutTriggerIcon })" />
-        </button>
+        </ToolbarButton>
       </DropdownMenuTrigger>
 
       <DropdownMenuPortal>

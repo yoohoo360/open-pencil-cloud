@@ -97,7 +97,11 @@ function sameNodeReferences(
     a.length === b.length &&
     a.every((value, index) => {
       const other = b[index]
-      return other !== undefined && sameNodeReference(ctx, value, other)
+      return (
+        other !== undefined &&
+        (sameNodeReference(ctx, value, other) ||
+          (!ctx.aGraph.getNode(value) && !ctx.bGraph.getNode(other) && value === other))
+      )
     })
   )
 }
@@ -400,6 +404,7 @@ export const RAW_VERIFIERS = new Map<string, Verifier>([
       return true
     }
   ],
+  ['textAlignHorizontal', defaultEqual('LEFT')],
   ['borderRightWeight', defaultEqual(0)],
   ['borderLeftWeight', defaultEqual(0)],
   ['borderTopWeight', defaultEqual(0)],

@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { computeAllLayouts, SceneGraph, setTextMeasurer } from '@open-pencil/core'
-
-import { createEditorStore } from '@/app/editor/session'
+import { createEditor } from '@open-pencil/core/editor'
 
 import { getNodeOrThrow } from '#tests/helpers/assert'
 import { autoFrame, loadFixtureGraph, pageId, rect } from '#tests/helpers/layout'
@@ -132,7 +131,7 @@ describe('text measurement', () => {
     { timeout: HEAVY_TEST_TIMEOUT_MS },
     async () => {
       const graph = await loadFixtureGraph('gold-preview.fig')
-      const store = createEditorStore(graph)
+      const store = createEditor({ graph, skipInitialGraphSetup: true })
       const title = [...store.graph.getAllNodes()].find(
         (node) => node.type === 'TEXT' && node.text === "World's largest"
       )

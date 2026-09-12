@@ -3,8 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare-publish-dirs": "bun src/prepare-publish-dirs.ts",
-    "validate-tarballs": "bun src/validate-tarballs.ts",
+    "check-changelog": "bun src/check-changelog.ts",
+    "build": "bun src/cli.ts build",
+    "prepare-publish-dirs": "bun src/cli.ts prepare",
+    "pack": "bun src/cli.ts pack",
+    "publish": "bun src/cli.ts publish",
     "test": "bun test tests"
+  },
+  "dependencies": {
+    "@open-pencil/package-artifacts": "workspace:*",
+    "@open-pencil/package-quality-tools": "workspace:*",
+    "citty": "^0.1.6"
   }
 }

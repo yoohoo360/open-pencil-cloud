@@ -19,7 +19,8 @@
   },
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "bunx tsdown --config tsdown.config.ts",

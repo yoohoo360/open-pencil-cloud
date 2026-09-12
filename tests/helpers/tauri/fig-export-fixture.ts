@@ -1,10 +1,8 @@
 import { mockIPC } from '@tauri-apps/api/mocks'
 
-const windowLike = globalThis as typeof globalThis & {
-  __TAURI_INTERNALS__?: unknown
-  __TAURI_EVENT_PLUGIN_INTERNALS__?: unknown
-}
-Object.assign(globalThis, { window: windowLike })
+import { installTauriMockWindow } from './mocks'
+
+installTauriMockWindow()
 
 mockIPC((cmd, args) => {
   if (cmd !== 'build_fig_file') throw new Error(`Unexpected command: ${cmd}`)

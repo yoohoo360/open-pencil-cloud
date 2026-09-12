@@ -321,6 +321,116 @@ test.describe('opacity shortcuts', () => {
 })
 
 test.describe('zoom shortcuts', () => {
+  test('⌘=, ⌘+ and ⌘- zoom the canvas and prevent browser defaults', async () => {
+    await editor.page.evaluate(() => {
+      const store = window.openPencil?.getStore?.()
+      if (!store) throw new Error('OpenPencil store not initialized')
+      store.zoomTo100()
+    })
+
+    const pressShortcut = async (shortcut: string, code: 'Equal' | 'Minus') => {
+      await editor.page.evaluate((expectedCode) => {
+        delete document.documentElement.dataset.observedShortcut
+        const handleKeydown = (event: KeyboardEvent) => {
+          if (event.code !== expectedCode) return
+          window.removeEventListener('keydown', handleKeydown)
+          document.documentElement.dataset.observedShortcut = JSON.stringify({
+            defaultPrevented: event.defaultPrevented,
+            shiftKey: event.shiftKey
+          })
+        }
+        window.addEventListener('keydown', handleKeydown)
+      }, code)
+
+      await editor.page.keyboard.press(shortcut)
+      await editor.canvas.waitForRender()
+      const event = await editor.page.evaluate(() => {
+        const observed = document.documentElement.dataset.observedShortcut
+        if (!observed) throw new Error('Expected shortcut keydown event')
+        return JSON.parse(observed) as { defaultPrevented: boolean; shiftKey: boolean }
+      })
+      return { event, zoom: await getZoom() }
+    }
+
+    const zoomedIn = await pressShortcut('ControlOrMeta+Equal', 'Equal')
+    const zoomedInWithShift = await pressShortcut('ControlOrMeta+Shift+Equal', 'Equal')
+    const zoomedOut = await pressShortcut('ControlOrMeta+Minus', 'Minus')
+
+    expect(zoomedIn.event).toEqual({ defaultPrevented: true, shiftKey: false })
+    expect(zoomedInWithShift.event).toEqual({ defaultPrevented: true, shiftKey: true })
+    expect(zoomedOut.event).toEqual({ defaultPrevented: true, shiftKey: false })
+    expect(zoomedIn.zoom).toBeGreaterThan(1)
+    expect(zoomedInWithShift.zoom).toBeGreaterThan(zoomedIn.zoom)
+    expect(zoomedOut.zoom).toBeLessThan(zoomedInWithShift.zoom)
+  })
+
+  test('Figma plus and minus shortcuts zoom around the active canvas center', async () => {
+    await editor.page.evaluate(() => {
+      const store = window.openPencil?.getStore?.()
+      if (!store) throw new Error('OpenPencil store not initialized')
+      store.zoomTo100()
+      store.splitPane(store.activePaneId.value, 'horizontal')
+    })
+    await expect(editor.page.locator('[data-active-pane]')).toHaveCount(2)
+    const splitHandle = editor.page.locator('[data-split-id]').first()
+    const splitHandleBounds = await splitHandle.boundingBox()
+    if (!splitHandleBounds) throw new Error('Expected canvas split handle')
+    await editor.page.mouse.move(
+      splitHandleBounds.x,
+      splitHandleBounds.y + splitHandleBounds.height / 2
+    )
+    await editor.page.mouse.down()
+    await editor.page.mouse.move(
+      splitHandleBounds.x + 100,
+      splitHandleBounds.y + splitHandleBounds.height / 2
+    )
+    await editor.page.mouse.up()
+    const activeCanvas = editor.page.locator('[data-active-pane="true"]')
+    const inactiveCanvas = editor.page.locator('[data-active-pane="false"]')
+    const activeBounds = await activeCanvas.boundingBox()
+    const inactiveBounds = await inactiveCanvas.boundingBox()
+    if (!activeBounds || !inactiveBounds) throw new Error('Expected canvas pane bounds')
+    expect(activeBounds.width).toBeLessThan(inactiveBounds.width)
+
+    const centerBefore = await editor.page.evaluate(() => {
+      const store = window.openPencil?.getStore?.()
+      if (!store) throw new Error('OpenPencil store not initialized')
+      const center = store.viewportCanvasCenter()
+      return { center, canvasPoint: store.screenToCanvas(center.x, center.y) }
+    })
+
+    expect(centerBefore.center.x).toBeCloseTo(activeBounds.width / 2)
+    expect(centerBefore.center.y).toBeCloseTo(activeBounds.height / 2)
+
+    await editor.page.keyboard.press('Shift+Equal')
+    await editor.canvas.waitForRender()
+    const zoomedIn = await getZoom()
+    const centerAfter = await editor.page.evaluate(() => {
+      const store = window.openPencil?.getStore?.()
+      if (!store) throw new Error('OpenPencil store not initialized')
+      const center = store.viewportCanvasCenter()
+      return { center, canvasPoint: store.screenToCanvas(center.x, center.y) }
+    })
+
+    await editor.page.keyboard.press('Minus')
+    await editor.canvas.waitForRender()
+
+    const inactivePaneId = await inactiveCanvas.getAttribute('data-pane-id')
+    if (!inactivePaneId) throw new Error('Expected inactive canvas pane')
+    await editor.page.evaluate((paneId) => {
+      const store = window.openPencil?.getStore?.()
+      if (!store) throw new Error('OpenPencil store not initialized')
+      store.closePane(paneId)
+    }, inactivePaneId)
+    await expect(editor.page.locator('[data-active-pane]')).toHaveCount(1)
+
+    expect(centerAfter.center).toEqual(centerBefore.center)
+    expect(centerAfter.canvasPoint.x).toBeCloseTo(centerBefore.canvasPoint.x)
+    expect(centerAfter.canvasPoint.y).toBeCloseTo(centerBefore.canvasPoint.y)
+    expect(zoomedIn).toBeGreaterThan(1)
+    expect(await getZoom()).toBeLessThan(zoomedIn)
+  })
+
   test('⌘0 zooms to 100%', async () => {
     await editor.canvas.clearCanvas()
     await editor.canvas.drawRect(100, 100, 60, 60)

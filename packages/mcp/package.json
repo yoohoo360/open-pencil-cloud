@@ -46,7 +46,8 @@
     "openpencil-mcp-http": "./dist/index.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "bunx tsdown --config tsdown.config.ts",

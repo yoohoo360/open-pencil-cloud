@@ -1,5 +1,6 @@
 /** Stable names for the app's independent IndexedDB databases. */
 export const APP_DATABASE_NAMES = {
+  chats: 'open-pencil-chats',
   credentials: 'open-pencil-credentials',
   libraries: 'open-pencil-libraries',
   localCanvas: 'open-pencil-cloud-local',

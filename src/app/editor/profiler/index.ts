@@ -1,8 +1,16 @@
 import type { Editor } from '@open-pencil/core/editor'
 
 export function createProfilerActions(editor: Editor) {
+  function activeCanvas() {
+    return (
+      document.querySelector<HTMLCanvasElement>(
+        '[data-active-pane="true"] [data-test-id="canvas-element"]'
+      ) ?? document.querySelector<HTMLCanvasElement>('[data-test-id="canvas-element"]')
+    )
+  }
+
   function viewportScreenCenter() {
-    const canvas = document.querySelector<HTMLCanvasElement>('[data-test-id="canvas-element"]')
+    const canvas = activeCanvas()
     if (canvas) {
       const rect = canvas.getBoundingClientRect()
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
@@ -11,7 +19,7 @@ export function createProfilerActions(editor: Editor) {
   }
 
   function viewportCanvasCenter() {
-    const canvas = document.querySelector<HTMLCanvasElement>('[data-test-id="canvas-element"]')
+    const canvas = activeCanvas()
     if (canvas) {
       const rect = canvas.getBoundingClientRect()
       return { x: rect.width / 2, y: rect.height / 2 }

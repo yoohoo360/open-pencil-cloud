@@ -1,58 +1,56 @@
 <script setup lang="ts">
-import { ScrollAreaRoot, ScrollAreaScrollbar, ScrollAreaThumb, ScrollAreaViewport } from 'reka-ui'
-import { refAutoReset, useClipboard } from '@vueuse/core'
-import { computed, markRaw, nextTick, ref, watch } from 'vue'
+import type { Chat } from '@ai-sdk/vue'
+import { useClipboard } from '@vueuse/core'
+import type { UIMessage } from 'ai'
+import { computed, markRaw, ref, shallowRef, watch } from 'vue'
 
-import { getACPDebugText, clearACPDebugLog, hasACPDebugEntries } from '@/app/ai/acp/transport'
-import { copyChatLog } from '@/app/ai/debug'
-import {
-  analyzeAttachedImages,
-  designMessageWithImageFindings
-} from '@/app/ai/attachment/image/analyze'
-import {
-  createImagePreviewURL,
-  isImageAttachmentMediaType,
-  prepareImageAttachment,
-  revokeImagePreviewURL
-} from '@/app/ai/attachment/image/prepare'
-import {
-  clearImageAttachmentPresentations,
-  setImageAttachmentPresentations
-} from '@/app/ai/attachment/image/presentation'
-import type { ImageAttachmentDraft } from '@/app/ai/attachment/image/types'
-import { clearToolLogEntries, didHitStepLimit } from '@/app/ai/tools'
-import { activeTab } from '@/app/tabs'
-import { getActiveEditorStore } from '@/app/editor/active-store'
-import ACPPermissionDialog from '@/components/chat/ACPPermissionDialog.vue'
-import ChatInput from '@/components/chat/ChatInput.vue'
-import ChatMessage from '@/components/chat/ChatMessage.vue'
-import AppPlaceholder from '@/components/ui/AppPlaceholder.vue'
-import AppButton from '@/components/ui/AppButton.vue'
-import ProviderSetup from '@/components/chat/ProviderSetup.vue'
-import { useAIChat } from '@/app/ai/chat/use'
-import { toast } from '@/app/shell/ui'
 import { useI18n } from '@open-pencil/vue'
 
+import { getACPDebugText, hasACPDebugEntries } from '@/app/ai/acp/transport'
+import { chatDocumentId } from '@/app/ai/chat/history/document'
+import { useChatSubmission } from '@/app/ai/chat/submission/use'
+import { useAIChat } from '@/app/ai/chat/use'
+import { copyChatLog } from '@/app/ai/debug'
+import { didHitStepLimit } from '@/app/ai/tools'
+import { getActiveEditorStore } from '@/app/editor/active-store'
 import { useNotificationMessages } from '@/app/i18n/notifications'
-
-import type { Chat } from '@ai-sdk/vue'
-import type { UIMessage } from 'ai'
-import type { JSONObject } from '@open-pencil/scene-graph/primitives'
+import { openSettingsDialog } from '@/app/settings/dialog'
+import { toast } from '@/app/shell/ui'
+import { activeTab } from '@/app/tabs'
+import ACPPermissionDialog from '@/components/chat/ACPPermissionDialog.vue'
+import ChatHistory from '@/components/chat/ChatHistory.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
+import ChatTranscript from '@/components/chat/ChatTranscript.vue'
+import ProviderSetup from '@/components/chat/ProviderSetup.vue'
 
 const IS_DEV = import.meta.env.DEV
 
-const { isConfigured, ensureChat, resetChat, chatFailure, clearChatFailure } = useAIChat()
+const { isConfigured, ensureChat, history, chatFailure, clearChatFailure } = useAIChat()
 const { copy } = useClipboard()
 const { ai } = useI18n()
 const notifications = useNotificationMessages()
 
-const chat = ref<Chat<UIMessage> | null>(null)
-const isPreparingImages = ref(false)
-let attachmentOperationVersion = 0
+const chat = shallowRef<Chat<UIMessage> | null>(null)
+const submission = useChatSubmission({
+  chat,
+  ensureChat,
+  flush: history.flush,
+  clearFailure: clearChatFailure,
+  getEditor: getActiveEditorStore,
+  messages: computed(() => ({
+    openSettings: ai.value.openProviderSettingsAction,
+    requestFailed: ai.value.chatRequestFailed,
+    visionUnavailable: ai.value.visionModelUnavailable
+  })),
+  reportError: toast.error,
+  openModelSettings: () => openSettingsDialog('ai')
+})
 
+let viewGeneration = 0
+const initialGeneration = ++viewGeneration
 void ensureChat()
   .then((c) => {
-    if (c) chat.value = markRaw(c)
+    if (c && initialGeneration === viewGeneration) chat.value = markRaw(c)
     return undefined
   })
   .catch((error: unknown) => {
@@ -62,294 +60,196 @@ void ensureChat()
       })
     )
   })
-const messagesEnd = ref<HTMLDivElement>()
-const debugCopied = refAutoReset(false, 1500)
-const acpLogCopied = refAutoReset(false, 1500)
 
-const messages = computed(() => chat.value?.messages ?? [])
+const messages = computed(() => chat.value?.messages ?? history.messages.value)
+const historyOptions = computed(() => {
+  const current = history.current.value
+  const rows = [...history.conversations.value]
+  if (current && !rows.some((row) => row.id === current.id)) rows.unshift(current)
+  return rows.map((conversation) => ({
+    ...conversation,
+    available: conversation.documentId === chatDocumentId(getActiveEditorStore())
+  }))
+})
+const agentHistoryReadOnly = computed(
+  () => !chat.value && messages.value.length > 0 && history.current.value?.backend !== 'direct'
+)
+async function historyAction(action: () => Promise<unknown>) {
+  const generation = ++viewGeneration
+  submission.cancel()
+  try {
+    await chat.value?.stop()
+    await action()
+    if (generation !== viewGeneration) return
+    chat.value = null
+    const next = await ensureChat()
+    if (generation === viewGeneration) chat.value = next ? markRaw(next) : null
+  } catch {
+    toast.error(ai.value.chatHistoryFailed)
+  }
+}
+
+async function renameConversation(id: string, title: string) {
+  try {
+    await history.rename(id, title)
+  } catch {
+    toast.error(ai.value.chatHistoryFailed)
+  }
+}
+
 const failureMessage = computed(() => {
   switch (chatFailure.value?.reason) {
+    case 'authentication':
+      return ai.value.chatAuthenticationFailed
+    case 'forbidden':
+      return ai.value.chatForbidden
     case 'insufficient-credit':
       return ai.value.chatInsufficientCredit
+    case 'model-not-found':
+      return ai.value.chatModelNotFound
+    case 'network':
+      return ai.value.chatNetworkFailed
     case 'output-limit':
       return ai.value.chatOutputLimit
+    case 'rate-limit':
+      return ai.value.chatRateLimited
     case 'request-failed':
       return ai.value.chatRequestFailed
     default:
       return null
   }
 })
+const failureHasSettingsAction = computed(() =>
+  ['authentication', 'forbidden', 'model-not-found'].includes(chatFailure.value?.reason ?? '')
+)
 const status = computed(() => chat.value?.status ?? 'ready')
-function isStreamingMessage(message: UIMessage, index: number): boolean {
-  return (
-    message.role === 'assistant' &&
-    index === messages.value.length - 1 &&
-    (status.value === 'submitted' || status.value === 'streaming')
-  )
-}
-const isThinking = computed(() => {
-  const s = status.value
-  if (s !== 'submitted' && s !== 'streaming') return false
-  if (messages.value.length === 0) return true
-  const last = messages.value[messages.value.length - 1]
-  if (last.role !== 'assistant') return true
-  const parts = last.parts
-  if (parts.length === 0) return true
-  const lastPart = parts[parts.length - 1] as JSONObject
-  if (lastPart.type === 'step-start') return true
-  if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
-  if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
-  return s === 'submitted'
-})
-
 const showContinue = computed(() => {
+  if (history.readOnly.value || agentHistoryReadOnly.value) return false
   if (status.value !== 'ready') return false
   if (messages.value.length === 0) return false
   const last = messages.value[messages.value.length - 1]
   return last.role === 'assistant' && didHitStepLimit()
 })
 
-function scrollToBottom() {
-  nextTick(() => {
-    messagesEnd.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  })
-}
-
-watch(messages, scrollToBottom, { deep: true })
 watch(
   () => chatFailure.value?.reason,
   (reason) => {
     if (!reason) return
-    toast.error(failureMessage.value ?? ai.value.chatRequestFailed)
+    toast.error(
+      failureMessage.value ?? ai.value.chatRequestFailed,
+      failureHasSettingsAction.value
+        ? {
+            label: ai.value.openProviderSettingsAction,
+            run: () => openSettingsDialog('ai')
+          }
+        : undefined
+    )
   }
 )
 watch(
-  () => activeTab.value?.id,
-  async () => {
-    attachmentOperationVersion += 1
-    isPreparingImages.value = false
-    clearImageAttachmentPresentations()
-    const nextChat = await ensureChat()
-    chat.value = nextChat ? markRaw(nextChat) : null
+  () => [activeTab.value?.id, activeTab.value?.store.state.preparation] as const,
+  async ([, preparation]) => {
+    if (preparation) {
+      viewGeneration++
+      submission.cancel()
+      return
+    }
+    const generation = ++viewGeneration
+    submission.cancel()
+    chat.value = null
+    try {
+      await history.initialize()
+      if (generation !== viewGeneration) return
+      const nextChat = await ensureChat()
+      if (generation === viewGeneration) chat.value = nextChat ? markRaw(nextChat) : null
+    } catch {
+      if (generation === viewGeneration) toast.error(ai.value.chatHistoryFailed)
+    }
   }
 )
 
-async function handleSubmit(text: string, images: ImageAttachmentDraft[] = []) {
-  if (status.value === 'streaming' || status.value === 'submitted' || isPreparingImages.value) {
-    for (const image of images) revokeImagePreviewURL(image.previewURL)
-    if (images.length > 0) toast.error(ai.value.chatRequestFailed)
-    return
-  }
-
-  const operationVersion = ++attachmentOperationVersion
-  if (images.length > 0) isPreparingImages.value = true
-  clearChatFailure()
-  try {
-    const currentChat = chat.value ?? (await ensureChat())
-    if (currentChat) chat.value = markRaw(currentChat)
-    if (!currentChat || operationVersion !== attachmentOperationVersion) {
-      for (const image of images) revokeImagePreviewURL(image.previewURL)
-      if (images.length > 0) toast.error(ai.value.chatRequestFailed)
-      return
-    }
-
-    if (images.length === 0) {
-      await currentChat.sendMessage({ text })
-      return
-    }
-
-    const messageId = crypto.randomUUID()
-    currentChat.messages = [
-      ...currentChat.messages,
-      { id: messageId, role: 'user', parts: [{ type: 'text', text }] }
-    ]
-    setImageAttachmentPresentations(
-      messageId,
-      images.map((image) => ({
-        id: crypto.randomUUID(),
-        messageId,
-        name: image.file.name,
-        mediaType: isImageAttachmentMediaType(image.file.type) ? image.file.type : 'image/png',
-        originalWidth: 0,
-        originalHeight: 0,
-        previewWidth: 0,
-        previewHeight: 0,
-        previewURL: image.previewURL,
-        displayText: text
-      }))
-    )
-
-    const preparedImages = await Promise.all(
-      images.map((image) => prepareImageAttachment(image.file))
-    )
-    const findings = await analyzeAttachedImages(getActiveEditorStore(), text, preparedImages)
-    if (operationVersion !== attachmentOperationVersion || chat.value !== currentChat) return
-
-    setImageAttachmentPresentations(
-      messageId,
-      preparedImages.map((prepared, index) => {
-        const image = images[index]
-        const previewURL = createImagePreviewURL(prepared.blob)
-        return {
-          id: crypto.randomUUID(),
-          messageId,
-          name: image?.file.name ?? `Image ${index + 1}`,
-          mediaType: prepared.mediaType,
-          originalWidth: prepared.originalWidth,
-          originalHeight: prepared.originalHeight,
-          previewWidth: prepared.width,
-          previewHeight: prepared.height,
-          previewURL,
-          displayText: text
-        }
-      })
-    )
-    await currentChat.sendMessage({
-      messageId,
-      text: designMessageWithImageFindings(
-        text,
-        images.map((image) => image.file.name),
-        findings
-      )
-    })
-  } catch (e) {
-    console.error('Chat error:', e)
-    toast.error(ai.value.chatRequestFailed)
-  } finally {
-    if (operationVersion === attachmentOperationVersion) isPreparingImages.value = false
-  }
-}
-
 function handleStop() {
-  chat.value?.stop()
+  submission.stop()
 }
 
+const diagnosticNotice = ref('')
+async function copyDiagnostics(operation: () => Promise<void>) {
+  diagnosticNotice.value = ''
+  try {
+    await operation()
+    diagnosticNotice.value = ai.value.diagnosticCopied
+  } catch {
+    diagnosticNotice.value = ai.value.diagnosticCopyFailed
+  }
+}
 async function handleCopyDebug() {
-  await copyChatLog(messages.value, chatFailure.value)
-  debugCopied.value = true
+  await copyDiagnostics(() => copyChatLog(messages.value, chatFailure.value))
 }
 
 async function handleCopyACPLog() {
   const text = getACPDebugText()
   if (!text) return
-  await copy(text)
-  acpLogCopied.value = true
-}
-
-function handleClearChat() {
-  attachmentOperationVersion += 1
-  isPreparingImages.value = false
-  clearChatFailure()
-  clearImageAttachmentPresentations()
-  chat.value = null
-  void resetChat().catch((error: unknown) => {
-    console.error('Chat reset error:', error)
-  })
-  clearToolLogEntries()
-  clearACPDebugLog()
+  await copyDiagnostics(() => copy(text))
 }
 </script>
 
 <template>
   <div data-test-id="chat-panel" class="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
+    <ChatHistory
+      :saved="history.conversations.value.some((row) => row.id === history.current.value?.id)"
+      :debug="true"
+      :acp-debug="IS_DEV && hasACPDebugEntries()"
+      @copy-debug="handleCopyDebug"
+      @copy-a-c-p-debug="handleCopyACPLog"
+      :conversations="historyOptions"
+      :selected-id="history.current.value?.id"
+      :disabled="history.busy.value"
+      @create="historyAction(history.newChat)"
+      @select="historyAction(() => history.open($event))"
+      @rename="renameConversation"
+      @delete="historyAction(() => history.remove($event))"
+    />
+    <p v-if="diagnosticNotice" role="status" class="px-3 py-2 text-xs text-muted">
+      {{ diagnosticNotice }}
+    </p>
+    <p v-if="history.storageError.value" role="alert" class="px-3 py-2 text-xs text-red-400">
+      {{ ai.chatStorageFailed }}
+    </p>
     <ProviderSetup v-if="!isConfigured" />
 
-    <template v-else>
-      <ScrollAreaRoot class="min-h-0 flex-1">
-        <ScrollAreaViewport class="h-full px-3 py-3 [&>div]:h-full">
-          <AppPlaceholder
-            v-if="messages.length === 0"
-            data-test-id="chat-empty-state"
-            :label="ai.describeCreateOrChange"
-            :ui="{ root: 'h-full' }"
-          >
-            <template #icon>
-              <icon-lucide-message-circle class="size-5" />
-            </template>
-          </AppPlaceholder>
-
-          <!-- Messages -->
-          <div v-else data-test-id="chat-messages" class="flex flex-col gap-3">
-            <ChatMessage
-              v-for="(msg, index) in messages"
-              :key="msg.id"
-              :message="msg"
-              :streaming="isStreamingMessage(msg, index)"
-            />
-
-            <!-- Thinking indicator: shown when AI is working but no visible activity -->
-            <div v-if="isThinking" data-test-id="chat-typing-indicator" class="flex gap-2">
-              <div
-                class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/20 text-[10px] font-bold text-muted"
-              >
-                AI
-              </div>
-              <div class="flex items-center gap-1 py-2">
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 0ms"
-                />
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 150ms"
-                />
-                <span
-                  class="size-1.5 animate-bounce rounded-full bg-muted"
-                  style="animation-delay: 300ms"
-                />
-              </div>
-            </div>
-
-            <!-- Continue button when step limit reached -->
-            <div v-if="showContinue" class="flex justify-center py-2">
-              <button
-                class="flex items-center gap-1.5 rounded-full bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
-                @click="handleSubmit('Continue where you left off')"
-              >
-                <icon-lucide-play class="size-3" />
-                Continue
-              </button>
-            </div>
-
-            <div ref="messagesEnd" />
-          </div>
-        </ScrollAreaViewport>
-        <ScrollAreaScrollbar orientation="vertical" class="flex w-1.5 touch-none p-px select-none">
-          <ScrollAreaThumb class="relative flex-1 rounded-full bg-muted/30" />
-        </ScrollAreaScrollbar>
-      </ScrollAreaRoot>
-
-      <!-- Chat toolbar -->
-      <div
-        v-if="messages.length > 0"
-        class="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1"
+    <template v-if="isConfigured || messages.length">
+      <p
+        v-if="history.current.value?.interrupted && status === 'ready'"
+        role="status"
+        class="px-3 py-2 text-xs text-muted"
       >
-        <AppButton v-if="IS_DEV" color="neutral" variant="ghost" size="xs" @click="handleCopyDebug">
-          <icon-lucide-clipboard-copy v-if="!debugCopied" class="size-3" />
-          <icon-lucide-check v-else class="size-3 text-green-400" />
-          {{ debugCopied ? 'Copied' : 'Copy log' }}
-        </AppButton>
-        <AppButton
-          v-if="IS_DEV && hasACPDebugEntries()"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          @click="handleCopyACPLog"
-        >
-          <icon-lucide-bug v-if="!acpLogCopied" class="size-3" />
-          <icon-lucide-check v-else class="size-3 text-green-400" />
-          {{ acpLogCopied ? 'Copied' : 'ACP log' }}
-        </AppButton>
-        <AppButton color="error" variant="ghost" size="xs" @click="handleClearChat">
-          <icon-lucide-trash-2 class="size-3" />
-          Clear
-        </AppButton>
-      </div>
-
-      <ChatInput
+        {{ ai.chatInterrupted }}
+      </p>
+      <ChatTranscript
+        :messages="messages"
         :status="status"
-        :disabled="isPreparingImages"
-        @submit="handleSubmit"
+        :show-continue="showContinue"
+        @continue="
+          submission.submit({
+            modelText: 'Continue where you left off',
+            displayText: 'Continue where you left off',
+            images: [],
+            nodes: []
+          })
+        "
+      />
+
+      <p v-if="agentHistoryReadOnly" role="status" class="px-3 py-2 text-xs text-muted">
+        {{ ai.chatAgentReadOnly }}
+      </p>
+      <p v-if="history.readOnly.value" role="status" class="px-3 py-2 text-xs text-muted">
+        {{ ai.chatReadOnly }}
+      </p>
+      <ChatInput
+        v-if="isConfigured && !agentHistoryReadOnly && !history.readOnly.value"
+        :status="status"
+        :disabled="submission.busy.value || history.busy.value"
+        @submit="submission.submit"
         @stop="handleStop"
         @error="toast.error"
       />

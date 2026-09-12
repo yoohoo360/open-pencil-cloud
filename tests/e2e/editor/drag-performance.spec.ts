@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
+import { measureInteraction } from '#tests/helpers/performance/interaction'
 
 test('dragging a nested card uses repaint-only position previews', async ({ page }) => {
   await page.goto('/')
@@ -46,48 +47,7 @@ test('dragging a nested card uses repaint-only position previews', async ({ page
   })
   await canvas.waitForRender()
 
-  await page.evaluate(() => {
-    const store = window.openPencil?.getStore?.()
-    if (!store) throw new Error('OpenPencil store not initialized')
-    const originalStoreUpdate = store.updateNode.bind(store)
-    const originalGraphUpdate = store.graph.updateNode.bind(store.graph)
-    let storeUpdateCount = 0
-    let graphUpdateCount = 0
-    let repaintCount = 0
-    store.updateNode = ((id, changes) => {
-      storeUpdateCount++
-      return originalStoreUpdate(id, changes)
-    }) as typeof store.updateNode
-    store.graph.updateNode = ((id, changes) => {
-      graphUpdateCount++
-      return originalGraphUpdate(id, changes)
-    }) as typeof store.graph.updateNode
-    store.onEditorEvent('repaint:requested', () => {
-      repaintCount++
-    })
-    Object.assign(window, {
-      __openPencilDragCounters: () => ({
-        storeUpdateCount,
-        graphUpdateCount,
-        repaintCount
-      })
-    })
-  })
-
-  await canvas.drag(110, 110, 210, 150, 20)
-
-  const counters = await page.evaluate(() => {
-    const getCounters = (
-      window as typeof window & {
-        __openPencilDragCounters?: () => {
-          storeUpdateCount: number
-          graphUpdateCount: number
-          repaintCount: number
-        }
-      }
-    ).__openPencilDragCounters
-    return getCounters?.() ?? null
-  })
+  const counters = await measureInteraction(page, () => canvas.drag(110, 110, 210, 150, 20))
 
   expect(counters?.storeUpdateCount).toBeLessThanOrEqual(1)
   expect(counters?.graphUpdateCount).toBeLessThanOrEqual(25)

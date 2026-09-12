@@ -57,12 +57,10 @@ export async function installTauriClipboardMock(page: Page): Promise<TauriClipbo
   })
 
   await page.addInitScript((bindingName) => {
-    const invoke = (
-      globalThis as typeof globalThis & {
-        [key: string]: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
-      }
-    )[bindingName]
-    if (!invoke) throw new Error(`Playwright binding not found: ${bindingName}`)
+    const binding: unknown = Reflect.get(globalThis, bindingName)
+    if (typeof binding !== 'function')
+      throw new Error(`Playwright binding not found: ${bindingName}`)
+    const invoke = binding as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 
     let callbackId = 1
     const callbacks = new Map<number, unknown>()

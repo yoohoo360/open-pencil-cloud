@@ -57,8 +57,8 @@ jobs:
       - name: Build publishable packages
         run: bun run build:packages
 
-      - name: Validate package exports
-        run: bun run check:packages
+      - name: Validate installed package artifacts with Node and Bun
+        run: bun run test:packages
 
       - name: Detect unused dependencies and files
         run: bun run check:deps

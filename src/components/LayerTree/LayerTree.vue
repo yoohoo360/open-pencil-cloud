@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useAttrs, watch } from 'vue'
-import { tv } from 'tailwind-variants'
 import {
   TreeItem,
   TreeVirtualizer,
@@ -8,6 +6,8 @@ import {
   ContextMenuTrigger,
   ContextMenuPortal
 } from 'reka-ui'
+import { tv } from 'tailwind-variants'
+import { useAttrs, watch } from 'vue'
 
 import { LayerTreeRoot, LayerTreeItem, useInlineRename } from '@open-pencil/vue'
 import type {
@@ -16,14 +16,15 @@ import type {
   LayerSelectionMode,
   LayerTreeVirtualizer
 } from '@open-pencil/vue'
+
 import { useEditorStore } from '@/app/editor/active-store'
+import layerTreeTheme from '@/theme/layer-tree'
+
 import CanvasMenu from '../canvas/CanvasMenu.vue'
+import { LAYER_TREE_ROW_HEIGHT } from './geometry'
 import LayerTreeNodeRow from './LayerTreeNodeRow.vue'
 import LayerTreeRenameRow from './LayerTreeRenameRow.vue'
 import { provideLayerTreeUI } from './ui'
-
-import layerTreeTheme from '@/theme/layer-tree'
-
 import type { LayerTreeUI } from './ui'
 
 interface LayerTreeRootActions {
@@ -167,7 +168,7 @@ function onFocusOut(event: FocusEvent, actions: LayerTreeRootActions) {
           >
             <TreeVirtualizer
               v-slot="{ item, virtualizer }"
-              :estimate-size="24"
+              :estimate-size="LAYER_TREE_ROW_HEIGHT"
               :text-content="layerTextContent"
             >
               <template v-if="registerVirtualizer(scope.actions, virtualizer)">

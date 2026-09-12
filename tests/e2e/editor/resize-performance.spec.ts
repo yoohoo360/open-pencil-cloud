@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
+import { measureInteraction } from '#tests/helpers/performance/interaction'
 
 test('resizing uses repaint-only previews until mouseup', async ({ page }) => {
   await page.goto('/')
@@ -39,44 +40,7 @@ test('resizing uses repaint-only previews until mouseup', async ({ page }) => {
   })
   await canvas.waitForRender()
 
-  await page.evaluate((selectedId) => {
-    const store = window.openPencil?.getStore?.()
-    if (!store) throw new Error('OpenPencil store not initialized')
-    const originalStoreUpdate = store.updateNode.bind(store)
-    const originalGraphUpdate = store.graph.updateNode.bind(store.graph)
-    let storeUpdateCount = 0
-    let graphUpdateCount = 0
-    let repaintCount = 0
-    store.updateNode = ((nodeId, changes) => {
-      if (nodeId === selectedId) storeUpdateCount++
-      return originalStoreUpdate(nodeId, changes)
-    }) as typeof store.updateNode
-    store.graph.updateNode = ((nodeId, changes) => {
-      if (nodeId === selectedId) graphUpdateCount++
-      return originalGraphUpdate(nodeId, changes)
-    }) as typeof store.graph.updateNode
-    store.onEditorEvent('repaint:requested', () => {
-      repaintCount++
-    })
-    Object.assign(window, {
-      __openPencilResizeCounters: () => ({ storeUpdateCount, graphUpdateCount, repaintCount })
-    })
-  }, id)
-
-  await canvas.drag(340, 240, 420, 290, 12)
-
-  const counters = await page.evaluate(() => {
-    const getCounters = (
-      window as typeof window & {
-        __openPencilResizeCounters?: () => {
-          storeUpdateCount: number
-          graphUpdateCount: number
-          repaintCount: number
-        }
-      }
-    ).__openPencilResizeCounters
-    return getCounters?.() ?? null
-  })
+  const counters = await measureInteraction(page, () => canvas.drag(340, 240, 420, 290, 12), id)
   const node = await page.evaluate((nodeId) => {
     const store = window.openPencil?.getStore?.()
     if (!store) throw new Error('OpenPencil store not initialized')
