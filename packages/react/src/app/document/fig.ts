@@ -1,7 +1,6 @@
 import type { EditorStore } from '#react/app/editor/store'
 
 import { parseFigFile, readFigFile, type ParseFigFileOptions } from '@open-pencil/core/io'
-import { computeAllLayouts, sortNodesInReadingOrder } from '@open-pencil/core/layout'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -30,38 +29,28 @@ export function showFigPageManifest(
   }
 
   store.replaceGraph(graph)
-  store.state.loading = true
-  store.notify()
-}
-
-function paintPriorityFigGraph(store: EditorStore, graph: SceneGraph, partial: boolean): void {
-  store.replaceGraph(graph)
-  store.undo.clear()
-  store.clearSelection()
-  store.state.loading = true
-  const pageId = graph.getPages()[0]?.id
-  if (pageId) {
-    const first = sortNodesInReadingOrder(graph.getChildren(pageId))[0]
-    if (first) computeAllLayouts(graph, first.id)
-  }
-  store.notify()
-  if (partial) store.zoomToFit()
+  store.setLoading(true)
 }
 
 function figReadOptions(store: EditorStore): ParseFigFileOptions {
-  let fitted = false
   return {
     populate: 'first-page',
-    onPages: (pages) => showFigPageManifest(store, pages),
-    onGraph: (graph, info) => {
-      paintPriorityFigGraph(store, graph, info.partial && !fitted)
-      if (info.partial) fitted = true
+    // Keep the lazy FIG context on the editor graph for faster page switches.
+    useWorker: false,
+    onPages: (pages) => {
+      showFigPageManifest(store, pages)
     }
   }
 }
 
-export function readFigDocument(source: File | ArrayBuffer, store: EditorStore) {
+export async function readFigDocument(
+  source: File | ArrayBuffer,
+  store: EditorStore
+): Promise<SceneGraph> {
+  await yieldToUI()
   const options = figReadOptions(store)
-  if (source instanceof File) return readFigFile(source, options)
-  return parseFigFile(source, options)
+  const graph =
+    source instanceof File ? await readFigFile(source, options) : await parseFigFile(source, options)
+  await yieldToUI()
+  return graph
 }

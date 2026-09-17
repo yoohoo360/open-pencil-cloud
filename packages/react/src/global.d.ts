@@ -28,6 +28,25 @@ interface Window {
   queryLocalFonts?(): Promise<FontData[]>
   showOpenFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle[]>
   showSaveFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle>
+  __openPencilImportFigFromUrl?: (
+    url: string
+  ) => Promise<
+    | {
+        ok: true
+        url: string
+        fileName: string
+        bytes: number
+        downloadMs: number
+        importMs: number
+        totalMs: number
+        pages: number
+        nodes: number
+        firstPageName: string | null
+        firstPageChildren: number
+      }
+    | { ok: false; url: string; error: string; totalMs: number }
+  >
+  __openPencilDebugLazyFig?: () => unknown
 }
 
 interface GestureEvent extends UIEvent {

@@ -98,6 +98,9 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
       clearTimeout(state.sceneBackingRenderTimer)
       state.sceneBackingRenderTimer = null
     }
+    if (state.renderer.tiledScenePending) {
+      loopRef.current?.markDirty()
+    }
     if (scopedOptions?.layer === 'scene' && state.renderer.sceneBackingNeedsCrispRender) {
       const delay = Math.max(0, state.renderer.sceneBackingPreviewUntil - performance.now())
       state.sceneBackingRenderTimer = setTimeout(() => loopRef.current?.markDirty(), delay)

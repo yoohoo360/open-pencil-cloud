@@ -67,18 +67,15 @@ export function createCanvasRenderLoop(
   function renderFrame() {
     frameScheduled = false
     const state = getRenderState()
-    if (state.loading) {
-      dirty = true
-      scheduleFrame()
-      return
-    }
-
+    // Keep painting while loading so regional page population can show through
+    // the translucent canvas-loading overlay.
     const versionChanged = state.renderVersion !== lastRenderVersion
     const sceneChanged = state.sceneVersion !== lastSceneVersion
     const selectionChanged = state.selectedIds !== lastSelectedIds
-    if (dirty || versionChanged || sceneChanged || selectionChanged) {
+    if (dirty || versionChanged || sceneChanged || selectionChanged || state.loading) {
       dirty = false
       renderNow()
+      if (state.loading) scheduleFrame()
     }
   }
 

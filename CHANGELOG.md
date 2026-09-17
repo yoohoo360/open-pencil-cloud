@@ -60,6 +60,8 @@
 
 ### Performance
 
+- Speed up `.fig` import by materializing only the home page and its referenced components, keeping change maps in memory for later pages.
+- Show a translucent shared canvas loading overlay while lazy pages materialize in time-sliced chunks, paint progressively underneath, then finish visible regions with tiled painting. Idle prefetch keeps nearby pages warm.
 - Keep rapid trackpad zoom reversals responsive on complex documents by cancelling obsolete high-resolution scene reconstruction and settling only after navigation becomes idle.
 - Keep zooming responsive on effect-heavy documents by reusing bounded, invalidation-aware raster snapshots for supported shadow effects while retaining vector-picture fallbacks for backdrop-dependent and oversized effects.
 - Show the FIG page list from a lightweight Kiwi scan before materializing the full document, making large files feel responsive sooner.

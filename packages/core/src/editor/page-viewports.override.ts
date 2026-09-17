@@ -1,0 +1,62 @@
+import type { Color } from '@open-pencil/scene-graph/primitives'
+
+import { CANVAS_BG_COLOR } from '#core/constants'
+
+import type { EditorContext } from './types'
+
+interface PageViewport {
+  panX: number
+  panY: number
+  zoom: number
+  pageColor: Color
+}
+
+export function createPageViewportStore(ctx: EditorContext) {
+  const pageViewports = new Map<string, PageViewport>()
+
+  function saveCurrentPageViewport() {
+    pageViewports.set(ctx.state.currentPageId, {
+      panX: ctx.state.panX,
+      panY: ctx.state.panY,
+      zoom: ctx.state.zoom,
+      pageColor: { ...ctx.state.pageColor }
+    })
+  }
+
+  function restorePageViewport(pageId: string): boolean {
+    const viewport = pageViewports.get(pageId)
+    if (viewport) {
+      ctx.state.panX = viewport.panX
+      ctx.state.panY = viewport.panY
+      ctx.state.zoom = viewport.zoom
+      ctx.state.pageColor = { ...viewport.pageColor }
+      return true
+    }
+
+    ctx.state.panX = 0
+    ctx.state.panY = 0
+    ctx.state.zoom = 1
+    ctx.state.pageColor = { ...CANVAS_BG_COLOR }
+    return false
+  }
+
+  function hasSavedViewport(pageId: string): boolean {
+    return pageViewports.has(pageId)
+  }
+
+  function deletePageViewport(pageId: string) {
+    pageViewports.delete(pageId)
+  }
+
+  function clearPageViewports() {
+    pageViewports.clear()
+  }
+
+  return {
+    saveCurrentPageViewport,
+    restorePageViewport,
+    hasSavedViewport,
+    deletePageViewport,
+    clearPageViewports
+  }
+}
