@@ -34,10 +34,14 @@ A product fork of the open-source [OpenPencil](https://github.com/open-pencil/op
 | --- | --- |
 | Dev preview | **http://pencil.dev.yoohoo.cn/** |
 
+
+<img width="1503" height="791" alt="image" src="https://github.com/user-attachments/assets/07ef8662-7f8e-4cce-9929-ebea6d1749f3" />
+
+
 <img width="1910" height="924" alt="image" src="https://github.com/user-attachments/assets/f1607c74-9e7a-4942-a161-f00b993292bf" />
 
 
-<img width="1882" height="1184" alt="image" src="https://github.com/user-attachments/assets/df98df7d-a6c8-4b01-a7be-0f3fe1057fe1" />
+
 
 <img width="1899" height="1108" alt="image" src="https://github.com/user-attachments/assets/672d7848-db6e-48cb-a45f-beb40ea07c32" />
 
