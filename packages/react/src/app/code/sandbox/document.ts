@@ -10,6 +10,19 @@ self.onmessage = ({ data }) => {
   self.EventSource = undefined
   self.importScripts = blocked
 
+  const utf8ByteLength = (value) => {
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(value).byteLength
+    let bytes = 0
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i)
+      if (code < 0x80) bytes += 1
+      else if (code < 0x800) bytes += 2
+      else if (code >= 0xd800 && code <= 0xdbff) { bytes += 4; i += 1 }
+      else bytes += 3
+    }
+    return bytes
+  }
+
   const normalizeChildren = (children) => children.flat(Infinity).filter((child) => child != null && child !== false)
   const __fragment = ''
   const __h = (type, props, ...children) => {
@@ -47,7 +60,7 @@ self.onmessage = ({ data }) => {
     }
     if (typeof value === 'string') {
       if (value.length > limits.stringLength) throw new Error('Design JSX output contains a string that is too long.')
-      state.bytes += new TextEncoder().encode(value).byteLength
+      state.bytes += utf8ByteLength(value)
       if (state.bytes > limits.outputBytes) throw new Error('Design JSX output is too large.')
       return state
     }

@@ -15,9 +15,10 @@ import {
   type DesignJSXSandboxResult
 } from '#react/app/code/sandbox/types'
 import { validateDesignJSXOutput } from '#react/app/code/sandbox/validate'
+import { utf8ByteLength } from '#react/polyfills/utf8'
 
 function sourceByteLength(source: string): number {
-  return new TextEncoder().encode(source).byteLength
+  return utf8ByteLength(source)
 }
 
 export async function evaluateDesignJSX(

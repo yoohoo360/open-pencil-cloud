@@ -1,4 +1,4 @@
-import { getHttpClientBaseUrl } from '@/lib/client'
+import { getHttpClientBaseUrl } from '#react/lib/client'
 
 import { peekReturnTo, returnToHref } from './redirect'
 

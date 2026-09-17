@@ -143,7 +143,16 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
       keys: appMenuTinykeysShortcut('close') ?? '$mod+KeyW',
       run: ({ closeActiveTab }) => closeActiveTab()
     },
-    { id: 'new-tab', keys: ['$mod+KeyN', '$mod+KeyT'], run: ({ createTab }) => createTab() },
+    {
+      id: 'import-fig',
+      keys: appMenuTinykeysShortcut('import') ?? '$mod+KeyO',
+      run: ({ importFigDialog }) => importFigDialog()
+    },
+    {
+      id: 'new-tab',
+      keys: ['$mod+KeyT'],
+      run: ({ createTab }) => createTab()
+    },
     {
       id: 'rename-selection',
       keys: appMenuTinykeysShortcut('selection.rename') ?? '$mod+KeyR',
@@ -172,11 +181,6 @@ export function registerKeyboardShortcuts(options: KeyboardShortcutOptions) {
       id: 'show-comments',
       keys: appMenuTinykeysShortcut('show-comments') ?? 'Shift+KeyC',
       run: () => toggleComments()
-    },
-    {
-      id: 'open-file',
-      keys: appMenuTinykeysShortcut('open') ?? '$mod+KeyO',
-      run: ({ openFileDialog }) => openFileDialog()
     },
     ...commandShortcuts('selection.group'),
     {

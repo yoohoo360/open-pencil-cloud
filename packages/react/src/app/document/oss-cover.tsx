@@ -53,7 +53,7 @@ export function OssCoverImage({
     <img
       src={src}
       alt={alt}
-      className={className}
+      className={['block', className].filter(Boolean).join(' ')}
       decoding="async"
       referrerPolicy="no-referrer"
     />

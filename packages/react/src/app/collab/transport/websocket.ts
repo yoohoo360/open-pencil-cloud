@@ -1,6 +1,7 @@
 import { getCollabWebSocketURL } from '#react/constants'
 import { bytesFromData, bytesToBase64 } from '#react/app/collab/transport/bytes'
 import { createChunkAssembler, splitBytes } from '#react/app/collab/transport/chunk'
+import { createCollabId } from '#react/app/collab/transport/id'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
@@ -69,15 +70,10 @@ async function payloadText(payload: unknown): Promise<string | null> {
 }
 
 export function joinWebSocketCollabRoom(url: string): CollabRoomTransport {
-  if (
-    !IS_BROWSER ||
-    typeof WebSocket === 'undefined' ||
-    typeof crypto === 'undefined' ||
-    typeof crypto.randomUUID !== 'function'
-  ) {
-    throw new Error('Collaboration WebSocket transport requires browser WebSocket and crypto APIs')
+  if (!IS_BROWSER || typeof WebSocket === 'undefined') {
+    throw new Error('Collaboration WebSocket transport requires a browser WebSocket API')
   }
-  const peerId = crypto.randomUUID()
+  const peerId = createCollabId()
   const peers = new Set<string>()
   const receivers = new Map<string, CollabActionReceiver>()
   const pending: TransportMessage[] = []

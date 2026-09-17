@@ -1,10 +1,10 @@
-import { uploadOSSFig } from '#react/app/document/oss'
+import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAPI } from '#react/lib/client'
 import { useEffect } from 'react'
 
-import { exportFigFile, renderCoverThumbnail } from '@open-pencil/core/io'
+import { renderCoverThumbnail } from '@open-pencil/core/io'
 
 const FIG_AUTOSAVE_DEBOUNCE_MS = 3_000
 const COVER_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1_000
@@ -12,14 +12,8 @@ const COVER_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1_000
 async function persistCloudFig(store: EditorStore): Promise<void> {
   const remoteURL = store.state.documentFigURL
   if (!remoteURL || store.state.historyPreviewId) return
-  const data = await exportFigFile(
-    store.graph,
-    store.renderer?.ck,
-    store.renderer ?? undefined,
-    store.state.currentPageId
-  )
-  await uploadOSSFig(remoteURL, data)
-  void maybeRecordAutosave(store, data)
+  const { bytes, binaries } = await persistCloudSceneGraph(store)
+  void maybeRecordAutosave(store, bytes, binaries)
 }
 
 export async function saveCloudCover(store: EditorStore): Promise<boolean> {
@@ -31,7 +25,7 @@ export async function saveCloudCover(store: EditorStore): Promise<boolean> {
   if (!bytes) return false
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
-  await documentAPI.updateThumbnail(key, new File([copy], 'cover.png', { type: 'image/png' }))
+  await documentAPI.updateThumbnail(key, new File([copy], 'thumbnail.png', { type: 'image/png' }))
   return true
 }
 

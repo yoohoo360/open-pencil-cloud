@@ -5,6 +5,7 @@ import type { ExportFormatId, ExportSetting, PluginDataEntry } from '@open-penci
 
 import { useEditor } from '#react/editor/context'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
+import { encodeUtf8 } from '#react/polyfills/utf8'
 
 export const EXPORT_SCALES = [0.5, 0.75, 1, 1.5, 2, 3, 4] as const
 export const EXPORT_FORMATS: ExportFormatId[] = ['png', 'jpg', 'webp', 'svg', 'pdf']
@@ -158,10 +159,7 @@ export function useExport() {
             ? { canvasKit: editor.renderer.ck, renderer: editor.renderer }
             : undefined
         )
-        const bytes =
-          typeof result.data === 'string'
-            ? new TextEncoder().encode(result.data)
-            : result.data
+        const bytes = typeof result.data === 'string' ? encodeUtf8(result.data) : result.data
         const blob = new Blob([bytes], { type: result.mimeType })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')

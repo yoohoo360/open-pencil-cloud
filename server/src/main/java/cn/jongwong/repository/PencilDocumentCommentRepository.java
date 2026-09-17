@@ -21,4 +21,8 @@ public interface PencilDocumentCommentRepository extends JpaRepository<PencilDoc
     List<PencilDocumentComment> findByThreadIdAndIsDeletedOrderByCreatedAtAsc(String threadId, int isDeleted);
 
     long countByThreadIdAndIsDeleted(String threadId, int isDeleted);
+
+    List<PencilDocumentComment> findByDocumentId(String documentId);
+
+    void deleteByDocumentId(String documentId);
 }

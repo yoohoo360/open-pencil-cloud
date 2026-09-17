@@ -104,6 +104,8 @@ app:
   public-url: ${PUBLIC_URL:http://localhost:8000}
   auth:
     require-email-verification: true
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
   security:
     permit-all:
       - /api/auth/login
@@ -146,7 +148,6 @@ storage:
     bucket: ${OSS_BUCKET:}
     base-path: ${OSS_BASE_PATH:pencil/}
     presign-expiration-seconds: ${OSS_PRESIGN_EXPIRATION_SECONDS:900}
-  blank-fig-url: ${BLANK_FIG_URL:https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/blank.fig}
 
 # Actuator Configuration (Observability)
 management:

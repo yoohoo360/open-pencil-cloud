@@ -8,15 +8,20 @@ import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
-import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.OSSObject;
+import com.aliyun.oss.model.OSSObjectSummary;
+import com.aliyun.oss.model.ObjectListing;
+import com.aliyun.oss.model.ObjectMetadata;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -97,6 +102,45 @@ public class AliOssServiceImpl implements OssService {
             log.error("OSS 删除失败", e);
             return false;
         }
+    }
+
+    @Override
+    public List<String> list(String prefix) {
+        String keyPrefix = toObjectKey(prefix);
+        if (!keyPrefix.isEmpty() && !keyPrefix.endsWith("/")) {
+            keyPrefix += "/";
+        }
+        List<String> keys = new ArrayList<>();
+        String marker = null;
+        try {
+            do {
+                ListObjectsRequest request = new ListObjectsRequest(bucket)
+                        .withPrefix(keyPrefix)
+                        .withMarker(marker)
+                        .withMaxKeys(1000);
+                ObjectListing listing = ossClient.listObjects(request);
+                for (OSSObjectSummary summary : listing.getObjectSummaries()) {
+                    if (summary.getKey() == null || summary.getKey().endsWith("/")) continue;
+                    keys.add(summary.getKey());
+                }
+                marker = listing.isTruncated() ? listing.getNextMarker() : null;
+            } while (marker != null && !marker.isBlank());
+            return keys;
+        } catch (Exception e) {
+            log.error("OSS 列出失败", e);
+            return List.of();
+        }
+    }
+
+    @Override
+    public boolean deletePrefix(String prefix) {
+        boolean ok = true;
+        for (String path : list(prefix)) {
+            if (!delete(path)) {
+                ok = false;
+            }
+        }
+        return ok;
     }
 
     @Override

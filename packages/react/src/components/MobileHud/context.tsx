@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import { FilePlus, FolderOpen, ImageDown, Save, ZoomIn } from 'lucide-react'
+import { FileUp, ImageDown, Save, ZoomIn } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { useEditorCommands } from '#react/editor/commands'
@@ -7,8 +7,7 @@ import { useI18n } from '#react/i18n'
 import { DEFAULT_COLLAB_STATE } from '#react/app/collab/types'
 import { useEditorStore } from '#react/app/editor/store'
 import { toolIcons } from '#react/app/editor/icons'
-import { newDocument, openFileDialog, saveFigFile, exportSelection } from '#react/app/shell/menu/files'
-import { createTab } from '#react/app/tabs'
+import { importFigDialog, saveFigFile, exportSelection } from '#react/app/shell/menu/files'
 import type { ToolbarActionItem } from '#react/components/Toolbar/types'
 
 function useMobileHudState() {
@@ -24,15 +23,7 @@ function useMobileHudState() {
   const actionToast = store.state.actionToast
 
   const menuItems: ToolbarActionItem[] = [
-    {
-      icon: FilePlus,
-      label: 'New',
-      action: () => {
-        createTab()
-        newDocument(store)
-      }
-    },
-    { icon: FolderOpen, label: 'Open…', action: () => void openFileDialog(store) },
+    { icon: FileUp, label: 'Import…', action: () => void importFigDialog(store) },
     { icon: Save, label: 'Save', action: () => void saveFigFile(store) },
     {
       icon: ImageDown,

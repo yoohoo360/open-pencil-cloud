@@ -1,323 +1,283 @@
-# OpenPencil
-
-Open-source design editor. Opens `.fig` and `.pen` design files, includes built-in AI, and ships as a programmable toolkit with a headless Vue SDK for building custom editors.
+# OpenPencil (Yoohoo fork)
 
-> **Status:** Active development. Usable today, with some rough edges as features evolve.
+A product fork of the open-source [OpenPencil](https://github.com/open-pencil/open-pencil) design editor. It keeps the upstream engine (`.fig` / `.pen`, CanvasKit rendering, SceneGraph) and adds a React shell, cloud documents, and internal deployment.
 
-**[Try it online →](https://app.openpencil.dev/demo)** · [Download](https://github.com/open-pencil/open-pencil/releases/latest) · [Documentation](https://openpencil.dev) · [Roadmap](https://openpencil.dev/development/roadmap) · [llms.txt](https://openpencil.dev/llms.txt)
+> Upstream OpenPencil is under active development. This fork focuses on a React app shell and backend integration for business use.
 
-![OpenPencil](packages/docs/public/screenshot.png)
+**[Live preview →](http://pencil.dev.yoohoo.cn/)** · [Upstream demo](https://app.openpencil.dev/demo) · [Upstream docs](https://openpencil.dev)
 
-## Installation
 
-**macOS (Homebrew):**
 
-```sh
-brew install openpencil
-```
 
-Or download from the [releases page](https://github.com/open-pencil/open-pencil/releases/latest), or [use the web app](https://app.openpencil.dev) — no install needed.
+---
 
-## What it does
+## Relationship to upstream OpenPencil
 
-- **Opens `.fig` and `.pen` files** — read and write native Figma files, open supported Pencil documents from the app or OS file browser, copy & paste nodes between apps
-- **AI builds designs** — describe what you want in chat, 90+ tools create and modify nodes. Connect OpenRouter, Anthropic, OpenAI, Google AI, Z.ai, MiniMax, or compatible endpoints
-- **Fully programmable** — headless CLI, XPath queries, Figma Plugin API via `eval`, MCP server for AI agents, and desktop agent integrations for Claude Code, Codex, and Gemini CLI
-- **Lint, convert, and extract tokens** — inspect documents, lint naming/layout/accessibility, convert between supported formats, analyze colors/typography/spacing/clusters, and extract design tokens
-- **Components and variants** — create reusable components, group variants into component sets, insert local assets as instances, and switch variants from the inspector
-- **Image vectorization** — convert image layers into editable vector layers with Recraft or fal.ai
-- **Design-to-code export** — export selections as JSX/Tailwind, generate token outputs, and map designs into component-oriented code workflows
-- **Vue SDK for custom editors** — headless components and composables for embedding OpenPencil into other apps or building workflow-specific editing surfaces. [Read the SDK docs →](https://openpencil.dev/programmable/sdk/)
-- **Real-time collaboration** — P2P via WebRTC, no server, no account. Cursors, presence, follow mode
-- **Auto layout & CSS Grid** — flex and grid layout via Yoga WASM, with gap, padding, alignment, track sizing
-- **~7 MB desktop app** — Tauri v2 for macOS, Windows, Linux. Also runs in the browser as a PWA
-
-## CLI
+| | Upstream OpenPencil | This fork (Yoohoo) |
+| --- | --- | --- |
+| Focus | Open-source editor + CLI / MCP / Vue SDK | Productized editor on the same engine |
+| App UI | Vue 3 app under `src/` | Primary shell: `packages/react` |
+| Backend | Local-first, no required account | Java `server/` + cloud docs / OSS |
+| Hosting | Official web / desktop releases | Static web app + Docker Compose API |
+| Engine | `@open-pencil/core` and related packages | Same packages; product diffs prefer `*.override.ts` |
+| License | MIT | MIT (upstream) + fork-owned config / deploy |
 
-```sh
-npm install -g @open-pencil/cli
-# or: bun add -g @open-pencil/cli
-```
+**Same:** `.fig` I/O, SceneGraph, CanvasKit, Yoga layout, components/instances, and the programmable core.
 
-### Inspect design files
+**Different:** React product shell, cloud open/save, Aliyun OSS, and performance overrides (for example lazy `.fig` page load) without patching upstream sources in place.
 
-Browse node trees, search by name or type, dig into properties — all without opening the editor:
+---
 
-```sh
-openpencil tree design.fig
-openpencil find design.pen --type TEXT
-openpencil node design.fig --id 1:23
-openpencil info design.fig
-```
+## Live preview
 
-```
-[0] [page] "Getting started" (0:46566)
-  [0] [section] "" (0:46567)
-    [0] [frame] "Body" (0:46568)
-      [0] [frame] "Introduction" (0:46569)
-        [0] [frame] "Introduction Card" (0:46570)
-          [0] [frame] "Guidance" (0:46571)
-```
+| Environment | URL |
+| --- | --- |
+| Dev preview | **http://pencil.dev.yoohoo.cn/** |
 
-### Query with XPath
+<img width="1910" height="924" alt="image" src="https://github.com/user-attachments/assets/f1607c74-9e7a-4942-a161-f00b993292bf" />
 
-Use XPath selectors to find nodes by type, attributes, and structure:
 
-```sh
-openpencil query design.fig "//FRAME"                              # All frames
-openpencil query design.fig "//FRAME[@width < 300]"                # Frames under 300px
-openpencil query design.fig "//TEXT[contains(@name, 'Button')]"     # Text with 'Button' in name
-openpencil query design.fig "//*[@cornerRadius > 0]"               # Rounded corners
-openpencil query design.fig "//SECTION//TEXT"                       # Text inside sections
-```
+<img width="1882" height="1184" alt="image" src="https://github.com/user-attachments/assets/df98df7d-a6c8-4b01-a7be-0f3fe1057fe1" />
 
-### Export
+<img width="1899" height="1108" alt="image" src="https://github.com/user-attachments/assets/672d7848-db6e-48cb-a45f-beb40ea07c32" />
 
-Render to PNG, JPG, WEBP, SVG, `.fig`, or JSX — or export selections/pages as `.fig` and convert whole documents between supported formats:
 
-```sh
-openpencil export design.fig                           # PNG
-openpencil export design.fig -f jpg -s 2 -q 90        # JPG at 2x, quality 90
-openpencil export design.fig -f fig --page "Page 1"   # Export a page as .fig
-openpencil export design.fig -f jsx --style tailwind   # Tailwind JSX
-openpencil export design.fig -f html --css tailwind    # Tailwind HTML fragment
-openpencil export design.fig -f html --html standalone --assets external # HTML + assets
-openpencil convert design.pen output.fig               # Convert between document formats
-openpencil import page.html --css styles.css -o page.fig # HTML/CSS → editable .fig
-```
 
-DOM/CSS input flows through `@open-pencil/dom-css`, so HTML, authored CSS, and Tailwind utility CSS can become editable OpenPencil layers:
 
-```sh
-openpencil import card.html --css card.css -o card.fig
-openpencil import card.html --tailwind "flex flex-col gap-3 w-80 p-6 rounded-xl bg-white" -o card.fig
-```
 
-```html
-<div className="flex flex-col gap-4 p-6 bg-white rounded-xl">
-  <p className="text-2xl font-bold text-[#1D1B20]">Card Title</p>
-  <p className="text-sm text-[#49454F]">Description text</p>
-</div>
-```
 
-### Lint design files
+---
 
-Catch naming, layout, structure, and accessibility issues from the terminal:
+## Local development
 
-```sh
-openpencil lint design.fig
-openpencil lint design.pen --preset strict
-openpencil lint design.fig --rule color-contrast
-openpencil lint design.fig --list-rules
-```
+### Requirements
 
-### Analyze and extract design tokens
+- [Bun](https://bun.sh/) (latest stable recommended)
+- Optional: Docker (to run the API locally via Compose)
 
-Audit an entire design system from the terminal — find inconsistencies, extract the real palette, and spot components waiting to be extracted:
+### Install
 
-```sh
-openpencil analyze colors design.fig
-openpencil analyze typography design.fig
-openpencil analyze spacing design.fig
-openpencil analyze clusters design.fig
-openpencil analyze overlaps design.fig
-openpencil variables design.fig
-```
-
-```
-#1d1b20  ██████████████████████████████ 17155×
-#49454f  ██████████████████████████████ 9814×
-#ffffff  ██████████████████████████████ 8620×
-#6750a4  ██████████████████████████████ 3967×
-
-3771× frame "container" (100% match)
-     size: 40×40, structure: Frame > [Frame]
-
-2982× instance "Checkboxes" (100% match)
-     size: 48×48, structure: Instance > [Frame]
-```
-
-### Script with Figma Plugin API
-
-`eval` gives you the full Figma Plugin API. Modify the file, write it back:
-
-```sh
-openpencil eval design.fig -c "figma.currentPage.children.length"
-openpencil eval design.fig -c "figma.currentPage.selection.forEach(n => n.opacity = 0.5)" -w
-```
-
-### Control the running app
-
-When the desktop app is running, omit the file argument — the CLI connects via RPC and operates on the live canvas. Useful for automation scripts, CI pipelines, or AI agents that need to interact with the editor:
-
-```sh
-openpencil tree                               # Inspect the live document
-openpencil export -f png                      # Screenshot the current canvas
-openpencil eval -c "figma.currentPage.name"   # Query the editor
-```
-
-All commands support `--json` for machine-readable output.
-
-## AI & MCP
-
-### Built-in chat
-
-Press <kbd>⌘</kbd><kbd>J</kbd> to open the AI assistant. It has 100+ tools that can create shapes, set fills and strokes, manage auto-layout, work with components and variables, run boolean operations, analyze design tokens, and export assets. Bring your own API key for OpenRouter, Anthropic, OpenAI, Google AI, Z.ai, MiniMax, or compatible endpoints. No backend, no account.
-
-Not every provider works in the browser, and not every model streams tool calls correctly. See [BYOK provider & model compatibility](packages/docs/programmable/byok-provider-compatibility.md) for measured results — contributions welcome.
-
-### Coding agents (desktop)
-
-Use Claude Code, Codex, or Gemini CLI directly in the chat panel. The agent connects to the editor's MCP server and uses all 100+ design tools. Requires the desktop app and the agent CLI installed locally.
-
-Pi is also available as an optional AI SDK Harness provider. Install its companion CLI with `npm install -g @open-pencil/harness`, then add a **Pi** model profile in **Settings → AI & agents**. The companion is installed separately so OpenPencil does not bundle a JavaScript runtime for users who do not enable Harness providers.
-
-**Setup (Claude Code):**
-
-1. Install the ACP adapter: `npm install -g @agentclientprotocol/claude-agent-acp`
-2. Add MCP permission to `~/.claude/settings.json`:
-   ```json
-   {
-     "permissions": {
-       "allow": ["mcp__open-pencil__*"]
-     }
-   }
-   ```
-3. Open the desktop app → <kbd>Ctrl</kbd><kbd>J</kbd> → select **Claude Code** from the provider dropdown
-
-### MCP server
-
-Connect Claude Code, Cursor, Windsurf, or any MCP client to inspect, modify, and export design documents headlessly. 100+ tools. [Full docs →](https://openpencil.dev/reference/mcp-tools)
-
-**Stdio** (Claude Code, Cursor, Windsurf):
-
-```sh
-npm install -g @open-pencil/mcp
-claude mcp add --scope user open-pencil -- openpencil-mcp
-```
-
-For other MCP clients:
-
-```json
-{
-  "mcpServers": {
-    "open-pencil": {
-      "command": "openpencil-mcp"
-    }
-  }
-}
-```
-
-**HTTP** (scripts, CI):
-
-```sh
-openpencil-mcp-http   # Unix socket on macOS/Linux + http://127.0.0.1:7600/mcp
-```
-
-Local clients discover the private Unix socket automatically and fall back to localhost TCP. Set `PORT=0` to disable TCP on macOS/Linux.
-
-**File access:** Set `OPENPENCIL_MCP_ROOT` to scope file operations (`open_file`, `new_document`, export `path` param) to a directory. Defaults to the current working directory.
-
-### AI agent skill
-
-Teach your AI coding agent to use OpenPencil — inspect designs, export assets, analyze tokens, modify .fig files:
-
-```sh
-npx skills add open-pencil/skills@open-pencil
-```
-
-Works with Claude Code, Cursor, Windsurf, Codex, and any agent that supports [skills](https://skills.sh).
-
-For documentation-aware agents, the docs site publishes [llms.txt](https://openpencil.dev/llms.txt), [llms-full.txt](https://openpencil.dev/llms-full.txt), and per-page Markdown files generated from the VitePress docs.
-
-## Collaboration
-
-Share a link to co-edit in real time. No server, no account — peers connect directly via WebRTC.
-
-1. Click the share button in the top-right panel
-2. Share the generated link (`app.openpencil.dev/share/<room-id>`)
-3. Collaborators see your cursor, selection, and edits in real time
-4. Click a peer's avatar to follow their viewport
-
-## Why
-
-Figma is a closed platform that actively fights programmatic access. Their MCP server is read-only. [figma-use](https://github.com/dannote/figma-use) added full read/write automation via CDP — then [Figma 126 killed CDP](https://forum.figma.com/report-a-problem-6/remote-debugging-port-not-working-in-figma-desktop-126-1-2-50858). Your design files are in a proprietary binary format that only their software can fully read. Your workflows break when they decide to ship a point release.
-
-OpenPencil is the alternative: open source (MIT), reads .fig files natively, every operation is scriptable, and your data never leaves your machine.
-
-See the [roadmap](https://openpencil.dev/development/roadmap) for product direction and current Figma compatibility gaps.
-
-## Contributing
-
-### Setup
+From the repo root:
 
 ```sh
 bun install
-bun run dev:portless  # Web editor at https://open-pencil.localhost
-bun run dev           # Direct Vite server at http://localhost:1420
-bun run tauri dev     # Desktop app (requires Rust)
 ```
 
-The first Portless run creates and trusts a local HTTPS certificate. Linked Git worktrees automatically receive branch-prefixed URLs such as `https://fix-ui.open-pencil.localhost`, so concurrent development servers do not compete for port 1420. Their development MCP bridges are exposed through matching sibling URLs such as `https://fix-ui.mcp.open-pencil.localhost`, with isolated TCP ports and runtime socket files. Run `bunx portless doctor` if local routing or certificate trust fails.
 
-Alternatively, open the repository in any [Dev Container](https://containers.dev/)-compatible tool. The container pins Bun, installs the workspace dependencies, and forwards the direct web editor on port 1420. Start it with `bun run dev` after the container is ready.
 
-The Dev Container supports the web editor, packages, CLI, and automated checks. Native Tauri development still requires the host setup described below because desktop windows and platform WebView dependencies are not provided in the container.
+### Start the React editor
 
-### Quality gates
+```sh
+cd packages/react
+bun run start
+# NODE_ENV=development APP_ENV=local rspack server
+```
 
-| Command             | Description           |
-| ------------------- | --------------------- |
-| `bun run check`     | Lint + typecheck      |
-| `bun run test`      | E2E visual regression |
-| `bun run test:unit` | Unit tests            |
-| `bun run format`    | Code formatting       |
+Uses `config.local.ts` (API defaults to `http://localhost:8080`). Open **http://localhost:8000**.
 
-### Project structure
+
+
+Useful builds:
+
+```sh
+cd packages/react
+bun run build:test   # APP_ENV=test (dev preview build)
+bun run build:prod   # APP_ENV=prod
+```
+
+### Start the API locally (optional)
+
+Point Compose at a published image (adjust the tag as needed):
+
+
+
+```server/.env
+DATABASE_URL=jdbc:postgresql://xxx:5432/open-pencil
+DATABASE_USERNAME=open-pencil
+DATABASE_PASSWORD=xx
+JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
+SPRING_PROFILES_ACTIVE=dev
+
+REDIS_HOST=xx
+REDIS_PORT=xxx
+REDIS_PASSWORD=xxx
+REDIS_DATABASE=0
+
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:1420,http://localhost:8000
+
+
+JWT_EXPIRATION=8640000000
+JWT_REFRESH_EXPIRATION=604800000
+
+
+OAUTH_GITHUB_CLIENT_ID=xx
+OAUTH_GITHUB_CLIENT_SECRET=xx
+OAUTH_GOOGLE_CLIENT_ID=xx
+OAUTH_GOOGLE_CLIENT_SECRET=xxx
+
+
+# SMTP (leave MAIL_HOST empty to log verification codes in the API console)
+MAIL_HOST=xxx
+MAIL_PORT=xx
+MAIL_USERNAME=xx
+MAIL_PASSWORD=xx
+
+
+# Storage: local / oss
+STORAGE_TYPE=local
+
+OSS_ENDPOINT=oss-cn-shanghai.aliyuncs.com
+OSS_ACCESS_KEY=xx
+OSS_SECRET_KEY=xx
+OSS_BUCKET=xx
+OSS_BASE_PATH=xx/
+OSS_PRESIGN_EXPIRATION_SECONDS=900
+
+
+```
+
+cd server
+
+Maven run  Springboot 
+
+Without the API, the editor still opens local `.fig` files; cloud open/save needs the server (or a remote API URL in config).
+
+---
+
+## Cloud deployment
+
+### Frontend (React static app)
+
+Build and publish the `packages/react` `dist` (for example via `.github/workflows/react-ui-deploy.yml`), then serve it behind nginx. Dev preview: **http://pencil.dev.yoohoo.cn/**.
+
+| `APP_ENV` | Config | Typical use |
+| --- | --- | --- |
+| `local` | `config.local.ts` | Local rspack |
+| `test` | `config.dev.ts` | Dev preview site |
+| `prod` | `config.prod.ts` | Production site |
+
+### Backend (Docker Compose)
+
+Run the API with Docker Compose on the host (same shape as local):
+
+```.env
+DATABASE_URL=jdbc:postgresql://xxx:5432/open-pencil
+DATABASE_USERNAME=open-pencil
+DATABASE_PASSWORD=xx
+JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
+SPRING_PROFILES_ACTIVE=dev
+
+REDIS_HOST=xx
+REDIS_PORT=xxx
+REDIS_PASSWORD=xxx
+REDIS_DATABASE=0
+
+CORS_ALLOWED_ORIGINS=xxx,http://pencil.dev.yoohoo.cn
+
+
+JWT_EXPIRATION=8640000000
+JWT_REFRESH_EXPIRATION=604800000
+
+
+OAUTH_GITHUB_CLIENT_ID=xx
+OAUTH_GITHUB_CLIENT_SECRET=xx
+OAUTH_GOOGLE_CLIENT_ID=xx
+OAUTH_GOOGLE_CLIENT_SECRET=xxx
+
+
+# SMTP (leave MAIL_HOST empty to log verification codes in the API console)
+MAIL_HOST=xxx
+MAIL_PORT=xx
+MAIL_USERNAME=xx
+MAIL_PASSWORD=xx
+
+
+# Storage: local / oss
+STORAGE_TYPE=oss
+
+OSS_ENDPOINT=oss-cn-shanghai.aliyuncs.com
+OSS_ACCESS_KEY=xx
+OSS_SECRET_KEY=xx
+OSS_BUCKET=yoohoo-oss
+OSS_BASE_PATH=xx/
+OSS_PRESIGN_EXPIRATION_SECONDS=900
+
+
+```
+
+```yaml
+services:
+  open-pencil-server:
+    image: registry.cn-hangzhou.aliyuncs.com/jongwong/open-pencil-server:0.0.1-beta.28
+    container_name: open-pencil-server
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - LOCAL_STORAGE_PATH=/app/storage
+    volumes:
+      - /data/docker-mnt/open-pencil-server/.env:/app/.env
+      - /data/docker-mnt/open-pencil-server/storage:/app/storage
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+```
+
+```sh
+# Ensure app-network exists, then:
+docker compose pull open-pencil-server
+docker compose up -d open-pencil-server
+```
+
+Update the image tag when releasing a new server build. Mount a real `.env` and persistent `storage` directory on the host. Use `SPRING_PROFILES_ACTIVE=prod` for production if that profile is configured in `server/`.
+
+Image source: `server/Dockerfile` (multi-stage Maven → JRE).
+
+---
+
+## Repository layout (excerpt)
 
 ```
 packages/
-  scene-graph/    @open-pencil/scene-graph — nodes, primitives, hit testing, copy/snap/undo
-  pen/            @open-pencil/pen — Pencil document format helpers
-  kiwi/           @open-pencil/kiwi — Kiwi runtime and low-level .fig container parsing
-  fig/            @open-pencil/fig — .fig archives, SceneGraph conversion, instances, metadata
-  core/           @open-pencil/core — editor engine, renderer, layout, tools, RPC, document I/O
-  dom-css/        @open-pencil/dom-css — HTML/CSS/Tailwind to editable design documents
-  vue/            @open-pencil/vue — headless Vue SDK
-  cli/            @open-pencil/cli — headless CLI
-  mcp/            @open-pencil/mcp — MCP server (stdio + HTTP)
-  docs/           Documentation site (openpencil.dev)
-src/              Vue app (editor shell, AI, collaboration, document I/O)
-desktop/          Tauri v2 desktop app (Rust + config)
-tests/            E2E, visual, engine, and integration tests
+  scene-graph/   graph model (may include index.override.ts)
+  fig/           .fig parse / instances (*.override.ts)
+  core/          engine / renderer / editor (performance overrides)
+  react/         React product shell + cloud integration (primary app)
+  cli/ mcp/ …    upstream programmable tooling
+server/          cloud API (Java)
 ```
 
-### Tech stack
+Prefer `*.override.ts` for product/engine diffs so upstream files stay mergeable; rspack remaps overrides at build time.
 
-| Layer         | Tech                                                                              |
-| ------------- | --------------------------------------------------------------------------------- |
-| Rendering     | Skia (CanvasKit WASM)                                                             |
-| Layout        | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
-| UI            | Vue 3, Reka UI, Tailwind CSS 4                                                    |
-| File format   | Kiwi binary + Zstd + ZIP                                                          |
-| Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT)                                                |
-| Desktop       | Tauri v2                                                                          |
-| AI/MCP        | Multi-provider (Anthropic, OpenAI, Google AI, OpenRouter), MCP SDK, Hono          |
+---
 
-### Desktop builds
+## Upstream capabilities
 
-Requires [Rust](https://rustup.rs/) and platform-specific prerequisites ([Tauri v2 guide](https://v2.tauri.app/start/prerequisites/)).
+Upstream still ships CLI (`@open-pencil/cli`), MCP, desktop AI agents, P2P collab, and token analysis. See:
+
+- https://openpencil.dev  
+- https://openpencil.dev/development/roadmap  
+
+This fork’s day-to-day path is the **React shell + Compose API**.
+
+---
+
+## Checks
 
 ```sh
-bun run tauri build
+bun run check        # full gate
+bun run test:unit    # unit tests
+bun run format       # format
 ```
 
-## Acknowledgments
-
-Thanks to [@sld0Ant](https://github.com/sld0Ant) (Anton Soldatov) for creating and maintaining the [documentation site](https://openpencil.dev).
+---
 
 ## License
 
-OpenPencil is licensed under the [MIT License](./LICENSE).
+[MIT License](./LICENSE) (upstream).
 
-Copyright (c) 2026 Danila Poyarkov and OpenPencil contributors.
+Upstream copyright belongs to OpenPencil contributors. Fork-owned React shell, cloud config, and deploy compose belong to this project’s maintainers.

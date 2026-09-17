@@ -215,6 +215,15 @@ public class OssFileController {
         }
     }
 
+    /**
+     * 列出目录下的文件
+     * GET /api/oss/list?path=docs
+     */
+    @GetMapping("/list")
+    public ApiResponse<java.util.List<String>> list(@RequestParam String path) {
+        return ApiResponse.ok(storageService.list(path));
+    }
+
     // ==================== 查询 ====================
 
     /**

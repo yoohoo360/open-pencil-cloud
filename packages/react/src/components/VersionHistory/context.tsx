@@ -1,6 +1,12 @@
+import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { closeComments } from '#react/app/document/comments/actions'
-import { applyFigBytes } from '#react/app/document/open-http'
-import { uploadOSSFig } from '#react/app/document/oss'
+import { applyDocumentBytes, applyImportedGraph } from '#react/app/document/open-http'
+import {
+  decodeSceneGraph,
+  encodeSceneGraph,
+  encodeSceneGraphJsonBytes,
+  type EncodedSceneGraph
+} from '#react/app/document/scene-graph-json'
 import { registerVersionHistoryActions } from '#react/app/document/version-history/actions'
 import {
   downloadVersionFig,
@@ -12,7 +18,6 @@ import type {
   VersionHistorySelection
 } from '#react/app/document/version-history/types'
 import { useEditorStore } from '#react/app/editor/store'
-import { exportCurrentFig } from '#react/app/shell/menu/files'
 import { useI18n } from '#react/i18n'
 import { documentAPI, getAPIErrorMessage } from '#react/lib/client'
 import {
@@ -62,7 +67,7 @@ export function useVersionHistoryState() {
   const store = useEditorStore()
   const { dialogs } = useI18n()
   const [state, setState] = useState<VersionHistoryState>(EMPTY)
-  const liveFigRef = useRef<Uint8Array | null>(null)
+  const liveDocumentRef = useRef<EncodedSceneGraph | null>(null)
   const selectedIdRef = useRef<VersionHistorySelection>('current')
   selectedIdRef.current = state.selectedId
 
@@ -103,15 +108,15 @@ export function useVersionHistoryState() {
   )
 
   const restoreLiveGraph = useCallback(async () => {
-    const backup = liveFigRef.current
-    liveFigRef.current = null
+    const backup = liveDocumentRef.current
+    liveDocumentRef.current = null
     store.state.historyPreviewId = null
     store.notify()
     if (!backup) return
     store.state.loading = true
     store.notify()
     try {
-      await applyFigBytes(store, backup, `${store.state.documentName || 'Untitled'}.fig`)
+      await applyImportedGraph(store, decodeSceneGraph(backup.document, backup.binaries))
     } finally {
       store.state.loading = false
       store.notify()
@@ -153,15 +158,21 @@ export function useVersionHistoryState() {
 
   const selectVersion = useCallback(
     async (version: DocumentVersion) => {
-      setState((current) => ({ ...current, selectedId: version.id, error: null }))
-      if (!store.state.historyPreviewId && !liveFigRef.current) {
-        liveFigRef.current = await exportCurrentFig(store)
+      setState((current) => ({
+        ...current,
+        selectedId: version.id,
+        error: null
+      }))
+      if (!store.state.historyPreviewId && !liveDocumentRef.current) {
+        liveDocumentRef.current = encodeSceneGraph(store.graph)
       }
       store.state.loading = true
       store.notify()
       try {
         const bytes = await downloadVersionFig(version.url)
-        await applyFigBytes(store, bytes, `${store.state.documentName || 'Untitled'}.fig`)
+        await applyDocumentBytes(store, bytes, `${store.state.documentName || 'Untitled'}.json`, {
+          sourceUrl: version.url
+        })
         store.state.historyPreviewId = version.id
       } catch (error) {
         setState((current) => ({
@@ -186,12 +197,15 @@ export function useVersionHistoryState() {
       if (store.state.historyPreviewId) return
       setState((current) => ({ ...current, saving: true, error: null }))
       try {
-        const bytes = await exportCurrentFig(store)
-        if (store.state.documentFigURL) {
-          await uploadOSSFig(store.state.documentFigURL, bytes)
-        }
-        await recordDocumentVersion(store, 'named', bytes, title, description)
-        setState((current) => ({ ...current, saving: false, saveDialogOpen: false }))
+        const { bytes, binaries } = store.state.documentFigURL
+          ? await persistCloudSceneGraph(store)
+          : encodeSceneGraphJsonBytes(store.graph)
+        await recordDocumentVersion(store, 'named', bytes, binaries, title, description)
+        setState((current) => ({
+          ...current,
+          saving: false,
+          saveDialogOpen: false
+        }))
         await refresh()
       } catch (error) {
         setState((current) => ({
@@ -222,9 +236,20 @@ export function useVersionHistoryState() {
     setState((current) => ({ ...current, restoring: true, error: null }))
     try {
       await documentAPI.restoreVersion(documentKey, selected)
-      liveFigRef.current = null
+      liveDocumentRef.current = null
       store.state.historyPreviewId = null
-      setState((current) => ({ ...current, restoring: false, selectedId: 'current' }))
+      const liveUrl = store.state.documentFigURL
+      if (liveUrl) {
+        const payload = await downloadVersionFig(liveUrl)
+        await applyDocumentBytes(store, payload, `${store.state.documentName || 'Untitled'}.json`, {
+          sourceUrl: liveUrl
+        })
+      }
+      setState((current) => ({
+        ...current,
+        restoring: false,
+        selectedId: 'current'
+      }))
       await refresh()
     } catch (error) {
       setState((current) => ({
@@ -266,7 +291,10 @@ export function useVersionHistoryState() {
       setState((current) => ({ ...current, saveDialogOpen: openDialog }))
     },
     toggleAutosaves: () => {
-      setState((current) => ({ ...current, autosavesExpanded: !current.autosavesExpanded }))
+      setState((current) => ({
+        ...current,
+        autosavesExpanded: !current.autosavesExpanded
+      }))
     },
     saveNamed,
     restoreSelected,

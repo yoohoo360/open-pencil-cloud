@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { IS_TAURI } from '@open-pencil/core/constants'
 
 import { App } from './App'
+import './polyfills/text-encoding'
 
 import './styles.css'
 

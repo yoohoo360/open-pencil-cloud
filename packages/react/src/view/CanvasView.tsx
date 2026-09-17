@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
-
+import { bindOpenPencilTestImport } from '#react/app/document/test-import'
 import { createEditorStore, EditorStoreProvider, type EditorStore } from '#react/app/editor/store'
 import { OpenPencilProvider } from '#react/editor/context'
 import { EditorWorkspace } from '#react/editor/EditorWorkspace'
+import { useEffect, useMemo } from 'react'
+
+import { requestLocalFontAccess } from '#react/app/editor/fonts'
 
 function addDemoIcon(store: EditorStore, name: string, type: 'STAR' | 'ELLIPSE', x: number) {
   const pageId = store.state.currentPageId
@@ -30,11 +32,7 @@ function addDemoIcon(store: EditorStore, name: string, type: 'STAR' | 'ELLIPSE',
   return component
 }
 
-function addDemoButtonIcon(
-  store: EditorStore,
-  parentId: string,
-  componentId: string
-) {
+function addDemoButtonIcon(store: EditorStore, parentId: string, componentId: string) {
   return store.graph.createInstance(componentId, parentId, {
     name: 'Icon',
     x: 8,
@@ -210,6 +208,11 @@ function createDemoStore() {
 
 export default function CanvasView() {
   const store = useMemo(() => createDemoStore(), [])
+  useEffect(() => {
+    requestLocalFontAccess().then(() => {
+      bindOpenPencilTestImport(store)
+    })
+  }, [store])
 
   return (
     <EditorStoreProvider store={store}>

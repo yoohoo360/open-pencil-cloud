@@ -17,7 +17,7 @@ export type KeyboardShortcutOptions = {
   store: EditorStore
   runCommand: (id: EditorCommandId) => void
   actions: KeyboardShortcutActions
-  openFileDialog: () => void
+  importFigDialog: () => void
   closeActiveTab: () => void
   createTab: () => void
 }

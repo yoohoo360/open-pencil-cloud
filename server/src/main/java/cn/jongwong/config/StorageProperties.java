@@ -24,11 +24,6 @@ public class StorageProperties {
      */
     private Oss oss = new Oss();
 
-    /**
-     * 新建文档时复制的空白 .fig 模板
-     */
-    private String blankFigUrl = "https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/blank.fig";
-
     @Data
     public static class Local {
         /**

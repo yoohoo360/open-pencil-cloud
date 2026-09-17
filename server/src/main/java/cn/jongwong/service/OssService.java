@@ -4,6 +4,7 @@ import cn.jongwong.dto.FileInfo;
 import cn.jongwong.dto.OssPresignResponse;
 
 import java.io.InputStream;
+import java.util.List;
 
 public interface OssService {
 
@@ -31,6 +32,16 @@ public interface OssService {
      * 删除文件
      */
     boolean delete(String path);
+
+    /**
+     * 列出前缀下的对象路径（不含子目录占位）
+     */
+    List<String> list(String prefix);
+
+    /**
+     * 删除前缀下的全部对象
+     */
+    boolean deletePrefix(String prefix);
 
     /**
      * 获取文件信息

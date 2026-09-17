@@ -1,11 +1,12 @@
+import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { saveCloudCover } from '#react/app/document/cloud-persist'
-import { uploadOSSFig } from '#react/app/document/oss'
+import { readFigDocument, finishFigImport, waitForCanvasPaint, yieldToUI } from '#react/app/document/fig'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { dialogMessages } from '#react/i18n/messages'
+import { encodeUtf8 } from '#react/polyfills/utf8'
 
 import { BUILTIN_IO_FORMATS, exportFigFile, IORegistry } from '@open-pencil/core/io'
-import { computeAllLayouts } from '@open-pencil/core/layout'
 import { browserHTMLToSceneGraph } from '@open-pencil/dom-css/browser'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -60,7 +61,7 @@ function errorDetail(error: unknown): string {
 }
 
 function copyBytes(data: Uint8Array | string): Uint8Array {
-  if (typeof data === 'string') return new TextEncoder().encode(data)
+  if (typeof data === 'string') return encodeUtf8(data)
   const copy = new Uint8Array(data.byteLength)
   copy.set(data)
   return copy
@@ -140,14 +141,49 @@ function getExportBaseName(
 }
 
 async function applyOpenedDocument(store: EditorStore, imported: SceneGraph) {
-  const firstPageId = imported.getPages()[0]?.id
-  if (firstPageId) computeAllLayouts(imported, firstPageId)
-  store.replaceGraph(imported)
-  store.undo.clear()
-  store.clearSelection()
-  const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
-  await store.switchPage(pageId)
-  store.zoomToFit()
+  await finishFigImport(store, imported)
+}
+
+function assertFigImportFile(name: string) {
+  if (!/\.fig$/i.test(name)) {
+    throw new Error(`Unsupported file type: ${name}`)
+  }
+}
+
+/** Import a `.fig` file into the active store (URL test import + file picker). */
+export async function importFigIntoStore(
+  store: EditorStore,
+  file: File,
+  options?: { alreadyLoading?: boolean }
+): Promise<void> {
+  assertFigImportFile(file.name)
+  const ownLoading = !options?.alreadyLoading
+  if (ownLoading) {
+    store.setLoading(true)
+    // Paint the shared canvas-loading overlay before main-thread parse blocks.
+    await yieldToUI()
+    await new Promise<void>((resolve) => {
+      globalThis.setTimeout(resolve, 32)
+    })
+  }
+  try {
+    const graph = await readFigDocument(file, store)
+    await applyOpenedDocument(store, graph)
+    store.state.documentName = file.name.replace(/\.fig$/i, '') || 'Untitled'
+    clearRemoteDocument(store)
+    clearSaveTarget(store)
+    // Keep the overlay up until the first page has been painted once.
+    await waitForCanvasPaint(store)
+  } finally {
+    if (ownLoading) {
+      store.setLoading(false)
+    }
+  }
+}
+
+/** Alias used by the app menu / mobile HUD — same as the design-file open dialog. */
+export async function importFigDialog(store: EditorStore): Promise<void> {
+  await openFileDialog(store)
 }
 
 function reportOpenFailure(name: string, error: unknown, onError?: (message: string) => void) {
@@ -191,8 +227,25 @@ export async function openFileIntoStore(
   handle?: FileSystemFileHandle
 ) {
   assertSupportedDesignFile(file.name)
-  store.state.loading = true
-  store.notify()
+
+  // `.fig` must use the lazy main-thread reader (same as URL test import). The
+  // generic IO registry defaults to a worker session whose lazy context never
+  // lands on the editor graph, so later pages stay empty / loading sticks.
+  if (/\.fig$/i.test(file.name)) {
+    await importFigIntoStore(store, file)
+    const target = getSaveTarget(store)
+    if (handle) {
+      target.handle = handle
+      target.downloadName = handle.name
+    } else {
+      target.handle = null
+      target.downloadName = null
+    }
+    return
+  }
+
+  store.setLoading(true)
+  await yieldToUI()
   try {
     if (isDOMImportFile(file.name)) {
       const html = await file.text()
@@ -213,17 +266,9 @@ export async function openFileIntoStore(
     await applyOpenedDocument(store, graph)
     store.state.documentName = file.name.replace(/\.[^.]+$/i, '') || 'Untitled'
     clearRemoteDocument(store)
-    const target = getSaveTarget(store)
-    if (handle && file.name.toLowerCase().endsWith('.fig')) {
-      target.handle = handle
-      target.downloadName = handle.name
-    } else {
-      target.handle = null
-      target.downloadName = null
-    }
+    clearSaveTarget(store)
   } finally {
-    store.state.loading = false
-    store.notify()
+    store.setLoading(false)
   }
 }
 
@@ -343,22 +388,23 @@ function reportSaveFailure(store: EditorStore, error: unknown) {
 export async function saveFigFile(store: EditorStore) {
   const target = getSaveTarget(store)
   const remoteURL = store.state.documentFigURL
+  if (remoteURL) {
+    try {
+      const { bytes, binaries } = await persistCloudSceneGraph(store)
+      void maybeRecordAutosave(store, bytes, binaries)
+      try {
+        await saveCloudCover(store)
+      } catch (error) {
+        console.warn('[Document] Cover save failed', error)
+      }
+    } catch (error) {
+      reportSaveFailure(store, error)
+      return
+    }
+    if (!target.handle && !target.downloadName) return
+  }
   if (remoteURL || target.handle || target.downloadName) {
     const data = await buildFigFile(store)
-    if (remoteURL) {
-      try {
-        await uploadOSSFig(remoteURL, data)
-        void maybeRecordAutosave(store, data)
-        try {
-          await saveCloudCover(store)
-        } catch (error) {
-          console.warn('[Document] Cover save failed', error)
-        }
-      } catch (error) {
-        reportSaveFailure(store, error)
-        return
-      }
-    }
     if (target.handle) {
       await writeFigHandle(target.handle, data)
       return

@@ -5,16 +5,14 @@ import { computeAllLayouts } from '#core/layout'
 
 export type PageSnapshot = Map<string, SceneNode>
 
-export function snapshotPage(graph: SceneGraph, pageId: string): PageSnapshot {
-  const snapshot: PageSnapshot = new Map()
-  const walk = (id: string) => {
-    const node = graph.getNode(id)
-    if (!node) return
-    // snapshot.set(id, structuredClone(node))
-    for (const childId of node.childIds) walk(childId)
-  }
-  walk(pageId)
-  return snapshot
+/**
+ * Avoid deep-cloning whole pages (often 10k+ nodes). Ordinary page switches must
+ * not pay structuredClone. Callers that need a true restoreable snapshot should
+ * use a dedicated deep-snapshot helper — this override keeps the API but returns
+ * an empty map so switch/import paths stay fast.
+ */
+export function snapshotPage(_graph: SceneGraph, _pageId: string): PageSnapshot {
+  return new Map()
 }
 
 export function restorePageFromSnapshot(ctx: EditorContext, snapshot: PageSnapshot): void {

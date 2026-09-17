@@ -13,7 +13,7 @@ import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/con
 import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { toolCursor } from '#react/editor/tool-cursor'
 import { useI18n } from '#react/i18n'
-import { PencilLine } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 
 export function EditorCanvas({ paneId }: { paneId?: string }) {
@@ -61,7 +61,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   const collab = useOptionalCollabPanelContext()
   const history = useOptionalVersionHistory()
   const comments = useOptionalComments()
-  const { dialogs, locale } = useI18n()
+  const { dialogs, locale, panels } = useI18n()
   const previewing = Boolean(store.state.historyPreviewId)
   const commenting = Boolean(comments?.open) && !previewing
   const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
@@ -88,10 +88,12 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   }, [cleanupInteractions, isActivePane])
   useEffect(() => () => cleanupInteractions(), [cleanupInteractions])
 
-  const cursor =
+  let cursor =
     commenting && store.state.activeTool !== 'HAND'
       ? 'crosshair'
       : toolCursor(store.state.activeTool, cursorOverride)
+
+  if(store.state.loading) cursor = 'wait'
 
   function onCanvasPointerDownCapture(event: PointerEvent<HTMLDivElement>) {
     activatePane()
@@ -147,17 +149,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
         className="absolute inset-0 block size-full touch-none outline-none"
       />
       {comments?.open ? <CommentPins /> : null}
-      {store.state.loading ? (
-        <div
-          data-test-id="canvas-loading"
-          className="absolute inset-0 z-50 flex items-center justify-center bg-canvas"
-        >
-          <PencilLine className="size-8 text-surface opacity-45" />
-          <div className="absolute bottom-1/2 left-1/2 h-0.5 w-25 -translate-x-1/2 translate-y-10 overflow-hidden rounded-full bg-surface/8">
-            <div className="h-full w-2/5 animate-pulse rounded-full bg-surface/25" />
-          </div>
-        </div>
-      ) : null}
+  
       {contextMenu && !previewing ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />
       ) : null}

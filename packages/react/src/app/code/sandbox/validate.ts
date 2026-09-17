@@ -1,4 +1,5 @@
 import type { DesignJSXValidationLimits } from '#react/app/code/sandbox/types'
+import { utf8ByteLength } from '#react/polyfills/utf8'
 
 const BLOCKED_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
@@ -42,7 +43,7 @@ function validatePrimitive(
     if (value.length > limits.stringLength) {
       throw new Error('Design JSX output contains a string that is too long.')
     }
-    addBytes(state, limits, new TextEncoder().encode(value).byteLength)
+    addBytes(state, limits, utf8ByteLength(value))
     return true
   }
   return false

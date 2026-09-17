@@ -2,9 +2,11 @@ import type { Editor, EditorState } from '@open-pencil/core/editor'
 
 import type { CanvasRenderLayer } from '#react/canvas/surface/types'
 
+type RenderLoopState = EditorState & { loading?: boolean }
+
 type RenderLoopOptions = {
   layer?: CanvasRenderLayer
-  getRenderState?: () => EditorState
+  getRenderState?: () => RenderLoopState
 }
 
 type EditorRenderScheduler = {
@@ -56,7 +58,8 @@ export function createCanvasRenderLoop(
   renderNow: () => void,
   options: RenderLoopOptions = {}
 ) {
-  const getRenderState = options.getRenderState ?? (() => editor.state)
+  const getRenderState =
+    options.getRenderState ?? (() => editor.state as RenderLoopState)
   const scheduler = getRenderScheduler(editor)
   let dirty = true
   let frameScheduled = false
@@ -67,12 +70,9 @@ export function createCanvasRenderLoop(
   function renderFrame() {
     frameScheduled = false
     const state = getRenderState()
-    if (state.loading) {
-      dirty = true
-      scheduleFrame()
-      return
-    }
-
+    // Paint only when dirty/version changes. Continuous per-frame paints while
+    // loading previously re-drew 10k+ node pages every rAF and dominated
+    // cold page-switch time; progressive updates still arrive via requestRender.
     const versionChanged = state.renderVersion !== lastRenderVersion
     const sceneChanged = state.sceneVersion !== lastSceneVersion
     const selectionChanged = state.selectedIds !== lastSelectedIds

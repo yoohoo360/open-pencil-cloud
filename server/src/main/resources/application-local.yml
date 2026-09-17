@@ -56,3 +56,5 @@ logging:
 app:
   auth:
     require-email-verification: false
+  rate-limit:
+    enabled: false

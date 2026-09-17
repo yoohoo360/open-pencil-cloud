@@ -23,10 +23,36 @@ import type {
 } from '@open-pencil/scene-graph'
 
 import { BLACK } from '#core/constants'
-import { setLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
+import { setLazyFigImportContext } from '#core/kiwi/fig/lazy-import.override'
 
 type AssetRef = { key: string; version?: string }
 type AliasRef = { guid?: GUID; assetRef?: AssetRef }
+
+/** One frame of the resumable page-materialization walk. */
+interface MaterializeFrame {
+  ncId: string
+  /** -1 until the node itself exists; afterwards the next child slot to visit. */
+  childIndex: number
+}
+
+/**
+ * Page materialization state kept across chunks. Building a page is a deep
+ * tree walk plus a component closure; both are kept here so the walk can be
+ * paused inside a time budget and resumed without redoing finished work.
+ */
+interface MaterializeJob {
+  stack: MaterializeFrame[]
+  /** Component/symbol node changes this page references, expanded transitively. */
+  symbols: string[]
+  symbolIndex: number
+  symbolSeen: Set<string>
+  /** Node changes created by this job, used by the late remap passes. */
+  createdNcIds: string[]
+}
+
+function nowMs(): number {
+  return globalThis.performance?.now() ?? Date.now()
+}
 
 function applyImportedCanvasMetadata(
   page: ReturnType<SceneGraph['addPage']>,
@@ -326,15 +352,13 @@ function importVariableEntries(
   }
 }
 
-function importPages(
+function importPageShells(
   graph: SceneGraph,
   changeMap: Map<string, NodeChange>,
-  parentMap: Map<string, string>,
   childrenMap: Map<string, string[]>,
   created: Set<string>,
-  canvasIdToPageId: Map<string, string>,
-  createSceneNode: (ncId: string, graphParentId: string) => void
-): void {
+  canvasIdToPageId: Map<string, string>
+): string | null {
   let docId: string | null = null
   for (const [id, nc] of changeMap) {
     if (nc.type === 'DOCUMENT' || id === '0:0') {
@@ -343,46 +367,74 @@ function importPages(
     }
   }
 
-  if (docId) {
-    applyImportedDocumentMetadata(graph, changeMap.get(docId))
+  if (!docId) return null
 
-    for (const canvasId of childrenMap.get(docId) ?? []) {
-      const canvasNc = changeMap.get(canvasId)
-      if (!canvasNc) continue
-      if (canvasNc.type === 'CANVAS') {
-        const page = graph.addPage(canvasNc.name ?? 'Page')
-        page.source.id = canvasId
-        applyImportedCanvasMetadata(page, canvasNc)
-        canvasIdToPageId.set(canvasId, page.id)
-        if (canvasNc.internalOnly) page.internalOnly = true
-        created.add(canvasId)
-        for (const childId of childrenMap.get(canvasId) ?? []) {
-          createSceneNode(childId, page.id)
-        }
-      } else {
-        createSceneNode(canvasId, graph.getPages()[0]?.id ?? graph.rootId)
-      }
+  applyImportedDocumentMetadata(graph, changeMap.get(docId))
+
+  for (const canvasId of childrenMap.get(docId) ?? []) {
+    const canvasNc = changeMap.get(canvasId)
+    if (!canvasNc) continue
+    if (canvasNc.type === 'CANVAS') {
+      const page = graph.addPage(canvasNc.name ?? 'Page')
+      page.source.id = canvasId
+      applyImportedCanvasMetadata(page, canvasNc)
+      canvasIdToPageId.set(canvasId, page.id)
+      if (canvasNc.internalOnly) page.internalOnly = true
+      created.add(canvasId)
+    } else {
+      // Non-canvas document child: materialize with the first page later.
     }
-  } else {
-    const roots: string[] = []
-    for (const [id] of changeMap) {
-      const pid = parentMap.get(id)
-      if (!pid || !changeMap.has(pid)) roots.push(id)
+  }
+  return docId
+}
+
+/**
+ * Symbol dependencies of a subtree, memoized per node change.
+ *
+ * Every page materialize needs the symbol closure of its own tree. The naive
+ * walk re-scans shared component subtrees once per page, so a document whose
+ * pages reference the same library degrades into repeated full-tree walks.
+ * Memoizing each node's own ref set keeps the closure cost proportional to the
+ * nodes a page newly pulls in.
+ */
+function createSymbolRefCollector(
+  changeMap: Map<string, NodeChange>,
+  childrenMap: Map<string, string[]>
+): (rootIds: Iterable<string>) => Set<string> {
+  const subtreeRefs = new Map<string, Set<string>>()
+
+  function refsFor(ncId: string): Set<string> {
+    const cached = subtreeRefs.get(ncId)
+    if (cached) return cached
+    const refs = new Set<string>()
+    // Registered before descending so a malformed cyclic map cannot recurse forever.
+    subtreeRefs.set(ncId, refs)
+    const nc = changeMap.get(ncId)
+    if (!nc) return refs
+    const symbolId = nc.symbolData?.symbolID
+    if (symbolId) refs.add(guidToString(symbolId))
+    for (const childId of childrenMap.get(ncId) ?? []) {
+      for (const ref of refsFor(childId)) refs.add(ref)
     }
-    const page = graph.getPages()[0] ?? graph.addPage('Page 1')
-    for (const rootId of roots) {
-      createSceneNode(rootId, page.id)
-    }
+    return refs
+  }
+
+  return (rootIds) => {
+    const refs = new Set<string>()
+    for (const id of rootIds) for (const ref of refsFor(id)) refs.add(ref)
+    return refs
   }
 }
 
 function importVariableBindings(
   changeMap: Map<string, NodeChange>,
   guidToNodeId: Map<string, string>,
-  graph: SceneGraph
+  graph: SceneGraph,
+  ncIds?: Iterable<string>
 ): void {
-  for (const [ncId, nc] of changeMap) {
-    if (!nc.variableConsumptionMap?.entries?.length) continue
+  for (const ncId of ncIds ?? changeMap.keys()) {
+    const nc = changeMap.get(ncId)
+    if (!nc?.variableConsumptionMap?.entries?.length) continue
     const nodeId = guidToNodeId.get(ncId)
     if (!nodeId) continue
     for (const entry of nc.variableConsumptionMap.entries) {
@@ -392,9 +444,16 @@ function importVariableBindings(
   }
 }
 
-function remapComponentIds(graph: SceneGraph, guidToNodeId: Map<string, string>): void {
+function remapComponentIds(
+  graph: SceneGraph,
+  guidToNodeId: Map<string, string>,
+  nodeIds?: Iterable<string>
+): void {
   graph.preserveSourceMetadataDuring(() => {
-    for (const node of graph.getAllNodes()) {
+    const nodes = nodeIds
+      ? [...nodeIds].map((id) => graph.getNode(id)).filter(isNotNil)
+      : [...graph.getAllNodes()]
+    for (const node of nodes) {
       if (node.type !== 'INSTANCE' || !node.componentId) continue
       const remapped = guidToNodeId.get(node.componentId)
       if (remapped) graph.updateNode(node.id, { componentId: remapped })
@@ -406,23 +465,40 @@ function remapComponentIds(graph: SceneGraph, guidToNodeId: Map<string, string>)
  * INSTANCE_SWAP definitions/assignments store a target node's GUID (matching
  * how it was exported), not this import's freshly-assigned node ID — remap
  * them the same way remapComponentIds fixes up instance.componentId.
+ *
+ * `propDefsById` is a caller-owned index so incrementally materialized pages
+ * only pay for the nodes they add instead of rescanning the whole graph.
  */
 function remapInstanceSwapPropertyValues(
   graph: SceneGraph,
-  guidToNodeId: Map<string, string>
+  guidToNodeId: Map<string, string>,
+  nodeIds?: Iterable<string>,
+  propDefsById?: Map<string, ComponentPropertyDefinition>
 ): void {
-  const defsById = new Map<string, ComponentPropertyDefinition>()
-  for (const node of graph.getAllNodes()) {
-    for (const def of node.componentPropertyDefinitions) {
-      if (!defsById.has(def.id)) defsById.set(def.id, def)
+  const defsById = propDefsById ?? new Map<string, ComponentPropertyDefinition>()
+  if (defsById.size === 0) {
+    for (const node of graph.getAllNodes()) {
+      for (const def of node.componentPropertyDefinitions) {
+        if (!defsById.has(def.id)) defsById.set(def.id, def)
+      }
     }
   }
 
   graph.preserveSourceMetadataDuring(() => {
-    for (const node of graph.getAllNodes()) {
+    const nodes = nodeIds
+      ? [...nodeIds].map((id) => graph.getNode(id)).filter(isNotNil)
+      : [...graph.getAllNodes()]
+    if (nodeIds) {
+      for (const node of nodes) {
+        for (const def of node.componentPropertyDefinitions) {
+          if (!defsById.has(def.id)) defsById.set(def.id, def)
+        }
+      }
+    }
+    for (const node of nodes) {
       if (node.componentPropertyDefinitions.length > 0) {
         const defs = node.componentPropertyDefinitions.map((def) => {
-          if (def.type !== 'INSTANCE_SWAP' && def.type !== 'SLOT') return def
+          if (def.type !== 'INSTANCE_SWAP') return def
           const remappedDefault = def.defaultValue ? guidToNodeId.get(def.defaultValue) : undefined
           if (!remappedDefault) return def
           return { ...def, defaultValue: remappedDefault }
@@ -435,8 +511,7 @@ function remapInstanceSwapPropertyValues(
         let changed = false
         const assignments = { ...node.componentPropertyAssignments }
         for (const [propId, value] of Object.entries(assignments)) {
-          const type = defsById.get(propId)?.type
-          if (type !== 'INSTANCE_SWAP' && type !== 'SLOT') continue
+          if (defsById.get(propId)?.type !== 'INSTANCE_SWAP') continue
           const remapped = guidToNodeId.get(value)
           if (remapped) {
             assignments[propId] = remapped
@@ -449,8 +524,11 @@ function remapInstanceSwapPropertyValues(
   })
 }
 
-function applyVariantPropSpecs(graph: SceneGraph): void {
-  for (const node of graph.getAllNodes()) {
+function applyVariantPropSpecs(graph: SceneGraph, nodeIds?: Iterable<string>): void {
+  const nodes = nodeIds
+    ? [...nodeIds].map((id) => graph.getNode(id)).filter(isNotNil)
+    : [...graph.getAllNodes()]
+  for (const node of nodes) {
     if (node.type !== 'COMPONENT' || node.variantPropSpecs.length === 0 || !node.parentId) continue
     const parent = graph.getNode(node.parentId)
     if (parent?.type !== 'COMPONENT_SET') continue
@@ -483,27 +561,28 @@ function rememberLazyFigImportContext(
   changeMap: Map<string, NodeChange>,
   guidToNodeId: Map<string, string>,
   blobs: Uint8Array[],
-  populatedRootIds: string[]
+  populatedRootIds: string[],
+  parentMap: Map<string, string>,
+  childrenMap: Map<string, string[]>,
+  canvasIdToPageId: Map<string, string>,
+  created: Set<string>,
+  materializedPageIds: Set<string>,
+  materializePage: (pageId: string) => void,
+  materializePageChunk: (pageId: string, budgetMs: number) => boolean
 ): void {
   setLazyFigImportContext(graph, {
     changeMap: changeMap as Map<string, InstanceNodeChange>,
     guidToNodeId,
     blobs,
-    populatedRootIds: new Set(populatedRootIds)
+    populatedRootIds: new Set(populatedRootIds),
+    parentMap,
+    childrenMap,
+    canvasIdToPageId,
+    created,
+    materializedPageIds,
+    materializePage,
+    materializePageChunk
   })
-}
-
-function componentPageIdsForLazyPopulation(graph: SceneGraph): Set<string> {
-  const pageIds = new Set<string>()
-  for (const node of graph.getAllNodes()) {
-    if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') continue
-    let current = node.parentId ? graph.getNode(node.parentId) : undefined
-    while (current?.parentId && current.type !== 'CANVAS') {
-      current = graph.getNode(current.parentId)
-    }
-    if (current?.type === 'CANVAS') pageIds.add(current.id)
-  }
-  return pageIds
 }
 
 export function importNodeChanges(
@@ -532,13 +611,20 @@ export function importNodeChanges(
 
   const canvasIdToPageId = new Map<string, string>()
   const created = new Set<string>()
+  /** Nodes whose whole descendant tree is already present; lets shared component subtrees be skipped on later pages. */
+  const fullyCreated = new Set<string>()
   const guidToNodeId = new Map<string, string>()
+  const materializedPageIds = new Set<string>()
+  const collectSymbolRefs = createSymbolRefCollector(changeMap, childrenMap)
+  const componentPropDefsById = new Map<string, ComponentPropertyDefinition>()
+  /** In-flight page materializations, keyed by page id. */
+  const materializeJobs = new Map<string, MaterializeJob>()
+  /** Job whose creations are being recorded; only one page materializes at a time. */
+  let recordingJob: MaterializeJob | undefined
   const getChildren = (ncId: string): string[] => childrenMap.get(ncId) ?? []
 
-  function createSceneNode(ncId: string, graphParentId: string) {
+  function createNodeOnly(ncId: string, graphParentId: string): void {
     if (created.has(ncId)) return
-    created.add(ncId)
-
     const nc = changeMap.get(ncId)
     if (!nc) return
 
@@ -549,31 +635,189 @@ export function importNodeChanges(
       props.textAutoResize = 'WIDTH_AND_HEIGHT'
     }
 
+    created.add(ncId)
+    recordingJob?.createdNcIds.push(ncId)
     const parentId = canvasIdToPageId.get(graphParentId) ?? graphParentId
     const node = graph.createNode(nodeType, parentId, props)
     guidToNodeId.set(ncId, node.id)
+  }
 
-    for (const childId of getChildren(ncId)) {
-      createSceneNode(childId, node.id)
+  /** Create ancestors without siblings, then optionally the full descendant tree. */
+  function ensureCreated(ncId: string, withDescendants: boolean): void {
+    // Already materialized with its whole subtree: nothing left to walk.
+    if (fullyCreated.has(ncId)) return
+    if (!changeMap.has(ncId)) return
+    if (!created.has(ncId)) {
+      const parentNcId = parentMap.get(ncId)
+      if (parentNcId && !canvasIdToPageId.has(parentNcId)) {
+        ensureCreated(parentNcId, false)
+      }
+      const parentGraphId =
+        (parentNcId ? canvasIdToPageId.get(parentNcId) : undefined) ??
+        (parentNcId ? guidToNodeId.get(parentNcId) : undefined) ??
+        graph.rootId
+      createNodeOnly(ncId, parentGraphId)
+    }
+    if (withDescendants) {
+      for (const childId of getChildren(ncId)) ensureCreated(childId, true)
+      fullyCreated.add(ncId)
     }
   }
 
-  importPages(graph, changeMap, parentMap, childrenMap, created, canvasIdToPageId, createSceneNode)
+  /** Create the pending subtree entries until the deadline; false when the budget ran out. */
+  function walkMaterializeStack(stack: MaterializeFrame[], deadline: number): boolean {
+    while (stack.length > 0) {
+      if (nowMs() >= deadline) return false
+      const frame = stack[stack.length - 1]
+      if (frame.childIndex < 0) {
+        // Ancestors only — children are pushed below so the walk stays resumable.
+        ensureCreated(frame.ncId, false)
+        frame.childIndex = 0
+      }
+      const children = getChildren(frame.ncId)
+      if (frame.childIndex < children.length) {
+        const childNcId = children[frame.childIndex]
+        frame.childIndex++
+        if (!fullyCreated.has(childNcId)) stack.push({ ncId: childNcId, childIndex: -1 })
+        continue
+      }
+      fullyCreated.add(frame.ncId)
+      stack.pop()
+    }
+    return true
+  }
+
+  /**
+   * Later passes need the referenced component nodes to exist, so they run once
+   * the page and its component closure are complete.
+   */
+  function finishMaterializedPage(job: MaterializeJob): void {
+    const ncIds = job.createdNcIds
+    if (ncIds.length === 0) return
+    const nodeIds = ncIds.map((ncId) => guidToNodeId.get(ncId)).filter(isNotNil)
+    if (nodeIds.length === 0) return
+    importVariableBindings(changeMap, guidToNodeId, graph, ncIds)
+    remapComponentIds(graph, guidToNodeId, nodeIds)
+    remapInstanceSwapPropertyValues(graph, guidToNodeId, nodeIds, componentPropDefsById)
+    applyVariantPropSpecs(graph, nodeIds)
+  }
+
+  /**
+   * Advance one page's materialization by at most `budgetMs` of wall clock.
+   * Returns true once the page — and the component trees it references — is
+   * fully built. Budgeted chunks let the host keep painting a loading state
+   * instead of blocking on a multi-second synchronous build.
+   */
+  function advancePageMaterialization(
+    pageId: string,
+    budgetMs: number,
+    postProcess: boolean
+  ): boolean {
+    const deadline = budgetMs === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : nowMs() + budgetMs
+    let job = materializeJobs.get(pageId)
+    if (!job) {
+      if (materializedPageIds.has(pageId)) return true
+      const page = graph.getNode(pageId)
+      if (page?.type !== 'CANVAS') return true
+      const canvasId =
+        typeof page.source.id === 'string' && page.source.id.length > 0
+          ? page.source.id
+          : [...canvasIdToPageId.entries()].find(([, id]) => id === pageId)?.[0]
+      if (!canvasId) return true
+      const rootNcIds = getChildren(canvasId)
+      job = {
+        stack: rootNcIds.map((ncId) => ({ ncId, childIndex: -1 })).reverse(),
+        // Pull in only the component trees referenced by this page, not the whole library canvas.
+        symbols: [...collectSymbolRefs(rootNcIds)],
+        symbolIndex: 0,
+        symbolSeen: new Set(),
+        createdNcIds: []
+      }
+      materializeJobs.set(pageId, job)
+      // Mark complete only when the walk finishes — partial chunks must stay resumable.
+    }
+
+    if (recordingJob) throw new Error('Page materialization is not reentrant')
+    recordingJob = job
+    try {
+      for (;;) {
+        // Phase 1: the page subtree, phase 2: each referenced component tree.
+        if (!walkMaterializeStack(job.stack, deadline)) return false
+        let advanced = false
+        while (job.symbolIndex < job.symbols.length) {
+          const symbolId = job.symbols[job.symbolIndex]
+          job.symbolIndex++
+          if (!symbolId || job.symbolSeen.has(symbolId)) continue
+          job.symbolSeen.add(symbolId)
+          ensureCreated(symbolId, false)
+          for (const nested of collectSymbolRefs([symbolId])) {
+            if (!job.symbolSeen.has(nested)) job.symbols.push(nested)
+          }
+          if (!fullyCreated.has(symbolId)) {
+            job.stack.push({ ncId: symbolId, childIndex: 0 })
+            advanced = true
+            break
+          }
+        }
+        if (!advanced) {
+          materializeJobs.delete(pageId)
+          if (postProcess) finishMaterializedPage(job)
+          materializedPageIds.add(pageId)
+          return true
+        }
+      }
+    } finally {
+      recordingJob = undefined
+    }
+  }
+
+  function materializePageContent(pageId: string): void {
+    // The importer runs its own document-wide passes afterwards, so page-level
+    // post-processing is deferred to those shared passes.
+    advancePageMaterialization(pageId, Number.POSITIVE_INFINITY, false)
+  }
+
+  function materializeAllPages(): void {
+    for (const page of graph.getPages(true)) materializePageContent(page.id)
+  }
+
+  const docId = importPageShells(graph, changeMap, childrenMap, created, canvasIdToPageId)
+  if (!docId) {
+    const roots: string[] = []
+    for (const [id] of changeMap) {
+      const pid = parentMap.get(id)
+      if (!pid || !changeMap.has(pid)) roots.push(id)
+    }
+    const page = graph.getPages()[0] ?? graph.addPage('Page 1')
+    materializedPageIds.add(page.id)
+    for (const rootId of roots) ensureCreated(rootId, true)
+  } else if (options.populate === 'all') {
+    materializeAllPages()
+    for (const canvasId of childrenMap.get(docId) ?? []) {
+      const canvasNc = changeMap.get(canvasId)
+      if (canvasNc && canvasNc.type !== 'CANVAS') {
+        ensureCreated(canvasId, true)
+      }
+    }
+  } else {
+    const firstPageId = graph.getPages().find((page) => !page.internalOnly)?.id
+    if (firstPageId) materializePageContent(firstPageId)
+  }
 
   importCollections(changeMap, graph)
   importVariableEntries(changeMap, parentMap, graph, assetRefs)
   importVariableBindings(changeMap, guidToNodeId, graph)
   remapComponentIds(graph, guidToNodeId)
-  remapInstanceSwapPropertyValues(graph, guidToNodeId)
+  remapInstanceSwapPropertyValues(graph, guidToNodeId, undefined, componentPropDefsById)
   applyVariantPropSpecs(graph)
 
-  const firstPageId = graph.getPages()[0]?.id
-  const componentPageIds =
-    options.populate === 'first-page' ? componentPageIdsForLazyPopulation(graph) : new Set<string>()
+  const firstPageId = graph.getPages().find((page) => !page.internalOnly)?.id
   const activeRootIds =
     options.populate === 'first-page'
-      ? [firstPageId, ...componentPageIds].filter(isNotNil)
-      : undefined
+      ? [firstPageId].filter(isNotNil)
+      : options.populate === 'none'
+        ? []
+        : undefined
 
   if (options.populate !== 'none') {
     graph.preserveSourceMetadataDuring(() => {
@@ -587,8 +831,35 @@ export function importNodeChanges(
     })
   }
 
-  if (activeRootIds)
-    rememberLazyFigImportContext(graph, changeMap, guidToNodeId, blobs, activeRootIds)
+  if (options.populate !== 'all') {
+    rememberLazyFigImportContext(
+      graph,
+      changeMap,
+      guidToNodeId,
+      blobs,
+      activeRootIds ?? [],
+      parentMap,
+      childrenMap,
+      canvasIdToPageId,
+      created,
+      materializedPageIds,
+      (pageId: string) => {
+        graph.runSilentMutations(() => {
+          // Post-processing stays scoped to the nodes this page added; the shared
+          // component library and already-visited pages were handled when they
+          // materialized.
+          advancePageMaterialization(pageId, Number.POSITIVE_INFINITY, true)
+        })
+      },
+      (pageId: string, budgetMs: number) => {
+        let done = false
+        graph.runSilentMutations(() => {
+          done = advancePageMaterialization(pageId, budgetMs, true)
+        })
+        return done
+      }
+    )
+  }
 
   setVariableColorResolver(null)
 

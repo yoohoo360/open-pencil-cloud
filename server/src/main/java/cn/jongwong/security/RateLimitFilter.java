@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitConfig rateLimitConfig;
     private final AppSecurityProperties appSecurityProperties;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.rate-limit.enabled:true}")
+    private boolean enabled;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !enabled;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,

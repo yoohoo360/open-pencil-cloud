@@ -18,6 +18,7 @@ import theme from '#react/theme/layer-tree'
 import { ChevronRight } from 'lucide-react'
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useRef,
   useState,
@@ -182,7 +183,14 @@ function LayerRow({
 
 export function LayerTree({ className }: { className?: string }) {
   const store = useEditorStore()
-  const children = useSceneComputed(() => layerChildren(store.graph, store.state.currentPageId))
+  const loading = store.state.loading
+  // Defer layer rebuild when leaving loading so the first canvas paint wins
+  // the main thread over mounting dozens of top-level rows.
+  const layersBlocked = useDeferredValue(loading) || loading
+  const pageId = store.state.currentPageId
+  const children = useSceneComputed(() =>
+    layersBlocked ? [] : layerChildren(store.graph, store.state.currentPageId)
+  )
   const selectedIds = useSceneComputed(() => store.state.selectedIds)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -192,6 +200,15 @@ export function LayerTree({ className }: { className?: string }) {
   const expandedIdsRef = useRef(expandedIds)
   expandedIdsRef.current = expandedIds
   const scrollRef = useOverlayScrollbar<HTMLDivElement>()
+  const { panels } = useI18n()
+
+  // Drop expand state on page change so we only mount top-level rows after a switch.
+  useEffect(() => {
+    setExpandedIds(new Set())
+    setFocusedId(null)
+    anchorId.current = null
+    focusId.current = null
+  }, [pageId])
 
   const expandNode = useCallback((id: string) => {
     setExpandedIds((current) => {
@@ -209,6 +226,7 @@ export function LayerTree({ className }: { className?: string }) {
   )
 
   useEffect(() => {
+    if (layersBlocked) return
     const ancestors = ancestorIdsToExpand(store.graph, selectedIds, store.state.currentPageId)
     if (ancestors.length === 0) return
     setExpandedIds((current) => {
@@ -221,7 +239,7 @@ export function LayerTree({ className }: { className?: string }) {
       }
       return changed ? next : current
     })
-  }, [selectedIds, store])
+  }, [selectedIds, store, layersBlocked])
 
   function visibleIds() {
     return collectVisibleLayerIds(store.graph, store.state.currentPageId, expandedIdsRef.current)
@@ -320,25 +338,35 @@ export function LayerTree({ className }: { className?: string }) {
       role="tree"
       tabIndex={0}
       data-test-id="layers-tree"
+      data-loading={layersBlocked ? 'true' : undefined}
       className={`scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-none ${className ?? ''}`}
-      onContextMenu={onContextMenu}
-      onKeyDown={onTreeKeyDown}
+      onContextMenu={layersBlocked ? undefined : onContextMenu}
+      onKeyDown={layersBlocked ? undefined : onTreeKeyDown}
     >
-      {children.map((child) => (
-        <LayerRow
-          key={child.id}
-          id={child.id}
-          depth={0}
-          expandedIds={expandedIds}
-          focusedId={focusedId}
-          draggingId={draggingId}
-          instruction={instruction}
-          instructionTargetId={instructionTargetId}
-          setupItem={setupItem}
-          onSelect={applySelect}
-          onToggleExpand={toggleExpand}
-        />
-      ))}
+      {layersBlocked ? (
+        <div
+          data-test-id="layers-loading"
+          className="flex items-center justify-center px-2 py-6 text-[11px] text-muted"
+        >
+          {panels.loading}
+        </div>
+      ) : (
+        children.map((child) => (
+          <LayerRow
+            key={child.id}
+            id={child.id}
+            depth={0}
+            expandedIds={expandedIds}
+            focusedId={focusedId}
+            draggingId={draggingId}
+            instruction={instruction}
+            instructionTargetId={instructionTargetId}
+            setupItem={setupItem}
+            onSelect={applySelect}
+            onToggleExpand={toggleExpand}
+          />
+        ))
+      )}
       {contextMenu ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />
       ) : null}

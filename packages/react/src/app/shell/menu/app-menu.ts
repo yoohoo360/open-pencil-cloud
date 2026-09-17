@@ -11,8 +11,7 @@ import {
 } from '#react/app/shell/menu/editor-actions'
 import {
   exportSelection,
-  newDocument,
-  openFileDialog,
+  importFigDialog,
   saveFigFile,
   saveFigFileAs
 } from '#react/app/shell/menu/files'
@@ -26,7 +25,7 @@ import { APP_MENU_SCHEMA } from '#react/app/shell/menu/schema'
 import { createSelectionMenuActions } from '#react/app/shell/menu/selection-actions'
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { useAppTheme } from '#react/app/shell/theme'
-import { closeTab, createTab, getActiveTab } from '#react/app/tabs'
+import { closeTab, getActiveTab } from '#react/app/tabs'
 import { useEditorCommands } from '#react/editor/commands/use'
 import type { MenuEntry } from '#react/editor/menu-model/types'
 import { useI18n } from '#react/i18n'
@@ -48,8 +47,7 @@ function isSeparator(entry: AppMenuEntry): entry is Extract<AppMenuEntry, { type
 }
 
 const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessageDefaults>> = {
-  new: 'new',
-  open: 'open',
+  import: 'import',
   'open-storage-workspace': 'openStorageWorkspace',
   save: 'save',
   'save-as': 'saveAs',
@@ -127,11 +125,7 @@ export function useAppMenu() {
   }
 
   const actions: Partial<Record<string, () => void>> = {
-    new: () => {
-      createTab()
-      newDocument(store)
-    },
-    open: () => void openFileDialog(store),
+    import: () => void importFigDialog(store),
     'open-storage-workspace': () => openStorageWorkspace(navigate),
     save: () => void saveFigFile(store),
     'save-as': () => void saveFigFileAs(store),

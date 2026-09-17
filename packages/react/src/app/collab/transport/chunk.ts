@@ -1,3 +1,5 @@
+import { createCollabId } from '#react/app/collab/transport/id'
+
 const CHUNK_MAGIC = [0x43, 0x48, 0x4b, 0x31] as const
 const CHUNK_HEADER_BYTES = 4 + 16 + 4 + 4
 export const COLLAB_CHUNK_THRESHOLD = 12 * 1024
@@ -65,7 +67,7 @@ export function decodeChunkFrame(data: Uint8Array): ChunkFrame | null {
 
 export function splitBytes(data: Uint8Array, maxBytes = COLLAB_CHUNK_THRESHOLD): Uint8Array[] {
   if (data.byteLength <= maxBytes) return [data]
-  const id = crypto.randomUUID()
+  const id = createCollabId()
   const total = Math.ceil(data.byteLength / maxBytes)
   const frames: Uint8Array[] = []
   for (let index = 0; index < total; index++) {

@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PencilNodeChangeRepository extends JpaRepository<PencilNodeChange, String> {
+    void deleteByFileId(String fileId);
 }

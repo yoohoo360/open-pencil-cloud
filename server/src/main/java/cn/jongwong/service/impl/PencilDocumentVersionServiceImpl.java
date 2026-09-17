@@ -26,6 +26,7 @@ import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -107,8 +108,8 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
         }
 
         String historyId = UUID.randomUUID().toString();
-        String directory = StorageObjectPaths.directory("fig", securityUtils.getCurrentUsername());
-        String fileName = historyStamp() + "-" + documentKey + ".fig";
+        String directory = StorageObjectPaths.versionSnapshotDirectory(ossPath(document.getUrl()), historyId);
+        String fileName = StorageObjectPaths.versionJsonFileName(historyId);
         String storedPath;
         try {
             storedPath = ossService.upload(directory, fileName, file.getBytes());
@@ -163,12 +164,35 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
         PencilDocument document = requireDocument(documentKey);
         PencilDocumentHistory history = requireHistory(document.getId(), versionId);
         String livePath = ossPath(document.getUrl());
-        if (!ossService.copy(ossPath(history.getUrl()), livePath)) {
+        String historyPath = ossPath(history.getUrl());
+        if (!ossService.copy(historyPath, livePath)) {
             throw ApiException.internalError("Failed to restore history snapshot");
         }
+        replaceLiveBlobsFromVersion(livePath, historyPath);
         document.setUpdatedAt(System.currentTimeMillis());
         pencilFileRepository.save(document);
         return toResponse(document, history, lookupUserNames(List.of(history)));
+    }
+
+    private void replaceLiveBlobsFromVersion(String liveJsonPath, String versionJsonPath) {
+        String liveBlobs = StorageObjectPaths.blobDirectory(liveJsonPath);
+        String versionBlobs = StorageObjectPaths.blobDirectory(versionJsonPath);
+        Set<String> keepNames = new HashSet<>();
+        for (String source : ossService.list(versionBlobs)) {
+            String name = fileName(source);
+            if (name.isEmpty()) continue;
+            keepNames.add(name);
+            String target = liveBlobs + "/" + name;
+            if (!ossService.copy(source, target)) {
+                throw ApiException.internalError("Failed to restore version blob: " + name);
+            }
+        }
+        for (String existing : ossService.list(liveBlobs)) {
+            String name = fileName(existing);
+            if (!keepNames.contains(name)) {
+                ossService.delete(existing);
+            }
+        }
     }
 
     private void pruneAutosaves(String documentId) {
@@ -179,9 +203,11 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
             return;
         }
         for (PencilDocumentHistory extra : autosaves.subList(MAX_AUTOSAVES, autosaves.size())) {
-            extra.setIsDeleted(1);
-            historyRepository.save(extra);
-            ossService.delete(ossPath(extra.getUrl()));
+            String folder = StorageObjectPaths.documentFolder(ossPath(extra.getUrl()));
+            if (!folder.isBlank()) {
+                ossService.deletePrefix(folder);
+            }
+            historyRepository.delete(extra);
         }
     }
 
@@ -294,5 +320,11 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
             path = path.substring(1);
         }
         return path;
+    }
+
+    private static String fileName(String path) {
+        String value = ossPath(path);
+        int slash = value.lastIndexOf('/');
+        return slash >= 0 ? value.substring(slash + 1) : value;
     }
 }

@@ -35,4 +35,8 @@ public interface PencilDocumentCommentThreadRepository extends JpaRepository<Pen
             int isDeleted,
             int resolved
     );
+
+    List<PencilDocumentCommentThread> findByDocumentId(String documentId);
+
+    void deleteByDocumentId(String documentId);
 }

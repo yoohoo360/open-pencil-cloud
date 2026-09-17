@@ -1,10 +1,5 @@
 import { OssCoverImage } from '#react/app/document/oss-cover'
-import {
-  authAPI,
-  documentAPI,
-  getAPIErrorMessage,
-  type PencilDocument
-} from '#react/lib/client'
+import { authAPI, documentAPI, getAPIErrorMessage, type PencilDocument } from '#react/lib/client'
 import { File, FolderOpen, LoaderCircle, Plus, RefreshCw, Search, Trash, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -212,18 +207,17 @@ export default function DocumentListView() {
             {filteredFiles.map((file) => (
               <div
                 key={file.id || file.key}
-                style={{ aspectRatio: '4 / 3' }}
-                className="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-border bg-panel text-left transition hover:border-panel-focus hover:bg-hover"
+                className="group flex cursor-pointer flex-col overflow-hidden rounded-lg border border-border bg-panel text-left transition hover:border-panel-focus hover:bg-hover"
                 data-file-key={file.key}
                 onClick={() => void navigate(`/design/${file.key}`)}
               >
-                <div className="flex-1 bg-panel-field">
+                <div className="relative aspect-[4/3] overflow-hidden bg-panel-field">
                   {file.thumbnail_url ? (
                     <OssCoverImage
                       path={file.thumbnail_url}
                       revision={toMillis(file.updated_at) || undefined}
                       alt={file.name}
-                      className="size-full object-cover"
+                      className="absolute inset-0 size-full object-cover"
                     />
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center text-muted">
@@ -234,7 +228,7 @@ export default function DocumentListView() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 border-t border-border p-3">
+                <div className="flex shrink-0 items-center gap-2 border-t border-border p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium">{file.name}</p>
                     <p className="mt-0.5 text-[10px] text-muted">

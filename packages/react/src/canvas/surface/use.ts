@@ -83,8 +83,11 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
     const scopedOptions = optionsRef.current
     if (!state.renderer || !canvas) return
 
+    const renderState = scopedOptions?.getRenderState?.() ?? editor.state
+    state.renderer.tiledSceneLoadingBoost = !!(renderState as { loading?: boolean }).loading
+
     state.renderer.renderFromEditorState(
-      scopedOptions?.getRenderState?.() ?? editor.state,
+      renderState,
       editor.graph,
       editor.textEditor,
       canvas.clientWidth,
@@ -97,6 +100,9 @@ export function useCanvas(canvasRef: CanvasElementRef, editor: Editor, options?:
     if (state.sceneBackingRenderTimer !== null) {
       clearTimeout(state.sceneBackingRenderTimer)
       state.sceneBackingRenderTimer = null
+    }
+    if (state.renderer.tiledScenePending) {
+      loopRef.current?.markDirty()
     }
     if (scopedOptions?.layer === 'scene' && state.renderer.sceneBackingNeedsCrispRender) {
       const delay = Math.max(0, state.renderer.sceneBackingPreviewUntil - performance.now())

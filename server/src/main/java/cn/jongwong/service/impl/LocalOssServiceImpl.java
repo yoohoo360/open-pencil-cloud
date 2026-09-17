@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Slf4j
@@ -86,6 +88,34 @@ public class LocalOssServiceImpl implements OssService {
             log.error("删除失败", e);
             return false;
         }
+    }
+
+    @Override
+    public List<String> list(String prefix) {
+        Path root = Paths.get(storagePath).toAbsolutePath().normalize();
+        Path dir = root.resolve(stripSlashes(prefix)).normalize();
+        if (!dir.startsWith(root) || !Files.isDirectory(dir)) {
+            return List.of();
+        }
+        List<String> paths = new ArrayList<>();
+        try (var stream = Files.walk(dir)) {
+            stream.filter(Files::isRegularFile).forEach(child -> paths.add(relativePath(child)));
+        } catch (Exception e) {
+            log.error("列出文件失败", e);
+            return List.of();
+        }
+        return paths;
+    }
+
+    @Override
+    public boolean deletePrefix(String prefix) {
+        boolean ok = true;
+        for (String path : list(prefix)) {
+            if (!delete(path)) {
+                ok = false;
+            }
+        }
+        return ok;
     }
 
     @Override
@@ -171,11 +201,24 @@ public class LocalOssServiceImpl implements OssService {
         throw ApiException.badRequest("Direct download is not supported for local storage");
     }
 
+    private String relativePath(Path file) {
+        Path root = Paths.get(storagePath).toAbsolutePath().normalize();
+        Path absolute = file.toAbsolutePath().normalize();
+        return root.relativize(absolute).toString().replace('\\', '/');
+    }
+
     private String buildPath(String path, String fileName) {
         if (path == null || path.isEmpty()) {
             return fileName;
         }
         return path.replaceAll("^/|/$", "") + "/" + fileName;
+    }
+
+    private static String stripSlashes(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.replaceAll("^/+", "").replaceAll("/+$", "");
     }
 
     private FileInfo buildFileInfo(Path path, String base) {

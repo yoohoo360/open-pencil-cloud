@@ -43,10 +43,9 @@ export function AssetRemoteThumbnail({
     }
     let cancelled = false
     let objectURL: string | null = null
-    const pageId = graph.getPages()[0]?.id
     const maxDimension = Math.max(node.width, node.height, 1)
     const scale = (size * ASSET_THUMBNAIL_RENDER_SCALE) / maxDimension
-    void renderAssetPreview(store, nodeId, scale, pageId, graph).then((blob) => {
+    void renderAssetPreview(store, nodeId, scale, undefined, graph).then((blob) => {
       if (cancelled) return
       if (!blob) {
         setPreviewURL(null)

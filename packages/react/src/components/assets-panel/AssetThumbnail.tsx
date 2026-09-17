@@ -2,7 +2,6 @@ import { Component } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { useEditorStore } from '#react/app/editor/store'
-import { findAssetPage } from '#react/components/assets-panel/page'
 import { renderAssetPreview } from '#react/components/assets-panel/assets'
 import { ASSET_GRID_THUMBNAIL_SIZE, ASSET_THUMBNAIL_RENDER_SCALE } from '#react/constants'
 
@@ -42,12 +41,7 @@ export function AssetThumbnail({
     let objectURL: string | null = null
     const maxDimension = Math.max(node.width, node.height, 1)
     const scale = (size * ASSET_THUMBNAIL_RENDER_SCALE) / maxDimension
-    void renderAssetPreview(
-      store,
-      nodeId,
-      scale,
-      findAssetPage(node, store.graph)?.id ?? store.state.currentPageId
-    ).then((blob) => {
+    void renderAssetPreview(store, nodeId, scale).then((blob) => {
       if (cancelled) return
       if (!blob) {
         setPreviewURL(null)

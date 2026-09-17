@@ -18,4 +18,5 @@ public interface PencilDocumentLibraryRefRepository extends JpaRepository<Pencil
             String documentVersion
     );
 
+    void deleteByDocumentKey(String documentKey);
 }

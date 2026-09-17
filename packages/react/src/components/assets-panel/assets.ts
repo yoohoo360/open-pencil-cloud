@@ -144,12 +144,7 @@ export function listAssetLibraries(
   ]
 }
 
-function toLocalAsset(
-  editor: Editor,
-  graph: SceneGraph,
-  node: SceneNode,
-  fallbackPageName: string
-): LocalAsset {
+function toLocalAsset(graph: SceneGraph, node: SceneNode): LocalAsset {
   const setComponents = node.type === 'COMPONENT_SET' ? collectSetComponents(graph, node) : [node]
   const defaultVariant = defaultVariantFromGraph(graph, node)
   const variants = node.type === 'COMPONENT_SET' ? variantInfoFromGraph(graph, node.id) : []
@@ -167,15 +162,15 @@ function toLocalAsset(
     sourceLibraryKey: node.sourceLibraryKey,
     description: node.symbolDescription,
     docsURL: node.symbolLinks[0]?.uri ?? null,
-    pageId: hidePage ? '' : (page?.id ?? editor.state.currentPageId),
-    pageName: hidePage ? '' : (page?.name ?? fallbackPageName)
+    pageId: hidePage ? '' : (page?.id ?? ''),
+    pageName: hidePage ? '' : (page?.name ?? '')
   }
 }
 
 export function listAssets(
-  editor: Editor,
+  _editor: Editor,
   graph: SceneGraph,
-  fallbackPageName: string
+  _fallbackPageName: string
 ): LocalAsset[] {
   const seen = new Set<string>()
   const assets: LocalAsset[] = []
@@ -186,7 +181,7 @@ export function listAssets(
     if (seen.has(listed.id)) continue
     seen.add(listed.id)
 
-    const asset = toLocalAsset(editor, graph, listed, fallbackPageName)
+    const asset = toLocalAsset(graph, listed)
 
     if (!asset?.pageId || !asset?.pageName) {
       continue
@@ -300,25 +295,26 @@ export async function renderAssetPreview(
   editor: Editor,
   nodeId: string,
   scale: number,
-  pageId?: string,
+  _pageId?: string,
   graph: SceneGraph = editor.graph
 ): Promise<Blob | null> {
   const renderer = editor.renderer
   if (!renderer) return null
-  const data = await Promise.resolve(
-    renderNodesToImage(
-      renderer.ck,
-      renderer,
-      graph,
-      pageId ?? editor.state.currentPageId,
-      [nodeId],
-      {
+  const node = graph.getNode(nodeId)
+  if (!node) return null
+  const resolvedPageId = findAssetPage(node, graph)?.id
+  if (!resolvedPageId) return null
+  try {
+    const data = await Promise.resolve(
+      renderNodesToImage(renderer.ck, renderer, graph, resolvedPageId, [nodeId], {
         scale,
         format: 'PNG'
-      }
+      })
     )
-  )
-  return data ? new Blob([data], { type: 'image/png' }) : null
+    return data ? new Blob([data], { type: 'image/png' }) : null
+  } catch {
+    return null
+  }
 }
 
 export function openExternalLink(url: string) {

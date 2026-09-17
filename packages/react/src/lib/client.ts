@@ -366,7 +366,9 @@ export const authAPI = {
   },
 
   async oauthSession(ticket: string): Promise<AuthTokens> {
-    const response = await apiClient.post<AuthTokens>('/api/oauth/session', { ticket })
+    const response = await apiClient.post<AuthTokens>('/api/oauth/session', {
+      ticket
+    })
     const tokens = unwrapAuthTokens(response)
     setTokens(tokens.access_token, tokens.refresh_token)
     if (tokens.user) writeStoredUserJSON(JSON.stringify(tokens.user))
@@ -377,7 +379,9 @@ export const authAPI = {
     const refreshToken = Cookies.get(REFRESH_TOKEN_COOKIE)
     try {
       if (refreshToken) {
-        await apiClient.post('/api/auth/logout', { refresh_token: refreshToken })
+        await apiClient.post('/api/auth/logout', {
+          refresh_token: refreshToken
+        })
       }
     } finally {
       clearTokens()
@@ -437,7 +441,7 @@ export const documentAPI = {
     form.append('kind', data.kind)
     if (data.title) form.append('title', data.title)
     if (data.description) form.append('description', data.description)
-    form.append('file', new Blob([copy], { type: 'application/octet-stream' }), 'document.fig')
+    form.append('file', new Blob([copy], { type: 'application/json' }), 'document.json')
     return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions`, form, {
       timeout: 120_000
     })
@@ -460,7 +464,13 @@ export const documentAPI = {
   },
   createCommentThread(
     fileKey: string,
-    data: { page_id: string; node_id?: string; x: number; y: number; body: string }
+    data: {
+      page_id: string
+      node_id?: string
+      x: number
+      y: number
+      body: string
+    }
   ): Promise<APIResponse<DocumentCommentThread>> {
     return apiClient.post<DocumentCommentThread>(`/api/document/${fileKey}/comments`, data)
   },

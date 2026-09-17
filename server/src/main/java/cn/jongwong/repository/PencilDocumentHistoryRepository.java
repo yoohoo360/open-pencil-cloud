@@ -33,4 +33,8 @@ public interface PencilDocumentHistoryRepository extends JpaRepository<PencilDoc
             long createdAt,
             Pageable pageable
     );
+
+    List<PencilDocumentHistory> findByDocumentId(String documentId);
+
+    void deleteByDocumentId(String documentId);
 }

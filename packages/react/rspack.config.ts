@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { defineConfig } from '@rspack/cli'
@@ -9,6 +9,7 @@ import IconsResolver from 'unplugin-icons/resolver'
 import Icons from 'unplugin-icons/rspack'
 import Components from 'unplugin-vue-components/rspack'
 
+import { webpackOverrideAliases } from '../../vite/override-alias'
 import { devAutomationRoute } from '../../src/app/automation/bridge/portless-route'
 import { AUTOMATION_HTTP_PORT } from '../core/src/constants'
 import { localAutomationToken, openPencilAutomationRspackPlugin } from './rspack/automation'
@@ -66,13 +67,17 @@ function toOverride(request: string) {
 function workspaceSourceAliases() {
   const pkgSrc = (name: string) => path.resolve(repoRoot, 'packages', name, 'src')
   return {
-    '@open-pencil/scene-graph$': path.join(pkgSrc('scene-graph'), 'index.ts'),
+    '@open-pencil/scene-graph$': path.join(pkgSrc('scene-graph'), 'index.override.ts'),
     '@open-pencil/scene-graph': pkgSrc('scene-graph'),
     '@open-pencil/pen$': path.join(pkgSrc('pen'), 'index.ts'),
     '@open-pencil/pen': pkgSrc('pen'),
     '@open-pencil/kiwi$': path.join(pkgSrc('kiwi'), 'index.ts'),
     '@open-pencil/kiwi': pkgSrc('kiwi'),
     '@open-pencil/fig$': path.join(pkgSrc('fig'), 'index.ts'),
+    '@open-pencil/fig/instance-overrides$': path.join(
+      pkgSrc('fig'),
+      'instance-overrides/index.override.ts'
+    ),
     '@open-pencil/fig': pkgSrc('fig'),
     '@open-pencil/core$': path.join(pkgSrc('core'), 'index.ts'),
     '@open-pencil/core': pkgSrc('core'),
@@ -104,7 +109,7 @@ export default defineConfig({
   target: 'web',
 
   entry: {
-    main: './src/main.tsx'
+    main: ['./src/polyfills/text-encoding.ts', './src/main.tsx']
   },
 
   stats: {
@@ -125,7 +130,8 @@ export default defineConfig({
     publicPath: '/'
   },
 
-  devtool: isProd ? false : 'cheap-source-map',
+  // Full maps for local/test/staging; omit only for APP_ENV=prod.
+  devtool: isProd ? false : 'source-map',
 
   externals: [
     (op: any, callback: any) => {
@@ -141,7 +147,7 @@ export default defineConfig({
     extensions: ['.tsx', '.ts', '.js', '.json', '.css', '.less'],
     aliasFields: ['browser'],
     mainFields: ['browser', 'module', 'main'],
-    conditionNames: ['bun', 'browser', 'import', 'module', 'default'],
+    conditionNames: ['browser', 'import', 'module', 'default'],
     fallback: {
       fs: false,
       'fs/promises': false,
@@ -152,7 +158,13 @@ export default defineConfig({
     },
     alias: {
       ...resolveTsconfigPaths(),
-      ...workspaceSourceAliases()
+      ...workspaceSourceAliases(),
+      ...webpackOverrideAliases([
+        path.resolve(repoRoot, 'packages/core/src'),
+        path.resolve(repoRoot, 'packages/fig/src'),
+        path.resolve(repoRoot, 'packages/scene-graph/src'),
+        path.resolve(repoRoot, 'packages/react/src')
+      ])
     }
   },
 
