@@ -1,4 +1,5 @@
 import { saveCloudCover } from '#react/app/document/cloud-persist'
+import { readFigDocument } from '#react/app/document/fig'
 import { uploadOSSFig } from '#react/app/document/oss'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
@@ -148,6 +149,28 @@ async function applyOpenedDocument(store: EditorStore, imported: SceneGraph) {
   const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
   await store.switchPage(pageId)
   store.zoomToFit()
+  store.prefetchRemainingLazyFigPages?.()
+}
+
+function assertFigImportFile(name: string) {
+  if (!/\.fig$/i.test(name)) {
+    throw new Error(`Unsupported file type: ${name}`)
+  }
+}
+
+/** Import a `.fig` file into the active store (URL test import + file picker). */
+export async function importFigIntoStore(store: EditorStore, file: File): Promise<void> {
+  assertFigImportFile(file.name)
+  store.setLoading(true)
+  try {
+    const graph = await readFigDocument(file, store)
+    await applyOpenedDocument(store, graph)
+    store.state.documentName = file.name.replace(/\.fig$/i, '') || 'Untitled'
+    clearRemoteDocument(store)
+    clearSaveTarget(store)
+  } finally {
+    store.setLoading(false)
+  }
 }
 
 function reportOpenFailure(name: string, error: unknown, onError?: (message: string) => void) {

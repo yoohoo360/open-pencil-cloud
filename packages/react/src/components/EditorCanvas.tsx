@@ -150,7 +150,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
       {store.state.loading ? (
         <div
           data-test-id="canvas-loading"
-          className="absolute inset-0 z-50 flex items-center justify-center bg-canvas"
+          className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-canvas/55"
         >
           <PencilLine className="size-8 text-surface opacity-45" />
           <div className="absolute bottom-1/2 left-1/2 h-0.5 w-25 -translate-x-1/2 translate-y-10 overflow-hidden rounded-full bg-surface/8">

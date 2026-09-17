@@ -7,6 +7,23 @@ export interface LazyFigImportContext {
   guidToNodeId: Map<string, string>
   blobs: Uint8Array[]
   populatedRootIds: Set<string>
+  parentMap?: Map<string, string>
+  childrenMap?: Map<string, string[]>
+  canvasIdToPageId?: Map<string, string>
+  created?: Set<string>
+  materializedPageIds?: Set<string>
+  materializePage?: (pageId: string) => void
+  materializePageChunk?: (pageId: string, budgetMs: number) => boolean
+  listPageRegionNcIds?: (pageId: string) => string[]
+  materializePageRegion?: (pageId: string, regionNcId: string) => string | null
+}
+
+export interface LazyFigChunkOptions {
+  materializeBudgetMs?: number
+  populateBudgetMs?: number
+  signal?: AbortSignal
+  yieldBetween?: () => Promise<void>
+  onChunk?: () => void | Promise<void>
 }
 
 const lazyFigImportContexts = new WeakMap<SceneGraph, LazyFigImportContext>()
@@ -23,11 +40,41 @@ export function clearLazyFigImportContext(graph: SceneGraph): void {
   lazyFigImportContexts.delete(graph)
 }
 
+export function materializeLazyFigImportRoots(
+  graph: SceneGraph,
+  rootIds: Iterable<string>
+): boolean {
+  const context = getLazyFigImportContext(graph)
+  if (!context?.materializePage) return false
+  let changed = false
+  for (const pageId of rootIds) {
+    if (!pageId || context.materializedPageIds?.has(pageId)) continue
+    context.materializePage(pageId)
+    changed = true
+  }
+  return changed
+}
+
+export async function materializeLazyFigImportRootsChunked(
+  graph: SceneGraph,
+  rootIds: Iterable<string>,
+  _options: LazyFigChunkOptions = {}
+): Promise<boolean> {
+  return materializeLazyFigImportRoots(graph, rootIds)
+}
+
 function applyPopulation(
   graph: SceneGraph,
   context: LazyFigImportContext,
   rootIds?: string[]
 ): void {
+  if (context.materializePage) {
+    if (rootIds) {
+      for (const pageId of rootIds) context.materializePage(pageId)
+    } else {
+      for (const page of graph.getPages(true)) context.materializePage(page.id)
+    }
+  }
   graph.preserveSourceMetadataDuring(() => {
     populateAndApplyOverrides(
       graph,
@@ -57,15 +104,34 @@ export function populateLazyFigImportRoots(graph: SceneGraph, rootIds: Iterable<
   return context ? populateRoots(graph, context, rootIds) : false
 }
 
+export async function populateLazyFigImportRootsChunked(
+  graph: SceneGraph,
+  rootIds: Iterable<string>,
+  _options: LazyFigChunkOptions = {}
+): Promise<boolean> {
+  return populateLazyFigImportRoots(graph, rootIds)
+}
+
+export function isLazyFigImportRootPopulated(graph: SceneGraph, rootId: string): boolean {
+  const context = getLazyFigImportContext(graph)
+  return context?.populatedRootIds.has(rootId) === true
+}
+
+export function listPendingLazyFigImportPages(graph: SceneGraph): string[] {
+  const context = getLazyFigImportContext(graph)
+  if (!context) return []
+  return graph
+    .getPages()
+    .map((page) => page.id)
+    .filter((id) => id && !context.populatedRootIds.has(id))
+}
+
 export function populateAllLazyFigImportRoots(graph: SceneGraph): boolean {
   const context = getLazyFigImportContext(graph)
   if (!context) return false
   const rootIds = graph.getPages(true).map((page) => page.id)
   if (rootIds.every((id) => context.populatedRootIds.has(id))) return false
 
-  // Revisit the initially populated page without an active-root filter.
-  // Cross-page component chains can only stabilize when global override
-  // resolution can see every source and target in the same pass.
   applyPopulation(graph, context)
   return true
 }

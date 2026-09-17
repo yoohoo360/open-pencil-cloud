@@ -258,7 +258,8 @@ describe('@open-pencil/fig instance interpretation', () => {
     populateAndApplyOverrides(graph, new Map(), new Map(), [], [activePage.id])
 
     expect(graph.getNode(instance.id)?.childIds).toHaveLength(1)
-    expect(globalScans).toBe(2)
+    // Scoped active-root population must not walk unrelated pages via getAllNodes.
+    expect(globalScans).toBe(0)
   })
 
   test('restores effective image and thin-clone geometry after final swaps', () => {

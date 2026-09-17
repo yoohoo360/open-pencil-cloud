@@ -1,3 +1,4 @@
+import { bindOpenPencilTestImport } from '#react/app/document/test-import'
 import { appPreferences } from '#react/app/settings/preferences'
 import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
@@ -6,6 +7,7 @@ import { ensureBuiltinLibrary } from '#react/graph/builtin'
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -19,10 +21,15 @@ import {
   type Editor,
   type EditorState
 } from '@open-pencil/core/editor'
+import {
+  getLazyFigImportContext,
+  isLazyFigImportRootPopulated
+} from '#core/kiwi/fig/lazy-import'
 import '#react/app/editor/fonts'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 export type AppEditorState = EditorState & {
+  loading: boolean
   showUI: boolean
   showRulers: boolean
   showRemoteCursors: boolean
@@ -57,6 +64,8 @@ export type EditorStore = Editor & {
   subscribe: (onStoreChange: () => void) => () => void
   notify: () => void
   setShowUI: (value: boolean) => void
+  setLoading: (value: boolean) => void
+  prefetchRemainingLazyFigPages?: () => void
 }
 
 function createInitialAppEditorState(pageId: string): AppEditorState {
@@ -64,6 +73,7 @@ function createInitialAppEditorState(pageId: string): AppEditorState {
   return {
     ...createDefaultEditorState(pageId),
     snappingPreferences: { ...snapping },
+    loading: false,
     showUI: true,
     showRulers: true,
     showRemoteCursors: true,
@@ -109,6 +119,15 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   const notify = () => {
     for (const listener of listeners) listener()
   }
+  let loadingDepth = 0
+  const setLoading = (value: boolean) => {
+    if (value) loadingDepth += 1
+    else loadingDepth = Math.max(0, loadingDepth - 1)
+    const next = loadingDepth > 0
+    if (state.loading === next) return
+    state.loading = next
+    notify()
+  }
   const panes = createCanvasPaneRegistry(state, notify)
 
   editor.onEditorEvent('render:requested', notify)
@@ -150,8 +169,35 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
     setShowUI(value: boolean) {
       state.showUI = value
       notify()
+    },
+    setLoading,
+    prefetchRemainingLazyFigPages: () => {
+      const prefetch = (
+        editor as Editor & { prefetchRemainingLazyFigPages?: () => void }
+      ).prefetchRemainingLazyFigPages
+      prefetch?.()
     }
   }) satisfies EditorStore
+
+  const baseSwitchPage = editor.switchPage.bind(editor)
+  store.switchPage = async (pageId, options) => {
+    const lazy = getLazyFigImportContext(store.graph)
+    const needsLoading = !!lazy && !isLazyFigImportRootPopulated(store.graph, pageId)
+    if (needsLoading) {
+      store.setLoading(true)
+      await new Promise<void>((resolve) => {
+        globalThis.setTimeout(resolve, 0)
+      })
+    }
+    try {
+      await baseSwitchPage(pageId, options)
+    } finally {
+      if (needsLoading) {
+        store.setLoading(false)
+        store.requestRender()
+      }
+    }
+  }
 
   return store
 }
@@ -165,6 +211,7 @@ export function EditorStoreProvider({
   store: EditorStore
   children?: ReactNode
 }) {
+  useEffect(() => bindOpenPencilTestImport(store), [store])
   return <EditorStoreContext.Provider value={store}>{children}</EditorStoreContext.Provider>
 }
 
@@ -178,7 +225,7 @@ export function useEditorStore(): EditorStore {
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
+      `${store.state.loading}:${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
     () => 'ssr'
   )
   return store
