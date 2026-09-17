@@ -19,6 +19,8 @@ public class TeamResponse {
     private String description;
     private String avatar;
     private String ownerId;
+    private String parentId;
+    private String approvalStatus;
     private Instant createdAt;
     private Instant updatedAt;
     private OwnerInfo owner;

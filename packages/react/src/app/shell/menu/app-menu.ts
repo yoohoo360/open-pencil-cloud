@@ -1,5 +1,10 @@
 import { toggleComments } from '#react/app/document/comments/actions'
 import {
+  hasDocumentCapability,
+  openDocumentShareDialog,
+  useDocumentAccess
+} from '#react/app/document/access'
+import {
   openVersionHistory,
   saveNamedDocumentVersion
 } from '#react/app/document/version-history/actions'
@@ -103,6 +108,10 @@ export function useAppMenu() {
   } = useEditorCommands()
   const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
   const { theme, setTheme } = useAppTheme()
+  const documentAccess = useDocumentAccess()
+  const canEditDoc = hasDocumentCapability(documentAccess, 'edit')
+  const canExportDoc = hasDocumentCapability(documentAccess, 'export')
+  const canCopyDoc = hasDocumentCapability(documentAccess, 'copy')
 
   const languageMenu: MenuEntry[] = availableLocales.map((code) => ({
     label: localeLabels[code],
@@ -121,6 +130,7 @@ export function useAppMenu() {
   }
 
   function exportCurrentSelection(format: 'png' | 'svg' | 'pptx' | 'fig') {
+    if (!canExportDoc) return
     if (store.state.selectedIds.size > 0) void exportSelection(store, format)
   }
 
@@ -132,6 +142,7 @@ export function useAppMenu() {
     'show-version-history': openVersionHistory,
     'save-version': saveNamedDocumentVersion,
     'show-comments': toggleComments,
+    'share-document': () => openDocumentShareDialog(),
     'export-selection': () => exportCurrentSelection('png'),
     ...createSelectionMenuActions(store),
     close: () => {
@@ -217,6 +228,20 @@ export function useAppMenu() {
       case 'view-split-right':
       case 'view-split-down':
         return store.visiblePaneCount >= store.panes.maxVisiblePanes
+      case 'save':
+      case 'save-as':
+      case 'save-version':
+      case 'import':
+        return !canEditDoc
+      case 'export-selection':
+      case 'export-png':
+      case 'export-svg':
+      case 'export-pptx':
+      case 'export-fig':
+        return !canExportDoc || store.state.selectedIds.size === 0
+      case 'copy':
+      case 'cut':
+        return !canCopyDoc
       default:
         return undefined
     }

@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,10 +38,17 @@ public class TeamService {
      */
     @Transactional(readOnly = true)
     public List<TeamResponse> getUserTeams(String userId) {
+        return getUserTeams(userId, null);
+    }
+
+    /**
+     * Teams the user can see. When orgId is set, only teams under that organization.
+     */
+    @Transactional(readOnly = true)
+    public List<TeamResponse> getUserTeams(String userId, String orgId) {
         List<Team> ownedTeams = teamRepository.findByOwnerId(userId);
         List<Team> memberTeams = teamRepository.findByMemberId(userId);
 
-        // Merge and deduplicate
         List<Team> allTeams = ownedTeams.stream()
                 .collect(Collectors.toMap(Team::getId, team -> team, (t1, t2) -> t1))
                 .values().stream()
@@ -53,22 +61,78 @@ public class TeamService {
         });
 
         return allTeams.stream()
+                .filter(team -> team.getParentId() != null) // only teams, not orgs
+                .filter(team -> !StringUtils.hasText(orgId) || orgId.equals(team.getParentId()))
                 .map(this::toTeamResponse)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Get paginated teams with optional search
+     * Create a new team under an organization (parentId required).
      */
+    @Transactional
+    public TeamResponse createTeam(String ownerId, CreateTeamRequest request) {
+        userRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found with id: " + ownerId));
+
+        if (!StringUtils.hasText(request.getParentId())) {
+            throw new RuntimeException("Teams must belong to an organization (parent_id required)");
+        }
+        Team org = teamRepository.findById(request.getParentId().trim())
+                .orElseThrow(() -> new RuntimeException("Organization not found"));
+        if (org.getParentId() != null) {
+            throw new RuntimeException("parent_id must be an organization");
+        }
+        if (!teamMemberRepository.existsByIdTeamIdAndIdUserId(org.getId(), ownerId)
+                && !(org.getOwnerId() != null && org.getOwnerId().trim().equals(ownerId.trim()))) {
+            throw new RuntimeException("You must be an organization member to create a team");
+        }
+
+        String name = request.getName().trim();
+        if (teamRepository.existsByNameIgnoreCaseAndParentId(name, org.getId())) {
+            throw new RuntimeException("Team with name '" + name + "' already exists in this organization");
+        }
+
+        Team team = Team.builder()
+                .name(name)
+                .description(request.getDescription())
+                .avatar(request.getAvatar())
+                .ownerId(ownerId)
+                .parentId(org.getId())
+                .approvalStatus("approved")
+                .build();
+
+        team = teamRepository.save(team);
+        log.info("Created team: {} under org {} by owner: {}", team.getId(), org.getId(), ownerId);
+
+        addTeamMember(team, ownerId, "owner");
+        return toTeamResponseWithMembers(teamRepository.findById(team.getId()).orElseThrow());
+    }
+
+    /** Used by OrganizationService / InvitationService. */
+    @Transactional
+    public void addTeamMemberPublic(Team team, String userId, String roleId) {
+        addTeamMember(team, userId, roleId);
+    }
+
+    @Transactional
+    public void updateMemberRoleInternal(String teamId, String userId, String roleId) {
+        TeamMemberId memberId = new TeamMemberId(teamId, userId.trim());
+        TeamMember member = teamMemberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("Team member not found"));
+        member.setRoleId(roleId);
+        teamMemberRepository.save(member);
+    }
+
     @Transactional(readOnly = true)
     public Page<TeamResponse> getTeams(String search, Pageable pageable) {
-        return teamRepository.findBySearch(search, pageable)
+        String q = blankToNull(search);
+        boolean hasSearch = q != null;
+        return teamRepository
+                .findBySearch(hasSearch, hasSearch ? q : "", pageable)
                 .map(this::toTeamResponse);
     }
 
-    /**
-     * Get team by ID with full details
-     */
     @Transactional(readOnly = true)
     public TeamResponse getTeamById(String id) {
         Team team = teamRepository.findById(id)
@@ -76,42 +140,18 @@ public class TeamService {
         return toTeamResponseWithMembers(team);
     }
 
-    /**
-     * Create a new team
-     */
-    @Transactional
-    public TeamResponse createTeam(String ownerId, CreateTeamRequest request) {
-        // Validate owner exists
-        User owner = userRepository.findById(ownerId)
-                .orElseThrow(() -> new RuntimeException("Owner not found with id: " + ownerId));
-
-        // Check if team name already exists
-        if (teamRepository.existsByName(request.getName())) {
-            throw new RuntimeException("Team with name '" + request.getName() + "' already exists");
+    private String resolveMemberId(String ref) {
+        if (ref == null || ref.isBlank()) {
+            throw new RuntimeException("Member identifier is required");
         }
-
-        // Create team
-        Team team = Team.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .avatar(request.getAvatar())
-                .ownerId(ownerId)
-                .build();
-
-        team = teamRepository.save(team);
-        log.info("Created team: {} by owner: {}", team.getId(), ownerId);
-
-        // Add initial members if provided
-        if (request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
-            for (String memberId : request.getMemberIds()) {
-                // Skip owner as they are already implicit
-                if (!memberId.equals(ownerId)) {
-                    addTeamMember(team, memberId, null);
-                }
-            }
-        }
-
-        return toTeamResponseWithMembers(teamRepository.findById(team.getId()).orElseThrow());
+        String trimmed = ref.trim();
+        return userRepository.findById(trimmed)
+                .or(() -> trimmed.contains("@")
+                        ? userRepository.findByEmail(trimmed.toLowerCase())
+                        : userRepository.findByUsername(trimmed)
+                                .or(() -> userRepository.findByEmail(trimmed.toLowerCase())))
+                .map(User::getId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + trimmed));
     }
 
     /**
@@ -129,18 +169,32 @@ public class TeamService {
 
         // Update fields if provided
         if (request.getName() != null) {
-            // Check if new name conflicts with existing teams (excluding current team)
-            if (!request.getName().equals(team.getName()) &&
-                teamRepository.existsByName(request.getName())) {
-                throw new RuntimeException("Team with name '" + request.getName() + "' already exists");
+            String name = request.getName().trim();
+            if (!StringUtils.hasText(name)) {
+                throw new RuntimeException("Team name cannot be empty");
             }
-            team.setName(request.getName());
+            // Team names are unique only within the same organization (not globally)
+            if (team.getParentId() != null
+                    && !name.equalsIgnoreCase(team.getName())
+                    && teamRepository.existsByNameIgnoreCaseAndParentIdAndIdNot(
+                            name, team.getParentId(), team.getId())) {
+                throw new RuntimeException(
+                        "Team with name '" + name + "' already exists in this organization");
+            }
+            team.setName(name);
         }
         if (request.getDescription() != null) {
             team.setDescription(request.getDescription());
         }
         if (request.getAvatar() != null) {
             team.setAvatar(request.getAvatar());
+        }
+        if (request.getParentId() != null) {
+            String parentId = request.getParentId().isBlank() ? null : request.getParentId();
+            if (parentId != null && parentId.equals(team.getId())) {
+                throw new RuntimeException("Organization cannot be its own parent");
+            }
+            team.setParentId(parentId);
         }
 
         team = teamRepository.save(team);
@@ -157,8 +211,9 @@ public class TeamService {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + id));
 
-        // Verify user is owner
-        if (!team.getOwnerId().equals(userId)) {
+        String ownerId = team.getOwnerId() == null ? "" : team.getOwnerId().trim();
+        String actorId = userId == null ? "" : userId.trim();
+        if (!ownerId.equals(actorId)) {
             throw new RuntimeException("Only the team owner can delete the team");
         }
 
@@ -261,7 +316,7 @@ public class TeamService {
 
         return TeamStatsResponse.builder()
                 .teamId(teamId)
-                .memberCount(memberCount + 1) // +1 for owner
+                .memberCount(memberCount)
                 .build();
     }
 
@@ -269,8 +324,11 @@ public class TeamService {
      * Helper method to add a team member
      */
     private void addTeamMember(Team team, String userId, String roleId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        String trimmedUserId = userId == null ? null : userId.trim();
+        User user = userRepository.findById(trimmedUserId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + trimmedUserId));
+        // CHAR(36) columns pad on read — keep embedded ids trimmed.
+        user.setId(user.getId().trim());
 
         TeamMember member = TeamMember.builder()
                 .team(team)
@@ -291,6 +349,8 @@ public class TeamService {
                 .description(team.getDescription())
                 .avatar(team.getAvatar())
                 .ownerId(team.getOwnerId())
+                .parentId(team.getParentId())
+                .approvalStatus(team.getApprovalStatus())
                 .createdAt(team.getCreatedAt())
                 .updatedAt(team.getUpdatedAt());
 
@@ -306,9 +366,9 @@ public class TeamService {
                     .build());
         }
 
-        // Add member count
+        // Add member count (owner is also stored as a team member)
         long memberCount = teamMemberRepository.countByIdTeamId(team.getId());
-        builder.memberCount(memberCount + 1); // +1 for owner
+        builder.memberCount(memberCount);
 
         return builder.build();
     }
@@ -350,6 +410,14 @@ public class TeamService {
         }
 
         return builder.build();
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

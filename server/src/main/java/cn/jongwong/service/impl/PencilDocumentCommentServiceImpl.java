@@ -1,5 +1,9 @@
 package cn.jongwong.service.impl;
 
+import cn.jongwong.authz.AuthzService;
+import cn.jongwong.authz.Capability;
+import cn.jongwong.authz.ResourceOwnership;
+import cn.jongwong.authz.locator.DocumentResourceLocator;
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.domain.repository.UserRepository;
 import cn.jongwong.entity.PencilDocument;
@@ -22,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,11 +48,12 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
     private final PencilDocumentCommentRepository commentRepository;
     private final UserRepository userRepository;
     private final SecurityUtils securityUtils;
+    private final AuthzService authzService;
 
     @Override
     @Transactional(readOnly = true)
     public PencilDocumentCommentListResponse list(String documentKey, String pageId, Boolean resolved) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.VIEW);
         List<PencilDocumentCommentThread> threads = loadThreads(document.getId(), pageId, resolved);
         Map<String, List<PencilDocumentComment>> commentsByThread = loadComments(threads);
         Map<String, User> users = lookupUsers(threads, commentsByThread);
@@ -66,7 +72,7 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
     @Override
     @Transactional
     public PencilDocumentCommentThreadResponse createThread(String documentKey, CreateCommentThreadRequest request) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.COMMENT);
         User user = requireUser();
         if (request == null) {
             throw ApiException.badRequest("Comment is required");
@@ -113,7 +119,7 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
             String threadId,
             CreateCommentReplyRequest request
     ) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.COMMENT);
         User user = requireUser();
         PencilDocumentCommentThread thread = requireThread(document.getId(), threadId);
         String body = requireBody(request == null ? null : request.getBody());
@@ -142,7 +148,7 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
             String commentId,
             UpdateCommentRequest request
     ) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.COMMENT);
         User user = requireUser();
         requireThread(document.getId(), threadId);
         PencilDocumentComment comment = requireComment(document.getId(), threadId, commentId);
@@ -158,7 +164,7 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
     @Override
     @Transactional
     public void deleteComment(String documentKey, String threadId, String commentId) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.COMMENT);
         User user = requireUser();
         PencilDocumentCommentThread thread = requireThread(document.getId(), threadId);
         PencilDocumentComment comment = requireComment(document.getId(), threadId, commentId);
@@ -186,7 +192,7 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
             String threadId,
             ResolveCommentThreadRequest request
     ) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.COMMENT);
         User user = requireUser();
         if (request == null || request.getResolved() == null) {
             throw ApiException.badRequest("resolved is required");
@@ -270,8 +276,16 @@ public class PencilDocumentCommentServiceImpl implements PencilDocumentCommentSe
         return users;
     }
 
-    private PencilDocument requireDocument(String documentKey) {
-        return pencilFileRepository.findByKeyAndIsDeleted(documentKey, 0)
+    private PencilDocument requireDocument(String documentKey, Capability capability) {
+        ResourceOwnership ownership =
+                authzService.requireOwnership(DocumentResourceLocator.TYPE, documentKey);
+        String userId = securityUtils.getCurrentUserId();
+        if (!StringUtils.hasText(userId)) {
+            throw ApiException.unauthorized("Authentication required");
+        }
+        authzService.requireCapability(ownership, userId, capability);
+        return pencilFileRepository
+                .findById(ownership.resourceId())
                 .orElseThrow(() -> ApiException.notFound("Document not found: " + documentKey));
     }
 

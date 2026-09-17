@@ -1,4 +1,5 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
+import { hasDocumentCapability, documentAccessStore } from '#react/app/document/access'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAPI } from '#react/lib/client'
@@ -32,6 +33,7 @@ export async function saveCloudCover(store: EditorStore): Promise<boolean> {
 export function useCloudDocumentPersist(store: EditorStore, enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return
+    if (!hasDocumentCapability(documentAccessStore.get(), 'edit')) return
 
     let lastSeenScene = store.state.sceneVersion
     let lastSavedScene = store.state.sceneVersion

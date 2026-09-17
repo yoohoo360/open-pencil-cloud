@@ -1,12 +1,20 @@
 package cn.jongwong.service.impl;
 
+import cn.jongwong.authz.AccessRole;
+import cn.jongwong.authz.AuthzService;
+import cn.jongwong.authz.Capability;
+import cn.jongwong.authz.ResourceOwnership;
+import cn.jongwong.authz.locator.DocumentResourceLocator;
 import cn.jongwong.common.ConvertUtils;
 import cn.jongwong.entity.PencilDocument;
+import cn.jongwong.entity.PencilDocumentRecent;
+import cn.jongwong.exception.ApiException;
 import cn.jongwong.repository.PencilChangeRepository;
 import cn.jongwong.repository.PencilDocumentCommentRepository;
 import cn.jongwong.repository.PencilDocumentCommentThreadRepository;
 import cn.jongwong.repository.PencilDocumentHistoryRepository;
 import cn.jongwong.repository.PencilDocumentLibraryRefRepository;
+import cn.jongwong.repository.PencilDocumentRecentRepository;
 import cn.jongwong.repository.PencilFileRepository;
 import cn.jongwong.repository.PencilNodeChangeRepository;
 import cn.jongwong.ro.PencilDocumentRequest;
@@ -20,11 +28,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -41,6 +52,9 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
 
     @Autowired
     private PencilFileRepository pencilFileRepository;
+
+    @Autowired
+    private PencilDocumentRecentRepository recentRepository;
 
     @Autowired
     private PencilDocumentHistoryRepository historyRepository;
@@ -63,20 +77,30 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
     @Autowired
     private SecurityUtils securityUtils;
 
+    @Autowired
+    private AuthzService authzService;
+
     @Override
     @Transactional
     public PencilDocumentResponse create(PencilDocumentRequest request) {
+        String userId = requireUserId();
+        String teamId = blankToNull(request.getTeamId());
+        authzService.assertOrgMember(userId, teamId);
+
         String key = generateUniqueKey();
         String directory = StorageObjectPaths.documentDirectory("op", key);
-        String storedPath = ossService.upload(directory, StorageObjectPaths.documentJsonFileName(key), BLANK_SCENE_GRAPH_JSON);
+        String storedPath =
+                ossService.upload(directory, StorageObjectPaths.documentJsonFileName(key), BLANK_SCENE_GRAPH_JSON);
 
         long now = System.currentTimeMillis();
         PencilDocument file = PencilDocument.builder()
                 .key(key)
                 .name(request.getName())
                 .description(request.getDescription())
-                .teamId(request.getTeamId())
-                .projectId(request.getProjectId())
+                .teamId(teamId)
+                .projectId(blankToNull(request.getProjectId()))
+                .ownerId(userId)
+                .allowCopy(true)
                 .url(storedPath)
                 .isDeleted(0)
                 .createdAt(now)
@@ -85,19 +109,25 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
                 .build();
 
         PencilDocument saved = pencilFileRepository.save(file);
-        log.info("文件创建成功: key={}, url={}", saved.getKey(), saved.getUrl());
-        return ConvertUtils.convert(saved, PencilDocumentResponse.class);
+        ResourceOwnership ownership = DocumentResourceLocator.toOwnership(saved);
+        authzService.ensureOwnerAdminGrant(ownership, userId);
+        log.info("文件创建成功: key={}, owner={}, org={}", saved.getKey(), userId, teamId);
+        return toResponse(saved, userId);
     }
 
     @Override
     @Transactional
     public Boolean updateThumbnail(String key, MultipartFile file) {
-        PencilDocument doc = pencilFileRepository.findByKeyAndIsDeleted(key, 0)
-                .orElseThrow(() -> new RuntimeException("文件不存在: " + key));
+        String userId = requireUserId();
+        ResourceOwnership ownership = authzService.requireOwnership(DocumentResourceLocator.TYPE, key);
+        authzService.requireCapability(ownership, userId, Capability.EDIT);
+        PencilDocument doc = pencilFileRepository
+                .findById(ownership.resourceId())
+                .orElseThrow(() -> ApiException.notFound("Document not found"));
 
         String documentUrl = doc.getUrl();
         if (documentUrl == null || documentUrl.isBlank()) {
-            throw new RuntimeException("文档存储路径不存在: " + key);
+            throw ApiException.badRequest("文档存储路径不存在: " + key);
         }
         String directory = StorageObjectPaths.documentFolder(documentUrl);
         String fileName = StorageObjectPaths.THUMBNAIL_FILE_NAME;
@@ -116,26 +146,111 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
     }
 
     @Override
+    @Transactional
     public PencilDocumentResponse getByKey(String key) {
-        log.debug("根据 KEY 查询文件: {}", key);
-        PencilDocument file = pencilFileRepository.findByKeyAndIsDeleted(key, 0)
-                .orElseThrow(() -> new RuntimeException("文件不存在: " + key));
-        return ConvertUtils.convert(file, PencilDocumentResponse.class);
+        String userId = requireUserId();
+        ResourceOwnership ownership = authzService.requireOwnership(DocumentResourceLocator.TYPE, key);
+        authzService.requireCapability(ownership, userId, Capability.VIEW);
+        PencilDocument file = pencilFileRepository
+                .findById(ownership.resourceId())
+                .orElseThrow(() -> ApiException.notFound("Document not found"));
+        touchRecent(userId, file);
+        PencilDocumentResponse response = toResponse(file, userId);
+        response.setLastOpenedAt(Instant.ofEpochMilli(System.currentTimeMillis()));
+        return response;
     }
 
     @Override
-    public List<PencilDocumentResponse> getAllFiles() {
-        log.debug("获取所有文件列表");
-        List<PencilDocument> files = pencilFileRepository.findByIsDeletedOrderByUpdatedAtDesc(0);
-        return ConvertUtils.convertList(files, PencilDocumentResponse.class);
+    public List<PencilDocumentResponse> getAllFiles(String teamId, boolean personalOnly, boolean recentOnly) {
+        String userId = requireUserId();
+        if (recentOnly) {
+            return getRecentFiles(userId);
+        }
+        String orgFilter = blankToNull(teamId);
+        boolean systemAdmin = authzService.isSystemFullAccess(userId, DocumentResourceLocator.TYPE);
+        List<PencilDocument> all = pencilFileRepository.findByIsDeletedOrderByUpdatedAtDesc(0);
+        List<PencilDocumentResponse> result = new ArrayList<>();
+        for (PencilDocument doc : all) {
+            boolean personal = !StringUtils.hasText(doc.getTeamId());
+            if (personalOnly && !personal) {
+                continue;
+            }
+            if (orgFilter != null) {
+                if (personal) {
+                    continue;
+                }
+                if (!orgFilter.equals(doc.getTeamId())) {
+                    continue;
+                }
+            }
+            ResourceOwnership ownership = DocumentResourceLocator.toOwnership(doc);
+            if (systemAdmin || authzService.canAccess(ownership, userId)) {
+                result.add(toResponse(doc, userId));
+            }
+        }
+        return result;
+    }
+
+    private List<PencilDocumentResponse> getRecentFiles(String userId) {
+        List<PencilDocumentRecent> recents = recentRepository.findByUserIdOrderByOpenedAtDesc(userId);
+        if (recents.isEmpty()) {
+            return List.of();
+        }
+        boolean systemAdmin = authzService.isSystemFullAccess(userId, DocumentResourceLocator.TYPE);
+        List<PencilDocumentResponse> result = new ArrayList<>();
+        int limit = 40;
+        for (PencilDocumentRecent recent : recents) {
+            if (result.size() >= limit) {
+                break;
+            }
+            PencilDocument doc = pencilFileRepository.findById(recent.getDocumentId()).orElse(null);
+            if (doc == null || (doc.getIsDeleted() != null && doc.getIsDeleted() != 0)) {
+                continue;
+            }
+            ResourceOwnership ownership = DocumentResourceLocator.toOwnership(doc);
+            if (!(systemAdmin || authzService.canAccess(ownership, userId))) {
+                continue;
+            }
+            PencilDocumentResponse response = toResponse(doc, userId);
+            Long openedAt = recent.getOpenedAt();
+            if (openedAt != null) {
+                response.setLastOpenedAt(Instant.ofEpochMilli(openedAt));
+            }
+            result.add(response);
+        }
+        result.sort((a, b) -> {
+            long ao = a.getLastOpenedAt() != null ? a.getLastOpenedAt().toEpochMilli() : 0L;
+            long bo = b.getLastOpenedAt() != null ? b.getLastOpenedAt().toEpochMilli() : 0L;
+            return Long.compare(bo, ao);
+        });
+        return result;
+    }
+
+    private void touchRecent(String userId, PencilDocument file) {
+        long now = System.currentTimeMillis();
+        PencilDocumentRecent recent = recentRepository
+                .findByUserIdAndDocumentId(userId, file.getId())
+                .orElseGet(() -> PencilDocumentRecent.builder()
+                        .userId(userId)
+                        .documentId(file.getId())
+                        .documentKey(file.getKey())
+                        .createdAt(now)
+                        .build());
+        recent.setDocumentKey(file.getKey());
+        recent.setOpenedAt(now);
+        recent.setUpdatedAt(now);
+        recentRepository.save(recent);
     }
 
     @Override
     @Transactional
     public PencilDocumentResponse update(String key, PencilDocumentRequest request) {
-        log.info("更新文件: key={}", key);
-        PencilDocument existing = pencilFileRepository.findByKeyAndIsDeleted(key, 0)
-                .orElseThrow(() -> new RuntimeException("文件不存在: " + key));
+        String userId = requireUserId();
+        ResourceOwnership ownership = authzService.requireOwnership(DocumentResourceLocator.TYPE, key);
+        authzService.requireCapability(ownership, userId, Capability.EDIT);
+        PencilDocument existing = pencilFileRepository
+                .findById(ownership.resourceId())
+                .orElseThrow(() -> ApiException.notFound("Document not found"));
 
         if (request.getName() != null) {
             existing.setName(request.getName());
@@ -144,10 +259,13 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
             existing.setDescription(request.getDescription());
         }
         if (request.getTeamId() != null) {
-            existing.setTeamId(request.getTeamId());
+            authzService.requireCapability(ownership, userId, Capability.MANAGE_ACCESS);
+            String nextTeam = blankToNull(request.getTeamId());
+            authzService.assertOrgMember(userId, nextTeam);
+            existing.setTeamId(nextTeam);
         }
         if (request.getProjectId() != null) {
-            existing.setProjectId(request.getProjectId());
+            existing.setProjectId(blankToNull(request.getProjectId()));
         }
         if (request.getVersion() != null) {
             existing.setVersion(request.getVersion());
@@ -155,23 +273,27 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
 
         existing.setUpdatedAt(System.currentTimeMillis());
         PencilDocument updated = pencilFileRepository.save(existing);
-        log.info("文件更新成功: key={}", key);
-        return ConvertUtils.convert(updated, PencilDocumentResponse.class);
+        return toResponse(updated, userId);
     }
 
     @Override
     @Transactional
     public void delete(String key) {
-        log.info("删除文件: key={}", key);
-        PencilDocument existing = pencilFileRepository.findByKeyAndIsDeleted(key, 0)
-                .orElseThrow(() -> new RuntimeException("文件不存在: " + key));
+        String userId = requireUserId();
+        ResourceOwnership ownership = authzService.requireOwnership(DocumentResourceLocator.TYPE, key);
+        authzService.requireCapability(ownership, userId, Capability.DELETE);
+        PencilDocument existing = pencilFileRepository
+                .findById(ownership.resourceId())
+                .orElseThrow(() -> ApiException.notFound("Document not found"));
 
         commentRepository.deleteByDocumentId(existing.getId());
         commentThreadRepository.deleteByDocumentId(existing.getId());
         historyRepository.deleteByDocumentId(existing.getId());
         libraryRefRepository.deleteByDocumentKey(existing.getKey());
+        recentRepository.deleteByDocumentId(existing.getId());
         changeRepository.deleteByFileId(existing.getId());
         nodeChangeRepository.deleteByFileId(existing.getId());
+        authzService.deleteAllForResource(DocumentResourceLocator.TYPE, existing.getId());
 
         String folder = StorageObjectPaths.documentFolder(existing.getUrl());
         if (folder != null && !folder.isBlank()) {
@@ -182,18 +304,38 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
         log.info("文件已删除: key={}", key);
     }
 
+    private PencilDocumentResponse toResponse(PencilDocument saved, String userId) {
+        PencilDocumentResponse response = ConvertUtils.convert(saved, PencilDocumentResponse.class);
+        ResourceOwnership ownership = DocumentResourceLocator.toOwnership(saved);
+        response.setPersonal(ownership.isPersonal());
+        AccessRole role = authzService.resolveRole(ownership, userId).orElse(null);
+        if (role != null) {
+            response.setMyRole(role.wire());
+            response.setCapabilities(authzService.capabilityWires(ownership, userId));
+        }
+        return response;
+    }
+
+    private String requireUserId() {
+        String userId = securityUtils.getCurrentUserId();
+        if (!StringUtils.hasText(userId)) {
+            throw ApiException.unauthorized("Authentication required");
+        }
+        return userId;
+    }
+
+    private static String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
     private String generateUniqueKey() {
         for (int i = 0; i < MAX_RETRY; i++) {
-            String key = generateRandomKey();
+            String key = DocumentKeys.random(RANDOM);
             if (!pencilFileRepository.existsByKeyAndIsDeleted(key, 0)) {
                 return key;
             }
             log.warn("KEY 冲突: {}, 重试第 {} 次", key, i + 1);
         }
         throw new RuntimeException("Failed to generate a unique document key");
-    }
-
-    private String generateRandomKey() {
-        return DocumentKeys.random(RANDOM);
     }
 }

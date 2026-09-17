@@ -1,17 +1,16 @@
-import { createContext, useContext, type ReactNode } from 'react'
-import { FileUp, ImageDown, Save, ZoomIn } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-
-import { useEditorCommands } from '#react/editor/commands'
-import { useI18n } from '#react/i18n'
+import { openDocumentShareDialog } from '#react/app/document/access'
 import { DEFAULT_COLLAB_STATE } from '#react/app/collab/types'
 import { useEditorStore } from '#react/app/editor/store'
 import { toolIcons } from '#react/app/editor/icons'
 import { importFigDialog, saveFigFile, exportSelection } from '#react/app/shell/menu/files'
 import type { ToolbarActionItem } from '#react/components/Toolbar/types'
+import { createContext, useContext, type ReactNode } from 'react'
+import { FileUp, ImageDown, Save, Share2, ZoomIn } from 'lucide-react'
+
+import { useEditorCommands } from '#react/editor/commands'
+import { useI18n } from '#react/i18n'
 
 function useMobileHudState() {
-  const navigate = useNavigate()
   const store = useEditorStore()
   const { dialogs } = useI18n()
   const { getCommand } = useEditorCommands()
@@ -23,6 +22,11 @@ function useMobileHudState() {
   const actionToast = store.state.actionToast
 
   const menuItems: ToolbarActionItem[] = [
+    {
+      icon: Share2,
+      label: dialogs.share,
+      action: () => openDocumentShareDialog()
+    },
     { icon: FileUp, label: 'Import…', action: () => void importFigDialog(store) },
     { icon: Save, label: 'Save', action: () => void saveFigFile(store) },
     {
@@ -47,12 +51,8 @@ function useMobileHudState() {
     menuItems,
     undo: () => getCommand('edit.undo').run(),
     redo: () => getCommand('edit.redo').run(),
-    share: () => {
-      void navigate('/')
-    },
-    disconnect: () => {
-      void navigate('/')
-    },
+    share: () => openDocumentShareDialog(),
+    disconnect: () => {},
     toggleFollowPeer: (_clientId: number) => {}
   }
 }

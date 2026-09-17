@@ -1,5 +1,6 @@
 import { getInMemoryClipboardHTML, rememberClipboardTransfer } from '#react/app/editor/clipboard'
 import type { EditorStore } from '#react/app/editor/store'
+import { documentAccessStore, hasDocumentCapability } from '#react/app/document/access'
 import { isEditing } from '#react/app/shell/keyboard/focus'
 import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
 import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
@@ -54,6 +55,7 @@ function pasteIntoInsertionParent(
 export function bindEditorClipboard(store: EditorStore) {
   function onCopy(e: ClipboardEvent) {
     if (isEditing(e)) return
+    if (!hasDocumentCapability(documentAccessStore.get(), 'copy')) return
     e.preventDefault()
     if (e.clipboardData) {
       void store.writeCopyData(e.clipboardData).then(() => {
@@ -64,12 +66,19 @@ export function bindEditorClipboard(store: EditorStore) {
 
   function onCut(e: ClipboardEvent) {
     if (isEditing(e)) return
+    if (
+      !hasDocumentCapability(documentAccessStore.get(), 'edit') ||
+      !hasDocumentCapability(documentAccessStore.get(), 'copy')
+    ) {
+      return
+    }
     e.preventDefault()
     if (e.clipboardData) void copyAndDeleteSelection(store, e.clipboardData)
   }
 
   function onPaste(e: ClipboardEvent) {
     if (isEditing(e)) return
+    if (!hasDocumentCapability(documentAccessStore.get(), 'edit')) return
     e.preventDefault()
 
     const cursorPos = cursorPosition(store)

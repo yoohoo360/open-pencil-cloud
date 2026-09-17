@@ -31,8 +31,12 @@ public class PencilDocumentController {
 
 
     @GetMapping("/list")
-    public ApiResponse<List<PencilDocumentResponse>> getAllFiles() {
-        return ApiResponse.ok(pencilDocumentService.getAllFiles());
+    public ApiResponse<List<PencilDocumentResponse>> getAllFiles(
+            @RequestParam(value = "team_id", required = false) String teamId,
+            @RequestParam(value = "personal", required = false, defaultValue = "false") boolean personal,
+            @RequestParam(value = "recent", required = false, defaultValue = "false") boolean recent
+    ) {
+        return ApiResponse.ok(pencilDocumentService.getAllFiles(teamId, personal, recent));
     }
 
     @PostMapping

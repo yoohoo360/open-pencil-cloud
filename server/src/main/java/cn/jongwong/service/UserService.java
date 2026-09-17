@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 /**
  * User service for managing user accounts.
  * Uses the new domain structure with String IDs.
@@ -68,6 +70,31 @@ public class UserService {
     public UserDTO getUserByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+        return mapUserToDTO(user);
+    }
+
+    /**
+     * Resolve a user by id, email, or username (exact match).
+     */
+    @Transactional(readOnly = true)
+    public UserDTO resolveByUsernameOrEmail(String query) {
+        if (query == null || query.isBlank()) {
+            throw new ResourceNotFoundException("User", "query", query);
+        }
+        String trimmed = query.trim();
+        Optional<User> byId = userRepository.findById(trimmed);
+        if (byId.isPresent()) {
+            return mapUserToDTO(byId.get());
+        }
+        if (trimmed.contains("@")) {
+            String email = trimmed.toLowerCase();
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+            return mapUserToDTO(user);
+        }
+        User user = userRepository.findByUsername(trimmed)
+                .or(() -> userRepository.findByEmail(trimmed.toLowerCase()))
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username_or_email", trimmed));
         return mapUserToDTO(user);
     }
 

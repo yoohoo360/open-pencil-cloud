@@ -41,7 +41,7 @@ public class PencilDocument {
     // ==================== 关联信息 ====================
 
     /**
-     * 团队 ID
+     * 团队 ID；为空表示个人文档（组织不可见）
      */
     private String teamId;
 
@@ -49,6 +49,17 @@ public class PencilDocument {
      * 项目 ID
      */
     private String projectId;
+
+    /**
+     * 文档所有者
+     */
+    private String ownerId;
+
+    /**
+     * 是否允许非管理员复制/导出/另存（类 Figma）
+     */
+    @Builder.Default
+    private Boolean allowCopy = true;
 
     // ==================== 存储信息 ====================
 
@@ -93,6 +104,9 @@ public class PencilDocument {
 
         if (this.isDeleted == null) {
             this.isDeleted = 0;
+        }
+        if (this.allowCopy == null) {
+            this.allowCopy = true;
         }
         long now = System.currentTimeMillis();
         if (this.createdAt == null) {

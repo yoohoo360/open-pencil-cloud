@@ -19,4 +19,7 @@ public class UpdateTeamRequest {
     private String description;
 
     private String avatar;
+
+    /** 设为空字符串可清除上级组织 */
+    private String parentId;
 }

@@ -5,8 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -20,7 +18,8 @@ public class TeamMemberResponse {
     private String avatar;
     private String roleId;
     private String roleName;
-    private Instant joinedAt;
+    /** Epoch millis */
+    private Long joinedAt;
 
     @Data
     @Builder

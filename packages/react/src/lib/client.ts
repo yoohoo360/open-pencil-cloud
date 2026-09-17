@@ -1,6 +1,10 @@
 import { loginPathWithRedirect } from '#react/app/auth/redirect'
 import { writeStoredUserJSON } from '#react/app/auth/storage'
 import type {
+  DocumentAccessSnapshot,
+  DocumentPermissionRequest
+} from '#react/app/document/access'
+import type {
   DocumentComment,
   DocumentCommentList,
   DocumentCommentThread
@@ -53,12 +57,18 @@ export type PencilDocument = {
   url?: string
   team_id?: string
   project_id?: string
+  owner_id?: string
+  allow_copy?: boolean
+  personal?: boolean
+  my_role?: 'read' | 'write' | 'admin' | 'view' | 'edit' | 'manage'
+  capabilities?: string[]
   thumbnail_url?: string
   version?: string
   schema_version?: number | string
   is_deleted?: number
   created_at?: string | number
   updated_at?: string | number
+  last_opened_at?: string | number
 }
 
 type AccountUser = {
@@ -98,6 +108,51 @@ export type CreateDocumentRequest = {
   description?: string
   team_id?: string
   project_id?: string
+}
+
+export type TeamSummary = {
+  id: string
+  name: string
+  description?: string
+  avatar?: string
+  owner_id?: string
+  parent_id?: string
+  approval_status?: string
+  member_count?: number
+}
+
+export type OrganizationSummary = {
+  id: string
+  name: string
+  org_code?: string
+  description?: string
+  avatar?: string
+  owner_id?: string
+  base_permission?: string
+  approval_status?: string
+  member_count?: number
+  team_count?: number
+  created_at?: string | number
+  updated_at?: string | number
+}
+
+export type MembershipInvitation = {
+  id: string
+  target_type: 'organization' | 'team' | 'document'
+  target_id: string
+  target_key?: string
+  target_name?: string
+  invitee_id: string
+  invitee_name?: string
+  invitee_username?: string
+  invitee_email?: string
+  inviter_id: string
+  inviter_name?: string
+  inviter_username?: string
+  role: string
+  status: string
+  message?: string
+  created_at?: number
 }
 
 export type RemoteLibraryCatalogItem = {
@@ -390,8 +445,12 @@ export const authAPI = {
 }
 
 export const documentAPI = {
-  list(): Promise<APIResponse<PencilDocument[]>> {
-    return apiClient.get<PencilDocument[]>('/api/document/list')
+  list(params?: {
+    team_id?: string
+    personal?: boolean
+    recent?: boolean
+  }): Promise<APIResponse<PencilDocument[]>> {
+    return apiClient.get<PencilDocument[]>('/api/document/list', { params })
   },
   get(key: string): Promise<APIResponse<PencilDocument>> {
     return apiClient.get<PencilDocument>(`/api/document/${key}`)
@@ -401,6 +460,55 @@ export const documentAPI = {
   },
   delete(key: string): Promise<APIResponse<void>> {
     return apiClient.delete(`/api/document/${key}`)
+  },
+  getAccess(key: string): Promise<APIResponse<DocumentAccessSnapshot>> {
+    return apiClient.get(`/api/resources/document/${key}/access`)
+  },
+  updateAccessSettings(
+    key: string,
+    data: { allow_copy?: boolean }
+  ): Promise<APIResponse<DocumentAccessSnapshot>> {
+    return apiClient.put(`/api/resources/document/${key}/access/settings`, data)
+  },
+  grantAccess(
+    key: string,
+    data: { principal_type?: string; principal_id: string; role: string }
+  ): Promise<APIResponse<DocumentAccessSnapshot>> {
+    return apiClient.put(`/api/resources/document/${key}/access/grants`, {
+      principal_type: data.principal_type ?? 'user',
+      principal_id: data.principal_id,
+      role: data.role
+    })
+  },
+  revokeAccess(
+    key: string,
+    principalId: string,
+    principalType = 'user'
+  ): Promise<APIResponse<DocumentAccessSnapshot>> {
+    return apiClient.delete(
+      `/api/resources/document/${key}/access/grants/${principalType}/${principalId}`
+    )
+  },
+  requestAccess(
+    key: string,
+    data: { role: string; message?: string }
+  ): Promise<APIResponse<DocumentPermissionRequest>> {
+    return apiClient.post(`/api/resources/document/${key}/access/requests`, data)
+  },
+  listAccessRequests(key: string): Promise<APIResponse<DocumentPermissionRequest[]>> {
+    return apiClient.get(`/api/resources/document/${key}/access/requests`)
+  },
+  approveAccessRequest(
+    key: string,
+    requestId: string
+  ): Promise<APIResponse<DocumentPermissionRequest>> {
+    return apiClient.post(`/api/resources/document/${key}/access/requests/${requestId}/approve`)
+  },
+  rejectAccessRequest(
+    key: string,
+    requestId: string
+  ): Promise<APIResponse<DocumentPermissionRequest>> {
+    return apiClient.post(`/api/resources/document/${key}/access/requests/${requestId}/reject`)
   },
   listLibraries(
     fileKey: string,
@@ -502,6 +610,121 @@ export const documentAPI = {
 export const libraryAPI = {
   list(): Promise<APIResponse<RemoteLibraryCatalogItem[]>> {
     return apiClient.get<RemoteLibraryCatalogItem[]>('/api/libraries/list')
+  }
+}
+
+export const teamAPI = {
+  myTeams(params?: { org_id?: string }): Promise<APIResponse<TeamSummary[]>> {
+    return apiClient.get<TeamSummary[]>('/api/teams/my-teams', { params })
+  },
+  create(data: {
+    name: string
+    description?: string
+    parent_id: string
+    member_ids?: string[]
+  }): Promise<APIResponse<TeamSummary>> {
+    return apiClient.post<TeamSummary>('/api/teams', data)
+  },
+  update(
+    id: string,
+    data: { name?: string; description?: string; avatar?: string }
+  ): Promise<APIResponse<TeamSummary>> {
+    return apiClient.put<TeamSummary>(`/api/teams/${id}`, data)
+  },
+  delete(id: string): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/teams/${id}`)
+  }
+}
+
+export const orgAPI = {
+  mine(): Promise<APIResponse<OrganizationSummary[]>> {
+    return apiClient.get<OrganizationSummary[]>('/api/orgs/mine')
+  },
+  create(data: {
+    name: string
+    description?: string
+  }): Promise<APIResponse<OrganizationSummary>> {
+    return apiClient.post<OrganizationSummary>('/api/orgs', data)
+  },
+  update(
+    id: string,
+    data: {
+      name?: string
+      description?: string
+      base_permission?: string
+      approval_status?: string
+    }
+  ): Promise<APIResponse<OrganizationSummary>> {
+    return apiClient.put<OrganizationSummary>(`/api/orgs/${id}`, data)
+  },
+  transfer(id: string, newOwner: string): Promise<APIResponse<OrganizationSummary>> {
+    return apiClient.post<OrganizationSummary>(`/api/orgs/${id}/transfer`, {
+      new_owner: newOwner
+    })
+  },
+  adminList(params?: {
+    search?: string
+    page?: number
+    size?: number
+    created_from?: string
+    created_to?: string
+  }): Promise<APIResponse<OrganizationSummary[]>> {
+    return apiClient.get<OrganizationSummary[]>('/api/orgs/admin', { params })
+  },
+  adminUpdate(
+    id: string,
+    data: {
+      name?: string
+      description?: string
+      approval_status?: string
+    }
+  ): Promise<APIResponse<OrganizationSummary>> {
+    return apiClient.put(`/api/orgs/admin/${id}`, data)
+  }
+}
+
+export const invitationAPI = {
+  mine(): Promise<APIResponse<MembershipInvitation[]>> {
+    return apiClient.get<MembershipInvitation[]>('/api/invitations/mine')
+  },
+  create(data: {
+    target_type: 'organization' | 'team' | 'document'
+    target_id: string
+    invitee: string
+    role?: string
+    message?: string
+  }): Promise<APIResponse<MembershipInvitation>> {
+    return apiClient.post<MembershipInvitation>('/api/invitations', data)
+  },
+  accept(id: string): Promise<APIResponse<MembershipInvitation>> {
+    return apiClient.post(`/api/invitations/${id}/accept`)
+  },
+  reject(id: string): Promise<APIResponse<MembershipInvitation>> {
+    return apiClient.post(`/api/invitations/${id}/reject`)
+  }
+}
+
+export type UserLookup = {
+  id: string
+  email: string
+  username?: string
+  name?: string
+  avatar?: string
+  is_admin?: boolean
+}
+
+export const userAPI = {
+  lookup(query: string): Promise<APIResponse<UserLookup>> {
+    return apiClient.get<UserLookup>('/api/users/lookup', { params: { q: query } })
+  },
+  me(): Promise<APIResponse<UserLookup>> {
+    return apiClient.get<UserLookup>('/api/users/me')
+  }
+}
+
+export const inboxAPI = {
+  pendingAccessRequests(): Promise<APIResponse<DocumentPermissionRequest[]>> {
+    return apiClient.get<DocumentPermissionRequest[]>('/api/inbox/access-requests')
   }
 }
 

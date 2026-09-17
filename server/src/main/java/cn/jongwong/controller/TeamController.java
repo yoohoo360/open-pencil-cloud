@@ -1,7 +1,9 @@
 package cn.jongwong.controller;
 
+import cn.jongwong.domain.entity.User;
 import cn.jongwong.dto.ApiResponse;
-import cn.jongwong.security.UserPrincipal;
+import cn.jongwong.exception.ApiException;
+import cn.jongwong.security.SecurityUtils;
 import cn.jongwong.service.TeamService;
 import cn.jongwong.web.dto.team.AddMemberRequest;
 import cn.jongwong.web.dto.team.CreateTeamRequest;
@@ -18,8 +20,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.List;
 public class TeamController {
 
     private final TeamService teamService;
+    private final SecurityUtils securityUtils;
 
     @Operation(
             summary = "Get user teams",
@@ -39,9 +42,10 @@ public class TeamController {
     )
     @GetMapping("/my-teams")
     public ApiResponse<List<TeamResponse>> getUserTeams(
-            @AuthenticationPrincipal UserPrincipal user
+            @AuthenticationPrincipal User user,
+            @RequestParam(value = "org_id", required = false) String orgId
     ) {
-        List<TeamResponse> teams = teamService.getUserTeams(user.getId());
+        List<TeamResponse> teams = teamService.getUserTeams(resolveUserId(user), orgId);
         return ApiResponse.ok(teams);
     }
 
@@ -77,10 +81,10 @@ public class TeamController {
     )
     @PostMapping
     public ApiResponse<TeamResponse> createTeam(
-            @AuthenticationPrincipal UserPrincipal user,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody CreateTeamRequest request
     ) {
-        TeamResponse team = teamService.createTeam(user.getId(), request);
+        TeamResponse team = teamService.createTeam(resolveUserId(user), request);
         return ApiResponse.ok("Team created successfully", team);
     }
 
@@ -91,10 +95,10 @@ public class TeamController {
     @PutMapping("/{id}")
     public ApiResponse<TeamResponse> updateTeam(
             @Parameter(description = "Team ID") @PathVariable String id,
-            @AuthenticationPrincipal UserPrincipal user,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody UpdateTeamRequest request
     ) {
-        TeamResponse team = teamService.updateTeam(id, user.getId(), request);
+        TeamResponse team = teamService.updateTeam(id, resolveUserId(user), request);
         return ApiResponse.ok("Team updated successfully", team);
     }
 
@@ -105,9 +109,9 @@ public class TeamController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteTeam(
             @Parameter(description = "Team ID") @PathVariable String id,
-            @AuthenticationPrincipal UserPrincipal user
+            @AuthenticationPrincipal User user
     ) {
-        teamService.deleteTeam(id, user.getId());
+        teamService.deleteTeam(id, resolveUserId(user));
         return ApiResponse.ok("Team deleted successfully", null);
     }
 
@@ -118,10 +122,10 @@ public class TeamController {
     @PostMapping("/{id}/members")
     public ApiResponse<TeamResponse> addMember(
             @Parameter(description = "Team ID") @PathVariable String id,
-            @AuthenticationPrincipal UserPrincipal user,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody AddMemberRequest request
     ) {
-        TeamResponse team = teamService.addMember(id, user.getId(), request);
+        TeamResponse team = teamService.addMember(id, resolveUserId(user), request);
         return ApiResponse.ok(team);
     }
 
@@ -133,9 +137,9 @@ public class TeamController {
     public ApiResponse<TeamResponse> removeMember(
             @Parameter(description = "Team ID") @PathVariable String id,
             @Parameter(description = "User ID to remove") @PathVariable String userId,
-            @AuthenticationPrincipal UserPrincipal user
+            @AuthenticationPrincipal User user
     ) {
-        TeamResponse team = teamService.removeMember(id, user.getId(), userId);
+        TeamResponse team = teamService.removeMember(id, resolveUserId(user), userId);
         return ApiResponse.ok("Member removed successfully", team);
     }
 
@@ -147,10 +151,10 @@ public class TeamController {
     public ApiResponse<TeamResponse> updateMemberRole(
             @Parameter(description = "Team ID") @PathVariable String id,
             @Parameter(description = "User ID") @PathVariable String userId,
-            @AuthenticationPrincipal UserPrincipal user,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody UpdateMemberRoleRequest request
     ) {
-        TeamResponse team = teamService.updateMemberRole(id, user.getId(), userId, request);
+        TeamResponse team = teamService.updateMemberRole(id, resolveUserId(user), userId, request);
         return ApiResponse.ok("Member role updated successfully", team);
     }
 
@@ -164,5 +168,16 @@ public class TeamController {
     ) {
         TeamService.TeamStatsResponse stats = teamService.getTeamStats(id);
         return ApiResponse.ok("Team statistics retrieved successfully", stats);
+    }
+
+    private String resolveUserId(User user) {
+        if (user != null && StringUtils.hasText(user.getId())) {
+            return user.getId();
+        }
+        String userId = securityUtils.getCurrentUserId();
+        if (!StringUtils.hasText(userId)) {
+            throw ApiException.unauthorized("Authentication required");
+        }
+        return userId;
     }
 }

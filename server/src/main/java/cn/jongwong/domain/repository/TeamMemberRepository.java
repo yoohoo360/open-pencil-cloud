@@ -18,6 +18,10 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
 
     boolean existsByIdTeamIdAndIdUserId(String teamId, String userId);
 
+    @Query("SELECT tm FROM TeamMember tm WHERE tm.team.id = :teamId AND tm.user.id = :userId")
+    java.util.Optional<TeamMember> findByTeamIdAndUserId(
+            @Param("teamId") String teamId, @Param("userId") String userId);
+
     void deleteByIdTeamIdAndIdUserId(String teamId, String userId);
 
     @Query("SELECT tm FROM TeamMember tm WHERE tm.team.id = :teamId AND tm.roleId = :roleId")

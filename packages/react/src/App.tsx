@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { consumeReturnTo, finishReturnTo, rememberReturnTo } from '#react/app/auth/redirect'
 import '#react/app/shell/theme'
 import { hasAccessToken } from '#react/lib/client'
+import AdminOrgsView from './view/AdminOrgsView'
 import CanvasView from './view/CanvasView'
 import DocumentListView from './view/DocumentListView'
 import DocumentView from './view/DocumentView'
@@ -66,6 +67,14 @@ export function App() {
         element={
           <RequireAuth>
             <DocumentListView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/orgs"
+        element={
+          <RequireAuth>
+            <AdminOrgsView/>
           </RequireAuth>
         }
       />

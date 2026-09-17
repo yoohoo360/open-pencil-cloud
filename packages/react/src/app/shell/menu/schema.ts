@@ -40,6 +40,7 @@ export const APP_MENU_SCHEMA = [
       { id: 'save-as', label: 'Save As…', shortcut: 'MOD+SHIFT+S' },
       { id: 'show-version-history', label: 'Show version history' },
       { id: 'save-version', label: 'Save to version history', shortcut: 'MOD+ALT+S' },
+      { id: 'share-document', label: 'Share…' },
       { type: 'separator' },
       {
         id: 'export-selection',

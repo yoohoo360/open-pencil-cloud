@@ -1,5 +1,9 @@
 package cn.jongwong.service.impl;
 
+import cn.jongwong.authz.AuthzService;
+import cn.jongwong.authz.Capability;
+import cn.jongwong.authz.ResourceOwnership;
+import cn.jongwong.authz.locator.DocumentResourceLocator;
 import cn.jongwong.domain.entity.User;
 import cn.jongwong.domain.repository.UserRepository;
 import cn.jongwong.entity.PencilDocument;
@@ -19,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -51,11 +56,12 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
     private final UserRepository userRepository;
     private final OssService ossService;
     private final SecurityUtils securityUtils;
+    private final AuthzService authzService;
 
     @Override
     @Transactional(readOnly = true)
     public PencilDocumentVersionListResponse list(String documentKey, Long namedBefore, Integer namedLimit) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.VIEW);
         int limit = namedLimit == null ? DEFAULT_NAMED_LIMIT : namedLimit;
         if (limit < 1) {
             limit = 1;
@@ -101,7 +107,7 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
             String description,
             MultipartFile file
     ) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.EDIT);
         String normalizedKind = normalizeKind(kind);
         if (file == null || file.isEmpty()) {
             throw ApiException.badRequest("History snapshot file is required");
@@ -144,7 +150,7 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
             String versionId,
             UpdateDocumentVersionRequest request
     ) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.EDIT);
         PencilDocumentHistory history = requireHistory(document.getId(), versionId);
         if (!PencilDocumentHistory.KIND_NAMED.equals(history.getKind())) {
             throw ApiException.badRequest("Only named versions can be edited");
@@ -161,7 +167,7 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
     @Override
     @Transactional
     public PencilDocumentVersionResponse restore(String documentKey, String versionId) {
-        PencilDocument document = requireDocument(documentKey);
+        PencilDocument document = requireDocument(documentKey, Capability.EDIT);
         PencilDocumentHistory history = requireHistory(document.getId(), versionId);
         String livePath = ossPath(document.getUrl());
         String historyPath = ossPath(history.getUrl());
@@ -211,8 +217,16 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
         }
     }
 
-    private PencilDocument requireDocument(String documentKey) {
-        return pencilFileRepository.findByKeyAndIsDeleted(documentKey, 0)
+    private PencilDocument requireDocument(String documentKey, Capability capability) {
+        ResourceOwnership ownership =
+                authzService.requireOwnership(DocumentResourceLocator.TYPE, documentKey);
+        String userId = securityUtils.getCurrentUserId();
+        if (!StringUtils.hasText(userId)) {
+            throw ApiException.unauthorized("Authentication required");
+        }
+        authzService.requireCapability(ownership, userId, capability);
+        return pencilFileRepository
+                .findById(ownership.resourceId())
                 .orElseThrow(() -> ApiException.notFound("Document not found: " + documentKey));
     }
 

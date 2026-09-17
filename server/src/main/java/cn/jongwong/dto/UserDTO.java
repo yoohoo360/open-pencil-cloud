@@ -25,4 +25,6 @@ public class UserDTO {
     private Instant lastLoginAt;
     private Instant createdAt;
     private Instant updatedAt;
+    /** System super-admin (RBAC wildcards). */
+    private Boolean isAdmin;
 }

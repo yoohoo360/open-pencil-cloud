@@ -24,5 +24,9 @@ public class CreateTeamRequest {
 
     private String avatar;
 
+    /** 上级组织 ID */
+    @NotBlank(message = "组织 ID 不能为空")
+    private String parentId;
+
     private List<String> memberIds;
 }

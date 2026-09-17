@@ -13,6 +13,8 @@ public interface PencilFileRepository extends JpaRepository<PencilDocument, Stri
 
     List<PencilDocument> findByIsDeletedOrderByUpdatedAtDesc(int isDeleted);
 
+    List<PencilDocument> findByOwnerIdAndIsDeleted(String ownerId, int isDeleted);
+
     // 且不是IsDeleted
     boolean existsByKeyAndIsDeleted(String key, int isDeleted);
 }

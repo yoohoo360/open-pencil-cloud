@@ -20,10 +20,17 @@ public class PencilDocumentResponse {
     private String url;
     private String teamId;
     private String projectId;
+    private String ownerId;
+    private Boolean allowCopy;
+    private Boolean personal;
+    private String myRole;
+    private java.util.Set<String> capabilities;
     private String thumbnailUrl;
     private String version;
     private String schemaVersion;
     private Integer isDeleted;
     private Instant createdAt;
     private Instant updatedAt;
+    /** Per-user last opened time (recents). */
+    private Instant lastOpenedAt;
 }

@@ -20,7 +20,7 @@ const collaborationTheme = {
       false: {}
     },
     bordered: {
-      true: { avatar: 'border-2 border-panel' },
+      true: { avatar: 'border-2 border-white/90' },
       false: {}
     },
     connection: {
