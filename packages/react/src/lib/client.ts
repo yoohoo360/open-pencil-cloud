@@ -538,20 +538,14 @@ export const documentAPI = {
     fileKey: string,
     data: {
       kind: DocumentVersionKind
-      bytes: Uint8Array
       title?: string
       description?: string
     }
   ): Promise<APIResponse<DocumentVersion>> {
-    const copy = new Uint8Array(data.bytes.byteLength)
-    copy.set(data.bytes)
-    const form = new FormData()
-    form.append('kind', data.kind)
-    if (data.title) form.append('title', data.title)
-    if (data.description) form.append('description', data.description)
-    form.append('file', new Blob([copy], { type: 'application/json' }), 'document.json')
-    return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions`, form, {
-      timeout: 120_000
+    return apiClient.post<DocumentVersion>(`/api/document/${fileKey}/versions`, {
+      kind: data.kind,
+      title: data.title,
+      description: data.description
     })
   },
   updateVersion(

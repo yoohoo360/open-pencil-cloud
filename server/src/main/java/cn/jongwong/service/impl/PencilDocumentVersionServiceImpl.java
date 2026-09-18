@@ -11,6 +11,7 @@ import cn.jongwong.entity.PencilDocumentHistory;
 import cn.jongwong.exception.ApiException;
 import cn.jongwong.repository.PencilDocumentHistoryRepository;
 import cn.jongwong.repository.PencilFileRepository;
+import cn.jongwong.ro.CreateDocumentVersionRequest;
 import cn.jongwong.ro.PencilDocumentVersionListResponse;
 import cn.jongwong.ro.PencilDocumentVersionResponse;
 import cn.jongwong.ro.UpdateDocumentVersionRequest;
@@ -24,14 +25,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,28 +98,23 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
 
     @Override
     @Transactional
-    public PencilDocumentVersionResponse create(
-            String documentKey,
-            String kind,
-            String title,
-            String description,
-            MultipartFile file
-    ) {
+    public PencilDocumentVersionResponse create(String documentKey, CreateDocumentVersionRequest request) {
         PencilDocument document = requireDocument(documentKey, Capability.EDIT);
-        String normalizedKind = normalizeKind(kind);
-        if (file == null || file.isEmpty()) {
-            throw ApiException.badRequest("History snapshot file is required");
+        if (request == null || !StringUtils.hasText(request.getKind())) {
+            throw ApiException.badRequest("kind is required");
         }
+        String normalizedKind = normalizeKind(request.getKind());
 
         String historyId = UUID.randomUUID().toString();
-        String directory = StorageObjectPaths.versionSnapshotDirectory(ossPath(document.getUrl()), historyId);
-        String fileName = StorageObjectPaths.versionJsonFileName(historyId);
-        String storedPath;
-        try {
-            storedPath = ossService.upload(directory, fileName, file.getBytes());
-        } catch (IOException error) {
-            throw ApiException.internalError("Failed to store history snapshot");
+        String liveFigPath = StorageObjectPaths.asFigPath(ossPath(document.getUrl()));
+        if (!liveFigPath.equals(document.getUrl())) {
+            document.setUrl(liveFigPath);
+            pencilFileRepository.save(document);
         }
+        String directory = StorageObjectPaths.versionSnapshotDirectory(liveFigPath, historyId);
+        String fileName = StorageObjectPaths.versionFigFileName(historyId);
+        // Client uploads the .fig snapshot to this path (direct OSS or /api/oss proxy).
+        String storedPath = directory + "/" + fileName;
 
         User user = securityUtils.getCurrentUser();
         PencilDocumentHistory saved = historyRepository.save(PencilDocumentHistory.builder()
@@ -129,8 +122,8 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
                 .documentId(document.getId())
                 .documentKey(document.getKey())
                 .kind(normalizedKind)
-                .title(trimToNull(title, MAX_TITLE))
-                .description(trimToNull(description, MAX_DESCRIPTION))
+                .title(trimToNull(request.getTitle(), MAX_TITLE))
+                .description(trimToNull(request.getDescription(), MAX_DESCRIPTION))
                 .url(storedPath)
                 .createdBy(user != null ? user.getId() : null)
                 .createdAt(System.currentTimeMillis())
@@ -169,36 +162,21 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
     public PencilDocumentVersionResponse restore(String documentKey, String versionId) {
         PencilDocument document = requireDocument(documentKey, Capability.EDIT);
         PencilDocumentHistory history = requireHistory(document.getId(), versionId);
-        String livePath = ossPath(document.getUrl());
-        String historyPath = ossPath(history.getUrl());
+        String livePath = StorageObjectPaths.asFigPath(ossPath(document.getUrl()));
+        String historyPath = StorageObjectPaths.asFigPath(ossPath(history.getUrl()));
+        if (!livePath.equals(document.getUrl())) {
+            document.setUrl(livePath);
+        }
+        if (!historyPath.equals(history.getUrl())) {
+            history.setUrl(historyPath);
+            historyRepository.save(history);
+        }
         if (!ossService.copy(historyPath, livePath)) {
             throw ApiException.internalError("Failed to restore history snapshot");
         }
-        replaceLiveBlobsFromVersion(livePath, historyPath);
         document.setUpdatedAt(System.currentTimeMillis());
         pencilFileRepository.save(document);
         return toResponse(document, history, lookupUserNames(List.of(history)));
-    }
-
-    private void replaceLiveBlobsFromVersion(String liveJsonPath, String versionJsonPath) {
-        String liveBlobs = StorageObjectPaths.blobDirectory(liveJsonPath);
-        String versionBlobs = StorageObjectPaths.blobDirectory(versionJsonPath);
-        Set<String> keepNames = new HashSet<>();
-        for (String source : ossService.list(versionBlobs)) {
-            String name = fileName(source);
-            if (name.isEmpty()) continue;
-            keepNames.add(name);
-            String target = liveBlobs + "/" + name;
-            if (!ossService.copy(source, target)) {
-                throw ApiException.internalError("Failed to restore version blob: " + name);
-            }
-        }
-        for (String existing : ossService.list(liveBlobs)) {
-            String name = fileName(existing);
-            if (!keepNames.contains(name)) {
-                ossService.delete(existing);
-            }
-        }
     }
 
     private void pruneAutosaves(String documentId) {
@@ -280,7 +258,7 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
                 .kind(history.getKind())
                 .title(history.getTitle())
                 .description(history.getDescription())
-                .url(history.getUrl())
+                .url(StorageObjectPaths.asFigPath(history.getUrl()))
                 .createdBy(createdBy)
                 .createdByName(createdBy == null ? null : names.get(createdBy))
                 .createdAt(history.getCreatedAt())
@@ -333,12 +311,6 @@ public class PencilDocumentVersionServiceImpl implements PencilDocumentVersionSe
         while (path.startsWith("/")) {
             path = path.substring(1);
         }
-        return path;
-    }
-
-    private static String fileName(String path) {
-        String value = ossPath(path);
-        int slash = value.lastIndexOf('/');
-        return slash >= 0 ? value.substring(slash + 1) : value;
+        return StorageObjectPaths.asFigPath(path);
     }
 }

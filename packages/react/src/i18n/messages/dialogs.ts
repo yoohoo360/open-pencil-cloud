@@ -58,6 +58,9 @@ export const dialogMessageDefaults = {
   closeTab: params('Close {name}'),
   recoverUnsavedWork: 'Recover unsaved work',
   recoverUnsavedWorkDescription: 'OpenPencil found documents from a previous session.',
+  unsavedLocalDraftPrompt: params(
+    '“{name}” has newer unsaved changes on this device. Restore them?'
+  ),
   restore: 'Restore',
   discard: 'Discard',
   recoveryFailed: 'Could not restore this document.',
@@ -366,6 +369,7 @@ export const dialogMessageDefaults = {
   saveAsPrompt: 'Save as:',
   openFileFailed: params('Could not open “{name}”: {error}'),
   saveFileFailed: params('Could not save “{name}”: {error}'),
+  saveFileSaved: params('Saved “{name}”'),
   browserFileAPINotSupported:
     "Your browser doesn't support the local file API. Files will be downloaded instead of saved in place.",
   useChrome: 'Use Chrome',

@@ -5,11 +5,14 @@ import {
   useDocumentShareDialogOpen
 } from '#react/app/document/access'
 import { useCloudDocumentPersist } from '#react/app/document/cloud-persist'
+import { useLocalDraftPersist } from '#react/app/document/local-draft/use'
 import { loadDocumentLibraries } from '#react/app/document/libraries'
 import { openHttpDocument } from '#react/app/document/open-http'
+import { asFigObjectPath } from '#react/app/document/oss-path'
 import { requestLocalFontAccess } from '#react/app/editor/fonts'
 import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
 import { DocumentShareDialog } from '#react/components/DocumentShareDialog'
+import { LocalDraftRestoreDialog } from '#react/components/LocalDraftRestoreDialog'
 import { OpenPencilProvider } from '#react/editor/context'
 import { EditorWorkspace } from '#react/editor/EditorWorkspace'
 import { documentAPI, getAPIErrorMessage } from '#react/lib/client'
@@ -55,6 +58,16 @@ export default function DocumentView() {
         }
         try {
           await requestLocalFontAccess()
+          // Ensure Save targets OSS even if the remote .fig fails to open.
+          if (documentMeta) {
+            store.state.documentName = documentMeta.name || store.state.documentName || 'Untitled'
+            store.state.documentVersion = documentMeta.version ?? ''
+            store.state.documentKey = documentMeta.key?.trim() ?? fileKey
+            store.state.documentFigURL = documentMeta.url?.trim()
+              ? asFigObjectPath(documentMeta.url.trim())
+              : ''
+            store.notify()
+          }
           await openHttpDocument(store, documentMeta)
           await loadDocumentLibraries(store, fileKey)
           store.notify()
@@ -83,6 +96,10 @@ export default function DocumentView() {
   }, [fileKey, store])
 
   useCloudDocumentPersist(
+    store,
+    Boolean(fileKey) && !loading && !loadError && !forbidden && !notFound
+  )
+  useLocalDraftPersist(
     store,
     Boolean(fileKey) && !loading && !loadError && !forbidden && !notFound
   )
@@ -127,6 +144,7 @@ export default function DocumentView() {
             </div>
           ) : null}
           <EditorWorkspace collabRoomId={collabRoomId} />
+          <LocalDraftRestoreDialog />
           {fileKey ? (
             <DocumentShareDialog
               fileKey={fileKey}

@@ -1,6 +1,8 @@
 import type { EditorStore } from '#react/app/editor/store'
+import { normalizeImportedPageOrigins } from '#react/app/document/normalize-page-origin'
+import { loadFont } from '#react/app/editor/fonts'
 
-import { computeAllLayouts } from '@open-pencil/core/layout'
+import { createEditor } from '@open-pencil/core/editor'
 import { parseFigFile, readFigFile } from '@open-pencil/core/io'
 import type { ParseFigFileOptions } from '#core/io/formats/fig/read.override'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
@@ -10,6 +12,29 @@ export function yieldToUI(): Promise<void> {
   if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve())
+  })
+}
+
+/** Maximum canvas loading overlay duration for open / import. */
+export const DOCUMENT_LOAD_MAX_MS = 8_000
+
+/**
+ * Allocate loading overlay time from the .fig byte size until first paint.
+ * Scales ~1ms per KiB, floored for tiny files, capped at 8s.
+ */
+export function loadingDurationForBytes(byteLength: number): number {
+  const size = Number.isFinite(byteLength) ? Math.max(0, byteLength) : 0
+  return Math.min(DOCUMENT_LOAD_MAX_MS, Math.max(400, Math.round(size / 1024)))
+}
+
+export async function ensureMinimumDuration(
+  startedAt: number,
+  minimumMs: number
+): Promise<void> {
+  const remaining = minimumMs - (Date.now() - startedAt)
+  if (remaining <= 0) return
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, remaining)
   })
 }
 
@@ -80,20 +105,36 @@ export async function readFigDocument(
   return graph
 }
 
-/** Replace the store graph with an imported FIG and warm the active page. */
+/**
+ * Replace the store graph with an imported FIG.
+ * Mirrors Vue `applyImportedDocument`: prepare the first page on a staging
+ * editor (lazy materialize + layout) before swapping the live graph.
+ */
 export async function finishFigImport(store: EditorStore, imported: SceneGraph): Promise<void> {
-  const firstPageId = imported.getPages().find((page) => !page.internalOnly)?.id
-  if (firstPageId) {
-    try {
-      // Detached import graph — layout before editor listeners attach.
-      imported.runSilentMutations(() => computeAllLayouts(imported, firstPageId))
-    } catch (error) {
-      console.warn('[FigImport] layout after import failed', error)
-    }
+  try {
+    imported.runSilentMutations(() => normalizeImportedPageOrigins(imported))
+  } catch (error) {
+    console.warn('[FigImport] page origin normalize failed', error)
   }
-  store.replaceGraph(imported)
-  store.undo.clear()
-  store.clearSelection()
+
+  const firstPageId =
+    imported.getPages().find((page) => !page.internalOnly)?.id ?? imported.rootId
+  const stagingEditor = createEditor({
+    graph: imported,
+    loadFont,
+    skipInitialGraphSetup: true
+  })
+  try {
+    const prepared = await stagingEditor.preparePage(firstPageId)
+    if (!prepared) throw new Error('Imported page preparation was superseded')
+
+    store.replaceGraph(imported)
+    store.undo.clear()
+    store.clearSelection()
+  } finally {
+    stagingEditor.dispose()
+  }
+
   const pageId =
     store.graph.getPages().find((page) => !page.internalOnly)?.id ?? store.graph.rootId
   // switchPage fits the camera for a populated first page; avoid a second

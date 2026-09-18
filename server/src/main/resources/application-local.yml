@@ -2,8 +2,9 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 64MB
-      max-request-size: 64MB
+      # Local /api/oss proxy must accept large .fig uploads.
+      max-file-size: 512MB
+      max-request-size: 512MB
       file-size-threshold: 10MB
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jongwong}
@@ -39,6 +40,11 @@ spring:
           max-idle: 16
           min-idle: 4
           max-wait: 30s
+
+server:
+  tomcat:
+    max-http-form-post-size: 512MB
+    max-swallow-size: 512MB
 
 storage:
   type: ${STORAGE_TYPE:local}

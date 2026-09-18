@@ -32,7 +32,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,8 +43,8 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
 
     private static final int MAX_RETRY = 8;
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final byte[] BLANK_SCENE_GRAPH_JSON =
-            "{\"format\":\"openpencil-scene-graph\",\"version\":1,\"nodes\":{}}".getBytes(StandardCharsets.UTF_8);
+    /** Empty placeholder; first client save uploads a real .fig. */
+    private static final byte[] BLANK_FIG = new byte[0];
 
     @Autowired
     private OssService ossService;
@@ -89,8 +88,8 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
 
         String key = generateUniqueKey();
         String directory = StorageObjectPaths.documentDirectory("op", key);
-        String storedPath =
-                ossService.upload(directory, StorageObjectPaths.documentJsonFileName(key), BLANK_SCENE_GRAPH_JSON);
+        String fileName = StorageObjectPaths.documentFigFileName(key);
+        String storedPath = StorageObjectPaths.asFigPath(ossService.upload(directory, fileName, BLANK_FIG));
 
         long now = System.currentTimeMillis();
         PencilDocument file = PencilDocument.builder()
@@ -125,9 +124,12 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
                 .findById(ownership.resourceId())
                 .orElseThrow(() -> ApiException.notFound("Document not found"));
 
-        String documentUrl = doc.getUrl();
+        String documentUrl = StorageObjectPaths.asFigPath(doc.getUrl());
         if (documentUrl == null || documentUrl.isBlank()) {
             throw ApiException.badRequest("文档存储路径不存在: " + key);
+        }
+        if (!documentUrl.equals(doc.getUrl())) {
+            doc.setUrl(documentUrl);
         }
         String directory = StorageObjectPaths.documentFolder(documentUrl);
         String fileName = StorageObjectPaths.THUMBNAIL_FILE_NAME;
@@ -154,6 +156,7 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
         PencilDocument file = pencilFileRepository
                 .findById(ownership.resourceId())
                 .orElseThrow(() -> ApiException.notFound("Document not found"));
+        migrateDocumentFigUrl(file);
         touchRecent(userId, file);
         PencilDocumentResponse response = toResponse(file, userId);
         response.setLastOpenedAt(Instant.ofEpochMilli(System.currentTimeMillis()));
@@ -306,6 +309,8 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
 
     private PencilDocumentResponse toResponse(PencilDocument saved, String userId) {
         PencilDocumentResponse response = ConvertUtils.convert(saved, PencilDocumentResponse.class);
+        // Always expose `.fig` paths to clients, even before DB rows are migrated.
+        response.setUrl(StorageObjectPaths.asFigPath(saved.getUrl()));
         ResourceOwnership ownership = DocumentResourceLocator.toOwnership(saved);
         response.setPersonal(ownership.isPersonal());
         AccessRole role = authzService.resolveRole(ownership, userId).orElse(null);
@@ -314,6 +319,16 @@ public class PencilDocumentServiceImpl implements PencilDocumentService {
             response.setCapabilities(authzService.capabilityWires(ownership, userId));
         }
         return response;
+    }
+
+    /** Persist `.fig` object keys; legacy rows may still store `.json`. */
+    private void migrateDocumentFigUrl(PencilDocument doc) {
+        if (doc == null || !StringUtils.hasText(doc.getUrl())) return;
+        String figPath = StorageObjectPaths.asFigPath(doc.getUrl());
+        if (figPath.equals(doc.getUrl())) return;
+        doc.setUrl(figPath);
+        pencilFileRepository.save(doc);
+        log.info("Migrated document URL to .fig: key={}", doc.getKey());
     }
 
     private String requireUserId() {

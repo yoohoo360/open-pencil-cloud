@@ -399,7 +399,7 @@ function serializeTextOverrides(
   localIdCounter: { value: number }
 ): KiwiSymbolOverridePayload[] {
   const result: KiwiSymbolOverridePayload[] = []
-  for (const [key, value] of Object.entries(instance.overrides)) {
+  for (const [key, value] of Object.entries(instance?.overrides || {})) {
     if (!key.endsWith(':text') || typeof value !== 'string') continue
     const targetId = key.slice(0, -':text'.length)
     const target = context.graph.getNode(targetId)

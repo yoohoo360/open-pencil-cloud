@@ -33,8 +33,28 @@ public final class StorageObjectPaths {
         return kind + "/" + quarterDirectory() + "/" + key;
     }
 
-    public static String documentJsonFileName(String key) {
-        return key + ".json";
+    public static String documentFigFileName(String key) {
+        return key + ".fig";
+    }
+
+    public static String versionFigFileName(String versionId) {
+        return versionId + ".fig";
+    }
+
+    /** Rewrite legacy `.json` cloud keys to `.fig`. */
+    public static String asFigPath(String storedPath) {
+        String path = stripSlashes(storedPath);
+        if (path.isEmpty()) {
+            return path;
+        }
+        String lower = path.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".json")) {
+            return path.substring(0, path.length() - 5) + ".fig";
+        }
+        if (lower.endsWith(".fig")) {
+            return path;
+        }
+        return path + ".fig";
     }
 
     public static String documentFolder(String storedPath) {
@@ -60,28 +80,21 @@ public final class StorageObjectPaths {
         return versionDirectory(storedPath) + "/" + versionId;
     }
 
-    public static String versionJsonFileName(String versionId) {
-        return versionId + ".json";
-    }
-
     public static final String THUMBNAIL_FILE_NAME = "thumbnail.png";
 
     public static String thumbnailPath(String storedPath) {
         return documentFolder(storedPath) + "/" + THUMBNAIL_FILE_NAME;
     }
 
-    public static String blobDirectory(String storedPath) {
-        return documentFolder(storedPath) + "/blobs";
-    }
-
     private static String stem(String fileName) {
         String name = stripSlashes(fileName);
         String lower = name.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".json")) {
-            return name.substring(0, name.length() - 5);
-        }
         if (lower.endsWith(".fig")) {
             return name.substring(0, name.length() - 4);
+        }
+        // Legacy cloud JSON paths may still appear in stored document URLs.
+        if (lower.endsWith(".json")) {
+            return name.substring(0, name.length() - 5);
         }
         return name;
     }

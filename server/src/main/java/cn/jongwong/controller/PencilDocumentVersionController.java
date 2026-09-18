@@ -1,10 +1,12 @@
 package cn.jongwong.controller;
 
 import cn.jongwong.dto.ApiResponse;
+import cn.jongwong.ro.CreateDocumentVersionRequest;
 import cn.jongwong.ro.PencilDocumentVersionListResponse;
 import cn.jongwong.ro.PencilDocumentVersionResponse;
 import cn.jongwong.ro.UpdateDocumentVersionRequest;
 import cn.jongwong.service.PencilDocumentVersionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -14,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/document/{key}/versions")
@@ -32,15 +33,16 @@ public class PencilDocumentVersionController {
         return ApiResponse.ok(versionService.list(key, namedBefore, namedLimit));
     }
 
+    /**
+     * Create version metadata and return the OSS .fig path.
+     * Client uploads the .fig snapshot via OSS_UPLOAD_MODE.
+     */
     @PostMapping
     public ApiResponse<PencilDocumentVersionResponse> create(
             @PathVariable String key,
-            @RequestParam("kind") String kind,
-            @RequestParam(value = "title", required = false) String title,
-            @RequestParam(value = "description", required = false) String description,
-            @RequestParam("file") MultipartFile file
+            @Valid @RequestBody CreateDocumentVersionRequest request
     ) {
-        return ApiResponse.ok(versionService.create(key, kind, title, description, file));
+        return ApiResponse.ok(versionService.create(key, request));
     }
 
     @PatchMapping("/{versionId}")

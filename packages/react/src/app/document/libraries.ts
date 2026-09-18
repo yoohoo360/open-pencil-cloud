@@ -1,4 +1,4 @@
-import { readFigFile } from '@open-pencil/core/io'
+import { parseFigFile } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import { downloadOSSObject } from '#react/app/document/oss'
@@ -10,12 +10,7 @@ export async function downloadRemoteLibraryFig(
   item: Pick<RemoteLibraryCatalogItem, 'key' | 'url'>
 ): Promise<SceneGraph> {
   const bytes = await downloadOSSObject(item.url)
-  const fileBytes = new Uint8Array(bytes.byteLength)
-  fileBytes.set(bytes)
-  const file = new File([fileBytes.buffer], `${item.key}.fig`, {
-    type: 'application/octet-stream'
-  })
-  return readFigFile(file, { populate: 'first-page' })
+  return parseFigFile(bytes.slice().buffer, { populate: 'first-page' })
 }
 
 export async function addRemoteLibraryToGraph(

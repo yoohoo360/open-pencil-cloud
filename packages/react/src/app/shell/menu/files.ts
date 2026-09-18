@@ -1,6 +1,14 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { saveCloudCover } from '#react/app/document/cloud-persist'
-import { readFigDocument, finishFigImport, waitForCanvasPaint, yieldToUI } from '#react/app/document/fig'
+import {
+  readFigDocument,
+  finishFigImport,
+  waitForCanvasPaint,
+  yieldToUI,
+  ensureMinimumDuration,
+  loadingDurationForBytes
+} from '#react/app/document/fig'
+import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { dialogMessages } from '#react/i18n/messages'
@@ -43,7 +51,23 @@ function clearRemoteDocument(store: EditorStore) {
   store.state.documentVersion = ''
   store.state.documentFigURL = ''
   store.state.documentKey = ''
-  store.state.historyPreviewId = null
+}
+
+/** True when the editor is bound to a cloud document (keep identity across local imports). */
+function hasRemoteDocument(store: EditorStore): boolean {
+  return Boolean(store.state.documentFigURL?.trim() || store.state.documentKey?.trim())
+}
+
+function applyLocalDocumentIdentity(store: EditorStore, documentName: string): void {
+  // Importing into an open cloud doc replaces graph content only — do not detach
+  // documentFigURL / documentKey / documentName / documentVersion.
+  if (hasRemoteDocument(store)) {
+    clearSaveTarget(store)
+    return
+  }
+  store.state.documentName = documentName
+  clearRemoteDocument(store)
+  clearSaveTarget(store)
 }
 
 function clearSaveTarget(store: EditorStore) {
@@ -158,6 +182,7 @@ export async function importFigIntoStore(
 ): Promise<void> {
   assertFigImportFile(file.name)
   const ownLoading = !options?.alreadyLoading
+  const startedAt = Date.now()
   if (ownLoading) {
     store.setLoading(true)
     // Paint the shared canvas-loading overlay before main-thread parse blocks.
@@ -169,13 +194,12 @@ export async function importFigIntoStore(
   try {
     const graph = await readFigDocument(file, store)
     await applyOpenedDocument(store, graph)
-    store.state.documentName = file.name.replace(/\.fig$/i, '') || 'Untitled'
-    clearRemoteDocument(store)
-    clearSaveTarget(store)
+    applyLocalDocumentIdentity(store, file.name.replace(/\.fig$/i, '') || 'Untitled')
     // Keep the overlay up until the first page has been painted once.
     await waitForCanvasPaint(store)
   } finally {
     if (ownLoading) {
+      await ensureMinimumDuration(startedAt, loadingDurationForBytes(file.size))
       store.setLoading(false)
     }
   }
@@ -233,6 +257,8 @@ export async function openFileIntoStore(
   // lands on the editor graph, so later pages stay empty / loading sticks.
   if (/\.fig$/i.test(file.name)) {
     await importFigIntoStore(store, file)
+    // Cloud-bound docs keep saving to OSS; do not attach a local file handle.
+    if (hasRemoteDocument(store)) return
     const target = getSaveTarget(store)
     if (handle) {
       target.handle = handle
@@ -245,6 +271,7 @@ export async function openFileIntoStore(
   }
 
   store.setLoading(true)
+  const startedAt = Date.now()
   await yieldToUI()
   try {
     if (isDOMImportFile(file.name)) {
@@ -252,22 +279,19 @@ export async function openFileIntoStore(
       const name = file.name.replace(/\.(html?|xhtml)$/i, '') || 'Untitled'
       const imported = await browserHTMLToSceneGraph(html, { pageName: name })
       await applyOpenedDocument(store, imported)
-      store.state.documentName = name
-      clearRemoteDocument(store)
-      clearSaveTarget(store)
-      return
+      applyLocalDocumentIdentity(store, name)
+    } else {
+      const { graph } = await io.readDocument({
+        name: file.name,
+        mimeType: file.type || undefined,
+        data: new Uint8Array(await file.arrayBuffer())
+      })
+      await applyOpenedDocument(store, graph)
+      applyLocalDocumentIdentity(store, file.name.replace(/\.[^.]+$/i, '') || 'Untitled')
     }
-
-    const { graph } = await io.readDocument({
-      name: file.name,
-      mimeType: file.type || undefined,
-      data: new Uint8Array(await file.arrayBuffer())
-    })
-    await applyOpenedDocument(store, graph)
-    store.state.documentName = file.name.replace(/\.[^.]+$/i, '') || 'Untitled'
-    clearRemoteDocument(store)
-    clearSaveTarget(store)
+    await waitForCanvasPaint(store)
   } finally {
+    await ensureMinimumDuration(startedAt, loadingDurationForBytes(file.size))
     store.setLoading(false)
   }
 }
@@ -345,7 +369,10 @@ async function buildFigFile(store: EditorStore) {
     store.graph,
     store.renderer?.ck,
     store.renderer ?? undefined,
-    store.state.currentPageId
+    store.state.currentPageId,
+    false,
+    // Always write live kiwi blobs + images/ into the archive.
+    { reuseOriginalArchive: false }
   )
 }
 
@@ -377,70 +404,130 @@ async function chooseBrowserFigSaveHandle(suggestedName: string) {
   }
 }
 
-function reportSaveFailure(store: EditorStore, error: unknown) {
-  store.state.actionToast = dialogMessages.get().saveFileFailed({
-    name: store.state.documentName?.trim() || 'Untitled',
-    error: errorDetail(error)
-  })
-  store.notify()
+function reportSaveFailure(_store: EditorStore, error: unknown) {
+  console.error('[Document] Save failed', error)
 }
 
-export async function saveFigFile(store: EditorStore) {
-  const target = getSaveTarget(store)
-  const remoteURL = store.state.documentFigURL
+export type SaveFigFileOptions = {
+  onSuccess?: () => void
+  onError?: (error: unknown) => void
+}
+
+type CloudSaveSlot = {
+  promise: Promise<void>
+  rerun: boolean
+  callbacks: SaveFigFileOptions[]
+}
+
+const cloudSaveSlots = new WeakMap<EditorStore, CloudSaveSlot>()
+
+/**
+ * Save the open document. Cloud saves run in the background (do not block the
+ * UI); pass onSuccess / onError for completion callbacks.
+ */
+export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): Promise<void> {
+  const remoteURL = store.state.documentFigURL?.trim()
   if (remoteURL) {
-    try {
-      const { bytes, binaries } = await persistCloudSceneGraph(store)
-      void maybeRecordAutosave(store, bytes, binaries)
-      try {
-        await saveCloudCover(store)
-      } catch (error) {
-        console.warn('[Document] Cover save failed', error)
+    const existing = cloudSaveSlots.get(store)
+    if (existing) {
+      existing.rerun = true
+      if (options) existing.callbacks.push(options)
+      return existing.promise
+    }
+
+    const slot: CloudSaveSlot = {
+      promise: Promise.resolve(),
+      rerun: false,
+      callbacks: options ? [options] : []
+    }
+
+    slot.promise = (async () => {
+      for (;;) {
+        slot.rerun = false
+        const callbacks = slot.callbacks.splice(0)
+        try {
+          // Let the key/menu handler finish and paint before encode/upload.
+          await yieldToUI()
+          const bytes = await persistCloudSceneGraph(store)
+          void maybeRecordAutosave(store, bytes)
+          void clearLocalDraftAfterCloudSave(store).catch((error) => {
+            console.warn('[LocalDraft] Clear after save failed', error)
+          })
+          try {
+            await saveCloudCover(store)
+          } catch (error) {
+            console.warn('[Document] Cover save failed', error)
+          }
+          for (const callback of callbacks) callback.onSuccess?.()
+        } catch (error) {
+          reportSaveFailure(store, error)
+          for (const callback of callbacks) callback.onError?.(error)
+        }
+        if (!slot.rerun) break
       }
+    })().finally(() => {
+      if (cloudSaveSlots.get(store) === slot) cloudSaveSlots.delete(store)
+    })
+
+    cloudSaveSlots.set(store, slot)
+    return slot.promise
+  }
+
+  if (store.state.documentKey?.trim()) {
+    console.warn(
+      '[Document] Cloud document key is set but documentFigURL is empty; falling back to local save'
+    )
+  }
+
+  return (async () => {
+    try {
+      const target = getSaveTarget(store)
+      if (target.handle || target.downloadName) {
+        const data = await buildFigFile(store)
+        if (target.handle) {
+          await writeFigHandle(target.handle, data)
+        } else {
+          downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
+        }
+        options?.onSuccess?.()
+        return
+      }
+      if (!(await saveFigFileAs(store))) return
+      options?.onSuccess?.()
     } catch (error) {
+      if (isAbortError(error)) return
       reportSaveFailure(store, error)
-      return
+      options?.onError?.(error)
     }
-    if (!target.handle && !target.downloadName) return
-  }
-  if (remoteURL || target.handle || target.downloadName) {
-    const data = await buildFigFile(store)
-    if (target.handle) {
-      await writeFigHandle(target.handle, data)
-      return
-    }
-    if (remoteURL) return
-    downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
-    return
-  }
-  await saveFigFileAs(store)
+  })()
 }
 
-export async function saveFigFileAs(store: EditorStore) {
+export async function saveFigFileAs(store: EditorStore): Promise<boolean> {
   const data = await buildFigFile(store)
   const target = getSaveTarget(store)
 
   if (window.showSaveFilePicker) {
     const handle = await chooseBrowserFigSaveHandle(figFileName(store))
-    if (!handle) return
+    if (!handle) return false
     target.handle = handle
     target.downloadName = handle.name
     store.state.documentName = documentNameFromFigPath(handle.name)
     store.notify()
     await writeFigHandle(handle, data)
-    return
+    return true
   }
 
   const filename = prompt(
     dialogMessages.get().saveAsPrompt,
     target.downloadName ?? figFileName(store)
   )
-  if (!filename) return
+  if (!filename) return false
   target.handle = null
   target.downloadName = filename
   store.state.documentName = documentNameFromFigPath(filename)
   store.notify()
   downloadBytes(data, filename, 'application/octet-stream')
+  return true
 }
 
 export async function exportSelection(

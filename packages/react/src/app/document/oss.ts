@@ -1,10 +1,9 @@
 import { readStoredUser } from '#react/app/auth/storage'
 import {
-  cloudDocumentLayout,
-  ossBlobObjectPath,
+  asFigObjectPath,
+  legacyJsonObjectPath,
   ossObjectDirectory,
   splitOSSObjectURL,
-  unusedBlobObjectPaths,
   withCacheBust
 } from '#react/app/document/oss-path'
 import config from '#react/config'
@@ -139,6 +138,18 @@ export async function downloadOSSObject(path: string): Promise<Uint8Array> {
   return new Uint8Array(res.data)
 }
 
+/** Download a cloud document object, preferring `.fig` over legacy `.json`. */
+export async function downloadOSSFig(url: string): Promise<Uint8Array> {
+  const figPath = asFigObjectPath(url)
+  try {
+    return await downloadOSSObject(figPath)
+  } catch (error) {
+    const legacy = legacyJsonObjectPath(figPath)
+    if (!legacy || legacy === figPath) throw error
+    return downloadOSSObject(legacy)
+  }
+}
+
 export async function uploadOSSImage(file: File): Promise<string> {
   const id = uuid()
   const dir = ossObjectDirectory('img', storageUsername())
@@ -154,70 +165,8 @@ export function splitOSSFigURL(url: string): {
 }
 
 export async function uploadOSSFig(url: string, data: Uint8Array): Promise<void> {
-  const { path, fileName } = splitOSSObjectURL(url)
-  const copy = new Uint8Array(data.byteLength)
-  copy.set(data)
-  await uploadOSSObject(new Blob([copy], { type: 'application/json' }), fileName, path)
-}
-
-export async function uploadOSSBinary(
-  documentUrl: string,
-  hash: string,
-  data: Uint8Array
-): Promise<void> {
-  const objectPath = ossBlobObjectPath(documentUrl, hash)
-  const slash = objectPath.lastIndexOf('/')
-  const path = objectPath.slice(0, slash)
-  const fileName = objectPath.slice(slash + 1)
+  const { path, fileName } = splitOSSObjectURL(asFigObjectPath(url))
   const copy = new Uint8Array(data.byteLength)
   copy.set(data)
   await uploadOSSObject(new Blob([copy], { type: 'application/octet-stream' }), fileName, path)
-}
-
-export async function downloadOSSBinary(documentUrl: string, hash: string): Promise<Uint8Array> {
-  return downloadOSSObject(ossBlobObjectPath(documentUrl, hash))
-}
-
-export async function uploadOSSBinaries(
-  documentUrl: string,
-  binaries: ReadonlyMap<string, Uint8Array>
-): Promise<void> {
-  await Promise.all([...binaries].map(([hash, bytes]) => uploadOSSBinary(documentUrl, hash, bytes)))
-}
-
-export async function listOSSObjects(prefix: string): Promise<string[]> {
-  const res = await apiClient.get<string[]>('/api/oss/list', {
-    params: { path: ossObjectPath(prefix) }
-  })
-  return Array.isArray(res.data) ? res.data.filter((item) => typeof item === 'string') : []
-}
-
-export async function deleteOSSObject(path: string): Promise<void> {
-  const objectPath = ossObjectPath(path)
-  if (!objectPath) return
-  await apiClient.delete('/api/oss/delete', { params: { path: objectPath } })
-}
-
-export async function deleteUnusedOSSBinaries(
-  documentUrl: string,
-  keepHashes: ReadonlySet<string>
-): Promise<void> {
-  const { blobDirectory } = cloudDocumentLayout(documentUrl)
-  let existing: string[]
-  try {
-    existing = await listOSSObjects(blobDirectory)
-  } catch (error) {
-    console.warn('[Document] Failed to list unused blobs', error)
-    return
-  }
-  const unused = unusedBlobObjectPaths(existing, keepHashes)
-  await Promise.all(
-    unused.map(async (path) => {
-      try {
-        await deleteOSSObject(path)
-      } catch (error) {
-        console.warn('[Document] Failed to delete unused blob', path, error)
-      }
-    })
-  )
 }

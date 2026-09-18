@@ -1,7 +1,14 @@
-import { finishFigImport, readFigDocument, waitForCanvasPaint, yieldToUI } from '#react/app/document/fig'
-import { restoreCloudSceneGraph } from '#react/app/document/cloud-document'
-import { downloadOSSObject } from '#react/app/document/oss'
-import { looksLikeSceneGraphJson } from '#react/app/document/scene-graph-json'
+import {
+  finishFigImport,
+  readFigDocument,
+  waitForCanvasPaint,
+  yieldToUI,
+  ensureMinimumDuration,
+  loadingDurationForBytes
+} from '#react/app/document/fig'
+import { maybeRestoreLocalDraft } from '#react/app/document/local-draft/restore'
+import { downloadOSSFig } from '#react/app/document/oss'
+import { asFigObjectPath } from '#react/app/document/oss-path'
 import type { EditorStore } from '#react/app/editor/store'
 import type { PencilDocument } from '#react/lib/client'
 
@@ -14,29 +21,31 @@ export async function applyImportedGraph(store: EditorStore, imported: SceneGrap
 async function applyFigBytes(
   store: EditorStore,
   bytes: Uint8Array,
-  fileName: string
+  _fileName: string
 ): Promise<void> {
-  const fileBytes = new Uint8Array(bytes.byteLength)
-  fileBytes.set(bytes)
-  const file = new File([fileBytes.buffer], fileName, {
-    type: 'application/octet-stream'
-  })
-  await finishFigImport(store, await readFigDocument(file, store))
+  // Exact copy — avoid File([arrayBuffer]) pitfalls with offset views.
+  const copy = bytes.slice()
+  await finishFigImport(store, await readFigDocument(copy.buffer, store))
 }
 
 export async function applyDocumentBytes(
   store: EditorStore,
   bytes: Uint8Array,
-  fileName: string,
-  options?: { sourceUrl?: string }
+  fileName: string
 ): Promise<void> {
-  if (looksLikeSceneGraphJson(bytes)) {
-    const documentUrl = options?.sourceUrl ?? store.state.documentFigURL
-    if (!documentUrl) throw new Error('No cloud document URL')
-    await applyImportedGraph(store, await restoreCloudSceneGraph(bytes, documentUrl))
-    return
-  }
   await applyFigBytes(store, bytes, fileName)
+}
+
+function bindCloudDocumentState(
+  store: EditorStore,
+  documentMeta: PencilDocument | undefined,
+  documentUrl: string
+): void {
+  store.state.documentName = documentMeta?.name || store.state.documentName || 'Untitled'
+  store.state.documentVersion = documentMeta?.version ?? store.state.documentVersion ?? ''
+  store.state.documentKey = documentMeta?.key?.trim() ?? ''
+  store.state.documentFigURL = asFigObjectPath(documentUrl)
+  store.state.historyPreviewId = null
 }
 
 export async function openHttpDocument(
@@ -44,20 +53,48 @@ export async function openHttpDocument(
   documentMeta: PencilDocument | undefined
 ): Promise<void> {
   const name = documentMeta?.name || 'Untitled'
+  const documentKey = documentMeta?.key?.trim() ?? ''
+  const documentUrl = documentMeta?.url?.trim()
+    ? asFigObjectPath(documentMeta.url.trim())
+    : ''
+  // Bind cloud identity before download/parse so Save / autosave always target OSS,
+  // even when the remote .fig is empty or fails to decode.
   store.state.documentName = name
   store.state.documentVersion = documentMeta?.version ?? ''
-  store.state.documentKey = documentMeta?.key ?? ''
+  store.state.documentKey = documentKey
+  store.state.documentFigURL = documentUrl
   store.state.historyPreviewId = null
+  store.notify()
+
+  const startedAt = Date.now()
   store.setLoading(true)
   await yieldToUI()
+
   try {
-    const figPath = documentMeta?.url
-    if (!figPath) return
-    store.state.documentFigURL = figPath
-    const payload = await downloadOSSObject(figPath)
-    if (payload.byteLength === 0) return
-    await applyDocumentBytes(store, payload, `${name}.fig`)
-    await waitForCanvasPaint(store)
+    if (!documentUrl) return
+
+    const payload = await downloadOSSFig(documentUrl)
+    let figByteLength = payload.byteLength
+
+    if (payload.byteLength > 0) {
+      if (documentKey) {
+        const draft = await maybeRestoreLocalDraft(documentKey, documentMeta?.updated_at)
+        if (draft) {
+          figByteLength = draft.figBytes.byteLength
+          await applyFigBytes(store, draft.figBytes, `${name}.fig`)
+        } else {
+          await applyDocumentBytes(store, payload, `${name}.fig`)
+        }
+      } else {
+        await applyDocumentBytes(store, payload, `${name}.fig`)
+      }
+      await waitForCanvasPaint(store)
+    }
+    // Re-assert identity after graph replace (imports clear remote only when unbound).
+    bindCloudDocumentState(store, documentMeta, documentUrl)
+    store.notify()
+    // Keep overlay until first paint, then pad by .fig size (max 8s).
+    await ensureMinimumDuration(startedAt, loadingDurationForBytes(figByteLength))
   } finally {
     store.setLoading(false)
   }

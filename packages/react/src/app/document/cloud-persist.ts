@@ -1,5 +1,7 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { hasDocumentCapability, documentAccessStore } from '#react/app/document/access'
+import { yieldToUI } from '#react/app/document/fig'
+import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAPI } from '#react/lib/client'
@@ -13,8 +15,12 @@ const COVER_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1_000
 async function persistCloudFig(store: EditorStore): Promise<void> {
   const remoteURL = store.state.documentFigURL
   if (!remoteURL || store.state.historyPreviewId) return
-  const { bytes, binaries } = await persistCloudSceneGraph(store)
-  void maybeRecordAutosave(store, bytes, binaries)
+  const bytes = await persistCloudSceneGraph(store)
+  void maybeRecordAutosave(store, bytes)
+  // Cloud is authoritative — drop the local draft so open won't re-prompt.
+  void clearLocalDraftAfterCloudSave(store).catch((error) => {
+    console.warn('[LocalDraft] Clear after cloud save failed', error)
+  })
 }
 
 export async function saveCloudCover(store: EditorStore): Promise<boolean> {
@@ -48,6 +54,7 @@ export function useCloudDocumentPersist(store: EditorStore, enabled: boolean): v
       if (scene === lastSavedScene) return
       if (!store.state.documentFigURL || store.state.historyPreviewId) return
       running = (async () => {
+        await yieldToUI()
         await persistCloudFig(store)
         lastSavedScene = scene
         if (Date.now() - lastCoverAt >= COVER_AUTOSAVE_INTERVAL_MS) {
