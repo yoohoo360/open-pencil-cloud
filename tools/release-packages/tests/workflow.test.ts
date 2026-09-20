@@ -10,7 +10,7 @@ import {
   prepareReleasePackages,
   releasePaths,
   validatePublicationArtifacts
-} from '../src/workflow'
+} from '#release/workflow'
 
 async function createWorkspace() {
   const root = join(tmpdir(), `open-pencil-release-workflow-${crypto.randomUUID()}`)

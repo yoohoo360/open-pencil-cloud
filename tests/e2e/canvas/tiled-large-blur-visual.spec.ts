@@ -91,7 +91,6 @@ test('large blur remains seamless after tiled mutation and zoom reversal', async
   await waitForTiledSettlement()
   editor.canvas.assertNoErrors()
   const settledMutation = await editor.canvas.canvas.screenshot()
-  expect(settledMutation).toMatchSnapshot('tiled-large-blur-mutation-settled.png')
 
   await setLargeBlurRadius(200)
   await waitForTiledSettlement()
@@ -101,4 +100,5 @@ test('large blur remains seamless after tiled mutation and zoom reversal', async
   editor.canvas.assertNoErrors()
   const settledAfterReversal = await editor.canvas.canvas.screenshot()
   expect(settledAfterReversal.equals(settledMutation)).toBe(true)
+  expect(settledMutation).toMatchSnapshot('tiled-large-blur-mutation-settled.png')
 })

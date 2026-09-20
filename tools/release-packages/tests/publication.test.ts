@@ -4,7 +4,7 @@ import {
   publishReleasePackages,
   type PublicationOperations,
   type PublicationPlanEntry
-} from '../src/workflow'
+} from '#release/workflow'
 
 function fixture() {
   const plan: PublicationPlanEntry[] = ['one', 'two'].map((name) => ({

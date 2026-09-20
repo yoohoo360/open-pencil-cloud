@@ -5,7 +5,7 @@ export const panelFieldState = {
   idle: '',
   mixed: 'text-muted placeholder:text-muted',
   bound: 'text-component',
-  invalid: 'border-danger focus:border-danger focus-visible:border-danger'
+  invalid: 'border-error focus:border-error focus-visible:border-error'
 } as const
 
 export const panelIconButtonBase =

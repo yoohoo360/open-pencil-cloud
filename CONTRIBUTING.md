@@ -26,14 +26,14 @@ Pull requests must be reviewable without guessing the author's intent.
 
 - Write the title in English.
 - Be specific about the actual change; avoid vague titles such as `fix`, `update`, `some fixes`, `changes`, or `WIP`.
-- Use Conventional Commits when it fits the change, for example `fix: handle empty exports` or `docs: clarify CLI setup`.
+- Use Conventional Commits, for example `fix: handle empty exports` or `docs: clarify CLI setup`. The exact `Release vX.Y.Z` release-title exception is preserved. See [Commit messages](#commit-messages) for validation commands.
 
 ### PR body
 
 - Follow the PR template when one is provided.
-- Explain what changed and why it changed.
-- Include a concrete list or paragraph of meaningful changes.
-- Document validation, such as `bun run check`, targeted tests, docs-only review, or an explicit reason validation was not run.
+- Keep the existing template headings. Use one short Summary paragraph for the problem, why it matters, and the outcome. Use What changed for one to three meaningful implementation details, not a repeated summary or a file-by-file inventory.
+- Write concrete, direct prose. Avoid promotional claims, filler, decorative emojis, and unnecessary tables. Add a small example when the behavior is otherwise hard to explain; keep lengthy logs or design notes in linked material.
+- Document commands actually run and their results, such as `bun run check`, targeted tests, or docs-only review. State relevant checks not run and why, and note whether a changelog entry is needed. Do not present planned validation as completed.
 - Complete the AI assistance section. If an LLM materially helped create or modify the PR, list the model names you know. Write `None` otherwise. This is review context, not authorship attribution; prompts and transcripts are not required.
 - Keep the body primarily in English. Code identifiers, file paths, logs, error messages, and short quoted examples may use their original language.
 
@@ -75,15 +75,9 @@ Keep package boundaries and public exports intact. Keep pull requests focused: e
 
 ## Tests
 
-Place tests in the established layer and mirror the source domain where practical:
+Follow the [testing architecture](packages/docs/development/testing.md) for ownership, helpers, fixtures, browser adapters and migration rules. Package-local tests mirror their source domains; central integration is reserved for genuinely cross-owner contracts. E2E follows user workflows rather than implementation files.
 
-- `tests/e2e/**/*.spec.ts` — browser UI and visual behavior.
-- `tests/figma/**/*.spec.ts` — Figma automation.
-- `tests/engine/**/*.test.ts` — engine and unit behavior.
-- `tests/helpers/**` — shared test utilities.
-- Package-local `tests/**` — standalone package coverage where that structure already exists.
-
-Test behavior and stable contracts, not source text or implementation details. Before adding a test file or helper, inspect nearby tests and follow their existing structure.
+Existing `tests/engine/**` coverage moves domain-by-domain with runner discovery, not opportunistically during feature work. Extend the existing home until that migration; do not create a duplicate suite. Test behavior and stable contracts, not source text. During iteration, run focused checks for the changed contract rather than the complete suite after every edit.
 
 ### Test selectors
 
@@ -110,3 +104,29 @@ See [`AGENTS.md`](./AGENTS.md) for the full architecture reference, code convent
 ## Commits
 
 Follow the commit-message conventions in [`AGENTS.md`](./AGENTS.md). Update `CHANGELOG.md` for user-facing changes.
+
+### Attribution
+
+AI-assisted contributions are welcome. Credit human collaborators in commit authorship and `Co-authored-by` trailers; don't add AI assistants as co-authors or append tool-generated promotional signatures. Record AI assistance in the PR's existing AI assistance section instead. Preserve human attribution and required third-party notices.
+
+The committed `.claude/settings.json` disables Claude Code's automatic commit/PR attribution and session links. Other tools should follow the same policy. This does not prohibit AI use, ordinary discussion of tools, or legitimate maintenance-bot workflows.
+
+The Commit messages check flags known AI co-author identities in newly introduced commits, including merge and release commits. If it flags an automatically added trailer, remove only that trailer using the amendment guidance below; keep human credits and the PR disclosure. Unknown identities and promotional prose remain subject to normal review. Existing base-branch history is not rewritten.
+
+### Commit messages
+
+The **Commit messages** CI job checks every commit introduced by a PR, including docs-only PRs. It does not lint existing base-branch history or GitHub's synthetic merge commit. The aggregate CI result requires this job to pass.
+
+Use `type(optional-scope): short description`, for example `fix(MCP): preserve connection settings`. Allowed types are `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, and `chore`. Keep headers within 100 characters and omit a trailing period. Product names retain their casing; bodies and footers may contain long lines.
+
+PR titles follow the same convention because GitHub uses them as merge subjects. The separate **PR title** workflow checks new and updated PRs, including title edits, without rerunning the full CI suite. Title validation disables commitlint's default merge/revert exceptions. Release titles and commits retain the exact `Release vX.Y.Z` convention.
+
+Commit-range validation retains commitlint's default merge/revert exceptions, but they are not a naming convention. Preserve the validated PR title when merging via CLI/API, and use explicit conventional subjects for branch updates, for example `chore: merge master into my-branch`. Do not rewrite published history solely to normalize messages. These checks validate structure and known AI co-author identities, not whether a description is meaningful or the type is appropriate.
+
+```sh
+bun run check:commits --last
+bun run check:commits --from origin/master --to HEAD --verbose
+printf '%s\n' 'fix(MCP): preserve connection settings' | COMMITLINT_PR_TITLE=1 bun run check:commits
+```
+
+If a message fails, use the reported rule and commit subject to locate it. Amend your latest commit with `git commit --amend`, or use an interactive rebase for earlier commits on your PR branch. Coordinate before rewriting a shared branch. No local Git hooks are installed automatically; CI is the enforcement point.

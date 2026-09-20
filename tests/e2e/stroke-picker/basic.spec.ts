@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
+import { selectDemoReferencePage } from '#tests/helpers/demo'
 import { propertyItems, propertySection } from '#tests/helpers/properties'
 
 async function dragSlider(page: Page, canvas: CanvasHelper, testId: string, ratio: number) {
@@ -85,6 +86,7 @@ test('stroke picker hsb saturation and brightness sliders update stroke color on
   const canvas = new CanvasHelper(page)
   await page.goto('/demo')
   await canvas.waitForInit()
+  await selectDemoReferencePage(page)
 
   await page.evaluate(() => {
     const store = window.openPencil?.getStore?.()

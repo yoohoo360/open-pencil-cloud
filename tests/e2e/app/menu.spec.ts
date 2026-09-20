@@ -112,11 +112,17 @@ test('Undo via Edit menu works', async () => {
   expect(beforeUndo).toBe(1)
 
   await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Edit' }).click()
-  await editor.page.locator('[role="menu"] [role="menuitem"]', { hasText: 'Undo' }).click()
+  const undoItem = editor.page.getByRole('menuitem', { name: /^Undo\b/ })
+  await expect(undoItem).toBeEnabled()
+  await undoItem.click()
   await editor.canvas.waitForRender()
 
   const afterUndo = await getStoreStateNumber('selectedIds')
   expect(afterUndo).toBe(0)
+
+  await editor.page.getByRole('menuitem', { name: 'Edit', exact: true }).click()
+  await expect(editor.page.getByRole('menuitem', { name: /^Redo\b/ })).toBeEnabled()
+  await editor.page.keyboard.press('Escape')
 })
 
 test('Duplicate via Edit menu works', async () => {

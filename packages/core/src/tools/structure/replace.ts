@@ -1,13 +1,16 @@
+import * as v from 'valibot'
+
 import { defineTool } from '#core/tools/schema'
 
 export const nodeReplaceWith = defineTool({
   name: 'node_replace_with',
-  mutates: true,
+
   description: 'Replace a node with JSX content.',
-  params: {
-    id: { type: 'string', description: 'Node ID to replace', required: true },
-    jsx: { type: 'string', description: 'JSX string for the replacement', required: true }
-  },
+  execution: { kind: 'async', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Node ID to replace')),
+    jsx: v.pipe(v.string(), v.description('JSX string for the replacement'))
+  }),
   execute: async (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return { error: `Node "${args.id}" not found` }

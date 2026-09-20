@@ -1,7 +1,8 @@
-import { computed } from 'vue'
+import { computed, shallowRef, triggerRef } from 'vue'
 
 import { canMakeBooleanSourceNode, hasVisibleStrokeSourceNode } from '@open-pencil/core/canvas'
 
+import { useEditorEvent } from '#vue/editor/events/use'
 import { useSelectionState } from '#vue/editor/selection-state/use'
 import { useSceneComputed } from '#vue/internal/scene-computed/use'
 
@@ -15,6 +16,8 @@ import { useSceneComputed } from '#vue/internal/scene-computed/use'
 export function useSelectionCapabilities() {
   const selection = useSelectionState()
   const { editor, selectedIds, selectedNode, selectedCount, hasSelection } = selection
+  const history = shallowRef(editor.undo)
+  useEditorEvent('history:changed', () => triggerRef(history))
 
   const selectedNodesCanFlatten = useSceneComputed(() => {
     const nodes = editor.getSelectedNodes()
@@ -73,8 +76,8 @@ export function useSelectionCapabilities() {
     ),
     // In vector edit mode, undo/redo route to the session-local history —
     // keep the commands enabled so the shortcut reaches them.
-    canUndo: useSceneComputed(() => editor.state.nodeEditState != null || editor.undo.canUndo),
-    canRedo: useSceneComputed(() => editor.state.nodeEditState != null || editor.undo.canRedo),
+    canUndo: useSceneComputed(() => editor.state.nodeEditState != null || history.value.canUndo),
+    canRedo: useSceneComputed(() => editor.state.nodeEditState != null || history.value.canRedo),
     canZoomToSelection: computed(() => hasSelection.value)
   }
 }

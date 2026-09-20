@@ -3,14 +3,7 @@ import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirro
 import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
 import { html } from '@codemirror/lang-html'
 import { javascript } from '@codemirror/lang-javascript'
-import {
-  bracketMatching,
-  defaultHighlightStyle,
-  foldGutter,
-  foldKeymap,
-  indentOnInput,
-  syntaxHighlighting
-} from '@codemirror/language'
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from '@codemirror/language'
 import { lintKeymap } from '@codemirror/lint'
 import { searchKeymap } from '@codemirror/search'
 import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state'
@@ -25,8 +18,10 @@ import {
 } from '@codemirror/view'
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
+import { resolvedAppTheme } from '@/app/shell/theme'
 import { designJSXExtensions } from '@/components/code-editor/extensions'
 import type { CodeEditorLanguage } from '@/components/code-editor/types'
+import { codeEditorTheme } from '@/theme/code/editor'
 
 const {
   modelValue,
@@ -48,6 +43,7 @@ const host = useTemplateRef('host')
 const languageCompartment = new Compartment()
 const editableCompartment = new Compartment()
 const labelCompartment = new Compartment()
+const themeCompartment = new Compartment()
 let editor: EditorView | undefined
 let externalUpdate = false
 
@@ -78,7 +74,7 @@ onMounted(() => {
       drawSelection(),
       EditorState.allowMultipleSelections.of(true),
       indentOnInput(),
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      themeCompartment.of(codeEditorTheme(resolvedAppTheme.value === 'dark')),
       bracketMatching(),
       closeBrackets(),
       highlightActiveLine(),
@@ -97,21 +93,7 @@ onMounted(() => {
       editableCompartment.of(editableExtensions(readOnly)),
       labelCompartment.of(EditorView.contentAttributes.of({ 'aria-label': label })),
       EditorView.lineWrapping,
-      EditorView.theme({
-        '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--color-surface)' },
-        '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-mono)' },
-        '.cm-content': { padding: '12px 0', caretColor: 'var(--color-accent)' },
-        '.cm-line': { padding: '0 12px' },
-        '.cm-gutters': {
-          backgroundColor: 'transparent',
-          color: 'color-mix(in srgb, var(--color-muted) 45%, transparent)',
-          border: 'none'
-        },
-        '&.cm-focused': { outline: 'none' },
-        '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-          backgroundColor: 'color-mix(in srgb, var(--color-accent) 22%, transparent)'
-        }
-      }),
+
       EditorView.updateListener.of((update) => {
         if (!update.docChanged || externalUpdate) return
         emit('update:modelValue', update.state.doc.toString())
@@ -153,6 +135,10 @@ watch(
         EditorView.contentAttributes.of({ 'aria-label': label })
       )
     })
+)
+
+watch(resolvedAppTheme, (theme) =>
+  editor?.dispatch({ effects: themeCompartment.reconfigure(codeEditorTheme(theme === 'dark')) })
 )
 
 onBeforeUnmount(() => editor?.destroy())

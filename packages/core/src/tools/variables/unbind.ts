@@ -1,25 +1,29 @@
+import * as v from 'valibot'
+
+import { nodeIdInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const unbindVariable = defineTool({
   name: 'unbind_variable',
-  mutates: true,
+
   description: 'Remove a variable binding from a node property.',
-  params: {
-    node_id: { type: 'string', description: 'Node ID', required: true },
-    field: {
-      type: 'string',
-      description:
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    node_id: nodeIdInput,
+    field: v.pipe(
+      v.string(),
+      v.description(
         'Property field path to unbind. For fills/strokes use indexed format: "fills/0/color", "strokes/0/color". ' +
-        'For FLOAT scalars: "opacity", "width", "height", "cornerRadius", "fontSize", "letterSpacing", ' +
-        '"lineHeight", "itemSpacing", "strokeWeight", "paddingLeft/Right/Top/Bottom", "counterAxisSpacing", ' +
-        '"rotation", "x", "y", "minWidth", "maxWidth", "minHeight", "maxHeight", ' +
-        '"topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius", ' +
-        '"borderTopWeight", "borderBottomWeight", "borderLeftWeight", "borderRightWeight", ' +
-        '"gridRowGap", "gridColumnGap". ' +
-        'For STRING: "fontFamily". For BOOLEAN: "visible".',
-      required: true
-    }
-  },
+          'For FLOAT scalars: "opacity", "width", "height", "cornerRadius", "fontSize", "letterSpacing", ' +
+          '"lineHeight", "itemSpacing", "strokeWeight", "paddingLeft/Right/Top/Bottom", "counterAxisSpacing", ' +
+          '"rotation", "x", "y", "minWidth", "maxWidth", "minHeight", "maxHeight", ' +
+          '"topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius", ' +
+          '"borderTopWeight", "borderBottomWeight", "borderLeftWeight", "borderRightWeight", ' +
+          '"gridRowGap", "gridColumnGap". ' +
+          'For STRING: "fontFamily". For BOOLEAN: "visible".'
+      )
+    )
+  }),
   execute: (figma, args) => {
     // Access raw scene node for boundVariables (not exposed on the proxy)
     const rawNode = figma.graph.getNode(args.node_id)

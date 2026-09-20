@@ -1,10 +1,10 @@
 import { computed } from 'vue'
-import type { ComputedRef } from 'vue'
+import type { ComputedRef, Ref } from 'vue'
 
 import type { Editor } from '@open-pencil/core/editor'
 import type { BlendMode, SceneNode } from '@open-pencil/scene-graph'
 
-import type { CornerGeometryKey } from '#vue/controls/appearance/types'
+import type { CornerGeometryKey, CornerRadiusKey } from '#vue/controls/appearance/types'
 import { MIXED, type MixedValue } from '#vue/controls/node-props/use'
 
 const CORNER_RADIUS_TYPES = new Set([
@@ -15,7 +15,15 @@ const CORNER_RADIUS_TYPES = new Set([
   'INSTANCE'
 ])
 
+const CORNER_PATHS: CornerRadiusKey[] = [
+  'topLeftRadius',
+  'topRightRadius',
+  'bottomRightRadius',
+  'bottomLeftRadius'
+]
+
 type AppearanceStateOptions = {
+  expandedCornerNodeId?: Ref<string | null>
   node: ComputedRef<SceneNode | null>
   nodes: ComputedRef<SceneNode[]>
   isMulti: ComputedRef<boolean>
@@ -26,6 +34,16 @@ type AppearanceActionOptions = AppearanceStateOptions & {
   editor: Editor
 }
 
+function cornersHaveEquivalentBindings(node: SceneNode): boolean {
+  const first = node.boundVariables.topLeftRadius
+  if (!first) return false
+  return [
+    node.boundVariables.topRightRadius,
+    node.boundVariables.bottomRightRadius,
+    node.boundVariables.bottomLeftRadius
+  ].every((id) => id === first)
+}
+
 function hasUnequalCorners(node: SceneNode) {
   return !(
     node.topLeftRadius === node.topRightRadius &&
@@ -34,7 +52,13 @@ function hasUnequalCorners(node: SceneNode) {
   )
 }
 
-export function createAppearanceState({ node, nodes, isMulti, merged }: AppearanceStateOptions) {
+export function createAppearanceState({
+  node,
+  nodes,
+  isMulti,
+  merged,
+  expandedCornerNodeId
+}: AppearanceStateOptions) {
   const hasCornerRadius = computed(() => {
     if (isMulti.value) return nodes.value.every((n) => CORNER_RADIUS_TYPES.has(n.type))
     return node.value ? CORNER_RADIUS_TYPES.has(node.value.type) : false
@@ -48,12 +72,26 @@ export function createAppearanceState({ node, nodes, isMulti, merged }: Appearan
   const showIndependentCorners = computed(() => {
     if (isMulti.value) return false
     const selected = node.value
-    return selected ? selected.independentCorners || hasUnequalCorners(selected) : false
+    return selected
+      ? expandedCornerNodeId?.value === selected.id ||
+          hasUnequalCorners(selected) ||
+          (selected.independentCorners && !cornersHaveEquivalentBindings(selected))
+      : false
   })
 
   const cornerRadiusValue = computed(() => {
     if (isMulti.value) return merged('cornerRadius')
-    return node.value?.cornerRadius ?? 0
+    const selected = node.value
+    return selected && cornersHaveEquivalentBindings(selected) && !hasUnequalCorners(selected)
+      ? selected.topLeftRadius
+      : (selected?.cornerRadius ?? 0)
+  })
+
+  const cornerRadiusBindingPaths = computed<Array<CornerRadiusKey | 'cornerRadius'>>(() => {
+    const selected = node.value
+    return selected && cornersHaveEquivalentBindings(selected) && !hasUnequalCorners(selected)
+      ? CORNER_PATHS
+      : ['cornerRadius']
   })
 
   const cornerSmoothingPercent = computed(() => {
@@ -82,6 +120,7 @@ export function createAppearanceState({ node, nodes, isMulti, merged }: Appearan
     independentCorners,
     showIndependentCorners,
     cornerRadiusValue,
+    cornerRadiusBindingPaths,
     cornerSmoothingPercent,
     opacityPercent,
     blendModeValue,
@@ -89,7 +128,13 @@ export function createAppearanceState({ node, nodes, isMulti, merged }: Appearan
   }
 }
 
-export function createAppearanceActions({ editor, node, nodes, isMulti }: AppearanceActionOptions) {
+export function createAppearanceActions({
+  editor,
+  node,
+  nodes,
+  isMulti,
+  expandedCornerNodeId
+}: AppearanceActionOptions) {
   const previousCornerValues = new Map<CornerGeometryKey, Map<string, number>>()
 
   function setBlendMode(value: BlendMode) {
@@ -130,6 +175,16 @@ export function createAppearanceActions({ editor, node, nodes, isMulti }: Appear
 
   function toggleIndependentCorners() {
     const selected = node.value
+    if (
+      !isMulti.value &&
+      selected &&
+      expandedCornerNodeId &&
+      cornersHaveEquivalentBindings(selected) &&
+      !hasUnequalCorners(selected)
+    ) {
+      expandedCornerNodeId.value = expandedCornerNodeId.value === selected.id ? null : selected.id
+      return
+    }
     const targets = isMulti.value ? [...nodes.value] : []
     if (!isMulti.value && selected) targets.push(selected)
     if (targets.length === 0) return
@@ -210,7 +265,53 @@ export function createAppearanceActions({ editor, node, nodes, isMulti }: Appear
     previousCornerValues.delete(key)
   }
 
+  type UniformCorners = Pick<SceneNode, CornerRadiusKey | 'cornerRadius' | 'independentCorners'>
+  const previousUniformCorners = new Map<string, UniformCorners>()
+
+  function updateUniformRadius(value: number) {
+    for (const target of cornerTargets()) {
+      if (!previousUniformCorners.has(target.id)) {
+        previousUniformCorners.set(target.id, {
+          cornerRadius: target.cornerRadius,
+          independentCorners: target.independentCorners,
+          topLeftRadius: target.topLeftRadius,
+          topRightRadius: target.topRightRadius,
+          bottomRightRadius: target.bottomRightRadius,
+          bottomLeftRadius: target.bottomLeftRadius
+        })
+      }
+      const previous = previousUniformCorners.get(target.id)
+      if (
+        previous &&
+        value === (previous.independentCorners ? previous.topLeftRadius : previous.cornerRadius)
+      ) {
+        editor.updateNode(target.id, previous)
+        previousUniformCorners.delete(target.id)
+        continue
+      }
+      editor.updateNode(target.id, {
+        cornerRadius: value,
+        independentCorners: false,
+        topLeftRadius: value,
+        topRightRadius: value,
+        bottomRightRadius: value,
+        bottomLeftRadius: value
+      })
+    }
+  }
+
+  function commitUniformRadius() {
+    editor.undo.runBatch('Change corner radius', () => {
+      for (const [id, previous] of previousUniformCorners) {
+        editor.commitNodeUpdate(id, previous, 'Change corner radius')
+      }
+    })
+    previousUniformCorners.clear()
+  }
+
   return {
+    updateUniformRadius,
+    commitUniformRadius,
     setBlendMode,
     toggleVisibility,
     toggleIndependentCorners,

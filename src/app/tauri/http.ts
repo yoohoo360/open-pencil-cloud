@@ -72,10 +72,20 @@ export function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Pr
 export interface TauriFetchOptions {
   timeoutMs?: number
   maxResponseBytes?: number
+  nativeFetch?: FetchFunction
 }
 
+const nativeFetch: typeof fetch = globalThis.fetch.bind(globalThis)
+
 export function createTauriFetch(options: TauriFetchOptions = {}): FetchFunction {
-  return (input, init) => tauriFetch(input, init, options.maxResponseBytes, options.timeoutMs)
+  return (input, init) =>
+    executeTauriFetch(
+      options.nativeFetch ?? nativeFetch,
+      input,
+      init,
+      options.maxResponseBytes,
+      options.timeoutMs
+    )
 }
 
 export async function tauriFetch(
@@ -84,15 +94,44 @@ export async function tauriFetch(
   maxResponseBytes?: number,
   timeoutMs?: number
 ): Promise<Response> {
+  return executeTauriFetch(nativeFetch, input, init, maxResponseBytes, timeoutMs)
+}
+
+async function executeTauriFetch(
+  fetcher: FetchFunction,
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  maxResponseBytes?: number,
+  timeoutMs?: number
+): Promise<Response> {
+  const parsedURL = new URL(input instanceof Request ? input.url : input.toString())
+  const isIpcURL =
+    parsedURL.protocol === 'ipc:' ||
+    ((parsedURL.protocol === 'http:' || parsedURL.protocol === 'https:') &&
+      parsedURL.hostname === 'ipc.localhost')
+  if (isIpcURL) {
+    return fetcher(input, init)
+  }
+
   const request = new Request(input, init)
   request.signal.throwIfAborted()
   const { invoke } = await import('@tauri-apps/api/core')
   request.signal.throwIfAborted()
+
+  // Capture generated multipart headers before consuming the Request body.
+  const headers = headersToProxyHeaders(request.headers)
+  let bodyData: Uint8Array | undefined
+  if (request.body != null) {
+    const buffer = await request.arrayBuffer()
+    request.signal.throwIfAborted()
+    bodyData = new Uint8Array(buffer)
+  }
+
   const payload: ProxyHttpRequest = {
     url: request.url,
     method: request.method,
-    headers: headersToProxyHeaders(request.headers),
-    body: request.body == null ? undefined : [...new Uint8Array(await request.arrayBuffer())],
+    headers,
+    body: bodyData ? Array.from(bodyData) : undefined,
     max_response_bytes: maxResponseBytes,
     follow_redirects: request.redirect === 'follow',
     timeout_ms: timeoutMs

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { Server as HttpServer } from 'node:http'
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { resolveCommand } from 'package-manager-detector/commands'
@@ -59,7 +59,6 @@ function mcpInstallCommand(): Promise<string> {
 export { fail, ok, type MCPContent, type MCPResult } from '#mcp/result'
 
 export { registerTools, type RegisterToolsOptions, type RPCSender } from '#mcp/tool/registration'
-export { paramToZod } from '#mcp/tool/schema'
 
 export interface ServerOptions {
   /** TCP port for the HTTP + WebSocket server. Ignored when `withTcp` is false. When set to 0 with `withTcp: true`, binds to an ephemeral port. Defaults to 7600. */
@@ -86,6 +85,12 @@ export interface ServerOptions {
    * app opts in when it spawns the server.
    */
   appAttachTimeoutMs?: number
+  /**
+   * How long a tool call waits for the app to register before it fails with
+   * APP_NOT_CONNECTED. Defaults to 10 s so a stdio bridge started slightly
+   * before the desktop app still succeeds; tests shorten it.
+   */
+  appWaitTimeoutMs?: number
 }
 
 export interface ServerHandle {
@@ -315,7 +320,8 @@ function buildServerContext(options: ServerOptions) {
   })
   const browserRPC = createBrowserRPCBridge({
     authToken,
-    onConnectionChange: mcpSessions.notifyToolsChanged
+    onConnectionChange: mcpSessions.notifyToolsChanged,
+    appWaitTimeoutMs: options.appWaitTimeoutMs
   })
   const sendToBrowser = browserRPC.sendRPC
   const toolDescriptors = applyToolPolicy(createToolDescriptors(mcpRoot !== null), toolPolicy)
@@ -432,7 +438,8 @@ function buildHandle(
 }
 
 export async function startServer(options: ServerOptions = {}): Promise<ServerHandle> {
-  validateAppAttachTimeout(options.appAttachTimeoutMs)
+  validateTimeoutOption('appAttachTimeoutMs', options.appAttachTimeoutMs)
+  validateTimeoutOption('appWaitTimeoutMs', options.appWaitTimeoutMs)
   const ctx = buildServerContext(options)
 
   // Wire shared connection handling BEFORE starting listeners so that
@@ -491,13 +498,13 @@ export async function startServer(options: ServerOptions = {}): Promise<ServerHa
 
 const MAX_TIMER_MS = 2_147_483_647
 
-function validateAppAttachTimeout(timeoutMs: number | undefined): void {
+function validateTimeoutOption(name: string, timeoutMs: number | undefined): void {
   if (timeoutMs === undefined) return
   if (!Number.isSafeInteger(timeoutMs)) {
-    throw new RangeError('appAttachTimeoutMs must be a safe integer')
+    throw new RangeError(`${name} must be a safe integer`)
   }
   if (timeoutMs < 0 || timeoutMs > MAX_TIMER_MS) {
-    throw new RangeError(`appAttachTimeoutMs must be in the range 0–${MAX_TIMER_MS}`)
+    throw new RangeError(`${name} must be in the range 0–${MAX_TIMER_MS}`)
   }
 }
 

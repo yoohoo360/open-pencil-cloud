@@ -6,7 +6,9 @@ import { useI18n } from '@open-pencil/vue'
 import { appRuntimeConfig } from '@/app/runtime/config'
 import { appPreferences, updateCanvasRenderingMode } from '@/app/settings/preferences/store'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
-import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
+import AppAlert from '@/components/ui/feedback/AppAlert.vue'
+import AppBadge from '@/components/ui/feedback/AppBadge.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const { rendering } = useI18n()
@@ -22,32 +24,33 @@ function setTiledRendering(enabled: boolean): void {
 </script>
 
 <template>
-  <SettingsSectionHeader>
-    {{ rendering.settingsTitle }}
+  <SettingsSection>
+    <template #title>{{ rendering.settingsTitle }}</template>
     <template #description>{{ rendering.settingsDescription }}</template>
-  </SettingsSectionHeader>
 
-  <SettingsGroup>
-    <label class="flex items-center justify-between gap-4 px-3 py-2.5">
-      <span>
-        <span class="block text-xs text-surface">{{ rendering.progressiveTiled }}</span>
-        <span class="block text-[10px] text-muted">{{
-          rendering.progressiveTiledDescription
-        }}</span>
-      </span>
-      <AppSwitch
-        :model-value="tiledRendering"
-        :label="rendering.progressiveTiled"
-        data-test-id="settings-progressive-tiled-rendering"
-        @update:model-value="setTiledRendering"
-      />
-    </label>
-  </SettingsGroup>
+    <SettingsGroup>
+      <label class="flex items-center justify-between gap-4 px-3 py-2.5">
+        <span>
+          <span class="flex flex-wrap items-center gap-2 text-xs text-surface">
+            {{ rendering.progressiveTiled }}
+            <AppBadge :ui="{ base: 'bg-hover text-surface' }">{{
+              rendering.experimental
+            }}</AppBadge>
+          </span>
+          <span class="block text-[10px] text-muted">{{
+            rendering.progressiveTiledDescription
+          }}</span>
+        </span>
+        <AppSwitch
+          :model-value="tiledRendering"
+          :label="rendering.progressiveTiled"
+          data-test-id="settings-progressive-tiled-rendering"
+          @update:model-value="setTiledRendering"
+        />
+      </label>
+    </SettingsGroup>
 
-  <p v-if="hasURLOverride" class="text-[10px] text-muted">
-    {{ rendering.urlOverride }}
-  </p>
-  <p v-else-if="changed" class="text-[10px] text-muted">
-    {{ rendering.reloadRequired }}
-  </p>
+    <AppAlert v-if="hasURLOverride" :heading="rendering.urlOverride" />
+    <AppAlert v-else-if="changed" :heading="rendering.reloadRequired" />
+  </SettingsSection>
 </template>

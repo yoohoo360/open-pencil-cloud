@@ -1,6 +1,8 @@
 import { orderBy, sortBy } from 'es-toolkit/array'
 import { meanBy } from 'es-toolkit/math'
+import * as v from 'valibot'
 
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 interface SizedItem {
@@ -28,11 +30,19 @@ export const analyzeClusters = defineTool({
   name: 'analyze_clusters',
   description:
     'Find repeated design patterns (potential components). Groups nodes by structural signature — type, size, and child structure.',
-  params: {
-    min_count: { type: 'number', description: 'Min instances to form a cluster (default: 2)' },
-    min_size: { type: 'number', description: 'Min node size in px (default: 30)' },
-    limit: { type: 'number', description: 'Max clusters to return (default: 20)' }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({
+    min_count: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Min instances to form a cluster (default: 2)')))
+    ),
+    min_size: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Min node size in px (default: 30)')))
+    ),
+    limit: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Max clusters to return (default: 20)')))
+    )
+  }),
   execute: (figma, args) => {
     const minCount = args.min_count ?? 2
     const minSize = args.min_size ?? 30

@@ -1,4 +1,5 @@
 import { safeDestr } from 'destr'
+import * as v from 'valibot'
 
 import {
   normalizeVectorNetwork,
@@ -9,6 +10,7 @@ import type { VectorNetwork } from '@open-pencil/scene-graph'
 import { parseSVGPath } from '@open-pencil/scene-graph/parse-path'
 
 import { parseColor } from '#core/color'
+import { toolNumber, positionInputs } from '#core/tools/input'
 import { defineTool, nodeSummary } from '#core/tools/schema'
 import { computeAccurateBounds } from '#core/vector/curve-math'
 
@@ -54,22 +56,25 @@ function parseVectorPath(path: string): VectorPathResult {
 
 export const createVector = defineTool({
   name: 'create_vector',
-  mutates: true,
+
   description: 'Create a vector node from SVG path data or a VectorNetwork.',
-  params: {
-    x: { type: 'number', description: 'X position', required: true },
-    y: { type: 'number', description: 'Y position', required: true },
-    name: { type: 'string', description: 'Node name' },
-    path: {
-      type: 'string',
-      description:
-        'SVG path data (preferred, e.g. "M0 0 L100 0 L50 80 Z") or VectorNetwork JSON, e.g. {"vertices":[{"x":0,"y":0},{"x":10,"y":0}],"segments":[{"start":0,"end":1}],"regions":[]}'
-    },
-    fill: { type: 'color', description: 'Fill color (hex)' },
-    stroke: { type: 'color', description: 'Stroke color (hex)' },
-    stroke_weight: { type: 'number', description: 'Stroke weight' },
-    parent_id: { type: 'string', description: 'Parent node ID' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ...positionInputs,
+    name: v.optional(v.pipe(v.string(), v.description('Node name'))),
+    path: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'SVG path data (preferred, e.g. "M0 0 L100 0 L50 80 Z") or VectorNetwork JSON, e.g. {"vertices":[{"x":0,"y":0},{"x":10,"y":0}],"segments":[{"start":0,"end":1}],"regions":[]}'
+        )
+      )
+    ),
+    fill: v.optional(v.pipe(v.string(), v.description('Fill color (hex)'))),
+    stroke: v.optional(v.pipe(v.string(), v.description('Stroke color (hex)'))),
+    stroke_weight: v.optional(toolNumber(v.pipe(v.number(), v.description('Stroke weight')))),
+    parent_id: v.optional(v.pipe(v.string(), v.description('Parent node ID')))
+  }),
   execute: (figma, args) => {
     let parsedPath: ParsedVectorPath | null = null
     if (args.path !== undefined) {

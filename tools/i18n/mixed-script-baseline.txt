@@ -22,12 +22,18 @@ ja:ai.modelIDPlaceholder
 ja:ai.modelRoleDesignDescription
 ja:ai.provider
 ja:ai.reasoningEffortPlaceholder
+ja:automation.webmcpDescription
+ja:automation.webmcpSetup
+ja:automation.webmcpUnsupported
 ja:automation.addServerConnection
 ja:automation.authenticationDescription
 ja:automation.bearerAuthentication
 ja:automation.bearerToken
 ja:automation.bearerTokenPlaceholder
 ja:automation.bearerTokenRequired
+ja:automation.connectionNameHint
+ja:automation.connectionNameInvalid
+ja:automation.serverURLHint
 ja:automation.connectionEditorDescription
 ja:automation.connections
 ja:automation.connectionsDescription
@@ -46,6 +52,7 @@ ja:code.copyJSXReference
 ja:code.editorHTMLCSSLabel
 ja:collaboration.pasteRoomLinkOrId
 ja:commands.paletteDescription
+ja:credentials.apiKey
 ja:credentials.getAPIKey
 ja:diagnostics.acpFailed
 ja:diagnostics.chatCompleted
@@ -96,6 +103,9 @@ ja:recovery.dialogDescription
 ja:rendering.reloadRequired
 ja:rendering.settingsDescription
 ja:rendering.urlOverride
+ja:settings.invalidURL
+ja:settings.modelIDHint
+ja:settings.baseURLHint
 ja:settings.aiAndAgents
 ja:settings.automation
 ja:settings.temporaryDisableSnappingHint
@@ -132,12 +142,18 @@ zh-cn:ai.modelIDPlaceholder
 zh-cn:ai.modelRoleDesignDescription
 zh-cn:ai.provider
 zh-cn:ai.reasoningEffortPlaceholder
+zh-cn:automation.webmcpDescription
+zh-cn:automation.webmcpSetup
+zh-cn:automation.webmcpUnsupported
 zh-cn:automation.addServerConnection
 zh-cn:automation.authenticationDescription
 zh-cn:automation.bearerAuthentication
 zh-cn:automation.bearerToken
 zh-cn:automation.bearerTokenPlaceholder
 zh-cn:automation.bearerTokenRequired
+zh-cn:automation.connectionNameHint
+zh-cn:automation.connectionNameInvalid
+zh-cn:automation.serverURLHint
 zh-cn:automation.connectionEditorDescription
 zh-cn:automation.connections
 zh-cn:automation.connectionsDescription
@@ -156,6 +172,7 @@ zh-cn:code.copyJSXReference
 zh-cn:code.editorHTMLCSSLabel
 zh-cn:collaboration.pasteRoomLinkOrId
 zh-cn:commands.paletteDescription
+zh-cn:credentials.apiKey
 zh-cn:credentials.getAPIKey
 zh-cn:diagnostics.acpFailed
 zh-cn:diagnostics.chatCompleted
@@ -204,6 +221,8 @@ zh-cn:recovery.dialogDescription
 zh-cn:rendering.reloadRequired
 zh-cn:rendering.settingsDescription
 zh-cn:rendering.urlOverride
+zh-cn:settings.invalidURL
+zh-cn:settings.baseURLHint
 zh-cn:settings.aiAndAgents
 zh-cn:settings.automation
 zh-cn:settings.temporaryDisableSnappingHint
@@ -217,10 +236,6 @@ zh-cn:updates.installed
 zh-cn:updates.unavailable
 zh-cn:updates.upToDate
 
-ja:ai.copyACPLog
-zh-cn:ai.copyACPLog
 
-ja:credentials.settingsTitle
 ja:credentials.rememberDevice
-zh-cn:credentials.settingsTitle
 zh-cn:credentials.rememberDevice

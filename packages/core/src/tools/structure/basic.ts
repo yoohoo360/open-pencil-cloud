@@ -1,12 +1,16 @@
+import * as v from 'valibot'
+
+import { toolNumber, nodeIdInput, nodeInput } from '#core/tools/input'
 import { defineTool, nodeNotFound, nodeSummary } from '#core/tools/schema'
 
 export const deleteNode = defineTool({
   name: 'delete_node',
-  mutates: true,
+
   description: 'Delete a node by ID.',
-  params: {
-    id: { type: 'string', description: 'Node ID to delete', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Node ID to delete'))
+  }),
   execute: (figma, { id }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -17,11 +21,12 @@ export const deleteNode = defineTool({
 
 export const cloneNode = defineTool({
   name: 'clone_node',
-  mutates: true,
+
   description: 'Clone (duplicate) a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID to clone', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Node ID to clone'))
+  }),
   execute: (figma, { id }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -32,12 +37,13 @@ export const cloneNode = defineTool({
 
 export const renameNode = defineTool({
   name: 'rename_node',
-  mutates: true,
+
   description: 'Rename a node in the layers panel.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    name: { type: 'string', description: 'New name', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    name: v.pipe(v.string(), v.description('New name'))
+  }),
   execute: (figma, { id, name }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -49,25 +55,25 @@ export const renameNode = defineTool({
 export const nodeBounds = defineTool({
   name: 'node_bounds',
   description: 'Get absolute bounding box of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: nodeInput,
   execute: (figma, { id }) => {
     const node = figma.getNodeById(id)
-    if (!node) return { error: `Node "${id}" not found` }
-    return { id, bounds: node.absoluteBoundingBox }
+    return node ? { id, bounds: node.absoluteBoundingBox } : nodeNotFound(id)
   }
 })
 
 export const nodeMove = defineTool({
   name: 'node_move',
-  mutates: true,
+
   description: 'Move a node to new coordinates.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    x: { type: 'number', description: 'X position', required: true },
-    y: { type: 'number', description: 'Y position', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    x: toolNumber(v.pipe(v.number(), v.description('X position'))),
+    y: toolNumber(v.pipe(v.number(), v.description('Y position')))
+  }),
   execute: (figma, { id, x, y }) => {
     const node = figma.getNodeById(id)
     if (!node) return nodeNotFound(id)
@@ -79,13 +85,14 @@ export const nodeMove = defineTool({
 
 export const nodeResize = defineTool({
   name: 'node_resize',
-  mutates: true,
+
   description: 'Resize a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    width: { type: 'number', description: 'Width', required: true, min: 1 },
-    height: { type: 'number', description: 'Height', required: true, min: 1 }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    width: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Width'))),
+    height: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Height')))
+  }),
   execute: (figma, { id, width, height }) => {
     const node = figma.getNodeById(id)
     if (!node) return nodeNotFound(id)

@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 import { createAppearanceActions, createAppearanceState } from '#vue/controls/appearance/helpers'
 import { useNodeProps } from '#vue/controls/node-props/use'
 import { useEditor } from '#vue/editor/context'
@@ -12,8 +14,10 @@ export function useAppearance() {
   const editor = useEditor()
   const { nodes, node, active, isMulti, merged, updateProp, commitProp } = useNodeProps()
 
-  const appearanceState = createAppearanceState({ node, nodes, isMulti, merged })
-  const appearanceActions = createAppearanceActions({ editor, node, nodes, isMulti, merged })
+  const expandedCornerNodeId = ref<string | null>(null)
+  const options = { node, nodes, isMulti, merged, expandedCornerNodeId }
+  const appearanceState = createAppearanceState(options)
+  const appearanceActions = createAppearanceActions({ editor, ...options })
 
   return {
     editor,

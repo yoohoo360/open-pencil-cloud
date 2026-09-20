@@ -1,25 +1,29 @@
 import { Buffer } from 'node:buffer'
 import { resolve } from 'node:path'
 
-import type { McpServer, ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
-import { z } from 'zod'
+import type { McpServer, ToolCallback, ToolAnnotations } from '@modelcontextprotocol/server'
+// eslint-disable-next-line open-pencil/no-mixed-case-acronym-identifiers -- Upstream export spelling.
+import { toStandardJsonSchema as toStandardJSONSchema } from '@valibot/to-json-schema'
+import * as v from 'valibot'
 
-import { ALL_TOOLS, CODEGEN_PROMPT } from '@open-pencil/core/tools'
+import { CODEGEN_PROMPT } from '@open-pencil/core/tools'
 
 import type { RPCJSONObject } from '#mcp/json'
 import { MAX_RESULT_BYTES, fail, ok, resultTooLargeMessage } from '#mcp/result'
-import { createToolDescriptors } from '#mcp/tool/manifest'
+import { createToolDescriptors, getMCPToolDefinitions } from '#mcp/tool/manifest'
 import type { ToolDescriptor, ToolEffect, ToolPolicy } from '#mcp/tool/metadata'
 import { resolveSafePath, writeToolOutput } from '#mcp/tool/output'
 import { isToolEnabled } from '#mcp/tool/policy'
-import { paramToZod } from '#mcp/tool/schema'
 
 export type RPCSender = (body: Record<string, unknown>) => Promise<unknown>
 
 const automationTargetSchema = {
-  document_id: z.string().describe('Optional OpenPencil document/tab ID to target').optional(),
-  page_id: z.string().describe('Optional page ID to target within the document').optional()
+  document_id: v.optional(
+    v.pipe(v.string(), v.description('Optional OpenPencil document/tab ID to target'))
+  ),
+  page_id: v.optional(
+    v.pipe(v.string(), v.description('Optional page ID to target within the document'))
+  )
 }
 
 function splitAutomationTarget(args: Record<string, unknown>): {
@@ -54,10 +58,10 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
   const { policy, sendRPC } = options
   const resolvedRoot = options.mcpRoot ? resolve(options.mcpRoot) : null
   const descriptors = descriptorByName(createToolDescriptors(resolvedRoot !== null))
-  const register = <InputArgs extends z.ZodObject>(
+  const register = <InputArgs extends v.GenericSchema>(
     name: string,
     toolOptions: { description: string; inputSchema: InputArgs },
-    handler: ToolCallback<InputArgs>
+    handler: ToolCallback<ReturnType<typeof toStandardJSONSchema<InputArgs>>>
   ) => {
     const descriptor = descriptors.get(name)
     if (!descriptor) throw new Error(`Missing MCP tool descriptor for "${name}"`)
@@ -66,6 +70,7 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
       name,
       {
         ...toolOptions,
+        inputSchema: toStandardJSONSchema(toolOptions.inputSchema),
         annotations: toolAnnotations(descriptor.effect),
         _meta: { 'openpencil/capabilities': descriptor.capabilities }
       },
@@ -73,16 +78,12 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
     )
   }
 
-  for (const def of ALL_TOOLS) {
-    const shape: Record<string, z.ZodType> = {}
-    for (const [key, param] of Object.entries(def.params)) {
-      shape[key] = paramToZod(param)
-    }
+  for (const def of getMCPToolDefinitions()) {
     register(
       def.name,
       {
         description: def.description,
-        inputSchema: z.object({ ...shape, ...automationTargetSchema })
+        inputSchema: v.object({ ...def.input.entries, ...automationTargetSchema })
       },
       async (args: Record<string, unknown>) => {
         try {
@@ -136,7 +137,7 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
     {
       description:
         'List open OpenPencil documents/tabs with their IDs, file paths, current pages, and pages.',
-      inputSchema: z.object({})
+      inputSchema: v.object({})
     },
     async () => {
       try {
@@ -157,15 +158,17 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
         ? 'Save the current document to disk. If path is provided, it must be inside the configured MCP root.'
         : 'Save the current document to disk. Uses the existing file path if available, otherwise prompts for a location.',
       inputSchema: resolvedRoot
-        ? z.object({
-            path: z
-              .string()
-              .min(1)
-              .describe('Path for the .fig file, absolute or relative to the MCP root')
-              .optional(),
+        ? v.object({
+            path: v.optional(
+              v.pipe(
+                v.string(),
+                v.minLength(1),
+                v.description('Path for the .fig file, absolute or relative to the MCP root')
+              )
+            ),
             ...automationTargetSchema
           })
-        : z.object({ ...automationTargetSchema })
+        : v.object({ ...automationTargetSchema })
     },
     async (args: { path?: string; document_id?: string; page_id?: string }) => {
       try {
@@ -195,11 +198,12 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
       'open_file',
       {
         description: 'Open a .fig or .pen file from inside the configured MCP root.',
-        inputSchema: z.object({
-          path: z
-            .string()
-            .min(1)
-            .describe('Path to the design file, absolute or relative to the MCP root'),
+        inputSchema: v.object({
+          path: v.pipe(
+            v.string(),
+            v.minLength(1),
+            v.description('Path to the design file, absolute or relative to the MCP root')
+          ),
           ...automationTargetSchema
         })
       },
@@ -227,12 +231,14 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
       {
         description:
           'Create a new empty document with an optional save path inside the configured MCP root.',
-        inputSchema: z.object({
-          path: z
-            .string()
-            .min(1)
-            .describe('Path for the new file, absolute or relative to the MCP root')
-            .optional(),
+        inputSchema: v.object({
+          path: v.optional(
+            v.pipe(
+              v.string(),
+              v.minLength(1),
+              v.description('Path for the new file, absolute or relative to the MCP root')
+            )
+          ),
           ...automationTargetSchema
         })
       },
@@ -262,7 +268,7 @@ export function registerTools(mcpServer: McpServer, options: RegisterToolsOption
     {
       description:
         'Get design-to-code generation guidelines. Call before generating frontend code.',
-      inputSchema: z.object({})
+      inputSchema: v.object({})
     },
     async () => ok({ prompt: CODEGEN_PROMPT })
   )

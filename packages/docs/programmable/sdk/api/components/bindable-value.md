@@ -27,7 +27,7 @@ automatically when nested beneath `BindableValueRoot`.
 - `detach-on-edit` unbinds targets on the first value mutation and keeps the complete interaction
   in one provider undo batch.
 - `readonly-when-bound` blocks field editing, scrubbing, and keyboard stepping.
-- `edit-variable` sends changes to `provider.setValue()` instead of changing the target value.
+- `edit-variable` uses `provider.prepareEdit()` to capture a stable edit key, current value, setter, and restoration callback instead of changing the target value.
 
 Focusing a bound NumberField or opening its picker is non-destructive. The policy starts only when
 the user types a changed draft, steps the value, or crosses the pointer-scrub threshold. Committing
@@ -38,17 +38,34 @@ where possible.
 ## Provider example
 
 ```ts twoslash
+import type { Variable } from '@open-pencil/scene-graph'
 import type { BindingProvider, BindingTarget } from '@open-pencil/vue'
 
-const values = new Map<string, number>([['spacing/md', 16]])
+const variable: Variable = {
+  id: 'spacing/md', name: 'Spacing / Medium', type: 'FLOAT',
+  collectionId: 'spacing', valuesByMode: { default: 16 },
+  description: '', hiddenFromPublishing: false
+}
+const values = new Map<string, number>([[variable.id, 16]])
 const bindings = new Map<string, string>()
+const getBindingId = (target: BindingTarget) => bindings.get(`${target.nodeId}:${target.path}`)
+const resolve: BindingProvider<number>['resolve'] = id => values.get(id)
 
 const provider: BindingProvider<number> = {
-  listVariables: () => [],
-  filterVariables: () => [],
-  getBound: () => undefined,
-  getState: () => 'unbound',
-  resolve: id => values.get(id),
+  listVariables: () => [variable],
+  filterVariables: term => variable.name.toLowerCase().includes(term.toLowerCase()) ? [variable] : [],
+  getBindingId,
+  getBound: target => getBindingId(target) === variable.id ? variable : undefined,
+  getState: targets => {
+    const ids = new Set(targets.map(getBindingId))
+    if (ids.size === 0 || (ids.size === 1 && ids.has(undefined))) return 'unbound'
+    if (ids.size > 1) return 'mixed'
+    if (!ids.has(variable.id)) return 'unresolved'
+    const resolved = targets.map(target => resolve(variable.id, target))
+    if (resolved.some(value => value === undefined)) return 'unresolved'
+    return new Set(resolved).size > 1 ? 'mixed' : 'bound'
+  },
+  resolve,
   bind: (target: BindingTarget, variableId) => {
     bindings.set(`${target.nodeId}:${target.path}`, variableId)
   },

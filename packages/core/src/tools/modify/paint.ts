@@ -1,29 +1,32 @@
+import * as v from 'valibot'
+
 import type { Matrix } from '@open-pencil/scene-graph/primitives'
 
 import { decodeBase64 } from '#core/bytes'
 import { parseColor } from '#core/color'
 import { BLACK } from '#core/constants'
+import { toolNumber, nodeIdInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const setFill = defineTool({
   name: 'set_fill',
-  mutates: true,
+
   description:
     'Set fill on a node. Solid: color="#ff0000". Linear gradient: gradient="top-bottom" or "left-right" with color (start) and color_end (end).',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    color: {
-      type: 'color',
-      description: 'Color (hex). For gradient: start color.',
-      required: true
-    },
-    color_end: { type: 'color', description: 'End color for gradient (if omitted, solid fill)' },
-    gradient: {
-      type: 'string',
-      description: 'Gradient direction',
-      enum: ['top-bottom', 'bottom-top', 'left-right', 'right-left']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    color: v.pipe(v.string(), v.description('Color (hex). For gradient: start color.')),
+    color_end: v.optional(
+      v.pipe(v.string(), v.description('End color for gradient (if omitted, solid fill)'))
+    ),
+    gradient: v.optional(
+      v.pipe(
+        v.picklist(['top-bottom', 'bottom-top', 'left-right', 'right-left']),
+        v.description('Gradient direction')
+      )
+    )
+  }),
   execute: (figma, { id, color, color_end, gradient }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -61,19 +64,21 @@ export const setFill = defineTool({
 
 export const setStroke = defineTool({
   name: 'set_stroke',
-  mutates: true,
+
   description: 'Set the stroke (border) of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    color: { type: 'color', description: 'Stroke color (hex)', required: true },
-    weight: { type: 'number', description: 'Stroke weight', default: 1, min: 0.1 },
-    align: {
-      type: 'string',
-      description: 'Stroke alignment',
-      default: 'INSIDE',
-      enum: ['INSIDE', 'CENTER', 'OUTSIDE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    color: v.pipe(v.string(), v.description('Stroke color (hex)')),
+    weight: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(0.1), v.description('Stroke weight'))),
+      1
+    ),
+    align: v.optional(
+      v.pipe(v.picklist(['INSIDE', 'CENTER', 'OUTSIDE']), v.description('Stroke alignment')),
+      'INSIDE'
+    )
+  }),
   execute: (figma, { id, color, weight, align }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -82,40 +87,38 @@ export const setStroke = defineTool({
     node.strokes = [
       {
         color: c,
-        weight: weight ?? 1,
+        weight: weight,
         opacity: 1,
         visible: true,
-        align: (align ?? 'INSIDE') as 'INSIDE' | 'CENTER' | 'OUTSIDE'
+        align
       }
     ]
-    return { id, color: c, weight: weight ?? 1 }
+    return { id, color: c, weight: weight }
   }
 })
 
 export const setImageFill = defineTool({
   name: 'set_image_fill',
-  mutates: true,
+
   description: 'Set an image fill on a node from base64-encoded image data.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    image_data: {
-      type: 'string',
-      description: 'Base64-encoded image bytes (PNG, JPEG, or WEBP)',
-      required: true
-    },
-    scale_mode: {
-      type: 'string',
-      description: 'Image scale mode',
-      default: 'FILL',
-      enum: ['FILL', 'FIT', 'CROP', 'TILE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    image_data: v.pipe(
+      v.string(),
+      v.description('Base64-encoded image bytes (PNG, JPEG, or WEBP)')
+    ),
+    scale_mode: v.optional(
+      v.pipe(v.picklist(['FILL', 'FIT', 'CROP', 'TILE']), v.description('Image scale mode')),
+      'FILL'
+    )
+  }),
   execute: (figma, { id, image_data, scale_mode }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
     const bytes = decodeBase64(image_data)
     const image = figma.createImage(bytes)
-    const mode = (scale_mode ?? 'FILL') as 'FILL' | 'FIT' | 'CROP' | 'TILE'
+    const mode = scale_mode
     node.fills = [
       {
         type: 'IMAGE',

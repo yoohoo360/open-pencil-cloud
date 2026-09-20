@@ -3,6 +3,23 @@
 @import 'vue-stream-markdown/index.css' layer(components);
 @import './theme/chat/markdown.css';
 
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:where(:root:not([data-motion='off']), :root:not([data-motion='off']) *) {
+      @slot;
+    }
+  }
+}
+
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    @slot;
+  }
+  &:where([data-motion='off'], [data-motion='off'] *) {
+    @slot;
+  }
+}
+
 @utility scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -43,7 +60,7 @@
   --color-hover: #353535;
   --color-accent: #3b82f6;
   --color-surface: #f0f0f0;
-  --color-muted: #888888;
+  --color-muted: #a6a6a6;
   --color-input: #1e1e1e;
   --color-component: #9747ff;
   --color-warning-bg: rgb(245 158 11 / 0.1);

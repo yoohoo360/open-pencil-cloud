@@ -1,0 +1,33 @@
+name: PR title
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          COMMITLINT_PR_TITLE: '1'
+        run: |
+          if ! printf '%s\n' "$PR_TITLE" | bun run check:commits; then
+            echo '::error title=PR title::Use a Conventional Commit title, for example fix: preserve selection. See CONTRIBUTING.md#commit-messages.'
+            exit 1
+          fi

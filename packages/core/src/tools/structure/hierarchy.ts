@@ -1,13 +1,16 @@
+import * as v from 'valibot'
+
 import { defineTool, nodeSummary, requireNodes } from '#core/tools/schema'
 
 export const reparentNode = defineTool({
   name: 'reparent_node',
-  mutates: true,
+
   description: 'Move a node into a different parent.',
-  params: {
-    id: { type: 'string', description: 'Node ID to move', required: true },
-    parent_id: { type: 'string', description: 'New parent node ID', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Node ID to move')),
+    parent_id: v.pipe(v.string(), v.description('New parent node ID'))
+  }),
   execute: (figma, { id, parent_id }) => {
     const node = figma.getNodeById(id)
     const parent = figma.getNodeById(parent_id)
@@ -20,11 +23,12 @@ export const reparentNode = defineTool({
 
 export const groupNodes = defineTool({
   name: 'group_nodes',
-  mutates: true,
+
   description: 'Group selected nodes.',
-  params: {
-    ids: { type: 'string[]', description: 'Node IDs to group', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ids: v.pipe(v.array(v.string()), v.minLength(2), v.description('Node IDs to group'))
+  }),
   execute: (figma, { ids }) => {
     const nodes = requireNodes(figma, ids)
     if (!nodes || nodes.length < 2) return { error: 'Need at least 2 nodes to group' }
@@ -36,11 +40,12 @@ export const groupNodes = defineTool({
 
 export const ungroupNode = defineTool({
   name: 'ungroup_node',
-  mutates: true,
+
   description: 'Ungroup a group node.',
-  params: {
-    id: { type: 'string', description: 'Group node ID', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Group node ID'))
+  }),
   execute: (figma, { id }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -51,11 +56,12 @@ export const ungroupNode = defineTool({
 
 export const flattenNodes = defineTool({
   name: 'flatten_nodes',
-  mutates: true,
+
   description: 'Flatten nodes into a single vector.',
-  params: {
-    ids: { type: 'string[]', description: 'Node IDs to flatten', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ids: v.pipe(v.array(v.string()), v.minLength(1), v.description('Node IDs to flatten'))
+  }),
   execute: (figma, { ids }) => {
     const result = figma.flattenNode(ids)
     return nodeSummary(result)
@@ -64,11 +70,12 @@ export const flattenNodes = defineTool({
 
 export const nodeToComponent = defineTool({
   name: 'node_to_component',
-  mutates: true,
+
   description: 'Convert one or more frames/groups into components.',
-  params: {
-    ids: { type: 'string[]', description: 'Node IDs to convert', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ids: v.pipe(v.array(v.string()), v.minLength(1), v.description('Node IDs to convert'))
+  }),
   execute: (figma, { ids }) => {
     const results: { id: string; name: string; originalId: string }[] = []
     for (const id of ids) {

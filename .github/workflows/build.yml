@@ -2,75 +2,166 @@ name: Build
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable release tag to rebuild without moving it (vX.Y.Z).
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_COMMIT: ${{ github.workflow_sha }}
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-            label: macos-arm64
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            label: macos-x64
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
-            label: windows-x64
-          - platform: windows-latest
-            target: aarch64-pc-windows-msvc
-            label: windows-arm64
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            label: linux-x64
-
-    runs-on: ${{ matrix.platform }}
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      source: ${{ steps.release.outputs.source }}
+      matrix: ${{ steps.release.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - id: release
+        name: Resolve immutable source and native matrix
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: bun tools/release-packages/src/native/resolve.ts
 
+  frontend:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha256: ${{ steps.frontend.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .pipeline
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+      - uses: ./.pipeline/.github/actions/setup-bun
+        with:
+          cache-scope: desktop
+      - name: Install pinned workflow tooling
+        run: bun install --cwd .pipeline --frozen-lockfile
+      - name: Build shared desktop frontend and package outputs
+        run: |
+          bun run generate:icons --target desktop
+          bun run generate:tauri-menu
+          bun run build
+      - name: Prepare and validate npm tarballs
+        run: |
+          bun .pipeline/tools/release-packages/src/cli.ts prepare
+          bun .pipeline/tools/release-packages/src/cli.ts pack
+      - name: Extract exact release notes
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: bun .pipeline/tools/release-packages/src/extract-release-notes.ts "$RELEASE_VERSION" release-notes.md
+      - name: Archive platform-independent native inputs
+        id: frontend
+        run: |
+          tar -cf frontend.tar dist desktop/icons desktop/generated
+          echo "sha256=$(sha256sum frontend.tar | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-frontend
+          path: |
+            frontend.tar
+            release-notes.md
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-npm
+          path: .npm-packages/*.tgz
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+
+  native:
+    needs: [plan, frontend]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 40
+    env:
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      SOURCE_COMMIT: ${{ needs.plan.outputs.source }}
+      FRONTEND_SHA256: ${{ needs.frontend.outputs.sha256 }}
+      RELEASE_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .pipeline
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri -> target
+          workspaces: desktop -> target
           key: ${{ matrix.target }}
-
-      - name: Install dependencies (Linux)
-        if: startsWith(matrix.platform, 'ubuntu')
+      - name: Install native dependencies on Linux
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - uses: ./.github/actions/setup-bun
-
-      - name: Extract release notes
-        if: startsWith(github.ref, 'refs/tags/v')
-        id: changelog
-        shell: bash
+      - uses: ./.pipeline/.github/actions/setup-bun
+        with:
+          cache-scope: desktop
+          cache-save: ${{ matrix.saveBunCache && runner.os != 'Linux' }}
+      - name: Install pinned workflow tooling
+        run: bun install --cwd .pipeline --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-frontend
+      - name: Verify shared inputs and disable only the redundant build hook
+        run: bun .pipeline/tools/release-packages/src/native/frontend.ts
+      - name: Extract shared frontend, icons and menu
+        run: tar -xf frontend.tar
+      - name: Verify Node and Tauri startup
+        timeout-minutes: 1
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
-          bun tools/release-packages/src/extract-release-notes.ts "$VERSION" "$NOTES_FILE"
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "release_notes<<$EOF" >> "$GITHUB_OUTPUT"
-          cat "$NOTES_FILE" >> "$GITHUB_OUTPUT"
-          echo "$EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Build Tauri
+          node --version
+          node node_modules/@tauri-apps/cli/tauri.js --version
+      - name: Build and sign native bundles (no release uploads)
+        id: tauri
+        timeout-minutes: 30
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -78,40 +169,86 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tauriScript: bunx tauri
-          args: --target ${{ matrix.target }}
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseBody: ${{ steps.changelog.outputs.release_notes }}
-          releaseDraft: true
-          uploadUpdaterJson: true
-          uploadUpdaterSignatures: true
+          tauriScript: node node_modules/@tauri-apps/cli/tauri.js
+          args: --target ${{ matrix.target }} --config "${{ github.workspace }}/release-build-config.json" --verbose
+          retryAttempts: 0
+      - name: Collect only reported bundles and signatures
+        env:
+          TAURI_ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: bun .pipeline/tools/release-packages/src/native/collect.ts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.target }}
+          path: native-output/*
+          if-no-files-found: error
+          compression-level: 0
 
-  publish-npm:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+  publish:
+    needs: [plan, frontend, native]
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
-      contents: read
+      contents: write
       id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      SOURCE_COMMIT: ${{ needs.plan.outputs.source }}
+      FRONTEND_SHA256: ${{ needs.frontend.outputs.sha256 }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
-
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .pipeline
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org/
-
-      - uses: ./.github/actions/setup-bun
-
-      - name: Build packages for publish
-        run: bun tools/release-packages/src/cli.ts build
-
-      - name: Prepare publish directories
-        run: bun tools/release-packages/src/cli.ts prepare
-
-      - name: Pack and validate packages for publish
-        run: bun tools/release-packages/src/cli.ts pack
-
-      - name: Publish verified packages to npm
-        run: bun tools/release-packages/src/cli.ts publish
+      - uses: ./.pipeline/.github/actions/setup-bun
+        with:
+          cache-scope: desktop
+          cache-save: 'false'
+      - name: Install pinned workflow tooling
+        run: bun install --cwd .pipeline --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-frontend
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-npm
+          path: .npm-packages
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: native-artifacts
+      - name: Install signature verifier
+        run: sudo apt-get update && sudo apt-get install -y minisign
+      - name: Verify all targets, digests and updater signatures
+        run: bun .pipeline/tools/release-packages/src/native/assemble.ts
+      - name: Refuse published releases or moved tags
+        run: bun .pipeline/tools/release-packages/src/native/publish.ts check
+      - name: Attest the complete binary set and source/workflow manifest
+        id: provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: release-output/*
+      - name: Verify attestations against the pinned workflow
+        env:
+          ATTESTATION_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          for artifact in release-output/*; do
+            gh attestation verify "$artifact" --bundle "$ATTESTATION_BUNDLE" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/build.yml" \
+              --signer-digest "$WORKFLOW_COMMIT" --deny-self-hosted-runners
+          done
+      - name: Publish verified npm artifacts with provenance
+        run: bun .pipeline/tools/release-packages/src/cli.ts publish
+      - name: Replace and verify the entire draft asset set
+        run: bun .pipeline/tools/release-packages/src/native/publish.ts upload

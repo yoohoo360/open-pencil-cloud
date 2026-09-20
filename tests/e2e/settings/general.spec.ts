@@ -8,9 +8,13 @@ test('language can be changed from General settings and persists', async ({ page
   await canvas.waitForInit()
 
   await page.getByTestId('app-settings-trigger').click()
+  await page.getByRole('combobox', { name: 'Theme', exact: true }).click()
+  await page.getByRole('option', { name: 'Dark', exact: true }).click()
   await page.getByTestId('settings-language').click()
   await page.getByRole('option', { name: 'Русский' }).click()
   await expect(page.getByTestId('app-settings-dialog')).toContainText('Настройки')
+  await expect(page.getByRole('combobox', { name: 'Тема', exact: true })).toHaveText('Тёмная')
+  await expect(page.getByRole('combobox', { name: 'Анимации' })).toHaveText('Как в системе')
 
   await page.reload()
   await canvas.waitForInit()
@@ -20,6 +24,8 @@ test('language can be changed from General settings and persists', async ({ page
   await page.getByTestId('settings-language').click()
   await page.getByRole('option', { name: 'English' }).click()
   await expect(page.getByTestId('app-settings-dialog')).toContainText('Settings')
+  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toHaveText('Dark')
+  await expect(page.getByRole('combobox', { name: 'Animations' })).toHaveText('Follow system')
 })
 
 test('general snapping preferences persist and apply to editor sessions', async ({ page }) => {
@@ -69,7 +75,7 @@ test('progressive tiled rendering preference persists and URL overrides take pre
   await canvas.waitForInit()
 
   await page.getByTestId('app-settings-trigger').click()
-  const tiled = page.getByRole('switch', { name: 'Progressive tiled canvas rendering' })
+  const tiled = page.getByRole('switch', { name: 'Progressive rendering' })
   await expect(tiled).not.toBeChecked()
   await tiled.click()
   await expect(page.getByText('Reload OpenPencil to apply this change.')).toBeVisible()

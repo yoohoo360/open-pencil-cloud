@@ -3,12 +3,13 @@ import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import * as v from 'valibot'
 
+import { toolNumber } from '@open-pencil/core/tools'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { startServer, paramToZod } from '#mcp/server'
+import { startServer } from '#mcp/server'
 import type { DiscoveryInfo } from '#mcp/transport/discovery'
 
 import {
@@ -192,33 +193,26 @@ describe('MCP server /rpc auth skip', () => {
 })
 
 // ---------------------------------------------------------------------------
-// paramToZod coercion
+// MCP numeric input coercion
 // ---------------------------------------------------------------------------
 
-describe('paramToZod coercion', () => {
-  test('number param accepts numeric strings', () => {
-    const schema = paramToZod({ type: 'number', description: 'x', required: true })
-    expect(schema.parse('42')).toBe(42)
-    expect(schema.parse(42)).toBe(42)
-    expect(schema.parse('3.14')).toBeCloseTo(3.14)
+describe('MCP numeric input coercion', () => {
+  const schema = v.object({ x: v.pipe(toolNumber(), v.minValue(0), v.maxValue(100)) })
+
+  test('accepts numeric strings through Standard Schema validation', async () => {
+    expect(await schema['~standard'].validate({ x: '42' })).toMatchObject({ value: { x: 42 } })
+    expect(await schema['~standard'].validate({ x: 42 })).toMatchObject({ value: { x: 42 } })
+    expect(await schema['~standard'].validate({ x: '3.14' })).toMatchObject({ value: { x: 3.14 } })
   })
 
-  test('number param rejects non-numeric strings', () => {
-    const schema = paramToZod({ type: 'number', description: 'x', required: true })
-    expect(() => schema.parse('abc')).toThrow()
+  test('rejects non-numeric strings', async () => {
+    expect((await schema['~standard'].validate({ x: 'abc' })).issues).toBeDefined()
   })
 
-  test('number param respects min/max after coercion', () => {
-    const schema = paramToZod({
-      type: 'number',
-      description: 'x',
-      required: true,
-      min: 0,
-      max: 100
-    })
-    expect(schema.parse('50')).toBe(50)
-    expect(() => schema.parse('200')).toThrow()
-    expect(() => schema.parse('-1')).toThrow()
+  test('respects min/max after coercion', async () => {
+    expect(await schema['~standard'].validate({ x: '50' })).toMatchObject({ value: { x: 50 } })
+    expect((await schema['~standard'].validate({ x: '200' })).issues).toBeDefined()
+    expect((await schema['~standard'].validate({ x: '-1' })).issues).toBeDefined()
   })
 })
 

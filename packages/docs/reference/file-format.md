@@ -5,6 +5,12 @@ description: Technical reference for OpenPencil .fig and .pen document formats, 
 
 # File Format
 
+::: warning Figma round-trip limitations
+Complex Figma documents can lose visual fidelity when saved by OpenPencil and reopened in Figma, even without edits. Component content, colors, and text may differ or appear missing. This is an existing compatibility limitation; preserving the layer count does not guarantee the same appearance.
+
+Keep the original `.fig`, use **Save As** for an OpenPencil copy, and inspect the exported copy in Figma before replacing your original.
+:::
+
 ## .fig File Structure
 
 A `.fig` file is a ZIP archive containing a Kiwi-encoded binary message:

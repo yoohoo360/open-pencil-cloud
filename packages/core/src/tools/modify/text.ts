@@ -1,18 +1,22 @@
+import * as v from 'valibot'
+
 import type { CharacterStyleOverride, SceneNode } from '@open-pencil/scene-graph'
 
 import { parseColor } from '#core/color'
 import { styleToWeight } from '#core/text/fonts'
 import { applyStyleToRange } from '#core/text/style-runs'
+import { toolNumber, nodeIdInput } from '#core/tools/input'
 import { defineTool, nodeNotFound } from '#core/tools/schema'
 
 export const setText = defineTool({
   name: 'set_text',
-  mutates: true,
+
   description: 'Set text content of a text node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    text: { type: 'string', description: 'Text content', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    text: v.pipe(v.string(), v.description('Text content'))
+  }),
   execute: (figma, { id, text }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -23,14 +27,17 @@ export const setText = defineTool({
 
 export const setFont = defineTool({
   name: 'set_font',
-  mutates: true,
+
   description: 'Set font properties of a text node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    family: { type: 'string', description: 'Font family name' },
-    size: { type: 'number', description: 'Font size', min: 1 },
-    style: { type: 'string', description: 'Font style (e.g. "Bold", "Regular", "Bold Italic")' }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    family: v.optional(v.pipe(v.string(), v.description('Font family name'))),
+    size: v.optional(toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Font size')))),
+    style: v.optional(
+      v.pipe(v.string(), v.description('Font style (e.g. "Bold", "Regular", "Bold Italic")'))
+    )
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)
@@ -48,17 +55,18 @@ export const setFont = defineTool({
 
 export const setFontRange = defineTool({
   name: 'set_font_range',
-  mutates: true,
+
   description: 'Set font properties for a text range.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    start: { type: 'number', description: 'Start character index', required: true, min: 0 },
-    end: { type: 'number', description: 'End character index', required: true, min: 0 },
-    family: { type: 'string', description: 'Font family name' },
-    size: { type: 'number', description: 'Font size', min: 1 },
-    style: { type: 'string', description: 'Font style' },
-    color: { type: 'color', description: 'Text color (hex)' }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    start: toolNumber(v.pipe(v.number(), v.minValue(0), v.description('Start character index'))),
+    end: toolNumber(v.pipe(v.number(), v.minValue(0), v.description('End character index'))),
+    family: v.optional(v.pipe(v.string(), v.description('Font family name'))),
+    size: v.optional(toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Font size')))),
+    style: v.optional(v.pipe(v.string(), v.description('Font style'))),
+    color: v.optional(v.pipe(v.string(), v.description('Text color (hex)')))
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)
@@ -83,17 +91,16 @@ export const setFontRange = defineTool({
 
 export const setTextResize = defineTool({
   name: 'set_text_resize',
-  mutates: true,
+
   description: 'Set text auto-resize mode.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    mode: {
-      type: 'string',
-      description: 'Resize mode',
-      required: true,
-      enum: ['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    mode: v.pipe(
+      v.picklist(['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']),
+      v.description('Resize mode')
+    )
+  }),
   execute: (figma, { id, mode }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -104,37 +111,34 @@ export const setTextResize = defineTool({
 
 export const setTextProperties = defineTool({
   name: 'set_text_properties',
-  mutates: true,
+
   description:
     'Set text layout properties: alignment, auto-resize, text case, decoration, truncation.',
-  params: {
-    id: { type: 'string', description: 'Text node ID', required: true },
-    align_horizontal: {
-      type: 'string',
-      description: 'Horizontal text alignment',
-      enum: ['LEFT', 'CENTER', 'RIGHT', 'JUSTIFIED']
-    },
-    align_vertical: {
-      type: 'string',
-      description: 'Vertical text alignment',
-      enum: ['TOP', 'CENTER', 'BOTTOM']
-    },
-    auto_resize: {
-      type: 'string',
-      description: 'Text auto-resize mode',
-      enum: ['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']
-    },
-    direction: {
-      type: 'string',
-      description: 'Text direction',
-      enum: ['AUTO', 'LTR', 'RTL']
-    },
-    text_decoration: {
-      type: 'string',
-      description: 'Text decoration',
-      enum: ['NONE', 'UNDERLINE', 'STRIKETHROUGH']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Text node ID')),
+    align_horizontal: v.optional(
+      v.pipe(
+        v.picklist(['LEFT', 'CENTER', 'RIGHT', 'JUSTIFIED']),
+        v.description('Horizontal text alignment')
+      )
+    ),
+    align_vertical: v.optional(
+      v.pipe(v.picklist(['TOP', 'CENTER', 'BOTTOM']), v.description('Vertical text alignment'))
+    ),
+    auto_resize: v.optional(
+      v.pipe(
+        v.picklist(['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']),
+        v.description('Text auto-resize mode')
+      )
+    ),
+    direction: v.optional(
+      v.pipe(v.picklist(['AUTO', 'LTR', 'RTL']), v.description('Text direction'))
+    ),
+    text_decoration: v.optional(
+      v.pipe(v.picklist(['NONE', 'UNDERLINE', 'STRIKETHROUGH']), v.description('Text decoration'))
+    )
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)

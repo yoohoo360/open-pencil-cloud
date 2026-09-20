@@ -203,6 +203,6 @@ describe('vector edit snapping', () => {
 
     expect(snapped.x).toBeCloseTo(1.8)
     expect(snapped.y).toBeCloseTo(3.6)
-    expect(editor.state.snapGuides.map((guide) => guide.axis).sort()).toEqual(['x', 'y'])
+    expect(editor.state.snapGuides).toEqual([])
   })
 })

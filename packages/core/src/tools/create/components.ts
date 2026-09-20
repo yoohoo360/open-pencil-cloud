@@ -1,13 +1,17 @@
+import * as v from 'valibot'
+
 import type { FigmaComponentNode, FigmaNodeProxy } from '#core/figma-api'
+import { toolNumber } from '#core/tools/input'
 import { defineTool, nodeSummary, requireNodes } from '#core/tools/schema'
 
 export const createComponent = defineTool({
   name: 'create_component',
-  mutates: true,
+
   description: 'Convert a frame/group into a component.',
-  params: {
-    id: { type: 'string', description: 'Node ID to convert', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Node ID to convert'))
+  }),
   execute: (figma, { id }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -18,13 +22,14 @@ export const createComponent = defineTool({
 
 export const createInstance = defineTool({
   name: 'create_instance',
-  mutates: true,
+
   description: 'Create an instance of a component.',
-  params: {
-    component_id: { type: 'string', description: 'Component node ID', required: true },
-    x: { type: 'number', description: 'X position' },
-    y: { type: 'number', description: 'Y position' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    component_id: v.pipe(v.string(), v.description('Component node ID')),
+    x: v.optional(toolNumber(v.pipe(v.number(), v.description('X position')))),
+    y: v.optional(toolNumber(v.pipe(v.number(), v.description('Y position'))))
+  }),
   execute: (figma, args) => {
     const component = figma.getNodeById(args.component_id)
     if (!component) return { error: `Component "${args.component_id}" not found` }
@@ -37,13 +42,14 @@ export const createInstance = defineTool({
 
 export const combineAsVariants = defineTool({
   name: 'combine_as_variants',
-  mutates: true,
+
   description:
     'Combine components sharing a parent into a component set (variant set). Components named ' +
     '"Category/Value" (e.g. "Button/Primary") derive variant properties from the name segments.',
-  params: {
-    ids: { type: 'string[]', description: 'Component node IDs to combine', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ids: v.pipe(v.array(v.string()), v.minLength(1), v.description('Component node IDs to combine'))
+  }),
   execute: (figma, { ids }) => {
     const nodes = requireNodes(figma, ids)
     if (!nodes) return { error: 'One or more node IDs were not found' }
@@ -66,17 +72,18 @@ export const combineAsVariants = defineTool({
 
 export const exposeInstanceSwap = defineTool({
   name: 'expose_instance_swap',
-  mutates: true,
+
   description: 'Expose nested instances as an instance-swap slot on their component.',
-  params: {
-    instance_ids: { type: 'string[]', description: 'Instance node IDs', required: true },
-    candidate_ids: {
-      type: 'string[]',
-      description: 'Candidate component node IDs',
-      required: true
-    },
-    property_name: { type: 'string', description: 'Property name' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    instance_ids: v.pipe(v.array(v.string()), v.minLength(1), v.description('Instance node IDs')),
+    candidate_ids: v.pipe(
+      v.array(v.string()),
+      v.minLength(1),
+      v.description('Candidate component node IDs')
+    ),
+    property_name: v.optional(v.pipe(v.string(), v.description('Property name')))
+  }),
   execute: (figma, { instance_ids, candidate_ids, property_name }) => {
     const slots = instance_ids
       .map((id) => figma.getNodeById(id))

@@ -39,27 +39,32 @@ watch(
 </script>
 
 <template>
-  <div class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center">
+  <div class="mb-4 flex flex-col gap-3 md:mb-6 md:flex-row md:items-center">
     <AppInput
       ref="searchInput"
       v-model="query"
       type="search"
       name="file-search"
       autocomplete="off"
-      class="sm:flex-1"
+      class="md:flex-1"
       :density="isMobile ? 'comfortable' : 'compact'"
       :placeholder="isMobile ? files.searchFiles : files.searchRecentAndStorageFiles"
       :aria-label="files.searchFiles"
     >
       <template #leading><icon-lucide-search class="size-4" /></template>
     </AppInput>
-    <div class="grid grid-cols-2 gap-2 sm:contents">
-      <AppButton size="lg" variant="outline" data-test-id="home-open-file" @click="openFileDialog">
+    <div class="grid grid-cols-2 gap-2 md:contents">
+      <AppButton
+        :size="isMobile ? 'lg' : 'md'"
+        variant="outline"
+        data-test-id="home-open-file"
+        @click="openFileDialog"
+      >
         <template #leading><icon-lucide-folder-open class="size-3.5" /></template>
         {{ menu.open }}
       </AppButton>
       <AppButton
-        size="lg"
+        :size="isMobile ? 'lg' : 'md'"
         color="primary"
         variant="solid"
         data-test-id="home-new-document"

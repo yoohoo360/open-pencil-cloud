@@ -1,15 +1,18 @@
 import process from 'node:process'
 
-import type { Page } from '@playwright/test'
+import { test, type Page } from '@playwright/test'
 
 import type { DesignDocument } from '@open-pencil/dom-css'
 
-const BROWSER_RUNTIME_MODULE = `http://localhost:1420/@fs${process.cwd()}/packages/dom-css/src/runtime/browser.ts`
-const DOM_CSS_BROWSER_MODULE = 'http://localhost:1420/@id/@open-pencil/dom-css/browser'
+const BROWSER_RUNTIME_MODULE = `/@fs${process.cwd()}/packages/dom-css/src/runtime/browser.ts`
+const DOM_CSS_BROWSER_MODULE = '/@id/@open-pencil/dom-css/browser'
 
 async function ensureAppPage(page: Page) {
-  if (!page.url().startsWith('http://localhost:1420')) {
-    await page.goto('/')
+  const baseURL = test.info().project.use.baseURL
+  if (!baseURL) throw new Error('App tests require a configured baseURL')
+  const origin = new URL(baseURL).origin
+  if (new URL(page.url()).origin !== origin) {
+    await page.goto(origin)
   }
 }
 

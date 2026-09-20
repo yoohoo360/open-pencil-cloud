@@ -1,69 +1,82 @@
 /**
  * Tool definition schema.
  *
- * Each tool is defined once with typed params and an execute function
- * that operates on FigmaAPI. Adapters for AI chat (valibot), CLI (citty),
- * and MCP (JSON Schema) are generated from these definitions.
+ * Native Valibot inputs and execution capabilities are owned by each tool.
+ * Adapters consume these contracts rather than maintaining transport-specific schemas.
  */
+
+import * as v from 'valibot'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI, FigmaNodeProxy } from '#core/figma-api'
 
-export type ParamType = 'string' | 'number' | 'boolean' | 'color' | 'string[]'
+export type ToolCapability =
+  | 'document:read'
+  | 'document:write'
+  | 'filesystem:read'
+  | 'filesystem:write'
+  | 'network:access'
+  | 'code:execute'
 
-export interface ParamDef {
-  type: ParamType
-  description: string
-  required?: boolean
-  default?: unknown
-  enum?: string[]
-  min?: number
-  max?: number
-}
+export type ToolExecution =
+  | { kind: 'sync'; mutation: 'none' | 'view' | 'properties' | 'document' }
+  | { kind: 'async'; mutation: 'none' | 'view' | 'document' }
 
-export interface ToolDef {
+export type ToolInterface = 'mcp' | 'ai' | 'webmcp'
+export type ToolExposure = Partial<Record<ToolInterface, boolean>>
+
+interface ToolMetadata {
   name: string
   description: string
-  /** Whether execution changes persisted document content. Defaults to `mutates`. */
-  changesDocument?: boolean
-  mutates?: boolean
-  params: Record<string, ParamDef>
+  execution: ToolExecution
+  /** Interface inclusion defaults to true; execution support and user permissions remain separate. */
+  exposure: ToolExposure
+  capabilities: readonly ToolCapability[]
+  availability: 'default' | 'eval'
+}
+
+export interface ToolDef extends ToolMetadata {
+  input: v.ObjectSchema<v.ObjectEntries, undefined>
+  /** Derived from execution metadata, never declared independently by a tool. */
+  readonly mutates: boolean
   execute: (figma: FigmaAPI, args: Record<string, unknown>) => unknown
 }
 
-type ResolvedType<T extends ParamType> = T extends 'string'
-  ? string
-  : T extends 'number'
-    ? number
-    : T extends 'boolean'
-      ? boolean
-      : T extends 'color'
-        ? string
-        : T extends 'string[]'
-          ? string[]
-          : never
+type ToolDefinitionMetadata = Omit<ToolMetadata, 'exposure' | 'capabilities' | 'availability'> &
+  Partial<Pick<ToolMetadata, 'exposure' | 'capabilities' | 'availability'>>
 
-type ResolvedParams<P extends Record<string, ParamDef>> = {
-  [K in keyof P as P[K]['required'] extends true ? K : never]: ResolvedType<P[K]['type']>
-} & {
-  [K in keyof P as P[K]['required'] extends true ? never : K]?: ResolvedType<P[K]['type']>
+export function defineTool<P extends v.ObjectEntries, R>(
+  def: ToolDefinitionMetadata & {
+    input: v.ObjectSchema<P, undefined>
+    execution: ToolExecution & (R extends PromiseLike<unknown> ? { kind: 'async' } : unknown)
+    execute: (figma: FigmaAPI, args: v.InferOutput<v.ObjectSchema<P, undefined>>) => R
+  }
+): ToolDef {
+  return {
+    ...def,
+    exposure: def.exposure ?? {},
+    capabilities: def.capabilities ?? [
+      toolChangesDocument(def) ? 'document:write' : 'document:read'
+    ],
+    availability: def.availability ?? 'default',
+    get mutates() {
+      return def.execution.mutation !== 'none'
+    },
+    execute: (figma, args) => def.execute(figma, v.parse(def.input, args))
+  }
 }
 
-export function defineTool<P extends Record<string, ParamDef>>(def: {
-  name: string
-  description: string
-  /** Whether execution changes persisted document content. Defaults to `mutates`. */
-  changesDocument?: boolean
-  mutates?: boolean
-  params: P
-  execute: (figma: FigmaAPI, args: ResolvedParams<P>) => unknown
-}): ToolDef {
-  return def as ToolDef
+export function toolChangesDocument(def: Pick<ToolDef, 'execution'>): boolean {
+  return def.execution.mutation === 'properties' || def.execution.mutation === 'document'
 }
 
-export function toolChangesDocument(def: ToolDef): boolean {
-  return def.changesDocument ?? def.mutates === true
+export function isToolExposed(def: Pick<ToolDef, 'exposure'>, target: ToolInterface): boolean {
+  return def.exposure[target] !== false
+}
+
+export function isAtomicTool(def: ToolDef): boolean {
+  return def.execution.kind === 'sync' && def.execution.mutation === 'properties'
 }
 
 export class NodeNotFoundError extends Error {

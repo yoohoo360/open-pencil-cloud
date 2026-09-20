@@ -1,37 +1,50 @@
+import * as v from 'valibot'
+
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import { assertNodeEditable } from '#core/editor/capabilities'
+import { toolNumber, nodeIdInput } from '#core/tools/input'
 import { defineTool, nodeNotFound } from '#core/tools/schema'
 
 export const updateNode = defineTool({
   name: 'update_node',
-  mutates: true,
+
   description:
     'Update properties of an existing node: position, size, opacity, corner radius, visibility, text, font.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    x: { type: 'number', description: 'X position' },
-    y: { type: 'number', description: 'Y position' },
-    width: { type: 'number', description: 'Width', min: 1 },
-    height: { type: 'number', description: 'Height', min: 1 },
-    opacity: { type: 'number', description: 'Opacity (0-1)', min: 0, max: 1 },
-    corner_radius: { type: 'number', description: 'Corner radius', min: 0 },
-    visible: { type: 'boolean', description: 'Visibility' },
-    text: { type: 'string', description: 'Text content (TEXT nodes)' },
-    text_direction: {
-      type: 'string',
-      description: 'Text direction for TEXT nodes',
-      enum: ['AUTO', 'LTR', 'RTL']
-    },
-    flow_direction: {
-      type: 'string',
-      description: 'Auto-layout flow direction for FRAME nodes',
-      enum: ['AUTO', 'LTR', 'RTL']
-    },
-    font_size: { type: 'number', description: 'Font size', min: 1 },
-    font_weight: { type: 'number', description: 'Font weight (100-900)' },
-    name: { type: 'string', description: 'Layer name' }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    x: v.optional(toolNumber(v.pipe(v.number(), v.description('X position')))),
+    y: v.optional(toolNumber(v.pipe(v.number(), v.description('Y position')))),
+    width: v.optional(toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Width')))),
+    height: v.optional(toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Height')))),
+    opacity: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(0), v.maxValue(1), v.description('Opacity (0-1)')))
+    ),
+    corner_radius: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(0), v.description('Corner radius')))
+    ),
+    visible: v.optional(v.pipe(v.boolean(), v.description('Visibility'))),
+    text: v.optional(v.pipe(v.string(), v.description('Text content (TEXT nodes)'))),
+    text_direction: v.optional(
+      v.pipe(v.picklist(['AUTO', 'LTR', 'RTL']), v.description('Text direction for TEXT nodes'))
+    ),
+    flow_direction: v.optional(
+      v.pipe(
+        v.picklist(['AUTO', 'LTR', 'RTL']),
+        v.description('Auto-layout flow direction for FRAME nodes')
+      )
+    ),
+    font_size: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Font size')))
+    ),
+    font_weight: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.minValue(100), v.maxValue(900), v.description('Font weight (100-900)'))
+      )
+    ),
+    name: v.optional(v.pipe(v.string(), v.description('Layer name')))
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)

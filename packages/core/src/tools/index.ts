@@ -1,4 +1,4 @@
-import codegenPrompt from './prompts/codegen.md?raw'
+export { CODEGEN_PROMPT } from './prompts'
 
 export { getComponentCatalog, registerComponentCatalog } from './component-catalog'
 export type {
@@ -7,7 +7,6 @@ export type {
   ComponentCatalogLibraryAsset
 } from './component-catalog'
 export { ALL_TOOLS, CORE_TOOLS, EXTENDED_TOOLS } from './registry'
-export const CODEGEN_PROMPT: string = codegenPrompt
 export { exportImage } from './vector'
 export {
   defineTool,
@@ -17,7 +16,9 @@ export {
   NodeNotFoundError,
   toolChangesDocument
 } from './schema'
-export type { ToolDef, ParamDef, ParamType } from './schema'
+export type { ToolDef, ToolExecution, ToolCapability } from './schema'
+export { isAtomicTool, isToolExposed, type ToolInterface, type ToolExposure } from './schema'
+export { toolNumber } from './input'
 export { toolsToAI, buildDebugLog } from './ai-adapter'
 export type { ToolLogEntry, ToolDebugLog, AIAdapterOptions, StepBudget } from './ai-adapter'
 export { calcClusterConfidence, wrapEvalCode } from './analyze'

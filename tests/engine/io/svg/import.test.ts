@@ -198,9 +198,10 @@ describe('import_svg', () => {
     expect(result.error).toContain('No supported SVG elements')
   })
 
-  test('returns error for missing svg param', async () => {
-    const result = (await importSVG.execute(figma, {})) as { error: string }
-    expect(result.error).toContain('required')
+  test('rejects a missing svg input before executing', () => {
+    const nodeCount = graph.nodes.size
+    expect(() => importSVG.execute(figma, {})).toThrow('Expected "svg"')
+    expect(graph.nodes.size).toBe(nodeCount)
   })
 
   test('handles polygon and polyline', async () => {

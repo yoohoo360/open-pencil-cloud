@@ -1,6 +1,10 @@
 import { i18n } from '#vue/i18n/create'
 
 export const settingsMessageDefaults = {
+  appearance: 'Appearance',
+  animations: 'Animations',
+  animationsSystem: 'Follow system',
+  animationsOff: 'Off',
   title: 'Settings',
   description: 'Manage integrations and app preferences.',
   general: 'General',
@@ -21,6 +25,27 @@ export const settingsMessageDefaults = {
   diagnostics: 'Diagnostics',
   media: 'Media',
   automation: 'MCP & automation',
+  edit: 'Edit',
+  configured: 'Configured',
+  notConfigured: 'Not configured',
+  saveChangesDescription: 'Changes apply when you save.',
+  requiredField: 'This field is required.',
+  invalidURL: 'Enter a valid HTTP or HTTPS URL without embedded credentials.',
+  saveFailed: 'Could not save these changes. Check the settings and try again.',
+  connectionFailed: 'Could not connect. Check the endpoint and credentials, then try again.',
+  savedCredentialHint: 'Leave blank to keep the saved credential. Use Clear to remove it.',
+  optionalCredentialHint: 'Optional. Add a key to enable this service.',
+  configureStorageHint: 'Configure the connection before opening the workspace.',
+  modelNameHint: 'A name you can recognize in the model picker.',
+  designToolsRequired:
+    'The Design model must support tools. Choose a compatible model or enable tool support in advanced settings.',
+  modelIDHint: 'Use the exact model ID supplied by your provider.',
+  baseURLHint: 'Enter the API endpoint, including any required path.',
+  partialSaveWarning: 'Some changes may already be saved. Review the settings and try again.',
+  discardChanges: 'Discard changes?',
+  discardChangesDescription: 'Your unsaved changes will be lost.',
+  keepEditing: 'Keep editing',
+  discard: 'Discard',
   storage: 'Cloud storage',
   mobilePanelNavigation: 'Mobile panel navigation',
   notifications: 'Notifications'

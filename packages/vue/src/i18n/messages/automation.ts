@@ -3,6 +3,21 @@ import { params } from '@nanostores/i18n'
 import { i18n } from '#vue/i18n/create'
 
 export const automationMessageDefaults = {
+  localServer: 'Local server',
+  webmcpDescription:
+    'Let browser agents use this document directly, without a local MCP server or bearer token. Local server settings do not apply here.',
+  browserAccess: 'Browser agent access',
+  accessOff: 'Off',
+  accessInspect: 'Inspect',
+  accessEdit: 'Edit',
+  accessOffDescription: 'No tools are exposed to browser agents.',
+  accessInspectDescription: 'Agents can inspect the document but cannot change it.',
+  accessEditDescription:
+    'Agents can also edit existing properties, text, and variable values. Edits are undoable; creating or deleting content, scripts, and file access are excluded.',
+  webmcpUnsupported:
+    'This browser does not expose WebMCP. Use a supported Chrome version and enable WebMCP testing, then relaunch the browser.',
+  webmcpSetup: 'WebMCP setup guide',
+  noMatchingTools: 'No tools match your search.',
   connections: 'MCP connections',
   connectionsDescription: 'Give ACP agents access to trusted remote tools and services.',
   addConnection: 'Add connection',
@@ -10,6 +25,10 @@ export const automationMessageDefaults = {
   editConnection: 'Edit MCP connection',
   connectionEditorDescription: 'Configure a Streamable HTTP server and optional authentication.',
   connectionName: 'Connection name',
+  connectionNameHint: 'Use a unique name, up to 80 characters. The name open-pencil is reserved.',
+  connectionNameInvalid: 'Choose a unique name of at most 80 characters, other than open-pencil.',
+  serverURLHint:
+    'Use HTTPS. HTTP is allowed only for localhost or a loopback address. Do not include credentials in the URL.',
   serverURL: 'MCP server URL',
   enableConnection: 'Enable for ACP agents',
   bearerAuthentication: 'Use bearer authentication',
@@ -28,7 +47,7 @@ export const automationMessageDefaults = {
   authenticationDescription:
     'Protect the localhost MCP endpoint with a bearer token. Disable only on a trusted machine. Restart the server to apply changes.',
   rootDirectory: 'MCP root directory',
-  rootDirectoryDefault: 'User home directory (default)',
+  rootDirectoryDefault: 'Server default directory',
   chooseRootDirectory: 'Choose folder',
   useDefaultRoot: 'Use default',
   rootDirectoryDescription:

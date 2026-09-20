@@ -1,11 +1,15 @@
 import { orderBy } from 'es-toolkit/array'
 import { sumBy } from 'es-toolkit/math'
+import * as v from 'valibot'
 
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { colorDistance, colorToHex } from '#core/color'
 import type { ColorUsageEntry } from '#core/color/analysis'
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
+
+import { analysisLimitInput } from './input'
 
 type ColorEntry = ColorUsageEntry
 
@@ -26,19 +30,20 @@ export const analyzeColors = defineTool({
   name: 'analyze_colors',
   description:
     'Analyze color palette usage across the current page. Shows frequency, variable bindings, and optionally clusters similar colors.',
-  params: {
-    limit: { type: 'number', description: 'Max colors to return (default: 30)' },
-    show_similar: {
-      type: 'boolean',
-      description: 'Include similar-color clusters for potential merging'
-    },
-    threshold: {
-      type: 'number',
-      description: 'Distance threshold for clustering (0-50, default: 15)'
-    }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  input: v.object({
+    limit: analysisLimitInput,
+    show_similar: v.optional(
+      v.pipe(v.boolean(), v.description('Include similar-color clusters for potential merging'))
+    ),
+    threshold: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.description('Distance threshold for clustering (0-50, default: 15)'))
+      )
+    )
+  }),
   execute: (figma, args) => {
-    const limit = args.limit ?? 30
+    const limit = args.limit
     const threshold = args.threshold ?? 15
     const page = figma.currentPage
     const colorMap = new Map<string, ColorEntry>()

@@ -1,10 +1,12 @@
 import { safeDestr } from 'destr'
 import { createTwoFilesPatch } from 'diff'
+import * as v from 'valibot'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import { colorToHex, parseColor } from '#core/color'
 import type { FigmaAPI } from '#core/figma-api'
+import { toolNumber, nodeIdInput, nodeComparisonInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 function serializePaintProps(raw: SceneNode, lines: string[]): void {
@@ -123,11 +125,12 @@ export const diffCreate = defineTool({
   name: 'diff_create',
   description:
     'Create a structural diff between two node trees. Compares properties (fills, strokes, effects, text, size, position) in unified diff format.',
-  params: {
-    from: { type: 'string', description: 'Source node ID', required: true },
-    to: { type: 'string', description: 'Target node ID', required: true },
-    depth: { type: 'number', description: 'Max tree depth (default: 10)' }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({
+    ...nodeComparisonInput.entries,
+    depth: v.optional(toolNumber(v.pipe(v.number(), v.description('Max tree depth (default: 10)'))))
+  }),
   execute: (figma, args) => {
     const maxDepth = args.depth ?? 10
     const fromNode = figma.graph.getNode(args.from)
@@ -177,15 +180,17 @@ export const diffShow = defineTool({
   name: 'diff_show',
   description:
     'Preview what would change if properties were applied to a node. Shows a unified diff of current vs proposed state.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    props: {
-      type: 'string',
-      description:
-        'JSON object of new properties, e.g. \'{"opacity": 1, "fill": "#FF0000", "width": 200}\'',
-      required: true
-    }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({
+    id: nodeIdInput,
+    props: v.pipe(
+      v.string(),
+      v.description(
+        'JSON object of new properties, e.g. \'{"opacity": 1, "fill": "#FF0000", "width": 200}\''
+      )
+    )
+  }),
   execute: (figma, args) => {
     const raw = figma.graph.getNode(args.id)
     if (!raw) return { error: `Node "${args.id}" not found` }

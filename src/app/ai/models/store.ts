@@ -418,8 +418,18 @@ export function modelConnectionUsageCount(connectionId: string): number {
     .length
 }
 
+export function canRemoveModelProfile(profileId: string): boolean {
+  if (!modelProfile(profileId) || aiModelSettings.value.models.length <= 1) return false
+  return (
+    aiModelSettings.value.assignments.design !== profileId ||
+    aiModelSettings.value.models.some(
+      (profile) => profile.id !== profileId && isDesignModelProfile(profile)
+    )
+  )
+}
+
 export function removeModelProfile(profileId: string): void {
-  if (aiModelSettings.value.models.length <= 1) return
+  if (!canRemoveModelProfile(profileId)) return
   const removesDesignAssignment = aiModelSettings.value.assignments.design === profileId
   const fallback = aiModelSettings.value.models.find(
     (profile) => profile.id !== profileId && isDesignModelProfile(profile)

@@ -8,6 +8,7 @@ import {
   designModelProfiles,
   modelSettingsSnapshot,
   removeModelProfile,
+  canRemoveModelProfile,
   replaceAIModelSettings,
   resolveAIModelRole,
   saveModelProfileDraft,
@@ -227,6 +228,7 @@ describe('AI model profiles and role assignments', () => {
   })
 
   test('repairs assignments when removing a model', () => {
+    expect(canRemoveModelProfile('model-design')).toBe(true)
     removeModelProfile('model-design')
     const settings = modelSettingsSnapshot()
     expect(settings.assignments.design).toBe('model-fast')
@@ -250,6 +252,9 @@ describe('AI model profiles and role assignments', () => {
     ]
     replaceAIModelSettings(settings)
 
+    expect(canRemoveModelProfile('model-design')).toBe(false)
+    expect(canRemoveModelProfile('model-text-only')).toBe(true)
+    expect(canRemoveModelProfile('missing')).toBe(false)
     removeModelProfile('model-design')
 
     expect(modelSettingsSnapshot().models.map((profile) => profile.id)).toEqual([

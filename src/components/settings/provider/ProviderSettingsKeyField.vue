@@ -3,25 +3,29 @@ import { computed } from 'vue'
 
 import { useI18n } from '@open-pencil/vue'
 
+import SettingsLink from '@/components/settings/layout/SettingsLink.vue'
 import ProviderSettingsField from '@/components/settings/provider/ProviderSettingsField.vue'
 import ProviderSettingsInput from '@/components/settings/provider/ProviderSettingsInput.vue'
-import ProviderSettingsLink from '@/components/settings/provider/ProviderSettingsLink.vue'
 
-const { label, modelValue, saved, kind, placeholder, keyURL, keyURLLabel, inputId } = defineProps<{
-  label: string
-  modelValue: string
-  saved: boolean
-  kind: 'api' | 'pexels' | 'unsplash'
-  placeholder: string
-  inputId?: string
-  keyURL?: string
-  keyURLLabel?: string
-}>()
+const { label, modelValue, saved, kind, placeholder, keyURL, keyURLLabel, inputId, hint, error } =
+  defineProps<{
+    label: string
+    modelValue: string
+    saved: boolean
+    kind: 'api' | 'pexels' | 'unsplash'
+    placeholder: string
+    inputId?: string
+    keyURL?: string
+    keyURLLabel?: string
+    hint?: string
+    error?: string
+  }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   change: []
   clear: []
+  blur: []
 }>()
 
 const { common } = useI18n()
@@ -42,24 +46,30 @@ const clearDataTestId = computed(() => {
 <template>
   <ProviderSettingsField
     :label="label"
+    :hint="hint"
+    :error="error"
     :label-for="inputId"
     :clear-label="saved ? common.clear : undefined"
     :data-test-id="clearDataTestId"
     @clear="emit('clear')"
+    @blur="emit('blur')"
   >
-    <ProviderSettingsInput
-      :model-value="modelValue"
-      :id="inputId"
-      type="password"
-      :data-test-id="inputDataTestId"
-      :placeholder="placeholder"
-      @update:model-value="emit('update:modelValue', String($event))"
-      @change="emit('change')"
-    />
+    <template #default="{ control }">
+      <ProviderSettingsInput
+        v-bind="control"
+        :model-value="modelValue"
+        :aria-label="label"
+        type="password"
+        :data-test-id="inputDataTestId"
+        :placeholder="placeholder"
+        @update:model-value="emit('update:modelValue', String($event))"
+        @change="emit('change')"
+      />
+    </template>
     <template #hint>
-      <ProviderSettingsLink v-if="keyURL && keyURLLabel" :href="keyURL">
+      <SettingsLink v-if="keyURL && keyURLLabel" :href="keyURL">
         {{ keyURLLabel }}
-      </ProviderSettingsLink>
+      </SettingsLink>
     </template>
   </ProviderSettingsField>
 </template>

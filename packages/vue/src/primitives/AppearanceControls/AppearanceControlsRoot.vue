@@ -10,6 +10,8 @@ const actions = {
   setBlendMode: ctx.setBlendMode,
   toggleVisibility: ctx.toggleVisibility,
   toggleIndependentCorners: ctx.toggleIndependentCorners,
+  updateUniformRadius: ctx.updateUniformRadius,
+  commitUniformRadius: ctx.commitUniformRadius,
   updateCornerProp: ctx.updateCornerProp,
   commitCornerProp: ctx.commitCornerProp
 }
@@ -24,6 +26,7 @@ const actions = {
     :independent-corners="ctx.independentCorners.value"
     :show-independent-corners="ctx.showIndependentCorners.value"
     :corner-radius-value="ctx.cornerRadiusValue.value"
+    :corner-radius-binding-paths="ctx.cornerRadiusBindingPaths.value"
     :corner-smoothing-percent="ctx.cornerSmoothingPercent.value"
     :opacity-percent="ctx.opacityPercent.value"
     :blend-mode-value="ctx.blendModeValue.value"

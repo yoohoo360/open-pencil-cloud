@@ -1,4 +1,7 @@
+import * as v from 'valibot'
+
 import { getComponentCatalog } from '#core/tools/component-catalog'
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 interface DocumentComponentResult {
@@ -26,20 +29,27 @@ export const getComponents = defineTool({
   name: 'get_components',
   description:
     'List reusable components from the document and enabled component libraries, optionally filtered by name.',
-  params: {
-    name: { type: 'string', description: 'Filter by name (case-insensitive substring)' },
-    source: {
-      type: 'string',
-      description: 'Component source',
-      enum: ['all', 'document', 'libraries'],
-      default: 'all'
-    },
-    library_id: { type: 'string', description: 'Filter library components by library ID' },
-    limit: { type: 'number', description: 'Max results (default: 50)' }
-  },
+  execution: { kind: 'async', mutation: 'none' },
+  input: v.object({
+    name: v.optional(
+      v.pipe(v.string(), v.description('Filter by name (case-insensitive substring)'))
+    ),
+    source: v.optional(
+      v.pipe(v.picklist(['all', 'document', 'libraries']), v.description('Component source')),
+      'all'
+    ),
+    library_id: v.optional(
+      v.pipe(v.string(), v.description('Filter library components by library ID'))
+    ),
+    limit: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.integer(), v.minValue(0), v.description('Max results (default: 50)'))
+      )
+    )
+  }),
   execute: async (figma, args) => {
     const limit = args.limit ?? 50
-    const source = args.source ?? 'all'
+    const source = args.source
     const nameFilter = args.name?.toLowerCase()
     const documentComponents: DocumentComponentResult[] = []
 

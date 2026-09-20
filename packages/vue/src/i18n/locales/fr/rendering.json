@@ -1,8 +1,9 @@
 {
   "settingsTitle": "Rendu",
   "settingsDescription": "Choisissez comment OpenPencil affiche les grandes zones de travail.",
-  "progressiveTiled": "Rendu progressif par tuiles",
-  "progressiveTiledDescription": "Met à jour les grandes zones de travail par tuiles limitées pendant la navigation. Expérimental ; rechargement requis.",
+  "progressiveTiled": "Rendu progressif",
+  "progressiveTiledDescription": "Actualise les grands canevas par petites tuiles pendant la navigation.",
   "reloadRequired": "Rechargez OpenPencil pour appliquer cette modification.",
-  "urlOverride": "Le rendu de cette session est contrôlé par un paramètre d’URL. Votre préférence enregistrée s’appliquera après sa suppression."
+  "urlOverride": "Le rendu de cette session est contrôlé par un paramètre d’URL. Votre préférence enregistrée s’appliquera après sa suppression.",
+  "experimental": "Expérimental"
 }

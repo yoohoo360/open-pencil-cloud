@@ -1,11 +1,13 @@
-import { computed, reactive, ref, watch } from 'vue'
+import { tryOnScopeDispose } from '@vueuse/core'
+import { isEqual } from 'es-toolkit'
+import { computed, reactive, ref, toRaw, watch } from 'vue'
 import type { Ref } from 'vue'
 
 import type { AIProviderID } from '@open-pencil/core/constants'
 
 import { refreshAIProviderStatus } from '@/app/ai/chat/storage'
 import {
-  aiModelSettings,
+  canRemoveModelProfile,
   createModelProfileDraft,
   modelConnectionUsageCount,
   modelProfile,
@@ -14,6 +16,7 @@ import {
   setModelConnectionAPIKey
 } from '@/app/ai/models'
 import type { ModelPickerLabels } from '@/app/ai/models/picker/options'
+import type { SettingsSaveResult } from '@/app/settings/save-result'
 
 import { useProfileConnection } from './connection'
 import { useProfileModelSelection } from './selection'
@@ -32,7 +35,6 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
     providerDef,
     isACP,
     isHarness,
-    customModelSelected,
     supportsReasoningEffort,
     providerDisplayName,
     modelOptions,
@@ -47,30 +49,33 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
   } = selection
 
   const saveError = ref<string | null>(null)
+  const saveResult = ref<SettingsSaveResult | null>(null)
+  const busy = ref(false)
+  const initialDraft = structuredClone(toRaw(draft))
+  tryOnScopeDispose(() => {
+    keyInput.value = ''
+  })
 
   const {
     connectionTestStatus,
     connectionTestReason,
     hasExistingKey,
-    canTest,
     resetConnectionTest,
     refreshKeyStatus,
-    clearKey,
+    keyCleared,
+    clearKey: stageKeyRemoval,
     testConnection
-  } = useProfileConnection({ draft, keyInput, providerDef, isACP, isHarness, customModelSelected })
+  } = useProfileConnection({ draft, keyInput })
 
-  const canDelete = computed(() => Boolean(profileId) && aiModelSettings.value.models.length > 1)
-  const canSave = computed(
-    () =>
-      Boolean(draft.name.trim()) &&
-      (isACP.value ||
-        (customModelSelected.value
-          ? Boolean(draft.customModelID.trim())
-          : Boolean(draft.modelID.trim())))
+  const dirty = computed(
+    () => !isEqual(draft, initialDraft) || keyInput.value.length > 0 || keyCleared.value
   )
+
+  const canDelete = computed(() => (profileId ? canRemoveModelProfile(profileId) : false))
 
   function updateProvider(id: AIProviderID) {
     selection.updateProvider(id)
+    keyCleared.value = false
     keyInput.value = ''
     resetConnectionTest()
     void refreshKeyStatus()
@@ -81,36 +86,61 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
     resetConnectionTest()
   }
 
-  async function save(): Promise<boolean> {
+  function clearKey() {
+    if (busy.value) return
     saveError.value = null
+    stageKeyRemoval()
+  }
+
+  async function save(): Promise<SettingsSaveResult> {
+    if (busy.value) return 'failed'
+    busy.value = true
+    saveError.value = null
+    saveResult.value = null
+    let persisted = false
 
     try {
       applyKnownModelMetadata()
       if (!draft.name.trim()) draft.name = modelDisplayName.value || providerDisplayName.value
       const profile = saveModelProfileDraft(draft)
-      if (keyInput.value.trim()) {
+      persisted = true
+      // A credential failure must not create another profile on retry.
+      draft.profileId = profile.id
+      draft.sourceConnectionId = profile.connectionId
+      if (keyInput.value.trim() || keyCleared.value) {
         await setModelConnectionAPIKey(profile.connectionId, keyInput.value)
         await refreshAIProviderStatus()
         keyInput.value = ''
       }
-      return true
+      saveResult.value = 'saved'
+      return 'saved'
     } catch (reason) {
       saveError.value = reason instanceof Error ? reason.message : String(reason)
-      return false
+      saveResult.value = persisted ? 'partial' : 'failed'
+      return saveResult.value
+    } finally {
+      busy.value = false
     }
   }
 
   async function remove(): Promise<boolean> {
-    if (!profileId) return false
-
-    const profile = modelProfile(profileId)
-    if (profile && modelConnectionUsageCount(profile.connectionId) === 1) {
-      await setModelConnectionAPIKey(profile.connectionId, '')
+    if (!profileId || busy.value || !canRemoveModelProfile(profileId)) return false
+    busy.value = true
+    saveError.value = null
+    try {
+      const profile = modelProfile(profileId)
+      if (profile && modelConnectionUsageCount(profile.connectionId) === 1) {
+        await setModelConnectionAPIKey(profile.connectionId, '')
+      }
+      removeModelProfile(profileId)
+      await refreshAIProviderStatus()
+      return modelProfile(profileId) === null
+    } catch (reason) {
+      saveError.value = reason instanceof Error ? reason.message : String(reason)
+      return false
+    } finally {
+      busy.value = false
     }
-    removeModelProfile(profileId)
-    await refreshAIProviderStatus()
-
-    return true
   }
 
   watch(
@@ -122,6 +152,8 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
 
   return {
     draft,
+    dirty,
+    busy,
     providerDef,
     isACP,
     isHarness,
@@ -129,6 +161,7 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
     providerDisplayName,
     modelOptions,
     selectedModelValue,
+    customModelSelected: selection.customModelSelected,
     knownModel,
     knownCapabilities,
     outputTokenRecommendation,
@@ -137,11 +170,10 @@ export function useModelProfileEditor({ profileId, keyInput, labels: ai }: Profi
     canDelete,
     toolsEnabled,
     visionEnabled,
-    canSave,
-    canTest,
     connectionTestStatus,
     connectionTestReason,
     saveError,
+    saveResult,
     updateProvider,
     updateModel,
     save,

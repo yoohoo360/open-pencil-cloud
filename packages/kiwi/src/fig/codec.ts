@@ -186,6 +186,12 @@ export interface VariableBinding {
   variableID: GUID
 }
 
+export interface ImageSource {
+  hash: string | Uint8Array
+  name?: string
+  dataBlob?: number
+}
+
 export interface Paint {
   type:
     | 'SOLID'
@@ -204,7 +210,9 @@ export interface Paint {
   blendMode?: string
   stops?: { color: Color; position: number }[]
   transform?: Matrix
-  image?: { hash: string | Uint8Array }
+  image?: ImageSource
+  imageThumbnail?: ImageSource
+  animatedImage?: ImageSource
   imageScaleMode?: string
   sourceNodeId?: GUID
   scale?: number

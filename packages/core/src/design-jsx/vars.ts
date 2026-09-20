@@ -1,4 +1,4 @@
-import type { Color } from '@open-pencil/scene-graph/primitives'
+import type { Color, SceneGraph } from '@open-pencil/scene-graph'
 
 const VAR_SYMBOL = Symbol.for('open-pencil.variable')
 
@@ -7,14 +7,23 @@ export type VarDef =
   | {
       id?: string
       name?: string
-      value?: string | Color
+      value?: string | Color | number
     }
 
 export interface DesignVariable {
   [VAR_SYMBOL]: true
   id?: string
   name: string
-  value?: string | Color
+  value?: string | Color | number
+}
+
+export function resolveVariableId(graph: SceneGraph, variable: DesignVariable): string | undefined {
+  if (variable.id && graph.variables.has(variable.id)) return variable.id
+  if (variable.id && !variable.name) return variable.id
+  for (const candidate of graph.variables.values()) {
+    if (candidate.name === variable.name || candidate.id === variable.name) return candidate.id
+  }
+  return variable.id
 }
 
 export function isVariable(value: unknown): value is DesignVariable {
@@ -33,14 +42,9 @@ export function defineVars<T extends Record<string, VarDef>>(
   return result
 }
 
-export function designVar(
-  def: string | { id?: string; name?: string; value?: string | Color }
-): DesignVariable
-export function designVar(idOrName: string, value?: string | Color): DesignVariable
-export function designVar(
-  def: string | { id?: string; name?: string; value?: string | Color },
-  value?: string | Color
-): DesignVariable {
+export function designVar(def: VarDef): DesignVariable
+export function designVar(idOrName: string, value?: DesignVariable['value']): DesignVariable
+export function designVar(def: VarDef, value?: DesignVariable['value']): DesignVariable {
   if (typeof def === 'string') {
     return {
       [VAR_SYMBOL]: true,

@@ -8,11 +8,17 @@ import { withNativeEventRecorder } from '#tests/helpers/tauri/event-recorder'
 
 describe('native text editing', () => {
   it('commits ordinary WebView input exactly once', async () => {
-    await browser.waitUntil(
-      async () => browser.execute(() => Boolean(window.openPencil?.getStore?.())),
-      { timeout: 30_000, timeoutMsg: 'OpenPencil editor did not initialize' }
-    )
     await createNativeTextFixture('Replace me')
+    const tabCount = await browser.execute(() => document.querySelectorAll('[role="tab"]').length)
+    const id = await createNativeTextFixture('Another fixture')
+    const prepared = await readNativeEditorSnapshot()
+    assert.equal(prepared.editingTextId, id)
+    assert.equal(prepared.editingText, 'Another fixture')
+    assert.equal(prepared.textNodeCount, 1)
+    assert.equal(
+      await browser.execute(() => document.querySelectorAll('[role="tab"]').length),
+      tabCount
+    )
     const textarea = await $('textarea[aria-hidden="true"]')
     await textarea.waitForExist()
 

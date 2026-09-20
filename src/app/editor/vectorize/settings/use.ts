@@ -5,13 +5,18 @@ import {
   setVectorizeCredential,
   vectorizeCredentialStatus,
   vectorizeProviderID,
-  VECTORIZE_PROVIDER_DEFINITIONS
+  VECTORIZE_PROVIDER_DEFINITIONS,
+  type VectorizeProviderID
 } from '@/app/editor/vectorize'
 import type { CredentialStatus } from '@/app/settings/credentials/types'
 
 const vectorizeServices = { status: vectorizeCredentialStatus, set: setVectorizeCredential }
 
-export function useVectorizeSettings(keyDraft: Ref<string>, services = vectorizeServices) {
+export function useVectorizeSettings(
+  keyDraft: Ref<string>,
+  selectedProvider: Readonly<Ref<VectorizeProviderID>> = vectorizeProviderID,
+  services = vectorizeServices
+) {
   const keyStatus = ref<CredentialStatus>('missing')
   const error = ref('')
 
@@ -21,10 +26,11 @@ export function useVectorizeSettings(keyDraft: Ref<string>, services = vectorize
   tryOnScopeDispose(() => {
     disposed = true
     version++
+    keyDraft.value = ''
   })
 
   const provider = computed(() =>
-    VECTORIZE_PROVIDER_DEFINITIONS.find((definition) => definition.id === vectorizeProviderID.value)
+    VECTORIZE_PROVIDER_DEFINITIONS.find((definition) => definition.id === selectedProvider.value)
   )
   const providerOptions = VECTORIZE_PROVIDER_DEFINITIONS.map((definition) => ({
     value: definition.id,
@@ -33,38 +39,45 @@ export function useVectorizeSettings(keyDraft: Ref<string>, services = vectorize
 
   async function refreshStatus(): Promise<void> {
     const request = ++version
-    const id = vectorizeProviderID.value
+    const id = selectedProvider.value
 
     try {
       const status = await services.status(id)
-      if (!disposed && version === request) keyStatus.value = status
+      if (!isDisposed() && version === request) keyStatus.value = status
     } catch (cause) {
-      if (!disposed && version === request)
+      if (!isDisposed() && version === request)
         error.value = cause instanceof Error ? cause.message : String(cause)
     }
   }
 
-  async function updateCredential(clear: boolean): Promise<void> {
+  function isDisposed() {
+    return disposed
+  }
+
+  async function updateCredential(clear: boolean): Promise<boolean> {
     const value = keyDraft.value
-    if (!clear && !value.trim()) return
+    if (isDisposed()) return false
+    if (!clear && !value.trim()) return true
 
     const request = ++version
-    const id = vectorizeProviderID.value
+    const id = selectedProvider.value
     error.value = ''
 
     try {
       await services.set(id, clear ? '' : value)
-      if (disposed || version !== request) return
+      if (isDisposed() || version !== request) return false
       if (keyDraft.value === value) keyDraft.value = ''
       await refreshStatus()
+      return !isDisposed()
     } catch (cause) {
-      if (!disposed && version === request)
+      if (!isDisposed() && version === request)
         error.value = cause instanceof Error ? cause.message : String(cause)
+      return false
     }
   }
 
   watch(
-    vectorizeProviderID,
+    selectedProvider,
     () => {
       keyDraft.value = ''
       keyStatus.value = 'missing'

@@ -41,6 +41,14 @@ The pages panel shows all pages in the document.
 
 Each page has its own canvas and viewport state.
 
+## Documents and Recovery
+
+The Home workspace lists recent local documents and documents from configured storage providers. Use grid or list view, or open multiple selected files into separate editor tabs.
+
+In **Settings → General → Recovery**, **Automatically preserve unsaved work** controls local recovery copies. With recovery enabled, unsaved documents without a file path remain recoverable even after their tabs close. When OpenPencil offers **Recover unsaved work**, choose **Restore** to reopen a document or **Discard** to remove its recovery copy.
+
+Disabling recovery stops automatic preservation and removes recovery copies owned by currently open documents. It does not bulk-delete snapshots from previously closed documents. Recovery is local to this installation/browser profile; it is not a replacement for saving a file, cloud synchronization, or a backup.
+
 ## Properties Panel
 
 The properties panel on the right has three tabs:
@@ -63,12 +71,12 @@ When no nodes are selected, the Design tab shows page-level properties including
 
 Displays the selected node as code with syntax highlighting, line numbers, and a copy button. A format toggle lets you switch between two output modes:
 
-- **OpenPencil JSX** — custom component tree compatible with `renderJsx()` for programmatic round-trip
+- **OpenPencil JSX** — custom component tree compatible with `renderJSX()` for programmatic round-trip
 - **Tailwind CSS v4** — HTML with utility classes (`<div className="flex gap-4 p-3">`) ready to paste into React/Vue projects
 
 ### AI Tab
 
-An AI chat interface (also toggled with <kbd>⌘</kbd><kbd>J</kbd>) that can create and modify design elements via natural language. Supports multiple AI models through OpenRouter.
+An [AI chat interface](../programmable/ai-chat) (also toggled with <kbd>⌘</kbd><kbd>J</kbd>) that can create and modify design elements via natural language. Configure reusable models and provider connections in Settings, and browse locally saved conversations.
 
 ## Keyboard Shortcuts
 

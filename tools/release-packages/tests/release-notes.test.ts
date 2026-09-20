@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { readReleaseNotes } from '../src/release-notes'
+import { readReleaseNotes } from '#release/release-notes'
 
 const changelog = `# Changelog
 

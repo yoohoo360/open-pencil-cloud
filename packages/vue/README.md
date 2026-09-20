@@ -14,19 +14,28 @@ The SDK is headless by design: it provides logic and structure, while your app o
 ## Install
 
 ```bash
-bun add @open-pencil/vue @open-pencil/core canvaskit-wasm
+bun add @open-pencil/vue @open-pencil/core @open-pencil/scene-graph canvaskit-wasm
 ```
+
+The current development version requires Vue `^3.5.41` and, when supplying the optional CanvasKit peer, `canvaskit-wasm >=0.41.1`. See [SDK Getting Started](https://openpencil.dev/programmable/sdk/getting-started) for migration guidance; older releases may have different peer requirements.
 
 ## Quick start
 
 ```vue
 <script setup lang="ts">
-import { createEditor } from '@open-pencil/core/editor'
-import { provideEditor } from '@open-pencil/vue'
+import { reactive } from 'vue'
+import { createDefaultEditorState, createEditor } from '@open-pencil/core/editor'
+import { SceneGraph } from '@open-pencil/scene-graph'
+import { CanvasRoot, CanvasSurface, provideEditor } from '@open-pencil/vue'
+
+const graph = new SceneGraph()
+const page = graph.getPages()[0]
+if (!page) throw new Error('Expected an initial page')
 
 const editor = createEditor({
-  width: 1200,
-  height: 800,
+  graph,
+  state: reactive(createDefaultEditorState(page.id)),
+  getViewportSize: () => ({ width: 1200, height: 800 }),
 })
 
 editor.createShape('RECTANGLE', 100, 100, 200, 150)
@@ -37,12 +46,14 @@ provideEditor(editor)
 
 <template>
   <div class="h-screen">
-    <CanvasRoot v-slot="{ canvasRef }">
-      <canvas ref="canvasRef" class="size-full" />
+    <CanvasRoot>
+      <CanvasSurface class="size-full" />
     </CanvasRoot>
   </div>
 </template>
 ```
+
+The fixed viewport size above is illustrative; a resizable shell should return its actual canvas container dimensions from `getViewportSize`. Pass reactive state for Vue controls, while keeping the Scene Graph itself framework-neutral.
 
 ## Core concepts
 

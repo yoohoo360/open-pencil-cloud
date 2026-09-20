@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 
 import {
   EFFECT_OPTIONS,
@@ -20,7 +20,7 @@ export function useEffectsControls() {
   const editor = useEditor()
 
   const expandedIndex = ref<number | null>(null)
-  const effectsBeforeScrub = ref<EffectEditSnapshot | null>(null)
+  const effectsBeforeScrub = shallowRef<EffectEditSnapshot | null>(null)
   const editActions = createEffectEditActions(editor, effectsBeforeScrub)
   const controlActions = createEffectControlActions(expandedIndex)
 

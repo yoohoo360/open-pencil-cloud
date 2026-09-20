@@ -1,7 +1,10 @@
+import * as v from 'valibot'
+
 import { cloneVectorNetwork } from '@open-pencil/scene-graph'
 import type { SceneNode, VectorNetwork } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI } from '#core/figma-api'
+import { toolNumber, nodeIdInput, nodeInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 function getVectorNode(
@@ -17,9 +20,9 @@ function getVectorNode(
 export const pathGet = defineTool({
   name: 'path_get',
   description: 'Get vector path data of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: nodeInput,
   execute: (figma, { id }) => {
     const raw = figma.graph.getNode(id)
     if (!raw) return { error: `Node "${id}" not found` }
@@ -30,12 +33,13 @@ export const pathGet = defineTool({
 
 export const pathSet = defineTool({
   name: 'path_set',
-  mutates: true,
+
   description: 'Set vector path data on a node. Provide a VectorNetwork JSON.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    path: { type: 'string', description: 'VectorNetwork JSON', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    path: v.pipe(v.string(), v.description('VectorNetwork JSON'))
+  }),
   execute: (figma, args) => {
     const raw = figma.graph.getNode(args.id)
     if (!raw) return { error: `Node "${args.id}" not found` }
@@ -47,12 +51,13 @@ export const pathSet = defineTool({
 
 export const pathScale = defineTool({
   name: 'path_scale',
-  mutates: true,
+
   description: 'Scale vector path from center.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    factor: { type: 'number', description: 'Scale factor (e.g. 2 for double)', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    factor: toolNumber(v.pipe(v.number(), v.description('Scale factor (e.g. 2 for double)')))
+  }),
   execute: (figma, { id, factor }) => {
     const result = getVectorNode(figma, id)
     if ('error' in result) return result
@@ -77,17 +82,13 @@ export const pathScale = defineTool({
 
 export const pathFlip = defineTool({
   name: 'path_flip',
-  mutates: true,
+
   description: 'Flip vector path horizontally or vertically.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    axis: {
-      type: 'string',
-      description: 'Flip axis',
-      required: true,
-      enum: ['horizontal', 'vertical']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    axis: v.pipe(v.picklist(['horizontal', 'vertical']), v.description('Flip axis'))
+  }),
   execute: (figma, { id, axis }) => {
     const result = getVectorNode(figma, id)
     if ('error' in result) return result
@@ -112,13 +113,14 @@ export const pathFlip = defineTool({
 
 export const pathMove = defineTool({
   name: 'path_move',
-  mutates: true,
+
   description: 'Move all path points by an offset.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    dx: { type: 'number', description: 'X offset', required: true },
-    dy: { type: 'number', description: 'Y offset', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    id: nodeIdInput,
+    dx: toolNumber(v.pipe(v.number(), v.description('X offset'))),
+    dy: toolNumber(v.pipe(v.number(), v.description('Y offset')))
+  }),
   execute: (figma, { id, dx, dy }) => {
     const result = getVectorNode(figma, id)
     if ('error' in result) return result

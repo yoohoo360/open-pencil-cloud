@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { useI18n, SegmentedControlItem, SegmentedControlRoot } from '@open-pencil/vue'
+import { useI18n } from '@open-pencil/vue'
 
 import { diagnostics, summarizeDiagnosticEvent } from '@/app/diagnostics'
 import {
@@ -11,12 +11,21 @@ import {
 } from '@/app/diagnostics/settings'
 import { useRecentDiagnostics } from '@/app/diagnostics/settings/recent'
 import { toast } from '@/app/shell/ui'
+import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import { AppConfirmationDialog } from '@/components/ui/dialog'
+import SegmentedControl from '@/components/ui/select/SegmentedControl.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const { common, diagnostics: diagnosticMessages } = useI18n()
 const clearOpen = ref(false)
+const retentionOptions = computed(() =>
+  diagnosticsRetentionOptions.value.map((value) => ({
+    value: String(value),
+    label: String(value)
+  }))
+)
 
 const {
   diagnosticsEnabled,
@@ -62,12 +71,10 @@ async function exportDiagnostics() {
 </script>
 
 <template>
-  <section class="flex flex-col gap-4" data-test-id="settings-diagnostics-panel">
-    <div>
-      <h3 class="text-xs font-semibold text-surface">{{ diagnosticMessages.title }}</h3>
-      <p class="mt-1 text-[11px] text-muted">{{ diagnosticMessages.description }}</p>
-    </div>
-    <div class="flex flex-col divide-y divide-border rounded border border-border">
+  <SettingsSection data-test-id="settings-diagnostics-panel">
+    <template #title>{{ diagnosticMessages.title }}</template>
+    <template #description>{{ diagnosticMessages.description }}</template>
+    <SettingsGroup>
       <label class="flex items-center justify-between gap-4 px-3 py-2.5">
         <span
           ><span class="block text-xs text-surface">{{ diagnosticMessages.localDiagnostics }}</span
@@ -93,26 +100,15 @@ async function exportDiagnostics() {
             diagnosticMessages.retentionDescription
           }}</span></span
         >
-        <SegmentedControlRoot
+        <SegmentedControl
           v-model="retentionValue"
+          :options="retentionOptions"
+          :label="diagnosticMessages.retention"
           required
-          class="flex rounded border border-border p-0.5"
-          :aria-label="diagnosticMessages.retention"
-        >
-          <SegmentedControlItem
-            v-for="option in diagnosticsRetentionOptions"
-            :key="option"
-            :value="String(option)"
-            class="rounded px-2 py-1 text-[10px] text-muted data-[state=on]:bg-hover data-[state=on]:text-surface"
-            >{{ option }}</SegmentedControlItem
-          >
-        </SegmentedControlRoot>
+        />
       </div>
-    </div>
-    <div
-      v-if="recentEvents.length"
-      class="flex max-h-64 flex-col overflow-y-auto divide-y divide-border rounded border border-border"
-    >
+    </SettingsGroup>
+    <SettingsGroup v-if="recentEvents.length">
       <div
         v-for="event in recentEvents"
         :key="`${event.timestamp}-${event.label}`"
@@ -121,7 +117,7 @@ async function exportDiagnostics() {
         <span class="flex min-w-0 items-center gap-2">
           <icon-lucide-circle-alert
             v-if="event.level === 'error'"
-            class="size-3.5 shrink-0 text-red-400"
+            class="size-3.5 shrink-0 text-error"
           />
           <icon-lucide-info v-else class="size-3.5 shrink-0 text-muted" />
           <span class="truncate text-surface">{{ event.label }}</span>
@@ -130,7 +126,7 @@ async function exportDiagnostics() {
           new Date(event.timestamp).toLocaleTimeString()
         }}</span>
       </div>
-    </div>
+    </SettingsGroup>
     <div class="flex items-center justify-between text-[11px] text-muted">
       <span>{{
         diagnosticMessages.eventCount({
@@ -154,7 +150,7 @@ async function exportDiagnostics() {
         >
       </div>
     </div>
-  </section>
+  </SettingsSection>
 
   <AppConfirmationDialog
     v-model:open="clearOpen"

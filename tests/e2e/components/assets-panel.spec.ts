@@ -169,22 +169,23 @@ test('assets panel groups component sets and inserts the default variant', async
   const inserted = await selectedNodeSnapshot(page)
 
   expect(inserted?.type).toBe('INSTANCE')
-  expect(inserted?.componentId).toBe(ids.secondaryId)
+  // The spatially first variant is the documented default, regardless of property defaults.
+  expect(inserted?.componentId).toBe(ids.primaryId)
   expect(inserted?.parentId).toBe(inserted?.pageId)
-  expect(inserted?.width).toBe(132)
-  expect(inserted?.childTexts).toEqual(['Secondary'])
+  expect(inserted?.width).toBe(96)
+  expect(inserted?.childTexts).toEqual(['Primary'])
 
   const variantSection = page.getByRole('region', { name: 'Variants' })
   await expect(variantSection).toBeVisible()
 
   await variantSection.getByRole('combobox', { name: 'Type' }).click()
-  await page.getByRole('option', { name: 'Primary' }).click()
+  await page.getByRole('option', { name: 'Secondary' }).click()
 
   expectDefined(inserted?.id, 'inserted instance id')
   const switched = await selectedNodeSnapshot(page)
-  expect(switched?.componentId).toBe(ids.primaryId)
-  expect(switched?.width).toBe(96)
-  expect(switched?.childTexts).toEqual(['Primary'])
+  expect(switched?.componentId).toBe(ids.secondaryId)
+  expect(switched?.width).toBe(132)
+  expect(switched?.childTexts).toEqual(['Secondary'])
 
   canvas.assertNoErrors()
 })

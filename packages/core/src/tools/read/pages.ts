@@ -1,3 +1,5 @@
+import * as v from 'valibot'
+
 import { computeBounds } from '@open-pencil/scene-graph/geometry'
 
 import { defineTool } from '#core/tools/schema'
@@ -5,7 +7,8 @@ import { defineTool } from '#core/tools/schema'
 export const listPages = defineTool({
   name: 'list_pages',
   description: 'List all pages in the document.',
-  params: {},
+  execution: { kind: 'sync', mutation: 'none' },
+  input: v.object({}),
   execute: (figma) => {
     const pages = figma.root.children
     return {
@@ -17,12 +20,12 @@ export const listPages = defineTool({
 
 export const switchPage = defineTool({
   name: 'switch_page',
-  mutates: true,
-  changesDocument: false,
+
   description: 'Switch to a different page by name or ID.',
-  params: {
-    page: { type: 'string', description: 'Page name or ID', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'view' },
+  input: v.object({
+    page: v.pipe(v.string(), v.description('Page name or ID'))
+  }),
   execute: (figma, { page }) => {
     const target =
       figma.root.children.find((candidate) => candidate.name === page) ?? figma.getNodeById(page)
@@ -35,7 +38,8 @@ export const switchPage = defineTool({
 export const getCurrentPage = defineTool({
   name: 'get_current_page',
   description: 'Get the current page name and ID.',
-  params: {},
+  execution: { kind: 'sync', mutation: 'none' },
+  input: v.object({}),
   execute: (figma) => {
     return { id: figma.currentPage.id, name: figma.currentPage.name }
   }
@@ -44,7 +48,9 @@ export const getCurrentPage = defineTool({
 export const pageBounds = defineTool({
   name: 'page_bounds',
   description: 'Get bounding box of all objects on the current page.',
-  params: {},
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({}),
   execute: (figma) => {
     return computeBounds(figma.currentPage.children.map((child) => child.absoluteBoundingBox))
   }

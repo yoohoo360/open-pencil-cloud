@@ -8,10 +8,10 @@ const ITERATIONS = 200
 test.describe('Render performance', () => {
   let helper: CanvasHelper
 
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage()
+  test.beforeAll(async ({ browser, baseURL }) => {
+    const page = await browser.newPage({ baseURL })
     helper = new CanvasHelper(page)
-    await page.goto('http://localhost:1420/?test&no-chrome&no-rulers')
+    await page.goto('/?test&no-chrome&no-rulers')
     await helper.waitForInit()
 
     await page.evaluate((count: number) => {

@@ -1,3 +1,5 @@
+import * as v from 'valibot'
+
 import type { Variable, VariableCollection, VariableValue } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
@@ -164,25 +166,24 @@ export const designToTokens = defineTool({
   name: 'design_to_tokens',
   description:
     'Extract design tokens from Figma variables as CSS custom properties, Tailwind theme config, or JSON. Resolves aliases, handles multiple modes (light/dark).',
-  params: {
-    format: {
-      type: 'string',
-      description: 'Output format',
-      enum: ['css', 'tailwind', 'json'],
-      default: 'css'
-    },
-    collection: {
-      type: 'string',
-      description: 'Filter by collection name (substring, case-insensitive)'
-    },
-    type: {
-      type: 'string',
-      description: 'Filter by variable type',
-      enum: ['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  input: v.object({
+    format: v.optional(
+      v.pipe(v.picklist(['css', 'tailwind', 'json']), v.description('Output format')),
+      'css'
+    ),
+    collection: v.optional(
+      v.pipe(v.string(), v.description('Filter by collection name (substring, case-insensitive)'))
+    ),
+    type: v.optional(
+      v.pipe(
+        v.picklist(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']),
+        v.description('Filter by variable type')
+      )
+    )
+  }),
   execute: (figma, args) => {
-    const format = args.format ?? 'css'
+    const format = args.format
 
     let variables = figma.getLocalVariables()
     const collections = figma.getLocalVariableCollections()

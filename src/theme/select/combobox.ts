@@ -2,7 +2,10 @@ import { panelFieldBase } from '../panel/field'
 
 const appComboboxTheme = {
   slots: {
-    trigger: [panelFieldBase, 'flex w-full min-w-0 items-center justify-between px-2'],
+    trigger: [
+      panelFieldBase,
+      'flex w-full min-w-0 items-center justify-between px-2 aria-invalid:border-error aria-invalid:focus:ring-error/25'
+    ],
     value: 'min-w-0 flex-1 truncate text-left text-[11px] text-surface',
     chevron: 'ml-1 size-3 shrink-0 text-muted',
     content:
@@ -13,8 +16,7 @@ const appComboboxTheme = {
     searchIcon: 'pointer-events-none absolute left-2 size-3 text-muted',
     viewport: 'max-h-64 overflow-y-auto p-0.5',
     empty: 'px-2 py-4 text-center text-[11px] text-muted',
-    groupLabel:
-      'sticky top-0 z-10 bg-panel px-2 py-1 text-[9px] font-medium uppercase tracking-wide text-muted',
+    groupLabel: 'bg-panel px-2 py-1 text-[9px] font-medium uppercase tracking-wide text-muted',
     item: 'relative flex min-h-8 cursor-pointer items-center gap-2 rounded py-1 pr-2 pl-6 text-surface outline-none select-none data-[disabled]:pointer-events-none data-[highlighted]:bg-hover data-[disabled]:opacity-50',
     indicator: 'absolute left-1.5 inline-flex items-center justify-center',
     description: 'truncate font-mono text-[9px] text-muted',

@@ -1,6 +1,6 @@
 {
   "name": "@open-pencil/core",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -25,6 +25,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry/index.d.ts",
+      "import": "./dist/geometry/index.js",
+      "default": "./dist/geometry/index.js"
     },
     "./color": {
       "types": "./dist/color/index.d.ts",
@@ -180,10 +185,12 @@
     "@open-pencil/pen": "workspace:*",
     "@open-pencil/scene-graph": "workspace:*",
     "@tauri-apps/api": "^2.11.1",
+    "@valibot/to-json-schema": "^1.8.0",
     "@xmldom/xmldom": "^0.9.11",
     "acorn": "^8.18.0",
     "canvaskit-wasm": "^0.41.1",
     "culori": "^4.0.2",
+    "dedent": "^1.7.2",
     "destr": "^2.0.5",
     "diff": "^8.0.4",
     "es-toolkit": "^1.51.0",
@@ -204,6 +211,7 @@
     "svgpath": "^2.6.0",
     "twirlwind": "^0.3.0",
     "unifont": "0.7.4",
+    "valibot": "^1.4.2",
     "yoga-layout": "npm:@open-pencil/yoga-layout@3.3.0-grid.3"
   },
   "devDependencies": {

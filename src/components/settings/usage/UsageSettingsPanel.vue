@@ -2,6 +2,7 @@
 import { useI18n } from '@open-pencil/vue'
 
 import { useUsageSettings } from '@/app/usage/settings/use'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 
 const { diagnostics: diagnosticMessages, settings } = useI18n()
 
@@ -13,11 +14,9 @@ const { summary } = useUsageSettings()
 </script>
 
 <template>
-  <section class="flex flex-col gap-4" data-test-id="settings-usage-panel">
-    <div>
-      <h3 class="text-xs font-semibold text-surface">{{ settings.usage }}</h3>
-      <p class="mt-1 text-[11px] text-muted">{{ diagnosticMessages.usageDescription }}</p>
-    </div>
+  <SettingsSection data-test-id="settings-usage-panel">
+    <template #title>{{ settings.usage }}</template>
+    <template #description>{{ diagnosticMessages.usageDescription }}</template>
 
     <div class="grid grid-cols-2 gap-2">
       <div class="rounded border border-border p-3">
@@ -58,5 +57,5 @@ const { summary } = useUsageSettings()
     </div>
 
     <p class="text-[10px] text-muted">{{ diagnosticMessages.usageCacheNote }}</p>
-  </section>
+  </SettingsSection>
 </template>

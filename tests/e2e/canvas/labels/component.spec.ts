@@ -62,6 +62,11 @@ test('component labels in component sets are hit-tested above the component boun
 
   const componentTopY = 80 + (100 + 40) * 2
   const componentLeftX = 80 + (100 + 20) * 2
+  await expect(page).toHaveScreenshot('component-set-member-label.png', {
+    clip: { x: box.x + componentLeftX, y: box.y + componentTopY - 24, width: 240, height: 24 },
+    maxDiffPixels: 0,
+    threshold: 0
+  })
   await page.mouse.click(box.x + componentLeftX + 24, box.y + componentTopY - 12)
   await canvas.waitForRender()
 

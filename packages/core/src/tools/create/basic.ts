@@ -1,25 +1,26 @@
+import * as v from 'valibot'
+
 import type { FigmaNodeProxy } from '#core/figma-api'
+import { toolNumber, positionInputs } from '#core/tools/input'
 import { defineTool, nodeSummary } from '#core/tools/schema'
 
 export const createShape = defineTool({
   name: 'create_shape',
-  mutates: true,
+
   description:
     'Create a shape on the canvas. Use FRAME for containers/cards, RECTANGLE for solid blocks, ELLIPSE for circles, TEXT for labels, LINE for rules and dividers, STAR for starbursts and badges, POLYGON for triangles and regular polygons, and SECTION for page sections. Use create_vector with an SVG path for arbitrary shapes.',
-  params: {
-    type: {
-      type: 'string',
-      description: 'Node type',
-      required: true,
-      enum: ['FRAME', 'RECTANGLE', 'ELLIPSE', 'TEXT', 'LINE', 'STAR', 'POLYGON', 'SECTION']
-    },
-    x: { type: 'number', description: 'X position', required: true },
-    y: { type: 'number', description: 'Y position', required: true },
-    width: { type: 'number', description: 'Width in pixels', required: true, min: 1 },
-    height: { type: 'number', description: 'Height in pixels', required: true, min: 1 },
-    name: { type: 'string', description: 'Node name shown in layers panel' },
-    parent_id: { type: 'string', description: 'Parent node ID to nest inside' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    type: v.pipe(
+      v.picklist(['FRAME', 'RECTANGLE', 'ELLIPSE', 'TEXT', 'LINE', 'STAR', 'POLYGON', 'SECTION']),
+      v.description('Node type')
+    ),
+    ...positionInputs,
+    width: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Width in pixels'))),
+    height: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Height in pixels'))),
+    name: v.optional(v.pipe(v.string(), v.description('Node name shown in layers panel'))),
+    parent_id: v.optional(v.pipe(v.string(), v.description('Parent node ID to nest inside')))
+  }),
   execute: (figma, args) => {
     const parentId = args.parent_id
     const parent = parentId ? figma.getNodeById(parentId) : null
@@ -45,11 +46,12 @@ export const createShape = defineTool({
 
 export const createPage = defineTool({
   name: 'create_page',
-  mutates: true,
+
   description: 'Create a new page.',
-  params: {
-    name: { type: 'string', description: 'Page name', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    name: v.pipe(v.string(), v.description('Page name'))
+  }),
   execute: (figma, { name }) => {
     const page = figma.createPage()
     page.name = name
@@ -59,16 +61,16 @@ export const createPage = defineTool({
 
 export const createSlice = defineTool({
   name: 'create_slice',
-  mutates: true,
+
   description: 'Create a slice (export region) on the canvas.',
-  params: {
-    x: { type: 'number', description: 'X position', required: true },
-    y: { type: 'number', description: 'Y position', required: true },
-    width: { type: 'number', description: 'Width', required: true, min: 1 },
-    height: { type: 'number', description: 'Height', required: true, min: 1 },
-    name: { type: 'string', description: 'Slice name' },
-    parent_id: { type: 'string', description: 'Parent node ID' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ...positionInputs,
+    width: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Width'))),
+    height: toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Height'))),
+    name: v.optional(v.pipe(v.string(), v.description('Slice name'))),
+    parent_id: v.optional(v.pipe(v.string(), v.description('Parent node ID')))
+  }),
   execute: (figma, args) => {
     const node = figma.createFrame()
     node.x = args.x

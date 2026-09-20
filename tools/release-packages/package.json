@@ -2,6 +2,9 @@
   "name": "@open-pencil/release-packages",
   "private": true,
   "type": "module",
+  "imports": {
+    "#release/*": "./src/*.ts"
+  },
   "scripts": {
     "check-changelog": "bun src/check-changelog.ts",
     "build": "bun src/cli.ts build",
@@ -13,6 +16,8 @@
   "dependencies": {
     "@open-pencil/package-artifacts": "workspace:*",
     "@open-pencil/package-quality-tools": "workspace:*",
-    "citty": "^0.1.6"
+    "citty": "^0.1.6",
+    "es-toolkit": "^1.51.0",
+    "valibot": "^1.4.2"
   }
 }

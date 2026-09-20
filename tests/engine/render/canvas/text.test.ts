@@ -159,7 +159,7 @@ describe('renderText', () => {
     expect(canvas.drawText).not.toHaveBeenCalled()
   })
 
-  test('renders gradient text through a paragraph mask without outline font data', () => {
+  test('paints gradients through native paragraphs without outline font data', () => {
     const r = createMockRenderer()
     const canvas = createMockCanvas()
 
@@ -172,16 +172,16 @@ describe('renderText', () => {
     })
 
     expect(r.buildParagraph).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
-      halfLeading: true
+      halfLeading: true,
+      foregroundPaint: r.fillPaint
     })
-    expect(canvas.saveLayer).toHaveBeenCalledTimes(2)
+    expect(canvas.saveLayer).not.toHaveBeenCalled()
     expect(canvas.drawParagraph).toHaveBeenCalledTimes(1)
-    expect(canvas.drawRect).toHaveBeenCalledTimes(1)
-    expect(r.effectLayerPaint.setBlendMode).toHaveBeenCalledWith(r.ck.BlendMode.SrcIn)
+    expect(canvas.drawRect).not.toHaveBeenCalled()
     expect(r._paragraph.delete).toHaveBeenCalledTimes(1)
   })
 
-  test('renders non-solid text fills as vector outlines when outline font data is available', async () => {
+  test('keeps native paragraph layout even when outline font data is available', async () => {
     const interData = await Bun.file(repoPath('public/Inter-Regular.ttf')).arrayBuffer()
     fontManager.markLoaded('Inter', 'Regular', interData)
     const r = createMockRenderer()
@@ -200,8 +200,8 @@ describe('renderText', () => {
       }
     )
 
-    expect(canvas.drawPath).toHaveBeenCalledTimes(1)
-    expect(r.buildParagraph).not.toHaveBeenCalled()
+    expect(canvas.drawPath).not.toHaveBeenCalled()
+    expect(r.buildParagraph).toHaveBeenCalledTimes(1)
     expect(canvas.saveLayer).not.toHaveBeenCalled()
   })
 
@@ -232,36 +232,39 @@ describe('renderText', () => {
     expect(canvas.drawParagraph).toHaveBeenCalledTimes(1)
   })
 
-  test('keeps derived path-text glyphs when its face is finalized as substituted', () => {
-    const base = createMockRenderer()
-    const r = createMockRenderer({
-      nodeFontReadiness: mock(() => 'substituted'),
-      ck: { ...base.ck, FillType: { EvenOdd: 0, Winding: 1 } }
-    })
-    const canvas = createMockCanvas()
-    const node = textNode({
-      fontFamily: 'Missing Path Font',
-      textPathData: {
-        network: { vertices: [], segments: [], regions: [] },
-        normalizedSize: { x: 100, y: 20 },
-        tValue: 0,
-        forward: true
-      },
-      derivedTextGlyphs: [
-        {
-          commandsBlob: new Uint8Array(),
-          x: 0,
-          y: 0,
-          rotation: 0,
-          fontSize: 12
-        }
-      ]
-    })
+  test.each(['ready', 'substituted'] as const)(
+    'keeps derived path-text glyphs when its face is %s',
+    (readiness) => {
+      const base = createMockRenderer()
+      const r = createMockRenderer({
+        nodeFontReadiness: mock(() => readiness),
+        ck: { ...base.ck, FillType: { EvenOdd: 0, Winding: 1 } }
+      })
+      const canvas = createMockCanvas()
+      const node = textNode({
+        fontFamily: 'Missing Path Font',
+        textPathData: {
+          network: { vertices: [], segments: [], regions: [] },
+          normalizedSize: { x: 100, y: 20 },
+          tValue: 0,
+          forward: true
+        },
+        derivedTextGlyphs: [
+          {
+            commandsBlob: new Uint8Array(),
+            x: 0,
+            y: 0,
+            rotation: 0,
+            fontSize: 12
+          }
+        ]
+      })
 
-    renderText(r, canvas as never, node)
+      renderText(r, canvas as never, node)
 
-    expect(r.buildParagraph).not.toHaveBeenCalled()
-  })
+      expect(r.buildParagraph).not.toHaveBeenCalled()
+    }
+  )
   test('uses baked text pictures after font resolution is exhausted', () => {
     const r = createMockRenderer({ nodeFontReadiness: mock(() => 'exhausted') })
     const canvas = createMockCanvas()

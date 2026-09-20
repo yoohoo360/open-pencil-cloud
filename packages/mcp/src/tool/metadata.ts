@@ -1,13 +1,8 @@
+import type { ToolCapability } from '@open-pencil/core/tools'
+export type { ToolCapability } from '@open-pencil/core/tools'
+
 export type ToolEffect = 'read' | 'write'
 export type ToolAvailability = 'default' | 'eval' | 'filesystem'
-export type ToolCapability =
-  | 'document:read'
-  | 'document:write'
-  | 'filesystem:read'
-  | 'filesystem:write'
-  | 'network:access'
-  | 'code:execute'
-
 export interface ToolDescriptor {
   name: string
   description: string

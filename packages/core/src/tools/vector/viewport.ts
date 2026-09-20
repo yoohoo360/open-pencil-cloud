@@ -1,9 +1,14 @@
+import * as v from 'valibot'
+
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const viewportGet = defineTool({
   name: 'viewport_get',
   description: 'Get current viewport position and zoom level.',
-  params: {},
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({}),
   execute: (figma) => {
     return figma.viewport
   }
@@ -11,14 +16,14 @@ export const viewportGet = defineTool({
 
 export const viewportSet = defineTool({
   name: 'viewport_set',
-  mutates: true,
-  changesDocument: false,
+
   description: 'Set viewport position and zoom.',
-  params: {
-    x: { type: 'number', description: 'Center X', required: true },
-    y: { type: 'number', description: 'Center Y', required: true },
-    zoom: { type: 'number', description: 'Zoom level', required: true, min: 0.01 }
-  },
+  execution: { kind: 'sync', mutation: 'view' },
+  input: v.object({
+    x: toolNumber(v.pipe(v.number(), v.description('Center X'))),
+    y: toolNumber(v.pipe(v.number(), v.description('Center Y'))),
+    zoom: toolNumber(v.pipe(v.number(), v.minValue(0.01), v.description('Zoom level')))
+  }),
   execute: (figma, { x, y, zoom }) => {
     figma.viewport = { center: { x, y }, zoom }
     return { x, y, zoom }
@@ -27,12 +32,12 @@ export const viewportSet = defineTool({
 
 export const viewportZoomToFit = defineTool({
   name: 'viewport_zoom_to_fit',
-  mutates: true,
-  changesDocument: false,
+
   description: 'Zoom viewport to fit specified nodes.',
-  params: {
-    ids: { type: 'string[]', description: 'Node IDs to fit in view', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'view' },
+  input: v.object({
+    ids: v.pipe(v.array(v.string()), v.minLength(1), v.description('Node IDs to fit in view'))
+  }),
   execute: (figma, { ids }) => {
     let minX = Infinity
     let minY = Infinity

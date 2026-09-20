@@ -1,12 +1,29 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-US"
 early_access: false
+tone_instructions: >-
+  Be concise and direct. Use short paragraphs or bullets.
+  No emojis, praise, jokes, decorative headings, or unnecessary tables.
+  Explain the concrete problem, consequence, and suggested correction.
 
 reviews:
   profile: "assertive"
   request_changes_workflow: false
-  high_level_summary: true
-  review_status: true
+  high_level_summary: false
+  review_status: false
+  changed_files_summary: false
+  estimate_code_review_effort: false
+  suggested_labels: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  enable_prompt_for_ai_agents: false
+  sequence_diagrams: false
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
   auto_review:
     enabled: true
     drafts: false
@@ -15,7 +32,7 @@ reviews:
       mode: "off"
     title:
       mode: "error"
-      requirements: "Apply CONTRIBUTING.md → Pull requests → PR title. Request a clearer title when it is non-English, vague, placeholder-like, or does not identify the actual change."
+      requirements: "Apply CONTRIBUTING.md → Pull requests → PR title. Assess whether the title clearly and accurately identifies the actual change. CI owns Conventional Commit syntax validation; do not duplicate that check. Request clarification for non-English, vague, placeholder-like, or misleading titles."
     description:
       mode: "warning"
     custom_checks:
@@ -29,5 +46,11 @@ reviews:
         mode: "warning"
         instructions: "Use CONTRIBUTING.md → Pull requests as the source of truth. Suggest adding context when the PR body does not explain what changed, why it changed, or how it was validated. Do not call a focused PR low-effort solely because it needs template cleanup."
 
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "CONTRIBUTING.md"
+
 chat:
-  auto_reply: true
+  art: false
+  auto_reply: false

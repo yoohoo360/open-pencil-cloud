@@ -1,11 +1,12 @@
 ---
 title: Canvas Navigation
-description: Panning, zooming, and the hand tool in OpenPencil.
+description: Panning, zooming, ruler guides, snapping, and distance measurements in OpenPencil.
 ---
 
 # Canvas Navigation
 
 The canvas is your infinite workspace. You can pan and zoom freely to navigate your design.
+
 ## Panning
 
 Move the visible area of the canvas without affecting any objects.
@@ -13,6 +14,7 @@ Move the visible area of the canvas without affecting any objects.
 - <kbd>Space</kbd> + drag — hold Space and drag anywhere on the canvas
 - **Middle mouse drag** — press and drag the middle mouse button
 - **Two-finger trackpad** — swipe with two fingers on a trackpad
+- <kbd>Shift</kbd> + mouse wheel — pan horizontally
 
 ## Hand Tool
 
@@ -37,6 +39,31 @@ Pinch-to-zoom on UI panels (layers, properties) is prevented so it doesn't accid
 | Zoom in | <kbd>⌘</kbd><kbd>+</kbd> | <kbd>Ctrl</kbd> + <kbd>+</kbd> |
 | Zoom out | <kbd>⌘</kbd><kbd>−</kbd> | <kbd>Ctrl</kbd> + <kbd>−</kbd> |
 | Zoom to 100% | <kbd>⌘</kbd><kbd>0</kbd> | <kbd>Ctrl</kbd> + <kbd>0</kbd> |
+
+## Ruler Guides
+
+Enable **View → Rulers**, then drag from the top ruler for a horizontal guide or the left ruler for a vertical guide. Drop onto the page for a canvas guide, or onto a frame for a guide in that frame's coordinates.
+
+- Click a guide to select it; drag it to reposition it or transfer it between the page and a frame.
+- Hold <kbd>Option</kbd> / <kbd>Alt</kbd> while dragging an existing guide to duplicate it.
+- Drag a guide back onto a ruler to remove it, or use its context menu's **Remove guide** action.
+- Guide changes support undo/redo and are preserved in `.fig` files.
+
+## Snapping
+
+Under **View → Preferences**, toggle **Snap to Geometry**, **Snap to Objects**, and **Snap to Pixel Grid** independently. Preferences are saved between sessions.
+
+Geometry and object snapping help align vector points, moved layers, and resized edges with nearby geometry, objects, guides, and frame bounds. Alignment lines appear for those targets; pixel-grid rounding does not draw an alignment line for every pixel.
+
+Hold <kbd>Control</kbd> during a layer drag to temporarily bypass object and pixel snapping, including on macOS where this is Control, not Command.
+
+## Distance Measurements
+
+Select a layer, hold <kbd>Option</kbd> on macOS or <kbd>Alt</kbd> on Windows/Linux, and hover another layer to see temporary distance measurements. Releasing the modifier clears the overlay; it does not add guides or change the document.
+
+## Command Palette
+
+Press <kbd>⌘</kbd><kbd>K</kbd> on macOS or <kbd>Ctrl</kbd> + <kbd>K</kbd> on Windows/Linux to search editor and application actions. Select a result to run it; unavailable actions remain subject to the current selection and document state.
 
 ## Tips
 

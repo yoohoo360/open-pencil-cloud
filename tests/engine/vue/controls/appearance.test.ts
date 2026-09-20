@@ -47,6 +47,80 @@ describe('appearance control state', () => {
     expect(state.showIndependentCorners.value).toBe(true)
   })
 
+  test('collapses equal independent corners when they share one binding', () => {
+    const node = rectangle()
+    node.independentCorners = true
+    node.boundVariables = {
+      topLeftRadius: 'radius',
+      topRightRadius: 'radius',
+      bottomRightRadius: 'radius',
+      bottomLeftRadius: 'radius'
+    }
+    expect(appearanceState(node).showIndependentCorners.value).toBe(false)
+  })
+
+  test('collapsed bound corners display their actual shared radius', () => {
+    const node = rectangle()
+    node.independentCorners = true
+    node.cornerRadius = 0
+    node.topLeftRadius = node.topRightRadius = node.bottomLeftRadius = node.bottomRightRadius = 12
+    node.boundVariables = {
+      topLeftRadius: 'radius',
+      topRightRadius: 'radius',
+      bottomLeftRadius: 'radius',
+      bottomRightRadius: 'radius'
+    }
+    const state = appearanceState(node)
+    expect(state.cornerRadiusValue.value).toBe(12)
+    expect(state.cornerRadiusBindingPaths.value).toEqual([
+      'topLeftRadius',
+      'topRightRadius',
+      'bottomRightRadius',
+      'bottomLeftRadius'
+    ])
+  })
+
+  test('collapsed bound corners can be expanded without detaching their bindings', () => {
+    const graph = makeSceneGraph()
+    const rect = graph.createNode('RECTANGLE', firstPageId(graph), {
+      independentCorners: true,
+      boundVariables: {
+        topLeftRadius: 'radius',
+        topRightRadius: 'radius',
+        bottomLeftRadius: 'radius',
+        bottomRightRadius: 'radius'
+      }
+    })
+    const editor = createEditor({ graph })
+    const options = {
+      expandedCornerNodeId: ref<string | null>(null),
+      editor,
+      node: computed(() => graph.getNode(rect.id) ?? null),
+      nodes: computed(() => []),
+      isMulti: computed(() => false),
+      merged: () => MIXED
+    }
+    const actions = createAppearanceActions(options)
+    actions.toggleIndependentCorners()
+    expect(createAppearanceState(options).showIndependentCorners.value).toBe(true)
+    expect(graph.getNode(rect.id)?.boundVariables.topLeftRadius).toBe('radius')
+    expect(editor.undo.canUndo).toBe(false)
+    actions.toggleIndependentCorners()
+    expect(createAppearanceState(options).showIndependentCorners.value).toBe(false)
+  })
+
+  test('keeps equal independent corners expanded for distinct bindings', () => {
+    const node = rectangle()
+    node.independentCorners = true
+    node.boundVariables = {
+      topLeftRadius: 'radius-a',
+      topRightRadius: 'radius-b',
+      bottomRightRadius: 'radius-a',
+      bottomLeftRadius: 'radius-a'
+    }
+    expect(appearanceState(node).showIndependentCorners.value).toBe(true)
+  })
+
   test('expands imported unequal corners when the explicit flag is stale', () => {
     const node = rectangle()
     node.independentCorners = false

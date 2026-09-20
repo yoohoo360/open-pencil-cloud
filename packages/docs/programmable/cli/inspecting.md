@@ -8,11 +8,13 @@ description: Browse node trees, search by name or type, and dig into properties 
 The CLI lets you explore design documents without opening the editor. Every command also works on the live app — just omit the file argument.
 
 ::: tip Install
+
 ```sh
 npm install -g @open-pencil/cli
 # or
-brew install open-pencil/tap/open-pencil
+bun add -g @open-pencil/cli
 ```
+
 :::
 
 ## Document Info
@@ -22,6 +24,20 @@ Get a quick overview — page count, total nodes, fonts used, file size:
 ```sh
 openpencil info design.fig
 ```
+
+## Font Diagnostics
+
+Report requested font faces, available sources, substitutions, and affected layers:
+
+```sh
+openpencil fonts design.fig
+openpencil fonts design.fig --json
+openpencil fonts --document-id tab-123 --page-id 0:1
+```
+
+File mode checks all document pages using the CLI host's available fonts without downloading online fonts. Live mode reports the targeted app document/page, whose loaded fonts may differ from the CLI host. Faces are reported as `available`, `substituted`, or `unresolved`; JSON output includes `faithful`, `faces`, and `issues`.
+
+Use [export font policies](./exporting#font-substitution-policy) to warn about or reject substitutions during file-backed raster and PDF exports.
 
 ## Node Tree
 

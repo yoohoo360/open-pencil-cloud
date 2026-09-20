@@ -136,27 +136,33 @@ describe('LabelCache', () => {
     expect(nested?.nested).toBe(true)
   })
 
-  it('collects top-level components and component sets', () => {
+  it('collects top-level components, component sets and their members', () => {
     const { g, pageId } = buildGraph()
     const cache = new LabelCache()
 
     cache.update(g, pageId, 1)
     const components = cache.getComponents(g, { x: -1000, y: -1000, w: 3000, h: 3000 })
 
-    expect(components.length).toBe(2)
+    expect(components.length).toBe(3)
     const names = components.map((c) => c.node.name).sort()
-    expect(names).toEqual(['Button Set', 'Standalone'])
+    expect(names).toEqual(['Button', 'Button Set', 'Standalone'])
   })
 
   it('skips components nested inside other components', () => {
-    const { g, pageId } = buildGraph()
+    const { g, pageId, compId } = buildGraph()
+    const nested = g.createNode('COMPONENT', compId, {
+      name: 'Nested component',
+      width: 20,
+      height: 20
+    })
     const cache = new LabelCache()
 
     cache.update(g, pageId, 1)
     const components = cache.getComponents(g, { x: -1000, y: -1000, w: 3000, h: 3000 })
 
     expect(components.find((c) => c.node.name === 'Button Set')).toBeDefined()
-    expect(components.find((c) => c.node.name === 'Button')).toBeUndefined()
+    expect(components.find((c) => c.node.id === compId)).toBeDefined()
+    expect(components.find((c) => c.node.id === nested.id)).toBeUndefined()
     expect(components.find((c) => c.node.name === 'Standalone')).toBeDefined()
   })
 

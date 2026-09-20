@@ -27,6 +27,20 @@ test('shows staged and determinate document loading progress in the existing can
   await expect(loader).toContainText('Geist SemiBold')
   await expect(loader).toContainText('7 of 12')
   await expect(loader.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '58')
+  for (const appearance of ['light', 'dark'] as const) {
+    await editor.page.evaluate(async (appearance) => {
+      const path = '/src/app/shell/theme.ts'
+      const module = await import(path)
+      module.useAppTheme().setTheme(appearance)
+    }, appearance)
+    const mark = loader.locator('img')
+    await expect(mark).toHaveAttribute('src', '/brand/app-icon.svg')
+    await expect(mark).toHaveAttribute('alt', '')
+    await expect(mark).toHaveScreenshot(`loading-brand-${appearance}.png`, {
+      maxDiffPixels: 0,
+      threshold: 0.1
+    })
+  }
 
   await editor.page.evaluate(() => {
     const store = window.openPencil?.getStore?.()

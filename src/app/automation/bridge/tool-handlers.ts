@@ -1,9 +1,15 @@
 import { renderTreeNode } from '@open-pencil/core/design-jsx'
 import type { FigmaAPI } from '@open-pencil/core/figma-api'
-import { ALL_TOOLS, registerComponentCatalog } from '@open-pencil/core/tools'
+import {
+  ALL_TOOLS,
+  registerComponentCatalog,
+  isAtomicTool,
+  isToolExposed
+} from '@open-pencil/core/tools'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
 import type { AutomationTarget } from '@/app/automation/bridge/target'
+import { executeAtomicEditorTool } from '@/app/automation/execution/editor'
 import { ensureGraphFonts } from '@/app/editor/fonts'
 import { useLibraryService } from '@/app/libraries'
 
@@ -45,23 +51,28 @@ export function createAutomationToolHandler(makeFigma: FigmaFactory) {
       return handleToolRender(target, toolArgs)
     }
 
-    const def = ALL_TOOLS.find((t) => t.name === toolName)
+    const def = ALL_TOOLS.find((t) => t.name === toolName && isToolExposed(t, 'mcp'))
     if (!def) throw new Error(`Unknown tool: ${toolName}`)
     const store = target.store
     const libraryService = useLibraryService()
     libraryService.bindEditor(store)
     registerComponentCatalog(store.graph, libraryService)
     const figma = makeFigma(store, target.pageId)
-    const result = def.mutates
-      ? await store.runMutationWithLayout(
-          () => def.execute(figma, toolArgs),
-          figma.currentPageId,
-          async () => {
-            const pageNode = store.graph.getNode(figma.currentPageId)
-            if (pageNode) await ensureGraphFonts(store.graph, pageNode.childIds, store.renderer)
-          }
-        )
-      : await def.execute(figma, toolArgs)
+    let result: unknown
+    if (isAtomicTool(def)) {
+      result = await executeAtomicEditorTool(store, figma, def, toolArgs)
+    } else if (def.mutates) {
+      result = await store.runMutationWithLayout(
+        () => def.execute(figma, toolArgs),
+        figma.currentPageId,
+        async () => {
+          const pageNode = store.graph.getNode(figma.currentPageId)
+          if (pageNode) await ensureGraphFonts(store.graph, pageNode.childIds, store.renderer)
+        }
+      )
+    } else {
+      result = await def.execute(figma, toolArgs)
+    }
 
     if (def.mutates) {
       store.requestRender()

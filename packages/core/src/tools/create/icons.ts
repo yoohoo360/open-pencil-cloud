@@ -1,20 +1,28 @@
+import * as v from 'valibot'
+
 import { parseColor } from '#core/color'
 import { fetchIcons, searchIconsBatch } from '#core/icons'
 import { createIconFromPaths } from '#core/icons/render'
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const fetchIconsTool = defineTool({
   name: 'fetch_icons',
+  exposure: { webmcp: false },
   description:
     'Pre-fetch icons from Iconify into cache. Batches by prefix (one HTTP request per set). Call this once with all needed icons, then use insert_icon to place them instantly. Popular sets: lucide (outline), mdi (filled), heroicons, tabler, solar, mingcute, ri (remix).',
-  params: {
-    names: {
-      type: 'string[]',
-      description: 'Icon names as prefix:name (e.g. ["lucide:heart", "lucide:home", "mdi:star"])',
-      required: true
-    },
-    size: { type: 'number', description: 'Icon size in pixels (default: 24)' }
-  },
+  execution: { kind: 'async', mutation: 'none' },
+  capabilities: ['network:access'],
+  input: v.object({
+    names: v.pipe(
+      v.array(v.string()),
+      v.minLength(1),
+      v.description('Icon names as prefix:name (e.g. ["lucide:heart", "lucide:home", "mdi:star"])')
+    ),
+    size: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Icon size in pixels (default: 24)')))
+    )
+  }),
   execute: async (_figma, args) => {
     const size = args.size ?? 24
     try {
@@ -32,26 +40,32 @@ export const fetchIconsTool = defineTool({
 
 export const insertIcon = defineTool({
   name: 'insert_icon',
-  mutates: true,
+
   description:
     'Insert one or more vector icons onto the canvas. Pass a single name or multiple names to batch-insert into the same parent. If already cached by fetch_icons — instant, no network request.',
-  params: {
-    names: {
-      type: 'string[]',
-      description:
-        'Icon names as prefix:name (e.g. ["lucide:heart"] or ["lucide:heart","lucide:home","lucide:star"])'
-    },
-    name: {
-      type: 'string',
-      description: 'Single icon name (shorthand for names with one icon)'
-    },
-    size: { type: 'number', description: 'Icon size in pixels (default: 24)' },
-    color: {
-      type: 'color',
-      description: 'Icon color hex (replaces currentColor). Default: #000000'
-    },
-    parent_id: { type: 'string', description: 'Parent node ID for all icons' }
-  },
+  execution: { kind: 'async', mutation: 'document' },
+  capabilities: ['document:write', 'network:access'],
+  input: v.object({
+    names: v.optional(
+      v.pipe(
+        v.array(v.string()),
+        v.minLength(1),
+        v.description(
+          'Icon names as prefix:name (e.g. ["lucide:heart"] or ["lucide:heart","lucide:home","lucide:star"])'
+        )
+      )
+    ),
+    name: v.optional(
+      v.pipe(v.string(), v.description('Single icon name (shorthand for names with one icon)'))
+    ),
+    size: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Icon size in pixels (default: 24)')))
+    ),
+    color: v.optional(
+      v.pipe(v.string(), v.description('Icon color hex (replaces currentColor). Default: #000000'))
+    ),
+    parent_id: v.optional(v.pipe(v.string(), v.description('Parent node ID for all icons')))
+  }),
   execute: async (figma, args) => {
     const names = args.names ?? (args.name ? [args.name] : [])
     if (names.length === 0) return { error: 'Provide "names" (array) or "name" (string)' }
@@ -93,17 +107,24 @@ export const insertIcon = defineTool({
 
 export const searchIconsTool = defineTool({
   name: 'search_icons',
+  exposure: { webmcp: false },
   description:
     'Search Iconify for icons by keyword. Accepts multiple queries — all searched in parallel. Returns results keyed by query.',
-  params: {
-    queries: {
-      type: 'string[]',
-      description: 'Search keywords (e.g. ["heart", "arrow", "settings"])',
-      required: true
-    },
-    limit: { type: 'number', description: 'Max results per query (default: 5)' },
-    prefix: { type: 'string', description: 'Filter by icon set prefix (e.g. "lucide", "mdi")' }
-  },
+  execution: { kind: 'async', mutation: 'none' },
+  capabilities: ['network:access'],
+  input: v.object({
+    queries: v.pipe(
+      v.array(v.string()),
+      v.minLength(1),
+      v.description('Search keywords (e.g. ["heart", "arrow", "settings"])')
+    ),
+    limit: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Max results per query (default: 5)')))
+    ),
+    prefix: v.optional(
+      v.pipe(v.string(), v.description('Filter by icon set prefix (e.g. "lucide", "mdi")'))
+    )
+  }),
   execute: async (_figma, args) => {
     try {
       const results = await searchIconsBatch(args.queries, {

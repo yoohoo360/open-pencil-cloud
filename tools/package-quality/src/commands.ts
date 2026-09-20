@@ -6,14 +6,15 @@ import { checkTypes } from './checks/attw'
 import { formatPackageDiagnostics, validatePackageMetadata } from './checks/metadata'
 import { checkPublint } from './checks/publint'
 import { verifyPackedPackages } from './smoke/verify'
+import { measurePhase } from './timing'
 
 const rootArg = { type: 'string', description: 'Explicit workspace root' } as const
 
 async function check(root: string): Promise<void> {
-  const diagnostics = await validatePackageMetadata(root)
+  const diagnostics = await measurePhase('metadata', () => validatePackageMetadata(root))
   if (diagnostics.length > 0) throw new Error(formatPackageDiagnostics(diagnostics))
-  await checkPublint(root)
-  await checkTypes(root)
+  await measurePhase('Publint', () => checkPublint(root))
+  await measurePhase('ATTW', () => checkTypes(root))
   console.log('Package metadata, Publint and ATTW checks passed.')
 }
 

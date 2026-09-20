@@ -1,8 +1,19 @@
 <script setup lang="ts">
-import { useEventListener, useTimeoutFn } from '@vueuse/core'
-import { computed, nextTick, ref, watch } from 'vue'
+import {
+  defaultDocument,
+  defaultWindow,
+  unrefElement,
+  useEventListener,
+  useTimeoutFn
+} from '@vueuse/core'
+import { Primitive } from 'reka-ui'
+import type { ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onDeactivated, ref, watch } from 'vue'
+
+import { useRetainedPopup } from '@open-pencil/vue'
 
 import { useTooltipUI } from '@/components/ui/overlay/tooltip'
+import { motionStyles } from '@/theme/motion/styles'
 
 const TOOLTIP_OPEN_DELAY_MS = 400
 const TOOLTIP_SIDE_OFFSET = 4
@@ -11,21 +22,30 @@ const TOOLTIP_CLAIM_EVENT = 'open-pencil:tooltip-claim'
 
 type TooltipSide = 'top' | 'bottom' | 'left' | 'right'
 
-const cls = useTooltipUI({ content: 'animate-in zoom-in-95 fade-in' })
+const cls = useTooltipUI({ content: motionStyles.popup })
 
 const {
+  asChild = false,
   side = 'top',
   disabled = false,
   label
 } = defineProps<{
+  asChild?: boolean
   label?: string
   side?: TooltipSide
   disabled?: boolean
 }>()
 
 const triggerRef = ref<HTMLElement>()
+function setTrigger(value: Element | ComponentPublicInstance | null) {
+  const element = value instanceof Element ? value : unrefElement(value)
+  triggerRef.value = element instanceof HTMLElement ? element : undefined
+}
 const contentRef = ref<HTMLElement>()
 const open = ref(false)
+const { portalActive } = useRetainedPopup(open)
+const activeWindow = computed(() => (portalActive.value ? defaultWindow : undefined))
+const activeDocument = computed(() => (portalActive.value ? defaultDocument : undefined))
 const position = ref({ x: 0, y: 0 })
 
 const canOpen = computed(() => Boolean(label) && !disabled)
@@ -45,6 +65,7 @@ const { start: startOpenTimer, stop: stopOpenTimer } = useTimeoutFn(
 
 function anchorElement() {
   const root = triggerRef.value
+  if (asChild) return root
   const child = root?.firstElementChild
   return child instanceof HTMLElement ? child : root
 }
@@ -155,11 +176,12 @@ function onTooltipClaim(event: Event) {
   hide()
 }
 
-useEventListener(window, 'resize', refreshPosition)
-useEventListener(window, 'scroll', refreshPosition, { capture: true, passive: true })
-useEventListener(document, 'pointerdown', hide, { capture: true })
-useEventListener(document, 'click', hide, { capture: true })
-useEventListener(document, TOOLTIP_CLAIM_EVENT, onTooltipClaim)
+useEventListener(activeWindow, 'resize', refreshPosition)
+useEventListener(activeWindow, 'scroll', refreshPosition, { capture: true, passive: true })
+useEventListener(activeDocument, 'pointerdown', hide, { capture: true })
+useEventListener(activeDocument, 'click', hide, { capture: true })
+useEventListener(activeDocument, TOOLTIP_CLAIM_EVENT, onTooltipClaim)
+onDeactivated(hide)
 
 watch(canOpen, (value) => {
   if (!value) hide()
@@ -167,10 +189,13 @@ watch(canOpen, (value) => {
 </script>
 
 <template>
-  <span
-    ref="triggerRef"
+  <Primitive
+    :ref="setTrigger"
+    as="span"
+    :as-child="asChild"
     data-tooltip-trigger
-    class="contents"
+    :data-as-child="asChild"
+    class="data-[as-child=false]:contents"
     @focusin="onFocusIn"
     @focusout="onFocusOut"
     @pointerover="onPointerOver"
@@ -179,8 +204,8 @@ watch(canOpen, (value) => {
     @click="hide"
   >
     <slot />
-  </span>
-  <Teleport to="body">
+  </Primitive>
+  <Teleport v-if="portalActive" to="body">
     <div
       v-if="open && label"
       ref="contentRef"

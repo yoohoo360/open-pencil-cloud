@@ -13,6 +13,9 @@ import {
   SelectViewport
 } from 'reka-ui'
 import { tv } from 'tailwind-variants'
+import { computed } from 'vue'
+
+import { useRetainedPopup } from '@open-pencil/vue'
 
 import type { ComponentUI } from '@/components/ui/types'
 import theme from '@/theme/select/app'
@@ -30,19 +33,29 @@ defineOptions({ inheritAttrs: false })
 const { options, label, placeholder, ui } = defineProps<AppSelectProps<T>>()
 const modelValue = defineModel<T>({ required: true })
 const styles = tv(theme)()
+const { open: popupOpen, portalActive } = useRetainedPopup()
+const selectedLabel = computed(
+  () => options.find((option) => option.value === modelValue.value)?.label
+)
 </script>
 
 <template>
-  <SelectRoot v-model="modelValue">
+  <SelectRoot v-model="modelValue" v-model:open="popupOpen">
+    <SelectTrigger v-if="$slots.trigger" as-child v-bind="$attrs" :aria-label="label">
+      <slot name="trigger" />
+    </SelectTrigger>
     <SelectTrigger
+      v-else
       v-bind="$attrs"
       :class="styles.trigger({ class: ui?.trigger })"
       :aria-label="label"
     >
-      <SelectValue :placeholder="placeholder" :class="styles.value({ class: ui?.value })" />
+      <SelectValue :placeholder="placeholder" :class="styles.value({ class: ui?.value })">
+        {{ selectedLabel ?? placeholder }}
+      </SelectValue>
       <icon-lucide-chevron-down class="ml-1 size-3 shrink-0 text-muted" />
     </SelectTrigger>
-    <SelectPortal>
+    <SelectPortal v-if="portalActive">
       <SelectContent
         position="popper"
         :side-offset="2"

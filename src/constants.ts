@@ -64,7 +64,9 @@ export {
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 export const TRYSTERO_APP_ID = 'openpencil'
-export const ROOM_ID_LENGTH = 8
+// 32 base36 characters provide roughly 165 bits of entropy. The room ID is a
+// bearer credential and must resist offline enumeration from public signaling topics.
+export const ROOM_ID_LENGTH = 32
 export const ROOM_ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
 export const WEB_APP_ORIGIN = 'https://app.openpencil.dev'

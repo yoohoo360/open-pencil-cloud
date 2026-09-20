@@ -1,14 +1,25 @@
 import { orderBy } from 'es-toolkit/array'
+import * as v from 'valibot'
 
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const analyzeSpacing = defineTool({
   name: 'analyze_spacing',
   description:
     'Analyze spacing values (gap, padding) across the current page. Checks grid compliance.',
-  params: {
-    grid: { type: 'number', description: 'Base grid size to check against (default: 8)' }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  input: v.object({
+    grid: v.optional(
+      toolNumber(
+        v.pipe(
+          v.number(),
+          v.gtValue(0),
+          v.description('Base grid size to check against (default: 8)')
+        )
+      )
+    )
+  }),
   execute: (figma, args) => {
     const gridSize = args.grid ?? 8
     const page = figma.currentPage

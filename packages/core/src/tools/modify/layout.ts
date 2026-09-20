@@ -1,46 +1,66 @@
+import * as v from 'valibot'
+
 import type { SceneNode } from '@open-pencil/scene-graph'
 
+import { toolNumber, nodeIdInput } from '#core/tools/input'
 import { defineTool, nodeNotFound } from '#core/tools/schema'
 
 export const setLayout = defineTool({
   name: 'set_layout',
-  mutates: true,
+
   description: 'Set auto-layout (flexbox) on a frame. Direction, alignment, spacing, padding.',
-  params: {
-    id: { type: 'string', description: 'Frame node ID', required: true },
-    direction: {
-      type: 'string',
-      description: 'Layout direction (keeps current if omitted)',
-      enum: ['HORIZONTAL', 'VERTICAL']
-    },
-    spacing: {
-      type: 'number',
-      description: 'Gap between items (only changes if provided)',
-      min: 0
-    },
-    padding: {
-      type: 'number',
-      description: 'Equal padding on all sides (only changes if provided)',
-      min: 0
-    },
-    padding_horizontal: { type: 'number', description: 'Horizontal padding', min: 0 },
-    padding_vertical: { type: 'number', description: 'Vertical padding', min: 0 },
-    align: {
-      type: 'string',
-      description: 'Primary axis alignment (only changes if provided)',
-      enum: ['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']
-    },
-    counter_align: {
-      type: 'string',
-      description: 'Cross axis alignment (only changes if provided)',
-      enum: ['MIN', 'CENTER', 'MAX', 'STRETCH']
-    },
-    flow_direction: {
-      type: 'string',
-      description: 'Child flow direction for auto-layout. AUTO inherits from parent.',
-      enum: ['AUTO', 'LTR', 'RTL']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Frame node ID')),
+    direction: v.optional(
+      v.pipe(
+        v.picklist(['HORIZONTAL', 'VERTICAL']),
+        v.description('Layout direction (keeps current if omitted)')
+      )
+    ),
+    spacing: v.optional(
+      toolNumber(
+        v.pipe(
+          v.number(),
+          v.minValue(0),
+          v.description('Gap between items (only changes if provided)')
+        )
+      )
+    ),
+    padding: v.optional(
+      toolNumber(
+        v.pipe(
+          v.number(),
+          v.minValue(0),
+          v.description('Equal padding on all sides (only changes if provided)')
+        )
+      )
+    ),
+    padding_horizontal: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(0), v.description('Horizontal padding')))
+    ),
+    padding_vertical: v.optional(
+      toolNumber(v.pipe(v.number(), v.minValue(0), v.description('Vertical padding')))
+    ),
+    align: v.optional(
+      v.pipe(
+        v.picklist(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']),
+        v.description('Primary axis alignment (only changes if provided)')
+      )
+    ),
+    counter_align: v.optional(
+      v.pipe(
+        v.picklist(['MIN', 'CENTER', 'MAX', 'STRETCH']),
+        v.description('Cross axis alignment (only changes if provided)')
+      )
+    ),
+    flow_direction: v.optional(
+      v.pipe(
+        v.picklist(['AUTO', 'LTR', 'RTL']),
+        v.description('Child flow direction for auto-layout. AUTO inherits from parent.')
+      )
+    )
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)
@@ -53,7 +73,7 @@ export const setLayout = defineTool({
     }
 
     const wasNone = raw?.layoutMode === 'NONE'
-    if (args.direction) node.layoutMode = args.direction as 'HORIZONTAL' | 'VERTICAL'
+    if (args.direction) node.layoutMode = args.direction
     if (wasNone) {
       node.primaryAxisSizingMode = 'AUTO'
       node.counterAxisSizingMode = 'AUTO'
@@ -85,21 +105,24 @@ export const setLayout = defineTool({
 
 export const setConstraints = defineTool({
   name: 'set_constraints',
-  mutates: true,
+
   description: 'Set resize constraints for a node within its parent.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    horizontal: {
-      type: 'string',
-      description: 'Horizontal constraint',
-      enum: ['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE']
-    },
-    vertical: {
-      type: 'string',
-      description: 'Vertical constraint',
-      enum: ['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    horizontal: v.optional(
+      v.pipe(
+        v.picklist(['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE']),
+        v.description('Horizontal constraint')
+      )
+    ),
+    vertical: v.optional(
+      v.pipe(
+        v.picklist(['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE']),
+        v.description('Vertical constraint')
+      )
+    )
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)
@@ -115,33 +138,36 @@ export const setConstraints = defineTool({
 
 export const setLayoutChild = defineTool({
   name: 'set_layout_child',
-  mutates: true,
+
   description:
     'Configure auto-layout child: sizing (FIXED/HUG/FILL), grow, alignment, absolute positioning.',
-  params: {
-    id: { type: 'string', description: 'Child node ID', required: true },
-    sizing_horizontal: {
-      type: 'string',
-      description: 'Horizontal sizing mode',
-      enum: ['FIXED', 'HUG', 'FILL']
-    },
-    sizing_vertical: {
-      type: 'string',
-      description: 'Vertical sizing mode',
-      enum: ['FIXED', 'HUG', 'FILL']
-    },
-    grow: { type: 'number', description: 'Flex grow factor (0 = fixed, 1 = grow)', min: 0 },
-    align_self: {
-      type: 'string',
-      description: 'Self alignment override (cross-axis)',
-      enum: ['INHERIT', 'MIN', 'CENTER', 'MAX', 'STRETCH', 'BASELINE']
-    },
-    positioning: {
-      type: 'string',
-      description: 'ABSOLUTE to take node out of auto-layout flow',
-      enum: ['AUTO', 'ABSOLUTE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Child node ID')),
+    sizing_horizontal: v.optional(
+      v.pipe(v.picklist(['FIXED', 'HUG', 'FILL']), v.description('Horizontal sizing mode'))
+    ),
+    sizing_vertical: v.optional(
+      v.pipe(v.picklist(['FIXED', 'HUG', 'FILL']), v.description('Vertical sizing mode'))
+    ),
+    grow: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.minValue(0), v.description('Flex grow factor (0 = fixed, 1 = grow)'))
+      )
+    ),
+    align_self: v.optional(
+      v.pipe(
+        v.picklist(['INHERIT', 'MIN', 'CENTER', 'MAX', 'STRETCH', 'BASELINE']),
+        v.description('Self alignment override (cross-axis)')
+      )
+    ),
+    positioning: v.optional(
+      v.pipe(
+        v.picklist(['AUTO', 'ABSOLUTE']),
+        v.description('ABSOLUTE to take node out of auto-layout flow')
+      )
+    )
+  }),
   execute: (figma, args) => {
     const node = figma.getNodeById(args.id)
     if (!node) return nodeNotFound(args.id)

@@ -1,4 +1,4 @@
-import type { Effect, Fill } from '@open-pencil/scene-graph'
+import type { Effect, Fill, SceneNode } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import type { DesignVariable } from './vars'
@@ -92,9 +92,10 @@ export type StyleProps = {
   flex?: 'row' | 'col' | 'column'
   flow?: 'auto' | 'ltr' | 'rtl'
   dir?: 'auto' | 'ltr' | 'rtl'
-  gap?: number
+  gap?: number | DesignVariable
   wrap?: boolean
-  rowGap?: number
+  rowGap?: number | DesignVariable
+  columnGap?: number | DesignVariable
   justify?: 'start' | 'end' | 'center' | 'between'
   justifyContent?: 'start' | 'end' | 'center' | 'between'
   items?: 'start' | 'end' | 'center' | 'stretch'
@@ -102,8 +103,8 @@ export type StyleProps = {
   alignItems?: 'start' | 'end' | 'center' | 'stretch'
   grow?: number
 
-  w?: number | 'fill' | 'hug'
-  h?: number | 'fill' | 'hug'
+  w?: number | 'fill' | 'hug' | DesignVariable
+  h?: number | 'fill' | 'hug' | DesignVariable
   minW?: number
   maxW?: number
   minH?: number
@@ -112,28 +113,28 @@ export type StyleProps = {
   x?: number
   y?: number
 
-  p?: number
-  px?: number
-  py?: number
-  pt?: number
-  pr?: number
-  pb?: number
-  pl?: number
+  p?: number | DesignVariable
+  px?: number | DesignVariable
+  py?: number | DesignVariable
+  pt?: number | DesignVariable
+  pr?: number | DesignVariable
+  pb?: number | DesignVariable
+  pl?: number | DesignVariable
 
   bg?: PaintProp
   fill?: PaintProp
   fills?: PaintProp[]
   stroke?: PaintProp
-  strokeWidth?: number
+  strokeWidth?: number | DesignVariable
   strokeAlign?: 'inside' | 'outside' | 'center'
   strokeDash?: number[] | boolean
-  rounded?: number
-  roundedTL?: number
-  roundedTR?: number
-  roundedBL?: number
-  roundedBR?: number
+  rounded?: number | DesignVariable
+  roundedTL?: number | DesignVariable
+  roundedTR?: number | DesignVariable
+  roundedBL?: number | DesignVariable
+  roundedBR?: number | DesignVariable
   cornerSmoothing?: number
-  opacity?: number
+  opacity?: number | DesignVariable
   blendMode?: string
   mask?: boolean | 'alpha' | 'luminance' | 'vector'
   rotate?: number
@@ -143,8 +144,10 @@ export type StyleProps = {
   blur?: number
   effects?: Effect[]
 
-  size?: number
-  fontSize?: number
+  size?: number | DesignVariable
+  fontSize?: number | DesignVariable
+  lineHeight?: number | DesignVariable
+  letterSpacing?: number | DesignVariable
   font?: string
   fontFamily?: string
   weight?: number | 'bold' | 'medium' | 'normal'
@@ -160,12 +163,25 @@ export type StyleProps = {
   textAutoResize?: 'none' | 'width' | 'height'
 }
 
-export type BaseProps = StyleProps & {
+type NodeProps = StyleProps & {
   name?: string
   key?: string | number
   children?: unknown
   bind?: Record<string, unknown>
+  propertyRefs?: SceneNode['componentPropertyReferences']
   [key: string]: unknown
 }
 
+export type BaseProps = NodeProps & { properties?: never }
 export type TextProps = BaseProps
+
+export type ComponentProps = NodeProps & {
+  properties?: SceneNode['componentPropertyDefinitions']
+}
+
+export type InstanceProps = NodeProps & {
+  component?: string
+  componentId?: string
+  of?: string
+  properties?: SceneNode['componentPropertyAssignments']
+}

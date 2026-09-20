@@ -68,6 +68,23 @@ describe('canvas pattern fills', () => {
 })
 
 describe('canvas image fills', () => {
+  test.each([
+    { width: 100, height: 100, scale: 0.8, x: 20, y: 0 },
+    { width: 240, height: 80, scale: 0.5, x: 0, y: 20 },
+    { width: 60, height: 40, scale: 2, x: 0, y: 0 }
+  ])(
+    'centers FIT images without stretching ($width × $height)',
+    ({ width, height, scale, x, y }) => {
+      const renderer = createRenderer()
+      const fill = { type: 'IMAGE', imageScaleMode: 'FIT' } as Fill
+      expect(makeImageFillLocalMatrix(renderer, fill, node, width, height)).toEqual([
+        'multiply',
+        ['translated', x, y],
+        ['scaled', scale, scale]
+      ])
+    }
+  )
+
   test('keeps untransformed tile fills in image pixel space', () => {
     const renderer = createRenderer()
     const fill = { type: 'IMAGE', imageScaleMode: 'TILE' } as Fill

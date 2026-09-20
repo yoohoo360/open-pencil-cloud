@@ -1,13 +1,17 @@
+import * as v from 'valibot'
+
+import { nodeIdInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const setVisible = defineTool({
   name: 'set_visible',
-  mutates: true,
+
   description: 'Set visibility of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    value: { type: 'boolean', description: 'Visible (true/false)', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    value: v.pipe(v.boolean(), v.description('Visible (true/false)'))
+  }),
   execute: (figma, { id, value }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -18,15 +22,13 @@ export const setVisible = defineTool({
 
 export const setBlend = defineTool({
   name: 'set_blend',
-  mutates: true,
+
   description: 'Set blend mode of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    mode: {
-      type: 'string',
-      description: 'Blend mode',
-      required: true,
-      enum: [
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    mode: v.pipe(
+      v.picklist([
         'NORMAL',
         'DARKEN',
         'MULTIPLY',
@@ -43,9 +45,10 @@ export const setBlend = defineTool({
         'SATURATION',
         'COLOR',
         'LUMINOSITY'
-      ]
-    }
-  },
+      ]),
+      v.description('Blend mode')
+    )
+  }),
   execute: (figma, { id, mode }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -56,12 +59,13 @@ export const setBlend = defineTool({
 
 export const setLocked = defineTool({
   name: 'set_locked',
-  mutates: true,
+
   description: 'Set locked state of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    value: { type: 'boolean', description: 'Locked (true/false)', required: true }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    value: v.pipe(v.boolean(), v.description('Locked (true/false)'))
+  }),
   execute: (figma, { id, value }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }
@@ -72,17 +76,13 @@ export const setLocked = defineTool({
 
 export const setStrokeAlign = defineTool({
   name: 'set_stroke_align',
-  mutates: true,
+
   description: 'Set stroke alignment of a node.',
-  params: {
-    id: { type: 'string', description: 'Node ID', required: true },
-    align: {
-      type: 'string',
-      description: 'Stroke alignment',
-      required: true,
-      enum: ['INSIDE', 'CENTER', 'OUTSIDE']
-    }
-  },
+  execution: { kind: 'sync', mutation: 'properties' },
+  input: v.object({
+    id: nodeIdInput,
+    align: v.pipe(v.picklist(['INSIDE', 'CENTER', 'OUTSIDE']), v.description('Stroke alignment'))
+  }),
   execute: (figma, { id, align }) => {
     const node = figma.getNodeById(id)
     if (!node) return { error: `Node "${id}" not found` }

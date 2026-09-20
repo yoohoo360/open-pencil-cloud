@@ -3,10 +3,15 @@ import { join } from 'node:path'
 import {
   concreteImportSpecifiers,
   runCommand,
+  type CommandRequest,
   type PackageManifest
 } from '@open-pencil/package-artifacts'
 
+import { runPackageChecks } from '../checks/run'
+
 export type RuntimeName = 'bun' | 'node'
+const RUNTIMES = ['node', 'bun'] as const
+const IMPORT_CONCURRENCY = 4
 
 const RUNTIME_TIMEOUT_MS = 30_000
 
@@ -29,7 +34,8 @@ export async function evaluateRuntime(
 
 export async function verifyPublicImports(
   manifests: PackageManifest[],
-  consumerDirectory: string
+  consumerDirectory: string,
+  execute: typeof runCommand = runCommand
 ): Promise<void> {
   const skipped = new Set(['@open-pencil/mcp/stdio'])
   const specifiers = manifests
@@ -37,22 +43,22 @@ export async function verifyPublicImports(
     .filter((specifier) => !skipped.has(specifier))
     .sort()
 
-  for (const runtime of ['node', 'bun'] as const) {
-    for (const specifier of specifiers) {
-      await evaluateRuntime(
-        runtime,
-        `await import(${JSON.stringify(specifier)})`,
-        consumerDirectory
-      )
-    }
-  }
+  const requests: CommandRequest[] = RUNTIMES.flatMap((runtime) =>
+    specifiers.map((specifier) => ({
+      command: runtime,
+      args: runtimeEvalArgs(runtime, `await import(${JSON.stringify(specifier)})`),
+      cwd: consumerDirectory,
+      timeoutMs: RUNTIME_TIMEOUT_MS
+    }))
+  )
+  await runPackageChecks(requests, execute, IMPORT_CONCURRENCY)
 }
 
 export async function verifyRuntimeScenarios(
   scenarios: ReadonlyArray<{ code: string }>,
   consumerDirectory: string
 ): Promise<void> {
-  for (const runtime of ['node', 'bun'] as const) {
+  for (const runtime of RUNTIMES) {
     for (const scenario of scenarios) {
       await evaluateRuntime(runtime, scenario.code, consumerDirectory)
     }
@@ -62,7 +68,7 @@ export async function verifyRuntimeScenarios(
 export async function verifyPackageBinaries(consumerDirectory: string): Promise<void> {
   const binaryDirectory = join(consumerDirectory, 'node_modules', '.bin')
   const binaries = ['openpencil', 'openpencil-mcp', 'openpencil-mcp-http']
-  for (const runtime of ['node', 'bun'] as const) {
+  for (const runtime of RUNTIMES) {
     for (const binary of binaries) {
       await runCommand({
         command: runtime,

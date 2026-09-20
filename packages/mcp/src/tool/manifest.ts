@@ -1,5 +1,5 @@
 import type { ToolDef } from '@open-pencil/core/tools'
-import { ALL_TOOLS, toolChangesDocument } from '@open-pencil/core/tools'
+import { ALL_TOOLS, toolChangesDocument, isToolExposed } from '@open-pencil/core/tools'
 
 import type {
   ToolAvailability,
@@ -8,26 +8,16 @@ import type {
   ToolEffect
 } from '#mcp/tool/metadata'
 
-const TOOL_CAPABILITY_OVERRIDES: Readonly<Partial<Record<string, readonly ToolCapability[]>>> = {
-  eval: ['document:read', 'document:write', 'code:execute'],
-  fetch_icons: ['network:access'],
-  insert_icon: ['document:write', 'network:access'],
-  list_available_fonts: ['document:read'],
-  search_icons: ['network:access'],
-  stock_photo: ['document:write', 'network:access']
-}
-
 export function coreToolEffect(def: ToolDef): ToolEffect {
   return toolChangesDocument(def) ? 'write' : 'read'
 }
 
 export function coreToolCapabilities(def: ToolDef): ToolCapability[] {
-  const override = TOOL_CAPABILITY_OVERRIDES[def.name]
-  return override ? [...override] : [toolChangesDocument(def) ? 'document:write' : 'document:read']
+  return [...def.capabilities]
 }
 
 export function coreToolAvailability(def: ToolDef): ToolAvailability {
-  return def.name === 'eval' ? 'eval' : 'default'
+  return def.availability
 }
 
 function coreToolDescriptor(def: ToolDef): ToolDescriptor {
@@ -41,8 +31,12 @@ function coreToolDescriptor(def: ToolDef): ToolDescriptor {
   }
 }
 
+export function getMCPToolDefinitions() {
+  return ALL_TOOLS.filter((def) => isToolExposed(def, 'mcp'))
+}
+
 export function createToolDescriptors(filesystemEnabled: boolean): ToolDescriptor[] {
-  const descriptors = ALL_TOOLS.map(coreToolDescriptor)
+  const descriptors = getMCPToolDefinitions().map(coreToolDescriptor)
   descriptors.push(
     {
       name: 'list_documents',

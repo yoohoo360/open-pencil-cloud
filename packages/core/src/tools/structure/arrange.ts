@@ -1,25 +1,44 @@
+import * as v from 'valibot'
+
 import type { FigmaNodeProxy } from '#core/figma-api'
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 export const arrangeNodes = defineTool({
   name: 'arrange',
-  mutates: true,
+
   description:
     'Arrange top-level nodes on the canvas in a grid, row, or column layout. Useful after batch creation to tidy up overlapping frames.',
-  params: {
-    ids: { type: 'string[]', description: 'Node IDs to arrange (default: all top-level children)' },
-    mode: {
-      type: 'string',
-      description: 'Layout mode',
-      enum: ['grid', 'row', 'column'],
-      default: 'grid'
-    },
-    gap: { type: 'number', description: 'Spacing between nodes (default: 40)' },
-    cols: { type: 'number', description: 'Column count for grid mode (default: auto)' }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    ids: v.optional(
+      v.pipe(
+        v.array(v.string()),
+        v.minLength(1),
+        v.description('Node IDs to arrange (default: all top-level children)')
+      )
+    ),
+    mode: v.optional(
+      v.pipe(v.picklist(['grid', 'row', 'column']), v.description('Layout mode')),
+      'grid'
+    ),
+    gap: v.optional(
+      toolNumber(v.pipe(v.number(), v.description('Spacing between nodes (default: 40)')))
+    ),
+    cols: v.optional(
+      toolNumber(
+        v.pipe(
+          v.number(),
+          v.integer(),
+          v.minValue(1),
+          v.description('Column count for grid mode (default: auto)')
+        )
+      )
+    )
+  }),
   execute: (figma, args) => {
     const gap = args.gap ?? 40
-    const mode = args.mode ?? 'grid'
+    const mode = args.mode
     const page = figma.currentPage
 
     let nodes: FigmaNodeProxy[]

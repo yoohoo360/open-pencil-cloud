@@ -2,7 +2,11 @@ import { beforeEach, afterEach, expect, test } from 'bun:test'
 
 import { effectScope, ref } from 'vue'
 
-import { mcpConnectionSettings, type MCPConnection } from '@/app/integrations/mcp'
+import {
+  createMCPConnectionDraft,
+  mcpConnectionSettings,
+  type MCPConnection
+} from '@/app/integrations/mcp'
 import { useMCPConnectionSettings } from '@/app/integrations/mcp/settings/use'
 
 const connection: MCPConnection = {
@@ -22,7 +26,7 @@ afterEach(() => {
   mcpConnectionSettings.value.connections = previousConnections
 })
 
-test('MCP credential clear disables its captured target without changing a new draft', async () => {
+test('MCP save commits staged clearing without changing a new draft', async () => {
   const scope = effectScope()
   let finish: () => void = () => undefined
   const pending = new Promise<void>((resolve) => {
@@ -32,25 +36,33 @@ test('MCP credential clear disables its captured target without changing a new d
   const token = ref('')
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(token, ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => 'configured',
-        setCredential: async () => pending,
-        save: (draft) => {
-          saved.push(draft.enabled)
-          return connection
-        },
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        token,
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => 'configured',
+          setCredential: async () => pending,
+          save: (draft) => {
+            saved.push(draft.enabled)
+            return connection
+          },
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     state.draft.value.id = connection.id
-    const clearing = state.clearCredential()
+    state.clearCredential()
+    expect(saved).toEqual([])
+    const clearing = state.save()
     state.startAdd()
     state.draft.value.enabled = true
     token.value = 'new-key'
     finish()
     await clearing
-    expect(saved).toEqual([false])
+    expect(saved).toEqual([false, false])
+    expect(state.credentialCleared.value).toBe(false)
     expect(state.draft.value.enabled).toBe(true)
     expect(token.value).toBe('new-key')
   } finally {
@@ -68,15 +80,20 @@ test('MCP edit ignores credential status after another draft opens', async () =>
   })
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(ref(''), ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => {
-          await pending
-          return 'configured'
-        },
-        setCredential: async () => undefined,
-        save: () => connection,
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref(''),
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => {
+            await pending
+            return 'configured'
+          },
+          setCredential: async () => undefined,
+          save: () => connection,
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     const editing = state.startEdit(connection.id)
@@ -90,27 +107,37 @@ test('MCP edit ignores credential status after another draft opens', async () =>
   }
 })
 
-test('MCP save and clear failures preserve token input', async () => {
+test('MCP failed writes preserve replacements and staged removals', async () => {
   const scope = effectScope()
   const token = ref('replacement')
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(token, ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => 'configured',
-        setCredential: async () => {
-          throw new Error('Offline')
-        },
-        save: () => connection,
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        token,
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => 'configured',
+          setCredential: async () => {
+            throw new Error('Offline')
+          },
+          save: () => connection,
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     state.draft.value.id = connection.id
-    expect(await state.save()).toBe(false)
-    expect(state.error.value).toBe('Offline')
-    await state.clearCredential()
+    expect(await state.save()).toBe('partial')
     expect(state.error.value).toBe('Offline')
     expect(token.value).toBe('replacement')
+    state.clearCredential()
+    expect(state.error.value).toBe('')
+    expect(token.value).toBe('')
+    expect(state.credentialCleared.value).toBe(true)
+    expect(await state.save()).toBe('partial')
+    expect(state.error.value).toBe('Offline')
+    expect(state.credentialCleared.value).toBe(true)
   } finally {
     scope.stop()
   }
@@ -121,50 +148,64 @@ test('failed bearer write never enables the saved connection', async () => {
   const saved: boolean[] = []
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(ref('token'), ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => 'configured',
-        setCredential: async () => {
-          throw new Error('Write failed')
-        },
-        save: (draft) => {
-          saved.push(draft.enabled)
-          return connection
-        },
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref('token'),
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => 'configured',
+          setCredential: async () => {
+            throw new Error('Write failed')
+          },
+          save: (draft) => {
+            saved.push(draft.enabled)
+            return connection
+          },
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     state.draft.value.authenticationType = 'bearer'
     state.draft.value.enabled = true
-    expect(await state.save()).toBe(false)
+    expect(await state.save()).toBe('partial')
     expect(saved).toEqual([false])
   } finally {
     scope.stop()
   }
 })
 
-test('clear uses persisted fields rather than invalid unsaved input', async () => {
+test('clear never persists unsaved fields and cancel discards removal', async () => {
   const scope = effectScope()
   const names: string[] = []
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(ref(''), ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => 'configured',
-        setCredential: async () => undefined,
-        save: (draft) => {
-          names.push(draft.name)
-          expect(draft.url).toBe(connection.transport.url)
-          return connection
-        },
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref(''),
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => 'configured',
+          setCredential: async () => undefined,
+          save: (draft) => {
+            names.push(draft.name)
+            expect(draft.url).toBe(connection.transport.url)
+            return connection
+          },
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     state.draft.value.id = connection.id
     state.draft.value.name = ''
     state.draft.value.url = 'invalid'
-    await state.clearCredential()
-    expect(names).toEqual(['Test'])
+    state.clearCredential()
+    expect(names).toEqual([])
+    expect(state.draft.value.url).toBe('invalid')
+    expect(state.credentialCleared.value).toBe(true)
+    state.cancel()
+    expect(state.credentialCleared.value).toBe(false)
   } finally {
     scope.stop()
   }
@@ -174,14 +215,19 @@ test('status lookup failure opens the editor with an error', async () => {
   const scope = effectScope()
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(ref(''), ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => {
-          throw new Error('Locked')
-        },
-        setCredential: async () => undefined,
-        save: () => connection,
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref(''),
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => {
+            throw new Error('Locked')
+          },
+          setCredential: async () => undefined,
+          save: () => connection,
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     expect(await state.startEdit(connection.id)).toBe(true)
@@ -201,15 +247,20 @@ test('serializes overlapping credential replacements', async () => {
   const token = ref('first')
   try {
     const state = scope.run(() =>
-      useMCPConnectionSettings(token, ref({ bearerTokenRequired: 'Required' }), {
-        status: async () => 'configured',
-        setCredential: async (_id, value) => {
-          writes.push(value)
-          if (value === 'first') await blocked
-        },
-        save: () => connection,
-        remove: async () => undefined
-      })
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        token,
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: async () => 'configured',
+          setCredential: async (_id, value) => {
+            writes.push(value)
+            if (value === 'first') await blocked
+          },
+          save: () => connection,
+          remove: async () => undefined
+        }
+      )
     )
     if (!state) throw new Error('Missing scope')
     state.draft.value.id = connection.id
@@ -251,13 +302,28 @@ test('reopened editors serialize writes to the same connection while other conne
   }
   try {
     const first = firstScope.run(() =>
-      useMCPConnectionSettings(ref('first'), ref({ bearerTokenRequired: 'Required' }), services)
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref('first'),
+        ref({ bearerTokenRequired: 'Required' }),
+        services
+      )
     )
     const second = secondScope.run(() =>
-      useMCPConnectionSettings(ref('second'), ref({ bearerTokenRequired: 'Required' }), services)
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref('second'),
+        ref({ bearerTokenRequired: 'Required' }),
+        services
+      )
     )
     const other = secondScope.run(() =>
-      useMCPConnectionSettings(ref('other'), ref({ bearerTokenRequired: 'Required' }), services)
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref('other'),
+        ref({ bearerTokenRequired: 'Required' }),
+        services
+      )
     )
     if (!first || !second || !other) throw new Error('Missing scope')
     for (const editor of [first, second, other]) {
@@ -298,23 +364,73 @@ test('blank-token save rechecks status after a different editor clears the crede
   }
   try {
     const first = scope.run(() =>
-      useMCPConnectionSettings(ref(''), ref({ bearerTokenRequired: 'Required' }), services)
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref(''),
+        ref({ bearerTokenRequired: 'Required' }),
+        services
+      )
     )
     const second = scope.run(() =>
-      useMCPConnectionSettings(ref(''), ref({ bearerTokenRequired: 'Required' }), services)
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        ref(''),
+        ref({ bearerTokenRequired: 'Required' }),
+        services
+      )
     )
     if (!first || !second) throw new Error('Missing scope')
     await first.startEdit(connection.id)
     await second.startEdit(connection.id)
     second.draft.value.authenticationType = 'bearer'
     second.draft.value.enabled = true
-    const clearing = first.clearCredential()
+    first.clearCredential()
+    expect(configured).toBe(true)
+    const clearing = first.save()
     const saving = second.save()
     await clearing
-    expect(await saving).toBe(false)
+    expect(await saving).toBe('partial')
     expect(second.error.value).toBe('Required')
-    expect(enabled).toEqual([false, false])
+    expect(enabled).toEqual([false, false, false])
   } finally {
+    scope.stop()
+  }
+})
+
+test('cancel clears secrets and ignores a pending credential lookup', async () => {
+  const scope = effectScope()
+  const token = ref('')
+  const lookup = Promise.withResolvers<'configured'>()
+  try {
+    const state = scope.run(() =>
+      useMCPConnectionSettings(
+        ref(createMCPConnectionDraft()),
+        token,
+        ref({ bearerTokenRequired: 'Required' }),
+        {
+          status: () => lookup.promise,
+          save: () => connection,
+          setCredential: async () => undefined,
+          remove: async () => undefined
+        }
+      )
+    )
+    if (!state) throw new Error('Missing scope')
+    const editing = state.startEdit(connection.id)
+    expect(state.busy.value).toBe(true)
+    token.value = 'discard-me'
+    state.cancel()
+    expect(token.value).toBe('')
+    expect(state.draft.value.id).toBeNull()
+    lookup.resolve('configured')
+    expect(await editing).toBe(false)
+    expect(state.busy.value).toBe(false)
+    expect(state.tokenStatus.value).toBe('missing')
+    token.value = 'discard-on-close'
+    scope.stop()
+    expect(token.value).toBe('')
+  } finally {
+    lookup.resolve('configured')
     scope.stop()
   }
 })

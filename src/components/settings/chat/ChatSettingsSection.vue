@@ -5,7 +5,8 @@ import { useI18n } from '@open-pencil/vue'
 
 import { reasoningDisplay } from '@/app/ai/chat/preferences'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
-import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
+import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
 
 const { ai } = useI18n()
@@ -17,18 +18,17 @@ const options = computed(() => [
 </script>
 
 <template>
-  <section class="mt-4 flex flex-col gap-3">
-    <SettingsSectionHeader>{{ ai.chatSettings }}</SettingsSectionHeader>
+  <SettingsSection>
+    <template #title>{{ ai.chatSettings }}</template>
     <SettingsGroup>
-      <label class="flex flex-wrap items-center justify-between gap-4 px-3 py-2.5">
-        <span class="text-xs text-surface">{{ ai.reasoningDisplay }}</span>
+      <SettingsRow :label="ai.reasoningDisplay" class="max-sm:flex-col max-sm:items-stretch">
         <AppSelect
           v-model="reasoningDisplay"
           :label="ai.reasoningDisplay"
           :options="options"
-          class="w-44"
+          :ui="{ trigger: 'w-full sm:w-52' }"
         />
-      </label>
+      </SettingsRow>
     </SettingsGroup>
-  </section>
+  </SettingsSection>
 </template>

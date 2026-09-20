@@ -71,6 +71,7 @@ es:panels.localLibraries
 es:panels.radialGradient
 es:panels.textCaseOriginal
 es:panels.variables
+es:rendering.experimental
 es:settings.general
 es:storage.bucket
 es:storage.providerAmazonS3
@@ -123,6 +124,7 @@ fr:panels.radialGradient
 fr:panels.rotation
 fr:panels.saturation
 fr:panels.variables
+fr:settings.animations
 fr:settings.diagnostics
 fr:settings.notifications
 fr:storage.bucket

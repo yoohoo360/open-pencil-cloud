@@ -19,7 +19,8 @@ const {
   sensitivity,
   placeholder,
   nodeId,
-  bindingPath
+  bindingPath,
+  bindingPaths
 } = defineProps<{
   modelValue: number | symbol
   min?: number
@@ -32,17 +33,21 @@ const {
   placeholder?: string
   nodeId: string
   bindingPath: NumberBindingPath
+  bindingPaths?: readonly NumberBindingPath[]
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: number]
   commit: [value: number, previous: number]
+  cancel: []
 }>()
 
 const { panels, common } = useI18n()
 const provider = useNumberBindingProvider()
 const attrs = useAttrs()
-const targets = computed<BindingTarget[]>(() => [{ nodeId, path: bindingPath }])
+const targets = computed<BindingTarget[]>(() =>
+  (bindingPaths ?? [bindingPath]).map((path) => ({ nodeId, path }))
+)
 const accessibleLabel = computed(() => {
   const ariaLabel = attrs['aria-label']
   return typeof ariaLabel === 'string' ? ariaLabel : (label ?? bindingPath)
@@ -80,6 +85,7 @@ defineOptions({ inheritAttrs: false })
       :aria-label="accessibleLabel"
       @update:model-value="emit('update:modelValue', $event)"
       @commit="(value: number, previous: number) => emit('commit', value, previous)"
+      @cancel="emit('cancel')"
     >
       <template v-if="$slots.icon" #icon>
         <slot name="icon" />

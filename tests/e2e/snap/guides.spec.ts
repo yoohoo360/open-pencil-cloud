@@ -141,6 +141,10 @@ test('pixel snapping preference controls fractional object movement', async () =
   await page.mouse.move(box.x + 166.25, box.y + 147.25)
   await page.mouse.down()
   await page.mouse.move(box.x + 172.8, box.y + 155.05, { steps: 5 })
+  expect(await snapGuides()).toEqual([])
+  if (process.platform === 'darwin') {
+    expect(await canvas.screenshotCanvas()).toMatchSnapshot('pixel-rounding-without-guides.png')
+  }
   await page.mouse.up()
   expect(await selectedPosition()).toEqual({ x: 133, y: 115 })
   canvas.assertNoErrors()

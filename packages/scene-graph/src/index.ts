@@ -41,7 +41,7 @@ import { bindNodeEvents } from './events'
 import * as HitTest from './hit-test'
 import * as Instances from './instances'
 import { CONTAINER_TYPES, createDefaultNode } from './node-defaults'
-import { updateNodePreview } from './preview'
+import { updateNodePreview, type NodePreviewObserver } from './preview'
 import { styleDetachmentChanges } from './shared-styles'
 import { markSourceFieldsEdited } from './source-metadata'
 import { GLYPH_AFFECTING_KEYS, invalidateTextCaches, TEXT_PICTURE_KEYS } from './text-picture'
@@ -84,6 +84,19 @@ export function generateId(): string {
   return `0:${nextLocalID++}`
 }
 
+function stripUndefinedProps<T extends object>(obj: T): T {
+  const result = {} as T
+  for (const key of Object.keys(obj) as (keyof T)[]) {
+    const val = obj[key]
+    if (val !== undefined) {
+      result[key] = val
+    }
+  }
+  return result
+}
+
+export { captureGraphCheckpoint } from './checkpoint'
+
 export class SceneGraph {
   nodes = new Map<string, SceneNode>()
   images = new Map<string, Uint8Array>()
@@ -99,6 +112,7 @@ export class SceneGraph {
   readonly emitter: Emitter<SceneGraphEvents> = createNanoEvents()
   private absPosCache = new Map<string, Vector>()
   private previewMutationDepth = 0
+  private previewObservers: NodePreviewObserver[] = []
   private sourceMetadataPreservationDepth = 0
   private layoutMutationDepth = 0
   positionPreviewVersion = 0
@@ -373,11 +387,13 @@ export class SceneGraph {
     'maxHeight'
   ])
 
-  runPreviewUpdates(fn: () => void): void {
+  runPreviewUpdates(fn: () => void, beforeUpdate?: NodePreviewObserver): void {
     this.previewMutationDepth++
+    if (beforeUpdate) this.previewObservers.push(beforeUpdate)
     try {
       fn()
     } finally {
+      if (beforeUpdate) this.previewObservers.pop()
       this.previewMutationDepth--
     }
   }
@@ -404,9 +420,12 @@ export class SceneGraph {
     this.updateNodePreview(id, { x, y })
   }
   updateNodePreview(id: string, changes: Partial<SceneNode>): void {
-    const appliedChanges = updateNodePreview(this, id, changes)
+    const appliedChanges = updateNodePreview(this, id, changes, (node, applied) => {
+      for (const observe of this.previewObservers) observe(node, applied)
+    })
     if (appliedChanges) this.emitter.emit('node:previewUpdated', id, appliedChanges)
   }
+
   updateNode(id: string, changes: Partial<SceneNode>): void {
     if (this.previewMutationDepth > 0) {
       this.updateNodePreview(id, changes)
@@ -415,15 +434,31 @@ export class SceneGraph {
 
     const node = this.nodes.get(id)
     if (!node) return
-    let entries = Object.entries(changes) as Array<[string, unknown]>
-    changes = Object.fromEntries(
-      entries.filter(([, value]) => value !== undefined)
-    ) as Partial<SceneNode>
-    changes = styleDetachmentChanges(node, changes)
-    entries = Object.entries(changes) as Array<[string, unknown]>
-    changes = Object.fromEntries(
-      entries.filter(([, value]) => value !== undefined)
-    ) as Partial<SceneNode>
+    changes = stripUndefinedProps(styleDetachmentChanges(node, stripUndefinedProps(changes)))
+    this.applyNodeChanges(node, changes)
+  }
+
+  /** Replay captured properties without dropping explicit undefined values or absent keys. */
+  restoreNodeProperties(
+    id: string,
+    changes: Partial<SceneNode>,
+    absent: readonly (keyof SceneNode)[]
+  ): void {
+    const node = this.nodes.get(id)
+    if (node) this.applyNodeChanges(node, changes, absent)
+  }
+
+  private applyNodeChanges(
+    node: SceneNode,
+    changes: Partial<SceneNode>,
+    absent: readonly (keyof SceneNode)[] = []
+  ): void {
+    const { id } = node
+    // Include removed keys in cache invalidation and update notifications.
+    if (absent.length) {
+      changes = { ...changes }
+      for (const key of absent) Reflect.set(changes, key, undefined)
+    }
 
     // Only clear absPosCache when layout-affecting properties change.
     // Fills, strokes, effects, plugin data changes do NOT affect absolute position.
@@ -454,6 +489,7 @@ export class SceneGraph {
     Object.assign(node, changes)
     if (changes.fills) removeStaleBindings(node, 'fills', changes)
     if (changes.strokes) removeStaleBindings(node, 'strokes', changes)
+    for (const key of absent) Reflect.deleteProperty(node, key)
     this.emitter.emit('node:updated', id, changes)
   }
 

@@ -44,6 +44,44 @@ afterEach(async () => {
 })
 
 describe('tauriFetch', () => {
+  test('routes IPC through the captured native fetch without invoking the HTTP proxy', async () => {
+    await mockTauriIPC(() => {
+      throw new Error('IPC recursively entered the HTTP proxy')
+    })
+    const inputs = [
+      'ipc://localhost/plugin%3Ahttp%7Cfetch',
+      'http://ipc.localhost/plugin%3Ahttp%7Cfetch',
+      new URL('https://ipc.localhost/plugin%3Ahttp%7Cfetch'),
+      new Request('http://ipc.localhost/plugin%3Ahttp%7Cfetch')
+    ]
+    const received: Array<RequestInfo | URL> = []
+    const fetcher = createTauriFetch({
+      nativeFetch: async (input) => {
+        received.push(input)
+        return new Response('native IPC')
+      }
+    })
+    for (const input of inputs) expect(await (await fetcher(input)).text()).toBe('native IPC')
+    expect(received).toEqual(inputs)
+  })
+
+  test('does not bypass HTTP proxy for URLs merely containing the IPC hostname', async () => {
+    const received: string[] = []
+    await mockTauriIPC((command, args) => {
+      expect(command).toBe('proxy_http_request')
+      received.push((args as InvokeArgs).request.url)
+      return { status: 204, headers: [], body: [] }
+    })
+    const fetcher = createTauriFetch({
+      nativeFetch: async () => {
+        throw new Error('External URL bypassed the HTTP proxy')
+      }
+    })
+    const urls = ['https://ipc.localhost.example.test/', 'https://example.test/ipc.localhost']
+    for (const url of urls) await fetcher(url)
+    expect(received).toEqual(urls)
+  })
+
   test('passes request timeout metadata to the desktop HTTP command', async () => {
     let captured: InvokeArgs | null = null
     await mockTauriIPC((command, args) => {
@@ -70,6 +108,18 @@ describe('tauriFetch', () => {
     expect(captured.request.method).toBe('POST')
     expect(captured.request.timeout_ms).toBe(15_000)
     expect(captured.request.body).toEqual([...new TextEncoder().encode('{"ok":true}')])
+  })
+
+  test('accepts URL objects without treating them as Requests', async () => {
+    let captured: InvokeArgs | null = null
+    await mockTauriIPC((command, args) => {
+      expect(command).toBe('proxy_http_request')
+      captured = args as InvokeArgs
+      return { status: 204, headers: [], body: [] }
+    })
+    await tauriFetch(new URL('https://example.test/url-object'))
+    if (!captured) throw new Error('Expected proxy_http_request to be invoked')
+    expect(captured.request.url).toBe('https://example.test/url-object')
   })
 
   test('forwards bodies from Request inputs', async () => {

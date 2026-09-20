@@ -5,13 +5,12 @@ import { mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 import { startServer } from '#mcp/server'
-import { createToolDescriptors } from '#mcp/tool/manifest'
+import { createToolDescriptors, getMCPToolDefinitions } from '#mcp/tool/manifest'
 
 import {
   connectMockBrowser,
@@ -114,6 +113,32 @@ function parseResult(result: { content: { type: string; text?: string }[] }): un
 // ---------------------------------------------------------------------------
 // MCP tool + session tests
 // ---------------------------------------------------------------------------
+
+test('MCP exposure exclusions apply to both descriptors and registered tools', async () => {
+  const def = getMCPToolDefinitions().find((tool) => tool.name === 'get_page_tree')
+  if (!def) throw new Error('Missing tool fixture')
+  const previous = def.exposure
+  let context: Awaited<ReturnType<typeof createTestClient>> | undefined
+  try {
+    def.exposure = { ...previous, mcp: false }
+    expect(createToolDescriptors(false).some((tool) => tool.name === def.name)).toBe(false)
+    context = await createTestClient()
+    const { tools } = await context.client.listTools()
+    expect(tools.some((tool) => tool.name === def.name)).toBe(false)
+  } finally {
+    def.exposure = previous
+    await context?.close()
+  }
+})
+
+describe('startServer option validation', () => {
+  test('rejects an app wait timeout that is not a safe non-negative integer', async () => {
+    await expect(startServer({ appWaitTimeoutMs: -1 })).rejects.toThrow(RangeError)
+    await expect(startServer({ appWaitTimeoutMs: 1.5 })).rejects.toThrow(
+      'appWaitTimeoutMs must be a safe integer'
+    )
+  })
+})
 
 describe('MCP server', () => {
   let client: Client

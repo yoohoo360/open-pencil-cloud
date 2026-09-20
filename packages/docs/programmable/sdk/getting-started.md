@@ -8,10 +8,10 @@ description: Set up @open-pencil/vue with createEditor, provideEditor, and a can
 ## Installation
 
 ```bash
-bun add @open-pencil/core @open-pencil/vue canvaskit-wasm
+bun add @open-pencil/core @open-pencil/scene-graph @open-pencil/vue canvaskit-wasm
 ```
 
-The SDK lives in the monorepo today and is also published as `@open-pencil/vue`.
+The SDK lives in the monorepo and is published as `@open-pencil/vue`. The current development version requires Vue `^3.5.41` and, when using its optional CanvasKit peer, `canvaskit-wasm >=0.41.1`. Check the installed package's peer requirements when using an older release.
 
 ```ts
 import { createEditor } from '@open-pencil/core/editor'
@@ -30,14 +30,26 @@ There are three layers:
 
 ### 1. Create an editor
 
-```ts
-import { createEditor } from '@open-pencil/core/editor'
+```ts twoslash
+// @module: esnext
+// @moduleResolution: bundler
+// ---cut---
+import { reactive } from 'vue'
+import { createDefaultEditorState, createEditor } from '@open-pencil/core/editor'
+import { SceneGraph } from '@open-pencil/scene-graph'
+
+const graph = new SceneGraph()
+const page = graph.getPages()[0]
+if (!page) throw new Error('Expected an initial page')
 
 const editor = createEditor({
-  width: 1200,
-  height: 800,
+  graph,
+  state: reactive(createDefaultEditorState(page.id)),
+  getViewportSize: () => ({ width: 1200, height: 800 }),
 })
 ```
+
+Core state is framework-neutral; passing reactive state lets Vue controls observe editor changes. For a resizable editor, have `getViewportSize` return the current canvas container dimensions. `width` and `height` are not `EditorOptions` properties.
 
 ### 2. Provide it to Vue
 
@@ -119,6 +131,17 @@ useCanvas(canvasRef, editor, {
   </div>
 </template>
 ```
+
+## Migrating from v0.14.0
+
+These changes describe the current development version; use them when upgrading beyond v0.14.0.
+
+- **Scene Graph overrides:** replace `SceneNode.overrides` records with `instanceOverrides`, whose `self` and `descendants` maps distinguish instance-level and descendant overrides. Use the public override helpers from `@open-pencil/scene-graph` rather than treating this as a simple field rename.
+- **Derived geometry:** rename `figmaDerivedLayout` to `derivedLayout`, `figmaDerivedTextGlyphs` to `derivedTextGlyphs`, and the exported `FigmaDerivedTextGlyph` type to `DerivedTextGlyph`.
+- **Binding providers:** implement `getBindingId()` and handle `unresolved`. For `edit-variable`, replace `setValue()` with `prepareEdit()`, which captures the edit key, value, setter, and restoration callback. See [BindableValue](./api/components/bindable-value).
+- **Translations:** replace `useDialogMessages()` and `dialogMessages` with the relevant product-domain composables and catalogs, such as `useSettingsMessages()` or `useRenameMessages()`. Catalog keys have also moved; do not just rename the import. See [useI18n](./api/composables/use-i18n).
+- **CanvasKit:** use `PathBuilder` for mutable construction and retain the returned paths from immutable `Path` operations instead of expecting in-place mutation.
+- **Custom tools:** use native Valibot `input` schemas and execution metadata instead of `params`, `ParamDef`, or `paramToZod()`. Programmatic MCP integrations use MCP SDK v2 server/client types; see [MCP](../mcp-server).
 
 ## Next steps
 

@@ -1,7 +1,7 @@
 import { useLocalStorage } from '@vueuse/core'
 import { ref } from 'vue'
 
-import type { ToolDescriptor, ToolEffect } from '@open-pencil/mcp/tools'
+import type { ToolDescriptor } from '@open-pencil/mcp/tools'
 
 const DISABLED_TOOLS_STORAGE_KEY = 'open-pencil:mcp:disabled-tools'
 const ROOT_DIRECTORY_STORAGE_KEY = 'open-pencil:mcp:root-directory'
@@ -15,21 +15,4 @@ export const mcpAuthenticationEnabled = useLocalStorage(AUTHENTICATION_ENABLED_S
 
 export function setMCPToolDescriptors(tools: ToolDescriptor[]): void {
   configurableMCPTools.value = tools.filter((tool) => tool.availability !== 'eval')
-}
-
-export function setMCPToolEnabled(name: string, enabled: boolean): void {
-  const disabled = new Set(disabledMCPTools.value)
-  if (enabled) disabled.delete(name)
-  else disabled.add(name)
-  disabledMCPTools.value = [...disabled]
-}
-
-export function setMCPToolCategoryEnabled(effect: ToolEffect, enabled: boolean): void {
-  const disabled = new Set(disabledMCPTools.value)
-  for (const tool of configurableMCPTools.value) {
-    if (tool.effect !== effect) continue
-    if (enabled) disabled.delete(tool.name)
-    else disabled.add(tool.name)
-  }
-  disabledMCPTools.value = [...disabled]
 }

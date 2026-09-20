@@ -13,7 +13,7 @@ import type {
   MCPConnectionSettings
 } from './types'
 
-const MAX_NAME_LENGTH = 80
+export const MCP_CONNECTION_NAME_MAX_LENGTH = 80
 const MAX_URL_LENGTH = 2048
 const MCP_CONNECTION_ID_PATTERN = /^mcp-[a-z0-9._-]{1,60}$/
 
@@ -57,7 +57,7 @@ function parseConnection(value: unknown): MCPConnection | null {
   const connectionId = id as MCPConnectionID
   return {
     id: connectionId,
-    name: name.slice(0, MAX_NAME_LENGTH),
+    name: name.slice(0, MCP_CONNECTION_NAME_MAX_LENGTH),
     enabled: value.enabled === true,
     transport: { type: 'streamable-http', url },
     authentication: parseAuthentication(value.authentication, connectionId)
@@ -129,7 +129,7 @@ export function createMCPConnectionDraft(connection?: MCPConnection): MCPConnect
 export function saveMCPConnectionDraft(draft: MCPConnectionDraft): MCPConnection {
   const name = draft.name.trim()
   if (!name) throw new Error('Connection name is required')
-  if (name.length > MAX_NAME_LENGTH) throw new Error('Connection name is too long')
+  if (name.length > MCP_CONNECTION_NAME_MAX_LENGTH) throw new Error('Connection name is too long')
   if (name.toLowerCase() === 'open-pencil') throw new Error('The open-pencil name is reserved')
   const duplicateName = mcpConnectionSettings.value.connections.some(
     (connection) =>

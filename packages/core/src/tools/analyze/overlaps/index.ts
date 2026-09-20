@@ -1,8 +1,10 @@
 import { orderBy } from 'es-toolkit/array'
+import * as v from 'valibot'
 
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI } from '#core/figma-api'
+import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
 import {
@@ -332,64 +334,76 @@ export const analyzeOverlaps = defineTool({
   name: 'analyze_overlaps',
   description:
     'Detect visual overlaps and layout overflows across the current page. Useful for finding content that covers footers, text that bleeds outside frames, and accidental sibling overlaps.',
-  params: {
-    scope: {
-      type: 'string',
-      description:
-        'Which pairs to inspect: all, same-parent, cross-parent, top-level, inside-parent (default: all)',
-      enum: ['all', 'same-parent', 'cross-parent', 'top-level', 'inside-parent'],
-      default: 'all'
-    },
-    category: {
-      type: 'string',
-      description:
-        'Comma-separated categories: sibling-overlap, parent-overflow, overlay (default: all)'
-    },
-    severity: {
-      type: 'string',
-      description: 'Minimum severity to include: critical, major, minor, info (default: info)',
-      enum: ['critical', 'major', 'minor', 'info'],
-      default: 'info'
-    },
-    min_area: {
-      type: 'number',
-      description: 'Minimum overlap area in square pixels (default: 0)'
-    },
-    min_ratio: {
-      type: 'number',
-      description: 'Minimum overlap ratio relative to the smaller node, 0.0–1.0 (default: 0)'
-    },
-    include_hidden: {
-      type: 'boolean',
-      description: 'Include hidden nodes in the analysis'
-    },
-    include_locked: {
-      type: 'boolean',
-      description: 'Include locked nodes in the analysis'
-    },
-    include_absolute: {
-      type: 'boolean',
-      description: 'Include absolutely-positioned nodes in the analysis'
-    },
-    page: {
-      type: 'string',
-      description: 'Limit analysis to nodes on the named page'
-    },
-    page_id: {
-      type: 'string',
-      description:
-        'Limit analysis to nodes on the page with this stable ID (takes precedence over page)'
-    },
-    type: {
-      type: 'string',
-      description: 'Comma-separated node types to analyze, e.g. FRAME,TEXT'
-    },
-    limit: {
-      type: 'number',
-      description: 'Maximum overlap findings to return (default: 100)',
-      default: 100
-    }
-  },
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { webmcp: false },
+  input: v.object({
+    scope: v.optional(
+      v.pipe(
+        v.picklist(['all', 'same-parent', 'cross-parent', 'top-level', 'inside-parent']),
+        v.description(
+          'Which pairs to inspect: all, same-parent, cross-parent, top-level, inside-parent (default: all)'
+        )
+      ),
+      'all'
+    ),
+    category: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'Comma-separated categories: sibling-overlap, parent-overflow, overlay (default: all)'
+        )
+      )
+    ),
+    severity: v.optional(
+      v.pipe(
+        v.picklist(['critical', 'major', 'minor', 'info']),
+        v.description('Minimum severity to include: critical, major, minor, info (default: info)')
+      ),
+      'info'
+    ),
+    min_area: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.description('Minimum overlap area in square pixels (default: 0)'))
+      )
+    ),
+    min_ratio: v.optional(
+      toolNumber(
+        v.pipe(
+          v.number(),
+          v.description('Minimum overlap ratio relative to the smaller node, 0.0–1.0 (default: 0)')
+        )
+      )
+    ),
+    include_hidden: v.optional(
+      v.pipe(v.boolean(), v.description('Include hidden nodes in the analysis'))
+    ),
+    include_locked: v.optional(
+      v.pipe(v.boolean(), v.description('Include locked nodes in the analysis'))
+    ),
+    include_absolute: v.optional(
+      v.pipe(v.boolean(), v.description('Include absolutely-positioned nodes in the analysis'))
+    ),
+    page: v.optional(
+      v.pipe(v.string(), v.description('Limit analysis to nodes on the named page'))
+    ),
+    page_id: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'Limit analysis to nodes on the page with this stable ID (takes precedence over page)'
+        )
+      )
+    ),
+    type: v.optional(
+      v.pipe(v.string(), v.description('Comma-separated node types to analyze, e.g. FRAME,TEXT'))
+    ),
+    limit: v.optional(
+      toolNumber(
+        v.pipe(v.number(), v.description('Maximum overlap findings to return (default: 100)'))
+      ),
+      100
+    )
+  }),
   execute: (figma: FigmaAPI, args) => {
     const page_id = args.page_id ?? (args.page ? undefined : figma.currentPageId)
     return computeOverlaps(figma.graph, { ...(args as AnalyzeOverlapsArgs), page_id })

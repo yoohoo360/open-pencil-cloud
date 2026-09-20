@@ -1,6 +1,6 @@
 {
   "name": "@open-pencil/mcp",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "license": "MIT",
   "type": "module",
   "imports": {
@@ -64,12 +64,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.17",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@open-pencil/core": "workspace:*",
+    "@valibot/to-json-schema": "^1.8.0",
     "hono": "^4.13.2",
     "package-manager-detector": "^1.8.0",
-    "ws": "^8.21.3",
-    "zod": "^4.4.3"
+    "valibot": "^1.4.2",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "^25.9.5",

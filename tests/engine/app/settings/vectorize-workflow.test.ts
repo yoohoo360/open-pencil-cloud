@@ -21,7 +21,7 @@ test('vectorization save cannot clear a different provider draft', async () => {
   const key = ref('')
   try {
     const state = scope.run(() =>
-      useVectorizeSettings(key, {
+      useVectorizeSettings(key, vectorizeProviderID, {
         status: async () => 'missing',
         set: async () => pending.promise
       })
@@ -46,7 +46,7 @@ test('vectorization save and clear failures preserve the draft and expose errors
   const key = ref('')
   try {
     const state = scope.run(() =>
-      useVectorizeSettings(key, {
+      useVectorizeSettings(key, vectorizeProviderID, {
         status: async () => 'configured',
         set: async () => {
           throw new Error('Credential store unavailable')

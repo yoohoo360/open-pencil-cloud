@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { validateChangelog } from '../src/changelog'
+import { validateChangelog } from '#release/changelog'
 
 const validChangelog = `# Changelog
 

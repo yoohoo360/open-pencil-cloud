@@ -1,4 +1,11 @@
-import { node, type BaseProps, type TextProps, type TreeNode } from './tree'
+import {
+  node,
+  type BaseProps,
+  type ComponentProps,
+  type InstanceProps,
+  type TextProps,
+  type TreeNode
+} from './tree'
 
 type Child = TreeNode | string
 
@@ -55,18 +62,15 @@ export function Section(props: BaseProps, ...children: Child[]): TreeNode {
   return withChildren('section', props, children)
 }
 
-export function Component(props: BaseProps, ...children: Child[]): TreeNode {
+export function Component(props: ComponentProps, ...children: Child[]): TreeNode {
   return withChildren('component', props, children)
 }
 
-export function ComponentSet(props: BaseProps, ...children: Child[]): TreeNode {
+export function ComponentSet(props: ComponentProps, ...children: Child[]): TreeNode {
   return withChildren('component-set', props, children)
 }
 
-export function Instance(
-  props: BaseProps & { component?: string; componentId?: string; of?: string },
-  ...children: Child[]
-): TreeNode {
+export function Instance(props: InstanceProps, ...children: Child[]): TreeNode {
   return withChildren('instance', props, children)
 }
 

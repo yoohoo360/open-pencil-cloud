@@ -3,6 +3,9 @@ import {
   noFlatKiwiModules,
   noMixedCaseAcronymIdentifiers
 } from '#lint/rules/policy.ts'
+import { noModuleMockingRule } from '#lint/rules/quality/module-mocking.ts'
+import { noReduceAccumulatorCopyRule } from '#lint/rules/quality/reduce-accumulator-copy.ts'
+import { noWidenThenAssertRule } from '#lint/rules/quality/widen-then-assert.ts'
 import { normalizedFilename } from '#lint/support/context.ts'
 import type { RuleDefinition } from '#lint/support/types.ts'
 import type { TSESTree } from '@typescript-eslint/utils'
@@ -487,6 +490,9 @@ const plugin = {
     'no-bun-globals-in-cli': noBunGlobalsInCli,
     'no-top-level-prefixed-test-files': noTopLevelPrefixedTestFiles,
     'no-conditional-object-spreads': noConditionalObjectSpreads,
+    'no-module-mocking': noModuleMockingRule,
+    'no-reduce-accumulator-copy': noReduceAccumulatorCopyRule,
+    'no-widen-then-assert': noWidenThenAssertRule,
     'no-sibling-domain-prefixed-files': noSiblingDomainPrefixedFiles
   }
 }

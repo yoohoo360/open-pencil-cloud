@@ -2,6 +2,7 @@ import { computed } from 'vue'
 
 import type { Editor } from '@open-pencil/core/editor'
 import type { IORegistry } from '@open-pencil/core/io'
+import { createSelectedNodeState } from '@open-pencil/vue'
 
 import { createDocumentExportActions } from '@/app/document/export'
 import { createDocumentIOActions } from '@/app/document/io'
@@ -36,10 +37,7 @@ export function defineEditorStoreAccessors(store: object, editor: Editor) {
 }
 
 export function createEditorComputedRefs(editor: Editor, state: AppEditorState) {
-  const selectedNodes = computed(() => {
-    void state.sceneVersion
-    return editor.getSelectedNodes()
-  })
+  const { nodes: selectedNodes, dispose: disposeSelection } = createSelectedNodeState(editor)
 
   const selectedNode = computed(() =>
     selectedNodes.value.length === 1 ? selectedNodes.value[0] : undefined
@@ -50,7 +48,7 @@ export function createEditorComputedRefs(editor: Editor, state: AppEditorState) 
     return editor.getLayerTree()
   })
 
-  return { selectedNodes, selectedNode, layerTree }
+  return { selectedNodes, selectedNode, layerTree, disposeSelection }
 }
 
 export function createEditorStoreModules(
@@ -65,7 +63,7 @@ export function createEditorStoreModules(
   const vectorEdit = createVectorEditActions(editor, state)
   const documentIO = createDocumentIOActions(editor, state, viewportSize, preparationController)
   const documentExport = createDocumentExportActions(editor, state, io, documentIO.downloadBlob)
-  const mobileClipboard = createMobileClipboardActions(editor, state)
+  const mobileClipboard = createMobileClipboardActions(editor)
   const profiler = createProfilerActions(editor)
 
   return {
@@ -77,6 +75,7 @@ export function createEditorStoreModules(
     importDOMText: documentIO.importDOMText,
     setViewportSize: documentIO.setViewportSize,
     fitCurrentPageToViewport: documentIO.fitCurrentPageToViewport,
+    hasUnsavedChanges: documentIO.hasUnsavedChanges,
     saveFigFile: documentIO.saveFigFile,
     saveFigFileAs: documentIO.saveFigFileAs,
     getDocumentFilePath: documentIO.getDocumentFilePath,

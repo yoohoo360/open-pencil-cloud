@@ -3,8 +3,8 @@ import { mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type { Client } from '@modelcontextprotocol/client'
+import type { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -24,8 +24,8 @@ const SOCKET_DIR = join(tmpdir(), `openpencil-test-stdio-${process.pid}`)
 const SOCKET_PATH = isUnix ? join(SOCKET_DIR, 'mcp.sock') : null
 
 async function createStdioClient(socketPath: string, authToken: string | null) {
-  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
-  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+  const { Client } = await import('@modelcontextprotocol/client')
+  const { StdioClientTransport } = await import('@modelcontextprotocol/client/stdio')
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (!key.startsWith('OPENPENCIL_MCP_') && value !== undefined) {
@@ -46,7 +46,7 @@ async function createStdioClient(socketPath: string, authToken: string | null) {
     env.OPENPENCIL_MCP_AUTH_TOKEN = authToken
   }
   const transport = new StdioClientTransport({
-    command: 'bun',
+    command: process.execPath,
     args: ['packages/mcp/src/stdio.ts'],
     env,
     stderr: 'pipe'
@@ -324,7 +324,9 @@ describe('MCP stdio readiness without an open document', () => {
       socketPath: isUnix ? join(SOCKET_DIR, 'mcp-no-document.sock') : null,
       authToken: NO_DOCUMENT_AUTH_TOKEN,
       enableEval: false,
-      mcpRoot: null
+      mcpRoot: null,
+      // No app ever registers; the default 10 s wait only slows the assertion.
+      appWaitTimeoutMs: 50
     })
 
     let client: Client | undefined

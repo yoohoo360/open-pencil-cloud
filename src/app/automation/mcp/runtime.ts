@@ -1,7 +1,5 @@
 import { reactive } from 'vue'
 
-import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
-
 import { connectAutomation } from '@/app/automation/bridge/server'
 import type { EditorStore } from '@/app/editor/active-store'
 import { isTauri } from '@/app/tauri/env'
@@ -11,6 +9,7 @@ import {
   type AutomationHealth,
   type AutomationServerHandle,
   readAutomationHealth,
+  getMCPServerURL,
   spawnMCPIfNeeded
 } from './spawn'
 
@@ -18,7 +17,7 @@ export type MCPRuntimeStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'er
 
 export interface MCPRuntimeState {
   status: MCPRuntimeStatus
-  port: number
+  endpoint: string
   version: string | null
   error: string | null
   checking: boolean
@@ -42,7 +41,7 @@ function toError(error: unknown): Error {
 export function createMCPRuntimeService(dependencies: MCPRuntimeDependencies) {
   const state = reactive<MCPRuntimeState>({
     status: 'idle',
-    port: AUTOMATION_HTTP_PORT,
+    endpoint: getMCPServerURL(),
     version: null,
     error: null,
     checking: false,
