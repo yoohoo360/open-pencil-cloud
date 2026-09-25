@@ -181,6 +181,7 @@ Private tooling belongs under `tools/<domain>/{src,tests}`, with kebab-case doma
 - Components must not hold module-level mutable state. Share repeated logic/constants rather than copying it.
 - Keep Kiwi runtime changes minimal; prefer wrappers for project policy.
 - Guard browser globals explicitly in Core. Name repeated/cross-feature constants; app-wide values belong in `src/constants.ts`.
+- The supported browser baseline lives in `src/app/shell/support/baseline.ts` and feeds the Vite `build.target`, the startup gate, and the documented system requirements; change all three together, including `desktop/tauri.conf.json` `minimumSystemVersion`. Vite lowers syntax but never polyfills APIs, so two data-driven checks enforce the baseline: the app and browser-shipped packages pin TypeScript `lib` to ES2023 (the last edition those engines implement fully), so newer built-ins fail type-checking, and `compat/compat` (`eslint-plugin-compat` under oxlint, fed the same browsers from `settings.browsers`) rejects Web APIs they lack. Do not raise the lib to `ESNext` in those tsconfigs; use `createDeferred()` from `src/app/runtime/deferred.ts` instead of `Promise.withResolvers()`. Node-only packages (`cli`, `mcp`, `harness`) are exempt from both. `tests/app/shell/support/baseline.test.ts` keeps the tsconfigs and oxlint browsers in step with the baseline. `src/main.ts` must stay a tiny gate that only dynamically imports `src/boot.ts`, so an unsupported engine can still render `src/app/shell/support/` guidance.
 
 ## Issue and PR writing
 

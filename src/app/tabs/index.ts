@@ -31,6 +31,7 @@ import {
   loadCachedRecentFileThumbnail,
   rememberRecentStorageDocument
 } from '@/app/recent-files'
+import { createDeferred } from '@/app/runtime/deferred'
 import { toast } from '@/app/shell/ui'
 import { getLocalCanvasStore } from '@/app/storage/local-store'
 import { seedStorageCanvasFromRemote } from '@/app/storage/sync/persist'
@@ -145,10 +146,12 @@ function activateTab(tab: Tab) {
   setOpenPencilStore(tab.store)
 }
 
-export function switchTab(tabId: string) {
+/** Activates the tab. False when no tab carries that id, so callers can tell a no-op apart. */
+export function switchTab(tabId: string): boolean {
   const tab = tabsRef.value.find((t) => t.id === tabId)
-  if (!tab) return
+  if (!tab) return false
   activateTab(tab)
+  return true
 }
 
 export async function closeTab(tabId: string): Promise<void> {
@@ -428,7 +431,7 @@ export async function openFileInNewTab(
       subject: file.name
     })
 
-    const completion = Promise.withResolvers<undefined>()
+    const completion = createDeferred<undefined>()
     void completion.promise.catch(() => undefined)
     const pendingOpen = { completion: completion.promise, identity, store }
     fileOpenCoordinator.add(pendingOpen)

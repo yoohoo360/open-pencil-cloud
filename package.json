@@ -1,6 +1,6 @@
 {
   "name": "open-pencil-app",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "private": true,
   "license": "MIT",
   "workspaces": [
@@ -36,7 +36,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "tauri": "tauri",
-    "build:native-test": "bun run build:packages && bun tauri build --debug --no-bundle --features native-test --config desktop/tauri.native-test.conf.json",
+    "build:native-test": "bun run generate:icons --target desktop && bun run build:packages && bun tauri build --debug --no-bundle --features native-test --config desktop/tauri.native-test.conf.json",
     "benchmark:navigation": "bun tools/navigation-benchmark/src/cli.ts run",
     "benchmark:navigation:test": "bun test tools/navigation-benchmark/tests",
     "test:native": "bun run build:native-test && wdio run wdio.conf.ts",
@@ -125,6 +125,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-updater": "^2.10.1",
@@ -205,6 +206,7 @@
     "changelog-parser": "^4.1.0",
     "cloudflare-redirect-parser": "^1.0.0",
     "esbuild": "^0.27.7",
+    "eslint-plugin-compat": "^7.0.2",
     "expect-webdriverio": "5.7.0",
     "fake-indexeddb": "^6.2.5",
     "franc": "^6.2.0",
