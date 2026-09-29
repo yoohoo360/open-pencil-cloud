@@ -142,7 +142,7 @@ storage:
   local:
     path: ${LOCAL_STORAGE_PATH:./storage}
   oss:
-    endpoint: ${OSS_ENDPOINT:oss-cn-shanghai.aliyuncs.com}
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-shanghai.aliyuncs.com}
     access-key: ${OSS_ACCESS_KEY:}
     secret-key: ${OSS_SECRET_KEY:}
     bucket: ${OSS_BUCKET:}

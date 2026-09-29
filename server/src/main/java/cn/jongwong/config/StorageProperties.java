@@ -37,7 +37,7 @@ public class StorageProperties {
         /**
          * OSS Endpoint
          */
-        private String endpoint = "oss-cn-shanghai.aliyuncs.com";
+        private String endpoint = "https://oss-cn-shanghai.aliyuncs.com";
 
         /**
          * AccessKey ID

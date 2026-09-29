@@ -36,7 +36,7 @@ public class AliOssServiceImpl implements OssService {
     public AliOssServiceImpl(StorageProperties properties) {
         StorageProperties.Oss ossConfig = properties.getOss();
         this.ossClient = new OSSClientBuilder()
-                .build(ossConfig.getEndpoint(), ossConfig.getAccessKey(), ossConfig.getSecretKey());
+                .build(httpsEndpoint(ossConfig.getEndpoint()), ossConfig.getAccessKey(), ossConfig.getSecretKey());
         this.bucket = ossConfig.getBucket();
         this.basePath = ossConfig.getBasePath();
         this.presignExpirationMillis = TimeUnit.SECONDS.toMillis(
@@ -226,7 +226,7 @@ public class AliOssServiceImpl implements OssService {
             }
             URL url = ossClient.generatePresignedUrl(request);
             return OssPresignResponse.builder()
-                    .url(url.toString())
+                    .url(forceHttps(url))
                     .headers(headers.isEmpty() ? null : headers)
                     .key(objectKey)
                     .build();
@@ -247,7 +247,7 @@ public class AliOssServiceImpl implements OssService {
             request.setExpiration(new Date(System.currentTimeMillis() + presignExpirationMillis));
             URL url = ossClient.generatePresignedUrl(request);
             return OssPresignResponse.builder()
-                    .url(url.toString())
+                    .url(forceHttps(url))
                     .key(objectKey)
                     .build();
         } catch (Exception e) {
@@ -300,6 +300,29 @@ public class AliOssServiceImpl implements OssService {
             meta.setCacheControl("no-store, no-cache, must-revalidate");
         }
         return meta;
+    }
+
+    private static String httpsEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new IllegalArgumentException("OSS endpoint is required");
+        }
+        String trimmed = endpoint.trim();
+        if (trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("http://")) {
+            return "https://" + trimmed.substring("http://".length());
+        }
+        return "https://" + trimmed;
+    }
+
+    /** HTTPS pages cannot PUT/GET http:// OSS URLs (mixed content). */
+    private static String forceHttps(URL url) {
+        String value = url.toString();
+        if (value.startsWith("http://")) {
+            return "https://" + value.substring("http://".length());
+        }
+        return value;
     }
 
     private static String stripSlashes(String value) {
