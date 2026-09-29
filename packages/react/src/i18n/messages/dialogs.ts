@@ -389,6 +389,12 @@ export const dialogMessageDefaults = {
   openFileFailed: params('Could not open “{name}”: {error}'),
   saveFileFailed: params('Could not save “{name}”: {error}'),
   saveFileSaved: params('Saved “{name}”'),
+  savingDocument: 'Saving document…',
+  savingThumbnail: 'Updating thumbnail…',
+  autosavingDocument: 'Autosaving…',
+  savingLocalDraft: 'Saving local draft…',
+  documentBusyLeaveTitle: 'Work is still in progress',
+  documentBusyLeavePrompt: 'Leave this page anyway? Unfinished saves may be lost.',
   browserFileAPINotSupported:
     "Your browser doesn't support the local file API. Files will be downloaded instead of saved in place.",
   useChrome: 'Use Chrome',

@@ -1,11 +1,12 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
-import { saveCloudCover } from '#react/app/document/cloud-persist'
+import { markCloudDocumentPersisted, saveCloudCover } from '#react/app/document/cloud-persist'
 import {
   readFigDocument,
   finishFigImport,
   waitForCanvasPaint,
   yieldToUI
 } from '#react/app/document/fig'
+import { withDocumentBusy } from '#react/app/document/busy/store'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
@@ -205,6 +206,10 @@ export async function importFigIntoStore(
     }
     applyLocalDocumentIdentity(store, file.name.replace(/\.fig$/i, '') || 'Untitled')
     await waitForCanvasPaint(store)
+    const { acknowledgeDocumentSceneBaseline } = await import(
+      '#react/app/document/persist-baseline'
+    )
+    acknowledgeDocumentSceneBaseline(store)
   } finally {
     if (ownLoading) {
       const { setPageLoadingVisible } = await import('#react/app/document/page-loading/controller')
@@ -457,18 +462,21 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
         slot.rerun = false
         const callbacks = slot.callbacks.splice(0)
         try {
-          // Let the key/menu handler finish and paint before encode/upload.
-          await yieldToUI()
-          const bytes = await persistCloudSceneGraph(store)
-          void maybeRecordAutosave(store, bytes)
-          void clearLocalDraftAfterCloudSave(store).catch((error) => {
-            console.warn('[LocalDraft] Clear after save failed', error)
+          await withDocumentBusy(dialogMessages.get().savingDocument, async () => {
+            // Let the key/menu handler finish and paint before encode/upload.
+            await yieldToUI()
+            const bytes = await persistCloudSceneGraph(store)
+            markCloudDocumentPersisted(store)
+            void maybeRecordAutosave(store, bytes)
+            void clearLocalDraftAfterCloudSave(store).catch((error) => {
+              console.warn('[LocalDraft] Clear after save failed', error)
+            })
+            try {
+              await withDocumentBusy(dialogMessages.get().savingThumbnail, () => saveCloudCover(store))
+            } catch (error) {
+              console.warn('[Document] Cover save failed', error)
+            }
           })
-          try {
-            await saveCloudCover(store)
-          } catch (error) {
-            console.warn('[Document] Cover save failed', error)
-          }
           for (const callback of callbacks) callback.onSuccess?.()
         } catch (error) {
           reportSaveFailure(store, error)
@@ -492,19 +500,21 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
 
   return (async () => {
     try {
-      const target = getSaveTarget(store)
-      if (target.handle || target.downloadName) {
-        const data = await buildFigFile(store)
-        if (target.handle) {
-          await writeFigHandle(target.handle, data)
-        } else {
-          downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
+      await withDocumentBusy(dialogMessages.get().savingDocument, async () => {
+        const target = getSaveTarget(store)
+        if (target.handle || target.downloadName) {
+          const data = await buildFigFile(store)
+          if (target.handle) {
+            await writeFigHandle(target.handle, data)
+          } else {
+            downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
+          }
+          options?.onSuccess?.()
+          return
         }
+        if (!(await saveFigFileAs(store))) return
         options?.onSuccess?.()
-        return
-      }
-      if (!(await saveFigFileAs(store))) return
-      options?.onSuccess?.()
+      })
     } catch (error) {
       if (isAbortError(error)) return
       reportSaveFailure(store, error)

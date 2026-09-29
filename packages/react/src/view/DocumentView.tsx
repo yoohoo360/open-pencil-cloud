@@ -5,6 +5,7 @@ import {
   useDocumentShareDialogOpen
 } from '#react/app/document/access'
 import { useCloudDocumentPersist } from '#react/app/document/cloud-persist'
+import { useDocumentBusyLeaveGuard } from '#react/app/document/busy/leave'
 import { useLocalDraftPersist } from '#react/app/document/local-draft/use'
 import { loadDocumentLibraries } from '#react/app/document/libraries'
 import { openHttpDocument } from '#react/app/document/open-http'
@@ -120,6 +121,7 @@ export default function DocumentView() {
     store,
     Boolean(fileKey) && !loading && !loadError && !forbidden && !notFound
   )
+  useDocumentBusyLeaveGuard()
 
   if (!loading && fileKey && (forbidden || notFound)) {
     return (

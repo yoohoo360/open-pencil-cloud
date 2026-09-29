@@ -100,6 +100,10 @@ export async function openHttpDocument(
       setPageLoadingVisible(store, false)
     }
     bindCloudDocumentState(store, documentMeta, documentUrl)
+    const { acknowledgeDocumentSceneBaseline } = await import(
+      '#react/app/document/persist-baseline'
+    )
+    acknowledgeDocumentSceneBaseline(store)
     store.notify()
   } catch (error) {
     setPageLoadingVisible(store, false)

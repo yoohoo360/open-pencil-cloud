@@ -1,21 +1,42 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { hasDocumentCapability, documentAccessStore } from '#react/app/document/access'
+import { withDocumentBusy } from '#react/app/document/busy/store'
 import { yieldToUI } from '#react/app/document/fig'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
+import { dialogMessages } from '#react/i18n/messages'
 import { documentAPI } from '#react/lib/client'
 import { useEffect } from 'react'
 
 import { renderCoverThumbnail } from '@open-pencil/core/io'
 
-const FIG_AUTOSAVE_DEBOUNCE_MS = 3_000
-const COVER_AUTOSAVE_INTERVAL_MS = 3 * 60 * 1_000
+/** Timed cloud FIG upload interval (manual save also persists immediately). */
+const CLOUD_SAVE_INTERVAL_MS = 3 * 60 * 1_000
+const COVER_SAVE_INTERVAL_MS = 3 * 60 * 1_000
+
+const lastCloudPersistedScene = new WeakMap<EditorStore, number>()
+
+/** Call after a successful cloud FIG write so the timer does not re-upload the same scene. */
+export function markCloudDocumentPersisted(store: EditorStore): void {
+  lastCloudPersistedScene.set(store, store.state.sceneVersion)
+}
+
+function cloudDocumentNeedsPersist(store: EditorStore): boolean {
+  if (!store.state.documentFigURL?.trim() || store.state.historyPreviewId) return false
+  const last = lastCloudPersistedScene.get(store)
+  if (last === undefined) {
+    lastCloudPersistedScene.set(store, store.state.sceneVersion)
+    return false
+  }
+  return last !== store.state.sceneVersion
+}
 
 async function persistCloudFig(store: EditorStore): Promise<void> {
   const remoteURL = store.state.documentFigURL
   if (!remoteURL || store.state.historyPreviewId) return
   const bytes = await persistCloudSceneGraph(store)
+  markCloudDocumentPersisted(store)
   void maybeRecordAutosave(store, bytes)
   // Cloud is authoritative — drop the local draft so open won't re-prompt.
   void clearLocalDraftAfterCloudSave(store).catch((error) => {
@@ -36,57 +57,56 @@ export async function saveCloudCover(store: EditorStore): Promise<boolean> {
   return true
 }
 
+/**
+ * Timed cloud API persist only. Scene edits debounce to IndexedDB via
+ * `useLocalDraftPersist`; field changes never trigger this hook.
+ * Manual Save still persists immediately through `saveFigFile`.
+ */
 export function useCloudDocumentPersist(store: EditorStore, enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return
     if (!hasDocumentCapability(documentAccessStore.get(), 'edit')) return
 
-    let lastSeenScene = store.state.sceneVersion
-    let lastSavedScene = store.state.sceneVersion
+    // Treat the opened scene as already synced until the user edits.
+    if (lastCloudPersistedScene.get(store) === undefined) {
+      lastCloudPersistedScene.set(store, store.state.sceneVersion)
+    }
+
     let lastCoverAt = 0
-    let figTimer: ReturnType<typeof setTimeout> | undefined
     let running: Promise<void> | null = null
     let disposed = false
 
     const flush = () => {
       if (disposed || running) return
-      const scene = store.state.sceneVersion
-      if (scene === lastSavedScene) return
-      if (!store.state.documentFigURL || store.state.historyPreviewId) return
+      if (store.state.loading || store.state.pageLoading.visible) return
+      if (!cloudDocumentNeedsPersist(store)) return
+
       running = (async () => {
-        await yieldToUI()
-        await persistCloudFig(store)
-        lastSavedScene = scene
-        if (Date.now() - lastCoverAt >= COVER_AUTOSAVE_INTERVAL_MS) {
-          if (await saveCloudCover(store)) lastCoverAt = Date.now()
-        }
+        await withDocumentBusy(dialogMessages.get().autosavingDocument, async () => {
+          await yieldToUI()
+          await persistCloudFig(store)
+          if (Date.now() - lastCoverAt >= COVER_SAVE_INTERVAL_MS) {
+            if (
+              await withDocumentBusy(dialogMessages.get().savingThumbnail, () => saveCloudCover(store))
+            ) {
+              lastCoverAt = Date.now()
+            }
+          }
+        })
       })()
         .catch((error) => {
-          console.warn('[Document] Cloud autosave failed', error)
+          console.warn('[Document] Timed cloud save failed', error)
         })
         .finally(() => {
           running = null
-          if (!disposed && store.state.sceneVersion !== lastSavedScene) schedule()
         })
     }
 
-    const schedule = () => {
-      if (figTimer !== undefined) clearTimeout(figTimer)
-      figTimer = setTimeout(flush, FIG_AUTOSAVE_DEBOUNCE_MS)
-    }
-
-    const unsubscribe = store.subscribe(() => {
-      if (disposed) return
-      const scene = store.state.sceneVersion
-      if (scene === lastSeenScene) return
-      lastSeenScene = scene
-      schedule()
-    })
+    const interval = setInterval(flush, CLOUD_SAVE_INTERVAL_MS)
 
     return () => {
       disposed = true
-      unsubscribe()
-      if (figTimer !== undefined) clearTimeout(figTimer)
+      clearInterval(interval)
     }
   }, [enabled, store])
 }

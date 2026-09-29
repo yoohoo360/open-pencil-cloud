@@ -10,6 +10,7 @@ import { CommentsPanel } from '#react/components/Comments/CommentsPanel'
 import { CommentsProvider, useComments } from '#react/components/Comments/context'
 import { EditorCanvas } from '#react/components/EditorCanvas'
 import { PageLoadingOverlay } from '#react/components/PageLoadingOverlay'
+import { DocumentBusyBar } from '#react/components/Shell/DocumentBusyBar'
 import { LayersPanel } from '#react/components/LayersPanel'
 import { MobileDrawer } from '#react/components/MobileDrawer'
 import { MobileHud } from '#react/components/MobileHud/MobileHud'
@@ -85,6 +86,7 @@ function EditorWorkspaceLayout() {
           <div className="relative flex min-w-0 flex-1">
             <CanvasSplitRoot />
             <Toolbar />
+            <DocumentBusyBar />
             <PageLoadingOverlay />
           </div>
         </SplitterPanel>
@@ -120,6 +122,7 @@ function EditorWorkspaceLayout() {
           <EditorCanvas />
           <MobileHud />
           <Toolbar />
+          <DocumentBusyBar />
           <PageLoadingOverlay />
         </div>
         <MobileDrawer />
@@ -154,6 +157,7 @@ function EditorWorkspaceLayout() {
               </Tip>
             </div>
           ) : null}
+          <DocumentBusyBar />
           <PageLoadingOverlay />
         </div>
       </div>
@@ -164,6 +168,7 @@ function EditorWorkspaceLayout() {
     <div key={`bare-${activeTab?.id ?? ''}`} className="flex flex-1 overflow-hidden">
       <div className="relative flex min-w-0 flex-1">
         <EditorCanvas />
+        <DocumentBusyBar />
         <PageLoadingOverlay />
       </div>
     </div>

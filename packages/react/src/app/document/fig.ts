@@ -141,4 +141,6 @@ export async function finishFigImport(store: EditorStore, imported: SceneGraph):
   await fitCurrentPageToViewport(store)
   store.requestRender()
   await warmPagesUntilOpenReady(store)
+  const { acknowledgeDocumentSceneBaseline } = await import('#react/app/document/persist-baseline')
+  acknowledgeDocumentSceneBaseline(store)
 }
