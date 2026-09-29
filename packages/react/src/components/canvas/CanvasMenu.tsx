@@ -34,21 +34,25 @@ const CONTEXT_COMMAND_ICONS = {
 export function CanvasMenu({
   x,
   y,
+  source = 'canvas',
   onClose
 }: {
   x: number
   y: number
+  /** Reserved so canvas vs layer menus can later sort by node type. */
+  source?: 'canvas' | 'layers'
   onClose: () => void
 }) {
   const store = useEditorStore()
   const { editor, selectedIds, hasSelection } = useSelectionState()
-  const { canvasMenu } = useMenuModel()
+  const { canvasMenu, layersMenu } = useMenuModel()
   const { menu: t } = useI18n()
   const actions = createCanvasMenuActions(store, selectedIds)
   const selectedGuide = store.state.guides.selected
+  const baseMenu = source === 'layers' ? layersMenu : canvasMenu
   const entries = selectedGuide
     ? []
-    : buildCanvasContextMenuEntries(canvasMenu, hasSelection, editor, actions, t)
+    : buildCanvasContextMenuEntries(baseMenu, hasSelection, editor, actions, t)
   const menuCls = useMenuUI({
     content: 'min-w-56 shadow-[0_8px_30px_rgb(0_0_0/0.4)] animate-in fade-in zoom-in-95',
     separator: 'my-1'

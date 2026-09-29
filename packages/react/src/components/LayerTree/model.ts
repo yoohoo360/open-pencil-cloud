@@ -35,11 +35,16 @@ export function ancestorIdsToExpand(
   pageId: string
 ): string[] {
   const ancestors: string[] = []
+  const seen = new Set<string>()
   for (const id of selectedIds) {
     let node = graph.getNode(id)
     while (node?.parentId && node.parentId !== pageId) {
-      ancestors.push(node.parentId)
-      node = graph.getNode(node.parentId)
+      const parentId = node.parentId
+      if (!seen.has(parentId)) {
+        seen.add(parentId)
+        ancestors.push(parentId)
+      }
+      node = graph.getNode(parentId)
     }
   }
   return ancestors

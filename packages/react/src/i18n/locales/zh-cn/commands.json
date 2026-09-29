@@ -18,7 +18,7 @@
   "setOpacity": "设置不透明度",
   "zoomTo100": "缩放到 100%",
   "zoomToFit": "适应屏幕",
-  "zoomToSelection": "适应所选内容",
+  "zoomToSelection": "聚焦到选区",
   "groupSelection": "编组所选内容",
   "frameSelection": "为所选内容添加画框",
   "showHide": "显示/隐藏",

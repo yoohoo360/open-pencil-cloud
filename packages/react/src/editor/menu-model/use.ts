@@ -17,9 +17,21 @@ export function useMenuModel() {
       otherPages,
       moveSelectionToPage,
       selection,
-      t
+      t,
+      source: 'canvas'
     })
   )
 
-  return { canvasMenu }
+  const layersMenu = useSceneComputed(() =>
+    buildCanvasContextMenu({
+      commandMenuItem: menuItem,
+      otherPages,
+      moveSelectionToPage,
+      selection,
+      t,
+      source: 'layers'
+    })
+  )
+
+  return { canvasMenu, layersMenu }
 }

@@ -6,6 +6,8 @@ import type { useSelectionState } from '#react/editor/selection-state/use'
 type CommandMenuItem = ReturnType<typeof useEditorCommands>['menuItem']
 type SelectionState = ReturnType<typeof useSelectionState>
 
+export type ContextMenuSource = 'canvas' | 'layers'
+
 type CanvasMenuCommand =
   | EditorCommandId
   | 'selection.componentAction'
@@ -26,31 +28,64 @@ export type CanvasMenuOptions = {
   moveSelectionToPage: (pageId: string) => void
   selection: SelectionState
   t: CanvasMenuTranslations
+  source?: ContextMenuSource
 }
 
-const CANVAS_MENU_GROUPS = [
-  ['selection.duplicate', 'selection.delete'],
-  [
-    'selection.moveToPageWhenAvailable',
-    'selection.bringForward',
-    'selection.bringToFront',
-    'selection.sendBackward',
-    'selection.sendToBack'
-  ],
-  [
-    'selection.group',
-    'selection.frameSelection',
-    'selection.ungroupWhenGroup',
-    'selection.wrapInAutoLayout',
-    'selection.toggleMask',
-    'selection.flatten',
-    'selection.outlineText',
-    'selection.outlineStroke'
-  ],
-  ['selection.componentAction', 'selection.componentSetAction', 'selection.instanceActions'],
-  ['selection.toggleVisibility', 'selection.toggleLock'],
-  ['selection.flipHorizontal', 'selection.flipVertical']
-] satisfies readonly CanvasMenuGroup[]
+const EDIT_GROUP = ['selection.duplicate', 'selection.delete'] as const
+const ZOOM_SELECTION_GROUP = ['view.zoomSelection'] as const
+const ARRANGE_GROUP = [
+  'selection.moveToPageWhenAvailable',
+  'selection.bringForward',
+  'selection.bringToFront',
+  'selection.sendBackward',
+  'selection.sendToBack'
+] as const
+const OBJECT_GROUP = [
+  'selection.group',
+  'selection.frameSelection',
+  'selection.ungroupWhenGroup',
+  'selection.wrapInAutoLayout',
+  'selection.toggleMask',
+  'selection.flatten',
+  'selection.outlineText',
+  'selection.outlineStroke'
+] as const
+const TEXT_OBJECT_GROUP = [
+  'selection.outlineText',
+  'selection.group',
+  'selection.frameSelection',
+  'selection.ungroupWhenGroup',
+  'selection.wrapInAutoLayout'
+] as const
+const COMPONENT_GROUP = [
+  'selection.componentAction',
+  'selection.componentSetAction',
+  'selection.instanceActions'
+] as const
+const VISIBILITY_GROUP = ['selection.toggleVisibility', 'selection.toggleLock'] as const
+const FLIP_GROUP = ['selection.flipHorizontal', 'selection.flipVertical'] as const
+
+function objectGroupFor(selection: SelectionState): CanvasMenuGroup {
+  if (selection.selectedNodeType === 'TEXT') return TEXT_OBJECT_GROUP
+  return OBJECT_GROUP
+}
+
+/** Layer tree includes zoom-to-selection; canvas does not. Node type can reorder groups later. */
+export function contextMenuGroups(
+  source: ContextMenuSource,
+  selection: SelectionState
+): readonly CanvasMenuGroup[] {
+  const groups: CanvasMenuGroup[] = [EDIT_GROUP]
+  if (source === 'layers') groups.push(ZOOM_SELECTION_GROUP)
+  groups.push(
+    ARRANGE_GROUP,
+    objectGroupFor(selection),
+    COMPONENT_GROUP,
+    VISIBILITY_GROUP,
+    FLIP_GROUP
+  )
+  return groups
+}
 
 function separator(): MenuSeparatorNode {
   return { separator: true }
@@ -104,7 +139,7 @@ function conditionalCommand(command: CanvasMenuCommand, options: CanvasMenuOptio
 
 export function buildCanvasContextMenu(options: CanvasMenuOptions): MenuEntry[] {
   const entries: MenuEntry[] = []
-  for (const group of CANVAS_MENU_GROUPS) {
+  for (const group of contextMenuGroups(options.source ?? 'canvas', options.selection)) {
     const groupEntries = group.flatMap((command) => conditionalCommand(command, options))
     if (groupEntries.length === 0) continue
     if (entries.length > 0) entries.push(separator())
