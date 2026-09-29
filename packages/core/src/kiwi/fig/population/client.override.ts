@@ -1,10 +1,14 @@
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import { getLazyFigImportContext } from '#core/kiwi/fig/lazy-import.override'
-import type { FigSessionResponse } from '#core/kiwi/fig/session/protocol'
+import { createFigSessionWorker } from '#core/kiwi/fig/session/client.override'
+import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol.override'
 import { randomHex } from '#core/random'
 
-import { applyFigPopulationDelta, type FigPopulationDelta } from './delta'
+import {
+  applyFigPopulationDeltaChunked,
+  type FigPopulationDelta
+} from './delta.override'
 
 interface PopulationResult {
   type: 'population-result'
@@ -13,7 +17,17 @@ interface PopulationResult {
   populated: boolean
   delta: FigPopulationDelta
 }
-type WorkerResult = PopulationResult | { type: 'population-error'; error: string }
+interface PopulationProgress {
+  type: 'population-progress'
+  requestId: string
+  completed: number
+  total?: number
+  stage?: 'nodes' | 'instances' | 'overrides'
+}
+type WorkerResult =
+  | PopulationResult
+  | PopulationProgress
+  | { type: 'population-error'; error: string }
 
 const MAX_FIG_POPULATION_WORKER_NODES = 200_000
 const FIG_POPULATION_WORKER_TIMEOUT_MS = 30_000
@@ -24,6 +38,8 @@ interface OriginalArchiveRequest {
   unbind: () => void
 }
 const originalArchiveRequests = new WeakMap<SceneGraph, OriginalArchiveRequest>()
+/** Immutable source bytes kept on the main thread so cold pages can revive a dead worker. */
+const retainedOriginalArchives = new WeakMap<SceneGraph, Uint8Array>()
 
 export interface FigPopulationWorkerTelemetry {
   event: 'registered' | 'populate' | 'fallback' | 'stale' | 'terminated'
@@ -84,6 +100,8 @@ export function registerOriginalArchiveRequest(
 }
 
 export async function requestOriginalArchive(graph: SceneGraph): Promise<Uint8Array | null> {
+  const retained = retainedOriginalArchives.get(graph)
+  if (retained) return retained.slice()
   const entry = originalArchiveRequests.get(graph)
   if (!entry?.valid) return null
   const archive = await entry.request()
@@ -93,22 +111,105 @@ export async function requestOriginalArchive(graph: SceneGraph): Promise<Uint8Ar
     : null
 }
 
+/** Keep a main-thread copy of the .fig bytes for worker revive after termination. */
+export function retainOriginalArchive(graph: SceneGraph, bytes: Uint8Array): void {
+  retainedOriginalArchives.set(graph, bytes.slice())
+}
+
+/**
+ * Re-bind a session worker to an existing live graph when the previous worker
+ * was terminated (protocol mismatch, timeout, HMR, etc.).
+ */
+export async function reviveFigPopulationWorker(
+  graph: SceneGraph,
+  signal?: AbortSignal
+): Promise<FigPopulationWorker | null> {
+  const existing = createFigPopulationWorker(graph)
+  if (existing) return existing
+  const archive = await requestOriginalArchive(graph)
+  if (!archive || archive.byteLength === 0) return null
+  signal?.throwIfAborted()
+
+  return await new Promise<FigPopulationWorker | null>((resolve, reject) => {
+    let settled = false
+    const worker = createFigSessionWorker()
+    const channel = new MessageChannel()
+    const finish = (value: FigPopulationWorker | null) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', onAbort)
+      resolve(value)
+    }
+    const onAbort = () => {
+      channel.port1.postMessage({ type: 'dispose' })
+      channel.port1.close()
+      worker.terminate()
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    channel.port1.onmessage = (event: MessageEvent<FigSessionResponse>) => {
+      const message = event.data
+      if (message.type === 'page-manifest') return
+      if (message.type !== 'graph') return
+      if (message.error || !message.graph) {
+        channel.port1.close()
+        worker.terminate()
+        finish(null)
+        return
+      }
+      // Discard the worker's deserialized graph — bind the session to the live graph.
+      registerFigPopulationWorker(graph, worker, channel.port1)
+      finish(createFigPopulationWorker(graph))
+    }
+    channel.port1.start()
+    worker.onerror = () => {
+      channel.port1.close()
+      worker.terminate()
+      finish(null)
+    }
+    const originalBuffer = archive.buffer.slice(
+      archive.byteOffset,
+      archive.byteOffset + archive.byteLength
+    ) as ArrayBuffer
+    const archiveBuffer = originalBuffer.slice(0)
+    const request: FigSessionOpenRequest = {
+      type: 'open',
+      originalBuffer,
+      archiveBuffer,
+      options: { populate: 'first-page' },
+      port: channel.port2
+    }
+    worker.postMessage(request, [originalBuffer, archiveBuffer, channel.port2])
+  })
+}
+
 export function releaseFigPopulationWorker(graph: SceneGraph): void {
   populationWorkers.get(graph)?.terminate()
   populationWorkers.delete(graph)
   originalArchiveRequests.get(graph)?.unbind()
   originalArchiveRequests.delete(graph)
+  retainedOriginalArchives.delete(graph)
+}
+
+export interface FigPopulationProgress {
+  completed: number
+  total?: number
+  stage?: 'nodes' | 'instances' | 'overrides'
 }
 
 export interface FigPopulationWorker {
-  populate: (pageId: string, signal?: AbortSignal) => Promise<boolean | null>
+  populate: (
+    pageId: string,
+    signal?: AbortSignal,
+    onProgress?: (progress: FigPopulationProgress) => void
+  ) => Promise<boolean | null>
   terminate: () => void
 }
 
 function createDisposalOnlyWorker(worker: Worker, port: MessagePort): FigPopulationWorker {
   let disposed = false
   return {
-    populate: () => Promise.resolve(null),
+    populate: (_pageId, _signal, _onProgress) => Promise.resolve(null),
     terminate() {
       if (disposed) return
       disposed = true
@@ -135,6 +236,7 @@ function createPopulationWorkerClient(
     {
       resolve: (value: boolean | null) => void
       abort?: () => void
+      onProgress?: (progress: FigPopulationProgress) => void
       revision: number
       startedAt: number
       timeout: ReturnType<typeof setTimeout>
@@ -178,8 +280,25 @@ function createPopulationWorkerClient(
     reparented: invalidate,
     reordered: invalidate
   })
-  const receive = (result: WorkerResult) => {
+  const receive = (result: WorkerResult | FigSessionResponse) => {
+    if (result.type === 'page-manifest' || result.type === 'graph' || result.type === 'disposed') {
+      return
+    }
+    if (result.type === 'original-archive-result') return
     if (result.type === 'population-error') return fail()
+    if (result.type === 'population-progress') {
+      const request = pending.get(result.requestId)
+      if (!request) return
+      // Chunked worker populate can outlive a single idle timeout; refresh on progress.
+      clearTimeout(request.timeout)
+      request.timeout = setTimeout(() => fail(), FIG_POPULATION_WORKER_TIMEOUT_MS)
+      request.onProgress?.({
+        completed: result.completed,
+        total: result.total,
+        stage: result.stage
+      })
+      return
+    }
     const request = pending.get(result.requestId)
     if (!request) return
     clearTimeout(request.timeout)
@@ -189,28 +308,49 @@ function createPopulationWorkerClient(
       emitTelemetry({ event: 'stale', reason: 'graph-mutation' })
       return request.resolve(null)
     }
+    // Chunk the main-thread apply so the overlay can keep painting; a single
+    // sync apply of a large worker delta freezes through the whole expand phase.
     applyingDelta = true
     const applyStartedAt = performance.now()
-    try {
-      applyFigPopulationDelta(graph, result.delta)
-      const context = getLazyFigImportContext(graph)
-      if (context) context.populatedRootIds = new Set(result.delta.populatedRootIds)
-    } catch {
-      applyingDelta = false
-      fail()
-      return request.resolve(null)
-    } finally {
-      applyingDelta = false
-    }
-    request.resolve(result.populated)
-    emitTelemetry({
-      event: 'populate',
-      durationMs: performance.now() - request.startedAt,
-      applyMs: performance.now() - applyStartedAt,
-      created: result.delta.created.length,
-      updated: result.delta.updated.length,
-      deleted: result.delta.deleted.length
-    })
+    void (async () => {
+      try {
+        await applyFigPopulationDeltaChunked(graph, result.delta, {
+          budgetMs: 8,
+          onChunk: (progress) => {
+            // Keep the worker timeout alive across long applies.
+            clearTimeout(request.timeout)
+            request.timeout = setTimeout(() => fail(), FIG_POPULATION_WORKER_TIMEOUT_MS)
+            request.onProgress?.({
+              completed: progress.completed,
+              total: progress.total,
+              stage: 'overrides'
+            })
+          }
+        })
+        const context = getLazyFigImportContext(graph)
+        // Only advance readiness when the worker reports a successful populate.
+        // Applying populatedRootIds from an empty failed/no-op result marked pages
+        // "done" on the main graph without transferring any nodes.
+        if (context && result.populated) {
+          context.populatedRootIds = new Set(result.delta.populatedRootIds)
+        }
+        request.resolve(result.populated)
+        emitTelemetry({
+          event: 'populate',
+          durationMs: performance.now() - request.startedAt,
+          applyMs: performance.now() - applyStartedAt,
+          created: result.delta.created.length,
+          updated: result.delta.updated.length,
+          deleted: result.delta.deleted.length
+        })
+      } catch {
+        fail()
+        request.resolve(null)
+      } finally {
+        applyingDelta = false
+        clearTimeout(request.timeout)
+      }
+    })()
   }
   if (port) {
     port.onmessage = (event: MessageEvent<FigSessionResponse>) =>
@@ -221,7 +361,7 @@ function createPopulationWorkerClient(
   }
   worker.onerror = () => fail()
   return {
-    populate(pageId, signal) {
+    populate(pageId, signal, onProgress) {
       signal?.throwIfAborted()
       if (stale) return Promise.resolve(null)
       const requestId = randomHex()
@@ -240,6 +380,7 @@ function createPopulationWorkerClient(
         pending.set(requestId, {
           resolve,
           abort: () => signal?.removeEventListener('abort', abort),
+          onProgress,
           revision: baseRevision,
           startedAt: performance.now(),
           timeout

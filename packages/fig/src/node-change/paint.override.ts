@@ -14,7 +14,7 @@ import type {
 import { BLACK } from '@open-pencil/scene-graph/constants'
 import type { Color, Matrix } from '@open-pencil/scene-graph/primitives'
 
-import { hexToBytes, bytesToHex } from './bytes'
+import { hexToBytes, bytesToHex } from './bytes.override'
 
 export function safeColor(color: Color | Omit<Color, 'a'>): Color {
   return { r: color.r, g: color.g, b: color.b, a: 'a' in color ? color.a : 1 }

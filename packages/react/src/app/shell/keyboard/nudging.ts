@@ -11,6 +11,7 @@ const NUDGE_DELTAS: Partial<Record<string, [number, number]>> = {
 
 export function bindNudgeKeys(store: EditorStore) {
   function onKeyDown(e: KeyboardEvent) {
+    if (store.state.pageLoading.visible || store.state.loading) return
     if (isEditing(e) || store.state.editingTextId) return
     if (isReservedModShortcut(e)) e.preventDefault()
     if (e.metaKey || e.ctrlKey || e.altKey) return

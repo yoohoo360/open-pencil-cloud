@@ -5,13 +5,6 @@ import {
 import type { InstanceNodeChange } from '@open-pencil/fig/instance-overrides'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
-declare module '@open-pencil/scene-graph' {
-  interface SceneGraph {
-    runSilentMutations(fn: () => void): void
-    readonly isSilentMutation: boolean
-  }
-}
-
 export interface LazyFigImportContext {
   changeMap: Map<string, InstanceNodeChange>
   guidToNodeId: Map<string, string>
@@ -31,13 +24,19 @@ export interface LazyFigImportContext {
   materializePageChunk?: (pageId: string, budgetMs: number) => boolean
 }
 
+export type LazyFigChunkStage = 'materialize' | 'instances' | 'overrides'
+
 export interface LazyFigChunkOptions {
   materializeBudgetMs?: number
   populateBudgetMs?: number
   signal?: AbortSignal
   yieldBetween?: () => Promise<void>
   /** Called after each time-sliced chunk so the host can paint under a loading overlay. */
-  onChunk?: () => void | Promise<void>
+  onChunk?: (info?: {
+    stage: LazyFigChunkStage
+    completed?: number
+    total?: number
+  }) => void | Promise<void>
 }
 
 const LAZY_FIG_IMPORT = Symbol.for('open-pencil.lazyFigImport')
@@ -99,8 +98,8 @@ export function materializeLazyFigImportRoots(
   rootIds: Iterable<string>
 ): boolean {
   const context = getLazyFigImportContext(graph)
-  if (!context?.materializePage) return false
-  const materializePage = context.materializePage
+  const materializePage = context?.materializePage
+  if (!context || !materializePage) return false
   let changed = false
   graph.runSilentMutations(() => {
     for (const pageId of rootIds) {
@@ -131,7 +130,9 @@ export async function materializeLazyFigImportRootsChunked(
 
   const chunk = context.materializePageChunk
   if (!chunk) {
-    return materializeLazyFigImportRoots(graph, pending)
+    const changed = materializeLazyFigImportRoots(graph, pending)
+    if (changed) await options.onChunk?.({ stage: 'materialize' })
+    return changed
   }
 
   let changed = false
@@ -143,7 +144,7 @@ export async function materializeLazyFigImportRootsChunked(
         done = chunk(pageId, budgetMs)
       })
       changed = true
-      await options.onChunk?.()
+      await options.onChunk?.({ stage: 'materialize' })
       if (done) break
       await yieldBetween()
     }
@@ -160,12 +161,9 @@ function applyPopulation(
     console.warn('[Fig] Lazy import context is missing materializePage; skip population')
     return
   }
+  const targets = rootIds ?? graph.getPages(true).map((page) => page.id)
   graph.runSilentMutations(() => {
-    if (rootIds) {
-      for (const pageId of rootIds) context.materializePage?.(pageId)
-    } else {
-      for (const page of graph.getPages(true)) context.materializePage?.(page.id)
-    }
+    for (const pageId of targets) context.materializePage?.(pageId)
     graph.preserveSourceMetadataDuring(() => {
       populateAndApplyOverrides(
         graph,
@@ -176,8 +174,14 @@ function applyPopulation(
       )
     })
   })
-  const populatedRootIds = rootIds ?? graph.getPages(true).map((page) => page.id)
-  for (const id of populatedRootIds) context.populatedRootIds.add(id)
+  // Only mark roots that actually finished materializing — avoids empty-canvas
+  // "success" when materialize no-ops (missing canvas mapping, etc.).
+  const materialized = context.materializedPageIds
+  for (const id of targets) {
+    if (materialized?.has(id) || (graph.getNode(id)?.childIds.length ?? 0) > 0) {
+      context.populatedRootIds.add(id)
+    }
+  }
 }
 
 function populateRoots(
@@ -188,8 +192,9 @@ function populateRoots(
   if (!context.materializePage) return false
   const pending = [...rootIds].filter((id) => id && !context.populatedRootIds.has(id))
   if (pending.length === 0) return false
+  const before = context.populatedRootIds.size
   applyPopulation(graph, context, pending)
-  return true
+  return context.populatedRootIds.size > before
 }
 
 export function populateLazyFigImportRoots(graph: SceneGraph, rootIds: Iterable<string>): boolean {
@@ -225,6 +230,7 @@ export async function populateLazyFigImportRootsChunked(
     pending
   )
 
+  let instanceSlice = 0
   while (true) {
     throwIfAborted(options.signal)
     let done = false
@@ -233,7 +239,13 @@ export async function populateLazyFigImportRootsChunked(
         done = pipeline.advancePopulation(budgetMs)
       })
     })
-    await options.onChunk?.()
+    instanceSlice++
+    await options.onChunk?.({
+      stage: 'instances',
+      completed: instanceSlice,
+      // Unknown total — host shows indeterminate expanding-components copy until overrides.
+      total: done ? instanceSlice : undefined
+    })
     if (done) break
     await yieldBetween()
   }
@@ -243,16 +255,32 @@ export async function populateLazyFigImportRootsChunked(
     let done = false
     graph.runSilentMutations(() => {
       graph.preserveSourceMetadataDuring(() => {
-        done = pipeline.advanceOverrides()
+        done = pipeline.advanceOverrides(budgetMs)
       })
     })
-    await options.onChunk?.()
+    const { completed, total } = pipeline.overrideProgress()
+    await options.onChunk?.({
+      stage: 'overrides',
+      completed: Math.max(completed, 1),
+      total
+    })
     if (done) break
     await yieldBetween()
   }
 
-  for (const id of pending) context.populatedRootIds.add(id)
-  return true
+  let anyReady = false
+  for (const id of pending) {
+    // Do not mark empty failed materializations as populated — cold switches
+    // would otherwise dismiss loading and leave a blank canvas.
+    if (
+      context.materializedPageIds.has(id) ||
+      (graph.getNode(id)?.childIds.length ?? 0) > 0
+    ) {
+      context.populatedRootIds.add(id)
+      anyReady = true
+    }
+  }
+  return anyReady
 }
 
 export function isLazyFigImportRootPopulated(graph: SceneGraph, rootId: string): boolean {
@@ -263,7 +291,9 @@ export function isLazyFigImportRootPopulated(graph: SceneGraph, rootId: string):
 /** User-visible pages that still need lazy materialize + instance expansion. */
 export function listPendingLazyFigImportPages(graph: SceneGraph): string[] {
   const context = getLazyFigImportContext(graph)
-  if (!context?.materializePage) return []
+  // Worker-transfer stubs have no `materializePage`, but they still track
+  // readiness via `populatedRootIds` and can warm through the session worker.
+  if (!context) return []
   return graph
     .getPages()
     .map((page) => page.id)

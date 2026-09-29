@@ -15,7 +15,8 @@ import {
 } from '#core/kiwi/fig/lazy-import.override'
 import {
   canUseFigPopulationWorker,
-  createFigPopulationWorker
+  createFigPopulationWorker,
+  reviveFigPopulationWorker
 } from '#core/kiwi/fig/population/client'
 import { computeAllLayouts } from '#core/layout'
 import { fontManager } from '#core/text/fonts'
@@ -30,6 +31,8 @@ export interface PageSwitchProgress {
   detail?: string
   completed?: number
   total?: number
+  /** Worker/main chunk stage — drives overlay copy (nodes vs building page). */
+  stage?: 'nodes' | 'instances' | 'overrides'
 }
 
 export interface PreparePageOptions {
@@ -59,10 +62,10 @@ function yieldForLazyPrefetch(): Promise<void> {
       }
     ).requestIdleCallback
     if (typeof idle === 'function') {
-      idle(() => resolve(), { timeout: 1200 })
+      idle(() => resolve(), { timeout: 400 })
       return
     }
-    globalThis.setTimeout(resolve, 250)
+    globalThis.setTimeout(resolve, 0)
   })
 }
 
@@ -73,9 +76,8 @@ function yieldForPageSwitchChunk(): Promise<void> {
   })
 }
 
-/** Larger slices: fewer yields, finish the page sooner under the loading overlay. */
-const PAGE_SWITCH_MATERIALIZE_BUDGET_MS = 200
-const PAGE_SWITCH_POPULATE_BUDGET_MS = 200
+const PAGE_SWITCH_MATERIALIZE_BUDGET_MS = 8
+const PAGE_SWITCH_POPULATE_BUDGET_MS = 8
 
 export function createPageActions(ctx: EditorContext) {
   const pageViewportStore = createPageViewportStore(ctx)
@@ -100,47 +102,25 @@ export function createPageActions(ctx: EditorContext) {
   function enableRegionalTiledPaint(): void {
     if (!getLazyFigImportContext(ctx.graph)) return
     const renderer = ctx.getRenderer()
-    if (renderer) {
-      renderer.tiledSceneEnabled = true
-      // Force settlement waiters to observe the new page instead of a stale
-      // covered=true from the previous page.
-      renderer.tiledSceneCovered = false
-      renderer.tiledScenePending = true
-    }
+    if (renderer) renderer.tiledSceneEnabled = true
   }
 
-  /** Layout without per-node editor events / renderer invalidation storms. */
+  function refreshPageAfterSilentPopulation(pageId: string): void {
+    ctx.getRenderer()?.invalidateAllPictures()
+    // After a large lazy page lands, paint visible world tiles first so the
+    // canvas fills in by region instead of blocking on one full-scene raster.
+    enableRegionalTiledPaint()
+    // Layer trees listen to page:changed / node events — silent import suppresses
+    // per-node emits, so force one rebuild after the batch.
+    ctx.emitEditorEvent('page:changed', pageId, pageId)
+    ctx.requestRender()
+  }
+
+  /** Layout after silent populate — do not flood node:updated per child. */
   function computeLayoutsSilently(pageId: string): void {
     ctx.graph.runSilentMutations(() => {
       computeAllLayouts(ctx.graph, pageId)
     })
-  }
-
-  function refreshPageAfterSilentPopulation(pageId: string): void {
-    enableRegionalTiledPaint()
-    // Single structural notify + single render after the page is fully built.
-    ctx.emitEditorEvent('page:changed', pageId, pageId)
-    // Repaint only — avoid bumping sceneVersion (React store snapshot) twice.
-    ctx.requestRepaint()
-  }
-
-  function schedulePageFontsAndLayout(
-    pageId: string,
-    pageName: string,
-    generation: number,
-    options: SwitchPageOptions
-  ): void {
-    // Fonts run after the first paint so opening is not blocked on network I/O.
-    void resolvePageFonts(pageId, pageName, options)
-      .then(() => {
-        if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
-        computeLayoutsSilently(pageId)
-        ctx.requestRender()
-      })
-      .catch((error) => {
-        if (options.signal?.aborted) return
-        console.warn('[Editor] Page font resolution failed', error)
-      })
   }
 
   function warmLazyFigPageSync(pageId: string): boolean {
@@ -154,16 +134,40 @@ export function createPageActions(ctx: EditorContext) {
 
   async function warmLazyFigPageChunked(
     pageId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onProgress?: PreparePageOptions['onProgress']
   ): Promise<boolean> {
     if (isLazyFigImportRootPopulated(ctx.graph, pageId)) return false
 
-    // No per-chunk paint/page:changed — intermediate renders are the main cost.
+    // Loading overlay owns UX during cold switch — only push phase labels, do
+    // not emit page:changed / requestRender on every chunk (that floods React
+    // + layer trees). One refresh runs after the batch completes.
+    const reportChunk = (info?: {
+      stage?: 'materialize' | 'instances' | 'overrides'
+      completed?: number
+      total?: number
+    }) => {
+      const stage =
+        info?.stage === 'instances'
+          ? 'instances'
+          : info?.stage === 'overrides'
+            ? 'overrides'
+            : 'nodes'
+      onProgress?.({
+        phase: 'populating-page',
+        stage,
+        completed: info?.completed,
+        total: info?.total
+      })
+    }
+
+    onProgress?.({ phase: 'populating-page', stage: 'nodes' })
     const chunkOptions = {
       materializeBudgetMs: PAGE_SWITCH_MATERIALIZE_BUDGET_MS,
       populateBudgetMs: PAGE_SWITCH_POPULATE_BUDGET_MS,
       signal,
-      yieldBetween: yieldForPageSwitchChunk
+      yieldBetween: yieldForPageSwitchChunk,
+      onChunk: reportChunk
     }
     const materialized = await materializeLazyFigImportRootsChunked(
       ctx.graph,
@@ -174,6 +178,8 @@ export function createPageActions(ctx: EditorContext) {
     if (!(materialized || populated || isLazyFigImportRootPopulated(ctx.graph, pageId))) {
       return false
     }
+    reportChunk({ stage: 'overrides' })
+    onProgress?.({ phase: 'layout' })
     computeLayoutsSilently(pageId)
     return true
   }
@@ -192,6 +198,32 @@ export function createPageActions(ctx: EditorContext) {
     return work
   }
 
+  /**
+   * Background warm that does not bump `pageSwitchGeneration`, so an in-flight
+   * user switch is not cancelled. Worker-backed graphs use populate directly;
+   * main-thread lazy graphs use sync materialize.
+   */
+  function prefetchLazyFigPage(pageId: string): Promise<boolean> {
+    const inFlight = warmingPageIds.get(pageId)
+    if (inFlight) return inFlight
+    const work = (async () => {
+      try {
+        if (isLazyFigImportRootPopulated(ctx.graph, pageId)) return false
+        if (getLazyFigImportContext(ctx.graph)?.materializePage) {
+          return warmLazyFigPageSync(pageId)
+        }
+        const generation = pageSwitchGeneration
+        const populated = await populatePage(pageId, generation)
+        if (populated === null || generation !== pageSwitchGeneration) return false
+        return populated === true
+      } finally {
+        warmingPageIds.delete(pageId)
+      }
+    })()
+    warmingPageIds.set(pageId, work)
+    return work
+  }
+
   /** After the home page is interactive, quietly expand remaining pages in idle time. */
   function prefetchRemainingLazyFigPages(): void {
     if (!getLazyFigImportContext(ctx.graph)) return
@@ -202,12 +234,6 @@ export function createPageActions(ctx: EditorContext) {
     lazyPrefetchActive = true
     void (async () => {
       try {
-        // Give a short grace period, then warm nearby pages so the next click is
-        // usually a fast camera switch instead of another cold populate.
-        await new Promise<void>((resolve) => {
-          globalThis.setTimeout(resolve, 800)
-        })
-        if (token !== lazyPrefetchToken) return
         while (token === lazyPrefetchToken) {
           const pending = listPendingLazyFigImportPages(ctx.graph).filter(
             (id) => !warmingPageIds.has(id)
@@ -230,7 +256,7 @@ export function createPageActions(ctx: EditorContext) {
           await yieldForLazyPrefetch()
           if (token !== lazyPrefetchToken) return
           if (isLazyFigImportRootPopulated(ctx.graph, pageId)) continue
-          await warmLazyFigPage(pageId)
+          await prefetchLazyFigPage(pageId)
         }
       } finally {
         if (token === lazyPrefetchToken) lazyPrefetchActive = false
@@ -241,15 +267,38 @@ export function createPageActions(ctx: EditorContext) {
   async function populatePage(
     pageId: string,
     switchGeneration: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onProgress?: PreparePageOptions['onProgress']
   ): Promise<boolean | null> {
     throwIfAborted(signal)
-    if (getLazyFigImportContext(ctx.graph)) {
-      return warmLazyFigPageSync(pageId)
+    // Only the main-thread importer attaches `materializePage`. Worker transfer
+    // stubs must fall through to the session worker instead of a no-op warm.
+    if (getLazyFigImportContext(ctx.graph)?.materializePage) {
+      onProgress?.({ phase: 'populating-page', stage: 'nodes' })
+      const warmed = warmLazyFigPageSync(pageId)
+      if (warmed) onProgress?.({ phase: 'populating-page', stage: 'overrides' })
+      return warmed
     }
-    const worker = populationWorker()
-    const workerGeneration = populationWorkerGeneration
-    const workerResult = worker ? await worker.populate(pageId, signal) : null
+    const reportPopulate = (progress: {
+      completed: number
+      total?: number
+      stage?: PageSwitchProgress['stage']
+    }) => {
+      onProgress?.({
+        phase: 'populating-page',
+        completed: progress.completed,
+        total: progress.total,
+        stage: progress.stage ?? 'nodes'
+      })
+    }
+
+    let worker = populationWorker()
+    if (!worker) {
+      worker = await reviveFigPopulationWorker(ctx.graph, signal)
+      populationWorkerInstance = worker ?? undefined
+    }
+    let workerGeneration = populationWorkerGeneration
+    let workerResult = worker ? await worker.populate(pageId, signal, reportPopulate) : null
     throwIfAborted(signal)
     if (
       workerGeneration !== populationWorkerGeneration ||
@@ -258,9 +307,28 @@ export function createPageActions(ctx: EditorContext) {
       return null
     }
     if (workerResult !== null) return workerResult
+
+    // Stale/dead worker: revive from the retained .fig bytes and retry once.
     worker?.terminate()
     populationWorkerInstance = undefined
-    return populateLazyFigImportRoots(ctx.graph, [pageId])
+    populationWorkerGeneration++
+    worker = await reviveFigPopulationWorker(ctx.graph, signal)
+    populationWorkerInstance = worker ?? undefined
+    workerGeneration = populationWorkerGeneration
+    workerResult = worker ? await worker.populate(pageId, signal, reportPopulate) : null
+    throwIfAborted(signal)
+    if (
+      workerGeneration !== populationWorkerGeneration ||
+      switchGeneration !== pageSwitchGeneration
+    ) {
+      return null
+    }
+    if (workerResult !== null) return workerResult
+
+    onProgress?.({ phase: 'populating-page', stage: 'nodes' })
+    const populated = populateLazyFigImportRoots(ctx.graph, [pageId])
+    if (populated) onProgress?.({ phase: 'populating-page', stage: 'overrides' })
+    return populated
   }
 
   async function resolvePageFonts(
@@ -336,12 +404,17 @@ export function createPageActions(ctx: EditorContext) {
     const generation = ++pageSwitchGeneration
     throwIfAborted(options.signal)
 
-    options.onProgress?.({ phase: 'populating-page', detail: page.name })
-    const populated = await populatePage(pageId, generation, options.signal)
+    if (!isLazyFigImportRootPopulated(ctx.graph, pageId)) {
+      cancelLazyFigPrefetch()
+    }
+
+    options.onProgress?.({ phase: 'populating-page', stage: 'nodes' })
+    const populated = await populatePage(pageId, generation, options.signal, options.onProgress)
     if (populated === null || generation !== pageSwitchGeneration) return null
 
+    if (populated) options.onProgress?.({ phase: 'layout' })
+    else options.onProgress?.({ phase: 'populating-page', stage: 'nodes' })
     if (ctx.getRenderer() || populated) {
-      options.onProgress?.({ phase: 'layout', detail: page.name })
       computeLayoutsSilently(pageId)
     }
     throwIfAborted(options.signal)
@@ -365,15 +438,11 @@ export function createPageActions(ctx: EditorContext) {
     ctx.state.panY = (viewH - h * zoom) / 2 - bounds.y * zoom + padding * zoom
   }
 
-  function commitPageSwitch(
-    prepared: PreparedPage,
-    options: { notify?: boolean } = {}
-  ): boolean {
+  function commitPageSwitch(prepared: PreparedPage): boolean {
     if (prepared.generation !== pageSwitchGeneration) return false
     const page = ctx.graph.getNode(prepared.pageId)
     if (page?.type !== 'CANVAS') return false
 
-    const notify = options.notify !== false
     pageViewportStore.saveCurrentPageViewport()
     const previousPageId = ctx.state.currentPageId
     ctx.state.currentPageId = prepared.pageId
@@ -381,12 +450,10 @@ export function createPageActions(ctx: EditorContext) {
     ctx.setSelectedIds(new Set())
     const restored = pageViewportStore.restorePageViewport(prepared.pageId)
     if (!restored && prepared.populated) fitPageContent(prepared.pageId)
-    // Cold populate defers notify until the page is built — avoids an empty
-    // page:changed (LayerTree rebuild) + render before content exists.
-    if (notify && previousPageId !== prepared.pageId) {
+    if (previousPageId !== prepared.pageId) {
       ctx.emitEditorEvent('page:changed', prepared.pageId, previousPageId)
     }
-    if (notify) ctx.requestRender()
+    ctx.requestRender()
     return true
   }
 
@@ -397,60 +464,66 @@ export function createPageActions(ctx: EditorContext) {
     // Prefer the retained session worker when present (worker-backed imports).
     // Main-thread lazy context is used when the file was parsed without a worker.
     const hasWorker = canUseFigPopulationWorker(ctx.graph)
-    const hasLazy = getLazyFigImportContext(ctx.graph) !== undefined
+    const lazy = getLazyFigImportContext(ctx.graph)
+    const hasLazy = lazy !== undefined
+    // Chunked main-thread warm requires live materialize hooks (not a worker stub).
+    const canWarmOnMainThread = !!lazy?.materializePage
 
-    if (hasLazy && !hasWorker) {
+    if (hasLazy && !hasWorker && canWarmOnMainThread) {
       const generation = ++pageSwitchGeneration
 
       // Prefetch hit: page is already expanded — just commit the camera.
       if (isLazyFigImportRootPopulated(ctx.graph, pageId)) {
         if (!commitPageSwitch({ pageId, generation, populated: true })) return
         enableRegionalTiledPaint()
-        schedulePageFontsAndLayout(pageId, page.name, generation, options)
+        void resolvePageFonts(pageId, page.name, options)
+          .then(() => {
+            if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
+            computeLayoutsSilently(pageId)
+            ctx.requestRender()
+          })
+          .catch((error) => {
+            if (options.signal?.aborted) return
+            console.warn('[Editor] Page font resolution failed', error)
+          })
         prefetchRemainingLazyFigPages()
         return
       }
 
-      // Cold switch: React store.setLoading owns the overlay; pause idle prefetch
-      // so materialize work is not interleaved with background warm.
+      // Cold switch: React store owns the overlay. Yield first so it paints over
+      // the previous page, then commit the empty target under that cover.
       cancelLazyFigPrefetch()
       try {
-        // Defer page:changed / render until content exists (one notify at the end).
-        if (!commitPageSwitch({ pageId, generation, populated: false }, { notify: false })) {
-          return
-        }
+        await yieldForPageSwitchChunk()
+        if (generation !== pageSwitchGeneration) return
+        if (!commitPageSwitch({ pageId, generation, populated: false })) return
 
         await yieldForPageSwitchChunk()
         if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
 
-        options.onProgress?.({ phase: 'populating-page', detail: page.name })
+        options.onProgress?.({ phase: 'populating-page', stage: 'nodes' })
         throwIfAborted(options.signal)
-        // Under the loading overlay, finish materialize/populate in one sync
-        // burst. Chunked yields used to interleave full-canvas paints and made
-        // cold switches several times slower without helping first paint.
-        const warmed = warmLazyFigPageSync(pageId)
+        const warmed = await warmLazyFigPageChunked(pageId, options.signal, options.onProgress)
         throwIfAborted(options.signal)
         if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
         if (warmed || isLazyFigImportRootPopulated(ctx.graph, pageId)) {
-          options.onProgress?.({ phase: 'layout', detail: page.name })
+          options.onProgress?.({ phase: 'layout' })
           if (!pageViewportStore.hasSavedViewport(pageId)) fitPageContent(pageId)
           refreshPageAfterSilentPopulation(pageId)
         }
 
-        // Fonts after first paint — schedule on idle so switchPage can settle.
-        const fontsPageId = pageId
-        const fontsName = page.name
-        const fontsGeneration = generation
-        const fontsOptions = options
-        const scheduleFonts = () =>
-          schedulePageFontsAndLayout(fontsPageId, fontsName, fontsGeneration, fontsOptions)
-        const idle = (
-          globalThis as typeof globalThis & {
-            requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number
-          }
-        ).requestIdleCallback
-        if (typeof idle === 'function') idle(scheduleFonts, { timeout: 1200 })
-        else globalThis.setTimeout(scheduleFonts, 0)
+        void resolvePageFonts(pageId, page.name, options)
+          .then(() => {
+            if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) {
+              return
+            }
+            computeLayoutsSilently(pageId)
+            ctx.requestRender()
+          })
+          .catch((error) => {
+            if (options.signal?.aborted) return
+            console.warn('[Editor] Page font resolution failed', error)
+          })
         prefetchRemainingLazyFigPages()
       } catch (error) {
         if (options.signal?.aborted) return
@@ -466,7 +539,17 @@ export function createPageActions(ctx: EditorContext) {
       if (prepared.populated) refreshPageAfterSilentPopulation(pageId)
 
       const generation = prepared.generation
-      schedulePageFontsAndLayout(pageId, page.name, generation, options)
+      void resolvePageFonts(pageId, page.name, options)
+        .then(() => {
+          if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
+          computeLayoutsSilently(pageId)
+          ctx.requestRender()
+        })
+        .catch((error) => {
+          if (options.signal?.aborted) return
+          console.warn('[Editor] Page font resolution failed', error)
+        })
+      prefetchRemainingLazyFigPages()
     } catch (error) {
       if (options.signal?.aborted) return
       throw error

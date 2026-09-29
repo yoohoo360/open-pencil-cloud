@@ -1,5 +1,4 @@
 import type { EditorStore } from '#react/app/editor/store'
-import { normalizeImportedPageOrigins } from '#react/app/document/normalize-page-origin'
 import { loadFont } from '#react/app/editor/fonts'
 
 import { createEditor } from '@open-pencil/core/editor'
@@ -15,32 +14,9 @@ export function yieldToUI(): Promise<void> {
   })
 }
 
-/** Maximum canvas loading overlay duration for open / import. */
-export const DOCUMENT_LOAD_MAX_MS = 8_000
-
 /**
- * Allocate loading overlay time from the .fig byte size until first paint.
- * Scales ~1ms per KiB, floored for tiny files, capped at 8s.
- */
-export function loadingDurationForBytes(byteLength: number): number {
-  const size = Number.isFinite(byteLength) ? Math.max(0, byteLength) : 0
-  return Math.min(DOCUMENT_LOAD_MAX_MS, Math.max(400, Math.round(size / 1024)))
-}
-
-export async function ensureMinimumDuration(
-  startedAt: number,
-  minimumMs: number
-): Promise<void> {
-  const remaining = minimumMs - (Date.now() - startedAt)
-  if (remaining <= 0) return
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, remaining)
-  })
-}
-
-/**
- * After the page graph is ready, wait for one paint of the current page.
- * Do not wait for full tiled coverage — that multiplies renders and slows open.
+ * After the page graph is ready, request one paint frame.
+ * Matches Vue openFigFile's `requestRender` + yield — do not wait for tiled coverage.
  */
 export async function waitForCanvasPaint(store?: EditorStore): Promise<void> {
   await yieldToUI()
@@ -54,12 +30,16 @@ export async function waitForCanvasPaint(store?: EditorStore): Promise<void> {
 
 /**
  * After a cold page switch, wait for the post-notify paint frame before clearing
- * the loading overlay. One rAF is enough — a second frame previously re-painted
- * the full page under loading and added hundreds of ms.
+ * the loading overlay.
  */
 export async function waitForPageRenderSettled(store: EditorStore): Promise<void> {
   await yieldToUI()
   void store
+}
+
+export async function fitCurrentPageToViewport(store: EditorStore): Promise<void> {
+  await yieldToUI()
+  store.zoomToFit()
 }
 
 /**
@@ -86,60 +66,79 @@ export function showFigPageManifest(
   store.replaceGraph(graph)
 }
 
-function figReadOptions(): ParseFigFileOptions {
+/** Worker decode + first-page populate; remaining pages warm via population worker. */
+function figReadOptions(
+  signal?: AbortSignal,
+  extras?: Pick<ParseFigFileOptions, 'useWorker'>
+): ParseFigFileOptions {
   return {
     populate: 'first-page',
-    // Keep the lazy FIG context on the editor graph for faster page switches.
-    // Main-thread parse avoids empty onPages shells and worker delta cost.
-    useWorker: false
+    signal,
+    useWorker: extras?.useWorker
   }
 }
 
 export async function readFigDocument(
   source: File | ArrayBuffer,
-  _store: EditorStore
+  _store?: EditorStore,
+  signal?: AbortSignal,
+  extras?: Pick<ParseFigFileOptions, 'useWorker'>
 ): Promise<SceneGraph> {
-  const options = figReadOptions()
+  const options = figReadOptions(signal, extras)
   const graph =
     source instanceof File ? await readFigFile(source, options) : await parseFigFile(source, options)
   return graph
 }
 
 /**
- * Replace the store graph with an imported FIG.
- * Mirrors Vue `applyImportedDocument`: prepare the first page on a staging
- * editor (lazy materialize + layout) before swapping the live graph.
+ * Staging prepare + swap onto the live editor.
+ * Mirrors Vue `applyImportedDocument` — does not switch page or fit camera.
+ */
+export async function applyImportedDocument(
+  store: EditorStore,
+  imported: SceneGraph
+): Promise<void> {
+  const firstPage = imported.getPages()[0]
+  const pageId = firstPage?.id ?? imported.rootId
+  // Worker `first-page` parse already materializes page 1. Re-preparing it through
+  // the population worker can stall the open overlay for minutes on large files.
+  const { isLazyFigImportRootPopulated } = await import('#core/kiwi/fig/lazy-import.override')
+  if (!isLazyFigImportRootPopulated(imported, pageId)) {
+    const stagingEditor = createEditor({
+      graph: imported,
+      loadFont,
+      skipInitialGraphSetup: true
+    })
+    try {
+      const prepared = await stagingEditor.preparePage(pageId)
+      if (!prepared) throw new Error('Imported page preparation was superseded')
+    } finally {
+      stagingEditor.dispose()
+    }
+  }
+
+  store.replaceGraph(imported)
+  store.undo.clear()
+  store.clearSelection()
+}
+
+/**
+ * Full open path: apply → switch first page → fit → warm until 2 pages ready
+ * (dismiss overlay) → idle-prefetch the rest.
  */
 export async function finishFigImport(store: EditorStore, imported: SceneGraph): Promise<void> {
-  try {
-    imported.runSilentMutations(() => normalizeImportedPageOrigins(imported))
-  } catch (error) {
-    console.warn('[FigImport] page origin normalize failed', error)
-  }
+  const { setPageLoadingVisible, warmPagesUntilOpenReady } =
+    await import('#react/app/document/page-loading/controller')
+  await applyImportedDocument(store, imported)
 
-  const firstPageId =
-    imported.getPages().find((page) => !page.internalOnly)?.id ?? imported.rootId
-  const stagingEditor = createEditor({
-    graph: imported,
-    loadFont,
-    skipInitialGraphSetup: true
-  })
-  try {
-    const prepared = await stagingEditor.preparePage(firstPageId)
-    if (!prepared) throw new Error('Imported page preparation was superseded')
+  const firstPage = store.graph.getPages()[0]
+  const pageId = firstPage?.id ?? store.graph.rootId
+  const { pageLoadingLabels } = await import('#react/app/document/page-loading/labels')
+  setPageLoadingVisible(store, true, pageLoadingLabels.preparingNodes)
 
-    store.replaceGraph(imported)
-    store.undo.clear()
-    store.clearSelection()
-  } finally {
-    stagingEditor.dispose()
-  }
-
-  const pageId =
-    store.graph.getPages().find((page) => !page.internalOnly)?.id ?? store.graph.rootId
-  // switchPage fits the camera for a populated first page; avoid a second
-  // zoomToFit/requestRender that re-paints the whole UI under loading.
+  // First page is already populated by worker/staging — switch stays warm.
   await store.switchPage(pageId)
-  // Background-warm remaining pages so later clicks are usually instant.
-  store.prefetchRemainingLazyFigPages?.()
+  await fitCurrentPageToViewport(store)
+  store.requestRender()
+  await warmPagesUntilOpenReady(store)
 }

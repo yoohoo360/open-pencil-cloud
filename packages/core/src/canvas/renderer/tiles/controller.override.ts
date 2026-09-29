@@ -18,7 +18,7 @@ import {
   TileScheduler,
   type TileJob,
   type TileSchedulerMetrics
-} from './scheduler.override'
+} from './scheduler'
 import { TileSurfacePool } from './surface-pool'
 import { emitTileCoverageComplete, emitTileFrameTrace } from './telemetry'
 

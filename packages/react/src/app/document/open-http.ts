@@ -2,10 +2,13 @@ import {
   finishFigImport,
   readFigDocument,
   waitForCanvasPaint,
-  yieldToUI,
-  ensureMinimumDuration,
-  loadingDurationForBytes
+  yieldToUI
 } from '#react/app/document/fig'
+import {
+  setPageLoadingPhase,
+  setPageLoadingVisible
+} from '#react/app/document/page-loading/controller'
+import { pageLoadingLabels } from '#react/app/document/page-loading/labels'
 import { maybeRestoreLocalDraft } from '#react/app/document/local-draft/restore'
 import { downloadOSSFig } from '#react/app/document/oss'
 import { asFigObjectPath } from '#react/app/document/oss-path'
@@ -48,6 +51,10 @@ function bindCloudDocumentState(
   store.state.historyPreviewId = null
 }
 
+/**
+ * Cloud `.fig` open with page-progress loading (`0/5 …`).
+ * Overlay stays until the first two pages are warm, then idle-prefetches the rest.
+ */
 export async function openHttpDocument(
   store: EditorStore,
   documentMeta: PencilDocument | undefined
@@ -57,8 +64,6 @@ export async function openHttpDocument(
   const documentUrl = documentMeta?.url?.trim()
     ? asFigObjectPath(documentMeta.url.trim())
     : ''
-  // Bind cloud identity before download/parse so Save / autosave always target OSS,
-  // even when the remote .fig is empty or fails to decode.
   store.state.documentName = name
   store.state.documentVersion = documentMeta?.version ?? ''
   store.state.documentKey = documentKey
@@ -66,21 +71,23 @@ export async function openHttpDocument(
   store.state.historyPreviewId = null
   store.notify()
 
-  const startedAt = Date.now()
-  store.setLoading(true)
+  setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
   await yieldToUI()
 
   try {
-    if (!documentUrl) return
+    if (!documentUrl) {
+      setPageLoadingVisible(store, false)
+      return
+    }
 
+    setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
     const payload = await downloadOSSFig(documentUrl)
-    let figByteLength = payload.byteLength
+    setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
 
     if (payload.byteLength > 0) {
       if (documentKey) {
         const draft = await maybeRestoreLocalDraft(documentKey, documentMeta?.updated_at)
         if (draft) {
-          figByteLength = draft.figBytes.byteLength
           await applyFigBytes(store, draft.figBytes, `${name}.fig`)
         } else {
           await applyDocumentBytes(store, payload, `${name}.fig`)
@@ -89,13 +96,13 @@ export async function openHttpDocument(
         await applyDocumentBytes(store, payload, `${name}.fig`)
       }
       await waitForCanvasPaint(store)
+    } else {
+      setPageLoadingVisible(store, false)
     }
-    // Re-assert identity after graph replace (imports clear remote only when unbound).
     bindCloudDocumentState(store, documentMeta, documentUrl)
     store.notify()
-    // Keep overlay until first paint, then pad by .fig size (max 8s).
-    await ensureMinimumDuration(startedAt, loadingDurationForBytes(figByteLength))
-  } finally {
-    store.setLoading(false)
+  } catch (error) {
+    setPageLoadingVisible(store, false)
+    throw error
   }
 }

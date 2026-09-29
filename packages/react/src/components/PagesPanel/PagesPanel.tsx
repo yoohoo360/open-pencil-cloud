@@ -1,10 +1,11 @@
+import { isSidebarTreeLoading } from '#react/app/document/page-loading/controller'
+import { useEditorStore } from '#react/app/editor/store'
 import { isDividerPage, listVisiblePages, moveVisiblePage } from '#react/components/PagesPanel/model'
 import { usePageDrag } from '#react/components/PagesPanel/usePageDrag'
 import { FloatingMenu } from '#react/components/properties/variables/FloatingMenu'
 import { useMenuUI } from '#react/components/ui/menu'
 import { Tip } from '#react/components/ui/Tip'
 import { useI18n } from '#react/i18n'
-import { useEditorStore } from '#react/app/editor/store'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 import theme from '#react/theme/page-list'
@@ -197,7 +198,8 @@ function PageRow({
 export function PagesPanel() {
   const store = useEditorStore()
   const { panels } = useI18n()
-  const pages = useSceneComputed(() => listVisiblePages(store.graph))
+  const loading = isSidebarTreeLoading(store)
+  const pages = useSceneComputed(() => (loading ? [] : listVisiblePages(store.graph)))
   const currentPageId = store.state.currentPageId
   const scrollRef = useOverlayScrollbar<HTMLDivElement>()
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -222,7 +224,11 @@ export function PagesPanel() {
   }
 
   return (
-    <div data-test-id="pages-panel" className={styles.panel()}>
+    <div
+      data-test-id="pages-panel"
+      data-loading={loading ? 'true' : undefined}
+      className={styles.panel()}
+    >
       <div className={styles.header()}>
         <span data-test-id="pages-header" className={styles.title()}>
           {panels.pages}
@@ -232,6 +238,7 @@ export function PagesPanel() {
             type="button"
             data-test-id="pages-add"
             className={styles.add()}
+            disabled={loading}
             onClick={() => store.addPage()}
           >
             +
@@ -239,25 +246,39 @@ export function PagesPanel() {
         </Tip>
       </div>
       <div className={styles.body()}>
-        <div ref={scrollRef} data-test-id="pages-scroll" className={styles.viewport()}>
-          {pages.map((page) => (
-            <PageRow
-              key={page.id}
-              pageId={page.id}
-              currentPageId={currentPageId}
-              canDelete={pages.length > 1}
-              draggingId={draggingId}
-              instruction={instruction}
-              instructionTargetId={instructionTargetId}
-              editingId={editingId}
-              setupItem={setupItem}
-              onSwitch={(pageId) => void store.switchPage(pageId)}
-              onStartRename={startRename}
-              onCommitRename={commitRename}
-              onCancelRename={() => setEditingId(null)}
-              onDelete={(pageId) => store.deletePage(pageId)}
-            />
-          ))}
+        <div
+          ref={scrollRef}
+          data-test-id="pages-scroll"
+          data-loading={loading ? 'true' : undefined}
+          className={styles.viewport()}
+        >
+          {loading ? (
+            <div
+              data-test-id="pages-loading"
+              className="flex items-center justify-center px-2 py-6 text-[11px] text-muted"
+            >
+              {panels.loading}
+            </div>
+          ) : (
+            pages.map((page) => (
+              <PageRow
+                key={page.id}
+                pageId={page.id}
+                currentPageId={currentPageId}
+                canDelete={pages.length > 1}
+                draggingId={draggingId}
+                instruction={instruction}
+                instructionTargetId={instructionTargetId}
+                editingId={editingId}
+                setupItem={setupItem}
+                onSwitch={(pageId) => void store.switchPage(pageId)}
+                onStartRename={startRename}
+                onCommitRename={commitRename}
+                onCancelRename={() => setEditingId(null)}
+                onDelete={(pageId) => store.deletePage(pageId)}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

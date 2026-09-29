@@ -1,7 +1,7 @@
 import { atom } from 'nanostores'
 import { DEFAULT_SNAPPING_PREFERENCES, type SnappingPreferences } from '@open-pencil/core/editor'
 
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { DEFAULT_FONT_FAMILY, IS_BROWSER } from '@open-pencil/core/constants'
 
 export interface AppPreferences {
   version: 1
@@ -10,6 +10,8 @@ export interface AppPreferences {
   }
   editing: {
     snapping: SnappingPreferences
+    /** Font applied to newly created text; omitted from Tailwind/JSX when matched. */
+    defaultFontFamily: string
   }
 }
 
@@ -17,7 +19,8 @@ export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
   version: 1,
   recovery: { enabled: true },
   editing: {
-    snapping: { ...DEFAULT_SNAPPING_PREFERENCES }
+    snapping: { ...DEFAULT_SNAPPING_PREFERENCES },
+    defaultFontFamily: DEFAULT_FONT_FAMILY
   }
 }
 
@@ -43,6 +46,10 @@ function snappingFromUnknown(value: unknown): SnappingPreferences {
   }
 }
 
+function stringOrDefault(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback
+}
+
 export function normalizePreferences(value: unknown): AppPreferences {
   const stored = isStoredRecord(value) ? value : undefined
   const recovery = isStoredRecord(stored?.recovery) ? stored.recovery : undefined
@@ -53,7 +60,11 @@ export function normalizePreferences(value: unknown): AppPreferences {
       enabled: booleanOrDefault(recovery?.enabled, DEFAULT_APP_PREFERENCES.recovery.enabled)
     },
     editing: {
-      snapping: snappingFromUnknown(editing?.snapping)
+      snapping: snappingFromUnknown(editing?.snapping),
+      defaultFontFamily: stringOrDefault(
+        editing?.defaultFontFamily,
+        DEFAULT_APP_PREFERENCES.editing.defaultFontFamily
+      )
     }
   }
 }
@@ -92,6 +103,19 @@ export function updateSnappingPreferences(changes: Partial<SnappingPreferences>)
         ...current.editing.snapping,
         ...changes
       }
+    }
+  })
+}
+
+export function updateDefaultFontFamily(family: string) {
+  const trimmed = family.trim()
+  if (!trimmed) return
+  const current = appPreferences.get()
+  appPreferences.set({
+    ...current,
+    editing: {
+      ...current.editing,
+      defaultFontFamily: trimmed
     }
   })
 }

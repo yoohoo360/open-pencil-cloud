@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Check, Copy, RotateCcw } from 'lucide-react'
+import { useStore } from '@nanostores/react'
 import { tv } from 'tailwind-variants'
 
 import { JSX_REFERENCE, selectionToJSX } from '@open-pencil/core/design-jsx'
@@ -18,8 +19,19 @@ import {
   resetDOMCodePreview,
   type DOMCodeSession
 } from '#react/app/code/dom-preview'
+import {
+  getTailwindConfigsInPriorityOrder,
+  hydrateTailwindConfig,
+  tailwindConfigStore
+} from '#react/app/code/tailwind-config/store'
+import {
+  codePanelPreferencesStore,
+  hydrateCodePanelPreferences,
+  setCodePanelSource
+} from '#react/app/code/preferences/store'
 import { starterSourceFor, type CodeSource } from '#react/app/code/templates'
 import { useEditorStore } from '#react/app/editor/store'
+import { appPreferences } from '#react/app/settings/preferences'
 import { CodeEditor } from '#react/components/code-editor/CodeEditor'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppSelect } from '#react/components/ui/AppSelect'
@@ -37,6 +49,7 @@ export function CodePanel({ active = true }: { active?: boolean }) {
   const store = useEditorStore()
   const { dialogs } = useI18n()
   const [source, setSource] = useState<CodeSource>('design-jsx')
+  const [sourceReady, setSourceReady] = useState(false)
   const [draft, setDraft] = useState('')
   const [baseline, setBaseline] = useState('')
   const [status, setStatus] = useState<'idle' | 'updating' | 'updated' | 'error'>('idle')
@@ -53,16 +66,45 @@ export function CodePanel({ active = true }: { active?: boolean }) {
   const sourceRef = useRef(source)
   const draftRef = useRef(draft)
   const errorRef = useRef(error)
+  const tailwindConfig = useStore(tailwindConfigStore)
+  const preferences = useStore(appPreferences)
+  const defaultFontFamily = preferences.editing.defaultFontFamily
   sourceRef.current = source
   draftRef.current = draft
   errorRef.current = error
 
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([hydrateTailwindConfig(), hydrateCodePanelPreferences()]).then(() => {
+      if (cancelled) return
+      const saved = codePanelPreferencesStore.get().source
+      setSource(saved)
+      setSourceReady(true)
+      if (saved === 'html-css') {
+        const initial = starterSourceFor(saved)
+        setBaseline(initial)
+        setDraft(initial)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const generatedJSX = useSceneComputed(() => {
-    if (!active || source === 'html-css' || designSession.current) return ''
+    if (!active || !sourceReady || source === 'html-css' || designSession.current) return ''
     void store.state.sceneVersion
+    void tailwindConfig
+    void defaultFontFamily
     const ids = [...store.state.selectedIds]
     if (ids.length === 0) return starterSourceFor(source)
-    return selectionToJSX(ids, store.graph, source === 'tailwind-jsx' ? 'tailwind' : 'openpencil')
+    if (source === 'tailwind-jsx') {
+      return selectionToJSX(ids, store.graph, 'tailwind', {
+        configs: getTailwindConfigsInPriorityOrder(),
+        defaultFontFamily
+      })
+    }
+    return selectionToJSX(ids, store.graph, 'openpencil', { defaultFontFamily })
   })
 
   const sourceOptions = useMemo(
@@ -187,6 +229,7 @@ export function CodePanel({ active = true }: { active?: boolean }) {
     if (next === source) return
     await commitCurrentSession()
     setSource(next)
+    void setCodePanelSource(next)
     const initial = next === 'html-css' ? starterSourceFor(next) : generatedFor(next)
     setBaseline(initial)
     setDraft(initial)
@@ -197,14 +240,20 @@ export function CodePanel({ active = true }: { active?: boolean }) {
   function generatedFor(next: Exclude<CodeSource, 'html-css'>): string {
     const ids = [...store.state.selectedIds]
     if (ids.length === 0) return starterSourceFor(next)
-    return selectionToJSX(ids, store.graph, next === 'tailwind-jsx' ? 'tailwind' : 'openpencil')
+    if (next === 'tailwind-jsx') {
+      return selectionToJSX(ids, store.graph, 'tailwind', {
+        configs: getTailwindConfigsInPriorityOrder(),
+        defaultFontFamily
+      })
+    }
+    return selectionToJSX(ids, store.graph, 'openpencil', { defaultFontFamily })
   }
 
   useEffect(() => {
-    if (source === 'html-css' || designSession.current || dirty) return
+    if (!sourceReady || source === 'html-css' || designSession.current || dirty) return
     setBaseline(generatedJSX)
     setDraft(generatedJSX)
-  }, [dirty, generatedJSX, source])
+  }, [dirty, generatedJSX, source, sourceReady])
 
   useEffect(() => {
     return () => {

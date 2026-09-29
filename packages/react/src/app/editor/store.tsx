@@ -1,5 +1,19 @@
 import { bindOpenPencilTestImport } from '#react/app/document/test-import'
-import { waitForPageRenderSettled, yieldToUI } from '#react/app/document/fig'
+import { waitForPageRenderSettled } from '#react/app/document/fig'
+import {
+  refreshPageLoadingProgress,
+  runColdPageSwitchWithProgress,
+  setPageLoadingVisible
+} from '#react/app/document/page-loading/controller'
+import {
+  pageLoadingLabels,
+  pageLoadingProgressDetail
+} from '#react/app/document/page-loading/labels'
+import { startIdlePageSnapshotWriter } from '#react/app/document/page-loading/snapshot'
+import {
+  emptyPageLoadingProgress,
+  type PageLoadingProgress
+} from '#react/app/document/page-loading/types'
 import { appPreferences } from '#react/app/settings/preferences'
 import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
@@ -22,15 +36,14 @@ import {
   type Editor,
   type EditorState
 } from '@open-pencil/core/editor'
-import {
-  getLazyFigImportContext,
-  isLazyFigImportRootPopulated
-} from '#core/kiwi/fig/lazy-import.override'
 import '#react/app/editor/fonts'
 import { SceneGraph } from '@open-pencil/scene-graph'
+import { flushSync } from 'react-dom'
 
 export type AppEditorState = EditorState & {
   loading: boolean
+  /** Page-progress overlay (`2/5 封面`). */
+  pageLoading: PageLoadingProgress
   showUI: boolean
   showRulers: boolean
   showRemoteCursors: boolean
@@ -75,6 +88,7 @@ function createInitialAppEditorState(pageId: string): AppEditorState {
     ...createDefaultEditorState(pageId),
     snappingPreferences: { ...snapping },
     loading: false,
+    pageLoading: emptyPageLoadingProgress(),
     showUI: true,
     showRulers: true,
     showRemoteCursors: true,
@@ -182,24 +196,33 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   }) satisfies EditorStore
 
   store.switchPage = async (pageId, options) => {
-    const lazy = getLazyFigImportContext(store.graph)
-    // Only cold (unpopulated) pages need the loading overlay. Warm switches are
-    // camera commits and should stay instant.
-    const needsLoading = !!lazy && !isLazyFigImportRootPopulated(store.graph, pageId)
-    if (needsLoading) {
-      store.setLoading(true)
-      await yieldToUI()
-    }
-    try {
+    if (pageId === store.state.currentPageId) {
       await baseSwitchPage(pageId, options)
-      if (needsLoading) {
-        await waitForPageRenderSettled(store)
-      }
-    } finally {
-      if (needsLoading) {
-        store.setLoading(false)
-      }
+      return
     }
+    // Document open already owns the overlay — don't nest or clear it early.
+    if (store.state.loading || store.state.pageLoading.visible) {
+      await baseSwitchPage(pageId, options)
+      return
+    }
+
+    // Cold and warm switches both show the canvas overlay (1–8s hold from
+    // destroy+create node estimate). Force it into the DOM before commit.
+    flushSync(() => {
+      setPageLoadingVisible(store, true, pageLoadingLabels.preparingNodes, {
+        blockShell: false
+      })
+    })
+    await runColdPageSwitchWithProgress(store, pageId, async () => {
+      await baseSwitchPage(pageId, {
+        ...options,
+        onProgress: (progress) => {
+          options?.onProgress?.(progress)
+          refreshPageLoadingProgress(store, pageLoadingProgressDetail(progress))
+        }
+      })
+      await waitForPageRenderSettled(store)
+    })
   }
 
   return store
@@ -215,6 +238,7 @@ export function EditorStoreProvider({
   children?: ReactNode
 }) {
   useEffect(() => bindOpenPencilTestImport(store), [store])
+  useEffect(() => startIdlePageSnapshotWriter(store), [store])
   return <EditorStoreContext.Provider value={store}>{children}</EditorStoreContext.Provider>
 }
 
@@ -228,7 +252,7 @@ export function useEditorStore(): EditorStore {
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.loading}:${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
+      `${store.state.loading}:${store.state.pageLoading.visible}:${store.state.pageLoading.completed}/${store.state.pageLoading.total}:${store.state.pageLoading.detail ?? ''}:${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
     () => 'ssr'
   )
   return store

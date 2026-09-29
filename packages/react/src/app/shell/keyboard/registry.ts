@@ -68,6 +68,8 @@ function hasOpenDismissableLayer() {
 
 function shouldIgnoreShortcut(event: KeyboardEvent, options: KeyboardShortcutOptions) {
   return (
+    options.store.state.pageLoading.visible ||
+    options.store.state.loading ||
     hasOpenDismissableLayer() ||
     originatedInOverlay(event) ||
     isEditing(event) ||

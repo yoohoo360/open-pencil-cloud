@@ -9,6 +9,11 @@ import { useLocalDraftPersist } from '#react/app/document/local-draft/use'
 import { loadDocumentLibraries } from '#react/app/document/libraries'
 import { openHttpDocument } from '#react/app/document/open-http'
 import { asFigObjectPath } from '#react/app/document/oss-path'
+import {
+  setPageLoadingPhase,
+  setPageLoadingVisible
+} from '#react/app/document/page-loading/controller'
+import { pageLoadingLabels } from '#react/app/document/page-loading/labels'
 import { requestLocalFontAccess } from '#react/app/editor/fonts'
 import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
 import { DocumentShareDialog } from '#react/components/DocumentShareDialog'
@@ -22,7 +27,12 @@ import { Link, useParams } from 'react-router-dom'
 
 export default function DocumentView() {
   const { fileKey } = useParams<{ fileKey: string }>()
-  const store = useMemo(() => createEditorStore(), [])
+  const store = useMemo(() => {
+    const next = createEditorStore()
+    // First paint uses the same canvas loading overlay (no white route spinner).
+    setPageLoadingPhase(next, pageLoadingLabels.loadingDocument)
+    return next
+  }, [])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [forbidden, setForbidden] = useState(false)
   const [notFound, setNotFound] = useState(false)
@@ -46,6 +56,8 @@ export default function DocumentView() {
     setForbidden(false)
     setNotFound(false)
     setDocumentAccess(null)
+    // Same canvas overlay as FIG warm / cold page switch — no separate route spinner.
+    setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
     void (async () => {
       try {
         const { data: documentMeta } = await documentAPI.get(fileKey)
@@ -68,11 +80,16 @@ export default function DocumentView() {
               : ''
             store.notify()
           }
+          if (!cancelled) setLoading(false)
           await openHttpDocument(store, documentMeta)
-          await loadDocumentLibraries(store, fileKey)
           store.notify()
+          void loadDocumentLibraries(store, fileKey).then(() => {
+            if (!cancelled) store.notify()
+          })
         } catch (reason) {
           console.warn('[Document] Remote fig is unavailable, opening empty canvas', reason)
+          setPageLoadingVisible(store, false)
+          if (!cancelled) setLoading(false)
         }
       } catch (reason) {
         if (cancelled) return
@@ -84,8 +101,8 @@ export default function DocumentView() {
           setNotFound(true)
         }
         setLoadError(message)
-      } finally {
-        if (!cancelled) setLoading(false)
+        setPageLoadingVisible(store, false)
+        setLoading(false)
       }
     })()
     return () => {
@@ -136,11 +153,6 @@ export default function DocumentView() {
                   Share
                 </button>
               ) : null}
-            </div>
-          ) : null}
-          {loading ? (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/60 text-sm text-muted">
-              加载文档中...
             </div>
           ) : null}
           <EditorWorkspace collabRoomId={collabRoomId} />

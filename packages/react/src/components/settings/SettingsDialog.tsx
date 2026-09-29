@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '@nanostores/react'
-import { Plug, Sparkles, Settings, X } from 'lucide-react'
+import { Code2, Plug, Sparkles, Settings, X } from 'lucide-react'
 
 import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
 
@@ -13,6 +13,7 @@ import {
 import { AISettingsPanel } from '#react/components/settings/ai/AISettingsPanel'
 import { GeneralSettingsPanel } from '#react/components/settings/general/GeneralSettingsPanel'
 import { MCPSettingsPanel } from '#react/components/settings/mcp/MCPSettingsPanel'
+import { TailwindSettingsPanel } from '#react/components/settings/tailwind/TailwindSettingsPanel'
 import { useDialogUI } from '#react/components/ui/dialog'
 import { useI18n } from '#react/i18n'
 
@@ -84,6 +85,14 @@ export function SettingsDialog() {
               {dialogs.settingsAIAndAgents}
             </SettingsNavButton>
             <SettingsNavButton
+              section="tailwind"
+              active={section === 'tailwind'}
+              icon={<Code2 className="size-3.5" />}
+              testId="settings-section-tailwind"
+            >
+              {dialogs.settingsTailwind}
+            </SettingsNavButton>
+            <SettingsNavButton
               section="mcp"
               active={section === 'mcp'}
               icon={<Plug className="size-3.5" />}
@@ -96,6 +105,7 @@ export function SettingsDialog() {
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {section === 'general' ? <GeneralSettingsPanel /> : null}
             {section === 'ai' ? <AISettingsPanel /> : null}
+            {section === 'tailwind' ? <TailwindSettingsPanel /> : null}
             {section === 'mcp' ? (
               <section className="flex flex-col" data-test-id="settings-mcp-panel">
                 <MCPSettingsPanel />

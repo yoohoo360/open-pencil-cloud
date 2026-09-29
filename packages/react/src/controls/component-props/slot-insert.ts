@@ -23,7 +23,7 @@ export function canAcceptInsertedChild(
   getNode: (id: string) => SceneNode | undefined
 ): boolean {
   if (!node) return false
-  if (node.type === 'PAGE' || node.type === 'CANVAS') return true
+  if (node.type === 'CANVAS') return true
   if (node.type === 'SECTION' || node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
     return true
   }

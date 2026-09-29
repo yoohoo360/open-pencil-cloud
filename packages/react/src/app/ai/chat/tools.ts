@@ -1,5 +1,6 @@
 import { computeAllLayouts } from '@open-pencil/core/layout'
-import { CORE_TOOLS, toolChangesDocument, type ParamDef, type ToolDef } from '@open-pencil/core/tools'
+import { CORE_TOOLS, toolChangesDocument, type ToolDef } from '@open-pencil/core/tools'
+import { toStandardJsonSchema as toStandardJSONSchema } from '@valibot/to-json-schema'
 
 import type { EditorStore } from '#react/app/editor/store'
 import { makeFigmaFromStore } from '#react/app/ai/chat/figma'
@@ -19,54 +20,28 @@ export type OpenAIFunctionTool = {
   }
 }
 
-function paramToJsonSchema(param: ParamDef): Record<string, unknown> {
-  if (param.type === 'string[]') {
-    return {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 1,
-      description: param.description
-    }
-  }
-  if (param.type === 'number') {
-    return {
-      type: 'number',
-      description: param.description,
-      ...(param.min !== undefined ? { minimum: param.min } : {}),
-      ...(param.max !== undefined ? { maximum: param.max } : {})
-    }
-  }
-  if (param.type === 'boolean') {
-    return { type: 'boolean', description: param.description }
+function inputToOpenAIParameters(def: ToolDef): OpenAIFunctionTool['function']['parameters'] {
+  const schema = toStandardJSONSchema(def.input) as {
+    type?: string
+    properties?: Record<string, Record<string, unknown>>
+    required?: string[]
   }
   return {
-    type: 'string',
-    description: param.type === 'color' ? `${param.description} (hex like #ff0000)` : param.description,
-    ...(param.enum ? { enum: param.enum } : {})
+    type: 'object',
+    properties: schema.properties ?? {},
+    required: schema.required ?? []
   }
 }
 
 export function designToolsAsOpenAI(): OpenAIFunctionTool[] {
-  return CORE_TOOLS.map((def) => {
-    const properties: Record<string, Record<string, unknown>> = {}
-    const required: string[] = []
-    for (const [key, param] of Object.entries(def.params)) {
-      properties[key] = paramToJsonSchema(param)
-      if (param.required) required.push(key)
+  return CORE_TOOLS.map((def) => ({
+    type: 'function' as const,
+    function: {
+      name: def.name,
+      description: def.description,
+      parameters: inputToOpenAIParameters(def)
     }
-    return {
-      type: 'function' as const,
-      function: {
-        name: def.name,
-        description: def.description,
-        parameters: {
-          type: 'object' as const,
-          properties,
-          required
-        }
-      }
-    }
-  })
+  }))
 }
 
 function extractNodeIds(result: unknown): string[] {
@@ -124,9 +99,10 @@ export async function executeDesignTool(
       const ids = extractNodeIds(result)
       store.renderer?.aiClearActive()
       if (ids.length > 0) store.renderer?.aiFlashDone(ids)
-      store.setSelectedIds(
-        new Set(figma.currentPage.selection.map((node) => node.id).filter((id) => id.length > 0))
-      )
+      const selected = figma.currentPage.selection
+        .map((node) => node.id)
+        .filter((id) => id.length > 0)
+      store.select(selected)
       store.notify()
     }
     return { ok: true, result }

@@ -4,9 +4,7 @@ import {
   readFigDocument,
   finishFigImport,
   waitForCanvasPaint,
-  yieldToUI,
-  ensureMinimumDuration,
-  loadingDurationForBytes
+  yieldToUI
 } from '#react/app/document/fig'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
@@ -182,25 +180,38 @@ export async function importFigIntoStore(
 ): Promise<void> {
   assertFigImportFile(file.name)
   const ownLoading = !options?.alreadyLoading
-  const startedAt = Date.now()
   if (ownLoading) {
-    store.setLoading(true)
-    // Paint the shared canvas-loading overlay before main-thread parse blocks.
+    const { setPageLoadingPhase } = await import('#react/app/document/page-loading/controller')
+    const { pageLoadingLabels } = await import('#react/app/document/page-loading/labels')
+    setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
     await yieldToUI()
-    await new Promise<void>((resolve) => {
-      globalThis.setTimeout(resolve, 32)
-    })
+    setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
   }
   try {
-    const graph = await readFigDocument(file, store)
+    // Page 1 (+ warm page 2) first; remaining pages stay lazy. Origin fix is
+    // applied directly on graph CANVAS / child x,y after those pages exist —
+    // never by mutating kiwi changeMap.
+    const graph = await readFigDocument(file, store, undefined, {
+      useWorker: false
+    })
     await applyOpenedDocument(store, graph)
+    try {
+      const { normalizeImportedPageOrigins } = await import(
+        '#react/app/document/normalize-page-origin'
+      )
+      normalizeImportedPageOrigins(store.graph)
+    } catch (error) {
+      console.warn('[FigImport] page origin normalize failed', error)
+    }
     applyLocalDocumentIdentity(store, file.name.replace(/\.fig$/i, '') || 'Untitled')
-    // Keep the overlay up until the first page has been painted once.
     await waitForCanvasPaint(store)
   } finally {
     if (ownLoading) {
-      await ensureMinimumDuration(startedAt, loadingDurationForBytes(file.size))
-      store.setLoading(false)
+      const { setPageLoadingVisible } = await import('#react/app/document/page-loading/controller')
+      // finishFigImport already dismisses after 2 pages; ensure cleared on error.
+      if (store.state.pageLoading.visible || store.state.loading) {
+        setPageLoadingVisible(store, false)
+      }
     }
   }
 }
@@ -271,7 +282,6 @@ export async function openFileIntoStore(
   }
 
   store.setLoading(true)
-  const startedAt = Date.now()
   await yieldToUI()
   try {
     if (isDOMImportFile(file.name)) {
@@ -291,7 +301,6 @@ export async function openFileIntoStore(
     }
     await waitForCanvasPaint(store)
   } finally {
-    await ensureMinimumDuration(startedAt, loadingDurationForBytes(file.size))
     store.setLoading(false)
   }
 }
@@ -365,6 +374,8 @@ export async function openFileDialog(store: EditorStore) {
 }
 
 async function buildFigFile(store: EditorStore) {
+  // Let the save gesture paint before the encode pipeline starts.
+  await yieldToUI()
   return exportFigFile(
     store.graph,
     store.renderer?.ck,

@@ -11,7 +11,7 @@ import { importCanvasGuides } from './canvas-guides'
 import { convertFigmaDerivedTextGlyphs } from './derived-text-glyphs'
 import { convertFontFeatures } from './font/features'
 import { convertFontVariations } from './font/variations'
-import { convertEffects, convertFills, convertStrokes } from './paint'
+import { convertEffects, convertFills, convertStrokes } from './paint.override'
 import { expandPathTextLayoutBox } from './path/text-layout'
 import {
   extractBoundVariables,
@@ -35,7 +35,7 @@ import {
 } from './vector-geometry'
 import { decodeVectorNetworkBlob, type StyleOverride } from './vector-network'
 
-export { convertEffects, convertFills, convertStrokes, setVariableColorResolver } from './paint'
+export { convertEffects, convertFills, convertStrokes, setVariableColorResolver } from './paint.override'
 export { importStyleRuns } from './style-runs'
 export { convertLetterSpacing, convertLineHeight, mapTextDecoration } from './text-values'
 export { resolveGeometryPaths } from './vector-geometry'
@@ -486,10 +486,10 @@ function convertLayoutProps(
   }
 }
 
-function getVectorStrokeCap(nc: NodeChange, vectorNetwork: VectorNetwork | null): StrokeCap {
-  return (nc.strokeCap ??
-    vectorNetwork?.vertices.find((v) => v.strokeCap)?.strokeCap ??
-    'NONE') as StrokeCap
+function getVectorStrokeCap(nc: NodeChange): StrokeCap {
+  // Per-vertex caps stay on the vector network; promoting one to the node
+  // cap would put a head on both ends of a one-ended arrow.
+  return (nc.strokeCap ?? 'NONE') as StrokeCap
 }
 
 function getVectorStrokeJoin(nc: NodeChange, vectorNetwork: VectorNetwork | null): StrokeJoin {
@@ -549,7 +549,7 @@ function convertTextPathData(nc: NodeChange, blobs: Uint8Array[]): SceneNode['te
 
 function convertVectorAndStrokeProps(nc: NodeChange, blobs: Uint8Array[]) {
   const vectorNetwork = resolveVectorNetwork(nc, blobs)
-  const strokeCap = getVectorStrokeCap(nc, vectorNetwork)
+  const strokeCap = getVectorStrokeCap(nc)
   const strokeJoin = getVectorStrokeJoin(nc, vectorNetwork)
   const fillGeometry = alignGeometryWindingRules(
     resolveGeometryPaths(nc.fillGeometry, blobs, resolveVectorStyleOverrideFills(nc)),
@@ -1046,6 +1046,7 @@ export const FIGMA_RAW_NODE_FIELD_KEYS = [
   'parameterConsumptionMap',
   'editInfo',
   'backgroundColor',
+  'blendMode',
   'pageType',
   'isPageDivider',
   'guides',
@@ -1074,6 +1075,8 @@ export const FIGMA_RAW_NODE_FIELD_KEYS = [
   'gridChildVerticalAlign',
   'gridChildHorizontalAlign',
   'textAutoResize',
+  'textAlignHorizontal',
+  'textAlignVertical',
   'textData',
   'lineHeight',
   'fontName',

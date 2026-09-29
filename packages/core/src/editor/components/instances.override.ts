@@ -2,7 +2,7 @@ import type { SceneNode, Vector } from '@open-pencil/scene-graph'
 import { getAxisAlignedWorldBounds, getWorldMatrix } from '@open-pencil/scene-graph/coordinate'
 import Matrix from '@open-pencil/scene-graph/matrix'
 
-import { addRemoteComponent, getLib, removeRemoteComponent } from '#core/editor/remote-lib'
+import { addRemoteComponent, getLib, removeRemoteComponent } from '#core/editor/remote-lib.override'
 import type { EditorContext } from '#core/editor/types'
 
 type InstanceCreateSnapshot = Partial<SceneNode> & { id: string }

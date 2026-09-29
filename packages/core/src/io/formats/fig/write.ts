@@ -1,1 +1,1 @@
-export { exportFigFile, compressFigData, compressFigDataSync } from './export'
+export * from './write.override'

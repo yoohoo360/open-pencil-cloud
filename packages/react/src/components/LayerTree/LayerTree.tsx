@@ -1,3 +1,4 @@
+import { isSidebarTreeLoading } from '#react/app/document/page-loading/controller'
 import { nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
@@ -183,7 +184,7 @@ function LayerRow({
 
 export function LayerTree({ className }: { className?: string }) {
   const store = useEditorStore()
-  const loading = store.state.loading
+  const loading = isSidebarTreeLoading(store)
   // Defer layer rebuild when leaving loading so the first canvas paint wins
   // the main thread over mounting dozens of top-level rows.
   const layersBlocked = useDeferredValue(loading) || loading

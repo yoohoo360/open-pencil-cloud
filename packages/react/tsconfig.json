@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -15,33 +19,106 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "#vue/*": ["../../packages/vue/src/*", "../../packages/vue/src/*.vue"],
-      "#react/*": ["./src/*"],
-      "#core/*": ["../../packages/core/src/*"],
-
-      "#cli/*": ["../../packages/cli/src/*"],
-      "#mcp/*": ["../../packages/mcp/src/*"],
-
-      "@open-pencil/harness": ["../../packages/harness/src/index.ts"],
-      "#dom-css/*": ["../../packages/dom-css/src/*"],
-      "#tests/*": ["./tests/*"],
-      "#docs-config/*": ["../../packages/docs/.vitepress/*"],
-      "@open-pencil/cli/library": ["../../packages/cli/src/library/index.ts"],
-      "@open-pencil/vue": ["../../packages/vue/src/index.ts"],
-      "@open-pencil/core": ["../../packages/core/src/index.ts"],
-      "@open-pencil/core/*": ["../../packages/core/src/*"],
-      "@open-pencil/dom-css": ["../../packages/dom-css/src/index.ts"],
-      "#scene-graph/*": ["../../packages/scene-graph/src/*"],
-      "@open-pencil/scene-graph": ["../../packages/scene-graph/src/index.ts"],
-      "@open-pencil/scene-graph/*": ["../../packages/scene-graph/src/*"],
-      "#pen/*": ["../../packages/pen/src/*"],
-      "@open-pencil/pen": ["../../packages/pen/src/index.ts"],
-      "@open-pencil/pen/*": ["../../packages/pen/src/*"],
-      "@open-pencil/fig": ["../../packages/fig/src/index.ts"],
-      "@open-pencil/fig/*": ["../../packages/fig/src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "#vue/*": [
+        "../../packages/vue/src/*",
+        "../../packages/vue/src/*.vue"
+      ],
+      "#react/*": [
+        "./src/*"
+      ],
+      "#core/*": [
+        "../../packages/core/src/*"
+      ],
+      "#cli/*": [
+        "../../packages/cli/src/*"
+      ],
+      "#mcp/*": [
+        "../../packages/mcp/src/*"
+      ],
+      "@open-pencil/harness": [
+        "../../packages/harness/src/index.ts"
+      ],
+      "#dom-css/*": [
+        "../../packages/dom-css/src/*"
+      ],
+      "#tests/*": [
+        "./tests/*"
+      ],
+      "#docs-config/*": [
+        "../../packages/docs/.vitepress/*"
+      ],
+      "@open-pencil/cli/library": [
+        "../../packages/cli/src/library/index.ts"
+      ],
+      "@open-pencil/vue": [
+        "../../packages/vue/src/index.ts"
+      ],
+      "@open-pencil/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@open-pencil/core/canvas": [
+        "../../packages/core/src/canvas/index.override.ts"
+      ],
+      "@open-pencil/core/editor": [
+        "../../packages/core/src/editor/index.override.ts"
+      ],
+      "@open-pencil/core/io": [
+        "../../packages/core/src/io/index.override.ts"
+      ],
+      "@open-pencil/core/*": [
+        "../../packages/core/src/*"
+      ],
+      "@open-pencil/dom-css": [
+        "../../packages/dom-css/src/index.ts"
+      ],
+      "#scene-graph/*": [
+        "../../packages/scene-graph/src/*"
+      ],
+      "@open-pencil/scene-graph": [
+        "../../packages/scene-graph/src/index.ts"
+      ],
+      "@open-pencil/scene-graph/types": [
+        "../../packages/scene-graph/src/types.ts"
+      ],
+      "@open-pencil/scene-graph/*": [
+        "../../packages/scene-graph/src/*"
+      ],
+      "#pen/*": [
+        "../../packages/pen/src/*"
+      ],
+      "@open-pencil/pen": [
+        "../../packages/pen/src/index.ts"
+      ],
+      "@open-pencil/pen/*": [
+        "../../packages/pen/src/*"
+      ],
+      "@open-pencil/fig": [
+        "../../packages/fig/src/index.ts"
+      ],
+      "@open-pencil/fig/instance-overrides": [
+        "../../packages/fig/src/instance-overrides/index.override.ts"
+      ],
+      "@open-pencil/fig/node-change": [
+        "../../packages/fig/src/node-change/index.override.ts"
+      ],
+      "@open-pencil/fig/*": [
+        "../../packages/fig/src/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "app/**/*.ts", "app/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "example"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "example"
+  ]
 }

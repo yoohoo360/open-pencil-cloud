@@ -1,5 +1,4 @@
 import type {
-  Canvas,
   CanvasKit,
   FontWeight,
   Paint,
@@ -8,27 +7,34 @@ import type {
   TextFontVariations,
   TypefaceFontProvider
 } from 'canvaskit-wasm'
-import { uniq } from 'es-toolkit/array'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import { resolveRGBAForPreview } from '#core/color/management'
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '#core/constants'
 import { transformTextCase } from '#core/text/case'
-import { fontFallbackScriptForCharacter } from '#core/text/coverage'
 import { resolveNodeTextDirection } from '#core/text/direction'
-import type { FontFallbackScript } from '#core/text/fallbacks'
 import { fontManager, weightToStyle } from '#core/text/fonts'
 import {
   fontCoverageDemand,
   fontFaceDemand,
   fontRemoteCoverageDemand,
   fontResolver,
-  missingGlyphCharacters,
+  missingGlyphOccurrences,
+  missingGlyphsByScript,
   type FontResolutionSettled
 } from '#core/text/resolver'
 
+import { resolveParagraphFontFamilies } from './font-families'
+import { pushParagraphStyle, type ParagraphPaintStyle, type ParagraphBuildOptions } from './paint'
+import { withPreparedText } from './prepared'
+export { withTextParagraph } from './prepared'
+export type { ParagraphBuildOptions } from './paint'
+import type { ParagraphNode } from './paragraph-inputs'
+import type { TextPreparationCache } from './preparation-cache'
+
 interface FontReadinessRenderer {
+  textPreparationCache?: TextPreparationCache
   ck?: CanvasKit
   fontProvider?: TypefaceFontProvider | null
   fontsLoaded?: boolean
@@ -41,9 +47,6 @@ interface TextRenderer extends FontReadinessRenderer {
   fontProvider: TypefaceFontProvider | null
   fontsLoaded: boolean
 }
-
-const FONT_FAMILY_CACHE_LIMIT = 256
-const fontFamilyCache = new Map<string, string[]>()
 
 function demandFace(
   r: FontReadinessRenderer,
@@ -72,10 +75,23 @@ function requiredNodeFaces(node: SceneNode): Array<{ family: string; style: stri
   return Array.from(faces.values())
 }
 
-function languageForCharacter(node: SceneNode, character: string): string | null {
-  const index = node.text.indexOf(character)
-  const run = node.styleRuns.find((item) => index >= item.start && index < item.start + item.length)
+function languageForCharacter(node: SceneNode, sourceIndex: number): string | null {
+  const run = node.styleRuns.find(
+    (item) => sourceIndex >= item.start && sourceIndex < item.start + item.length
+  )
   return run?.style.textLanguage ?? node.textLanguage
+}
+
+function transformedSourceOffsets(node: SceneNode): number[] {
+  const offsets: number[] = []
+  let sourceIndex = 0
+  for (const sourceCharacter of node.text) {
+    for (const _character of transformTextCase(sourceCharacter, node.textCase)) {
+      offsets.push(sourceIndex)
+    }
+    sourceIndex += sourceCharacter.length
+  }
+  return offsets
 }
 
 export type NodeFontReadiness = 'ready' | 'pending' | 'exhausted'
@@ -118,20 +134,37 @@ function demandRemoteCoverage(r: TextRenderer, node: SceneNode, characters: stri
 }
 
 function observedGlyphReadiness(r: TextRenderer, node: SceneNode): NodeFontReadiness {
-  const paragraph = buildParagraph(r, node)
-  paragraph.layout(resolveParagraphLayoutWidth(node))
-  const missingCharacters = missingGlyphCharacters(node.text, paragraph.getShapedLines())
-  paragraph.delete()
-  if (missingCharacters.length === 0) return 'ready'
+  if (
+    r.fontProvider &&
+    r.textPreparationCache?.hasGlyphCoverage(node, fontManager.generation(), r.fontProvider)
+  )
+    return 'ready'
 
-  const charactersByScript = new Map<FontFallbackScript, string[]>()
-  for (const character of missingCharacters) {
-    const script = fontFallbackScriptForCharacter(character, languageForCharacter(node, character))
-    if (!script) continue
-    const characters = charactersByScript.get(script) ?? []
-    characters.push(character)
-    charactersByScript.set(script, characters)
+  const missingOccurrences = withPreparedText(
+    r,
+    node,
+    'coverage',
+    () => buildParagraph(r, node),
+    (prepared) => {
+      if (!prepared.missingGlyphs) {
+        prepared.paragraph.layout(resolveParagraphLayoutWidth(node))
+        prepared.missingGlyphs = missingGlyphOccurrences(
+          transformTextCase(node.text, node.textCase),
+          prepared.paragraph.getShapedLines(),
+          transformedSourceOffsets(node)
+        )
+      }
+      return prepared.missingGlyphs
+    }
+  )
+  if (missingOccurrences.length === 0) {
+    r.textPreparationCache?.recordGlyphCoverage(node)
+    return 'ready'
   }
+
+  const charactersByScript = missingGlyphsByScript(missingOccurrences, (offset) =>
+    languageForCharacter(node, offset)
+  )
 
   let pending = false
   let exhausted = charactersByScript.size === 0
@@ -194,40 +227,6 @@ export function measureTextNode(
   return { width: Math.ceil(width), height: Math.ceil(height) }
 }
 
-export function drawParagraphWithHighlights(
-  ck: CanvasKit,
-  canvas: Canvas,
-  paragraph: Paragraph,
-  node: SceneNode,
-  x: number,
-  y: number
-): void {
-  let paint: Paint | undefined
-  for (const run of node.styleRuns) {
-    const fill = run.style.backgroundFills?.find((item) => item.visible && item.type === 'SOLID')
-    if (!fill || run.length <= 0) continue
-    if (!paint) {
-      paint = new ck.Paint()
-      paint.setAntiAlias(true)
-      paint.setStyle(ck.PaintStyle.Fill)
-    }
-    const color = resolveRGBAForPreview(fill.color).color
-    paint.setColor(ck.Color4f(color.r, color.g, color.b, color.a * fill.opacity))
-    const boxes = paragraph.getRectsForRange(
-      run.start,
-      run.start + run.length,
-      ck.RectHeightStyle.Max,
-      ck.RectWidthStyle.Tight
-    )
-    for (const box of boxes) {
-      const [left, top, right, bottom] = box.rect
-      canvas.drawRect(ck.LTRBRect(x + left, y + top, x + right, y + bottom), paint)
-    }
-  }
-  paint?.delete()
-  canvas.drawParagraph(paragraph, x, y)
-}
-
 export function buildTextPicture(r: TextRenderer, node: SceneNode): Uint8Array | null {
   if (!r.fontsLoaded || !r.fontProvider || !isNodeFontLoaded(r, node)) return null
   if (node.type !== 'TEXT' || !node.text) return null
@@ -238,7 +237,7 @@ export function buildTextPicture(r: TextRenderer, node: SceneNode): Uint8Array |
   const recCanvas = recorder.beginRecording(bounds)
 
   const paragraph = buildParagraph(r, node)
-  drawParagraphWithHighlights(ck, recCanvas, paragraph, node, 0, 0)
+  recCanvas.drawParagraph(paragraph, 0, 0)
   paragraph.delete()
 
   const picture = recorder.finishRecordingAsPicture()
@@ -249,14 +248,14 @@ export function buildTextPicture(r: TextRenderer, node: SceneNode): Uint8Array |
   return bytes ?? null
 }
 
-function resolveParagraphLayoutWidth(node: SceneNode, maxWidth?: number): number {
+function resolveParagraphLayoutWidth(node: ParagraphNode, maxWidth?: number): number {
   if (maxWidth !== undefined) return maxWidth
   if (node.textAutoResize === 'WIDTH_AND_HEIGHT') return 1e6
   return node.width || 1e6
 }
 
 function buildTruncateOpts(
-  node: SceneNode,
+  node: ParagraphNode,
   baseFontSize: number
 ): { maxLines?: number; ellipsis?: string } {
   if (node.textTruncation !== 'ENDING') return {}
@@ -269,36 +268,6 @@ function buildTruncateOpts(
     opts.maxLines = Math.max(1, Math.floor(node.height / lineH))
   }
   return opts
-}
-
-function resolveParagraphFontFamilies(
-  primary: string,
-  style: string,
-  arabicFallbacks: readonly string[],
-  cjkFallbacks: readonly string[]
-): string[] {
-  const renderPrimary = fontManager.renderFamily(primary, style)
-  const renderArabicFallbacks = arabicFallbacks.map((family) =>
-    fontManager.renderFamily(family, 'Regular')
-  )
-  const renderCJKFallbacks = cjkFallbacks.map((family) =>
-    fontManager.renderFamily(family, 'Regular')
-  )
-  const key = `${renderPrimary}\0${renderArabicFallbacks.join('\0')}\0${renderCJKFallbacks.join('\0')}`
-  const cached = fontFamilyCache.get(key)
-  if (cached) return cached
-
-  const families = [renderPrimary]
-  if (primary !== DEFAULT_FONT_FAMILY) families.push(DEFAULT_FONT_FAMILY)
-  families.push(...renderArabicFallbacks, ...renderCJKFallbacks)
-
-  const resolved = uniq(families)
-  fontFamilyCache.set(key, resolved)
-  if (fontFamilyCache.size > FONT_FAMILY_CACHE_LIMIT) {
-    const oldestKey = fontFamilyCache.keys().next().value
-    if (oldestKey) fontFamilyCache.delete(oldestKey)
-  }
-  return resolved
 }
 
 function getParagraphTextAlign(
@@ -389,6 +358,7 @@ function styleRunColor(
   return ck.Color4f(color.r, color.g, color.b, color.a * visibleFill.opacity)
 }
 
+
 function styleRunBackground(
   ck: CanvasKit,
   style: SceneNode['styleRuns'][number]['style']
@@ -401,7 +371,7 @@ function styleRunBackground(
 
 function styleRunLanguage(
   style: SceneNode['styleRuns'][number]['style'],
-  node: SceneNode
+  node: Pick<ParagraphNode, 'textLanguage'>
 ): string | undefined {
   return style.textLanguage ?? node.textLanguage ?? undefined
 }
@@ -409,12 +379,13 @@ function styleRunLanguage(
 function pushStyleRun(
   r: TextRenderer,
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
-  node: SceneNode,
+  node: ParagraphNode,
   run: SceneNode['styleRuns'][number],
   baseColor: Float32Array,
   baseFontSize: number,
   fontFamilies: (primary: string, weight: number, italic?: boolean) => string[],
-  halfLeading: boolean
+  halfLeading: boolean,
+  paintStyle?: ParagraphPaintStyle
 ): void {
   const ck = r.ck
   const style = run.style
@@ -422,45 +393,43 @@ function pushStyleRun(
   const runFontSize = style.fontSize ?? baseFontSize
   const backgroundColor = styleRunBackground(ck, style)
 
-  builder.pushStyle(
-    new ck.TextStyle({
-      color: styleRunColor(ck, style, baseColor),
-      ...(backgroundColor ? { backgroundColor } : {}),
-      fontFamilies: fontFamilies(
-        style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY),
-        style.fontWeight ?? node.fontWeight,
-        style.italic ?? node.italic
-      ),
-      fontSize: runFontSize,
-      locale: styleRunLanguage(style, node),
-      fontStyle: {
-        weight: { value: style.fontWeight ?? node.fontWeight } as FontWeight,
-        slant: (style.italic ?? node.italic) ? ck.FontSlant.Italic : ck.FontSlant.Upright
-      },
-      fontVariations: textFontVariations(style.fontVariations ?? node.fontVariations),
-      fontFeatures: textFontFeatures(style.fontFeatures ?? node.fontFeatures),
-      letterSpacing: style.letterSpacing ?? (node.letterSpacing || 0),
-      decoration: textDecorationValue(ck, style.textDecoration ?? node.textDecoration),
-      decorationStyle: textDecorationStyleValue(
-        ck,
-        style.textDecorationStyle ?? node.textDecorationStyle
-      ),
-      decorationThickness:
-        style.textDecorationThickness ?? node.textDecorationThickness ?? undefined,
-      decorationColor: textDecorationColor(
-        ck,
-        style.textDecorationFills ?? node.textDecorationFills,
-        baseColor
-      ),
-      heightMultiplier: runLineHeight ? runLineHeight / runFontSize : undefined,
-      halfLeading
-    })
-  )
+  const textStyle = new ck.TextStyle({
+    color: styleRunColor(ck, style, baseColor),
+    ...(backgroundColor ? { backgroundColor } : {}),
+    fontFamilies: fontFamilies(
+      style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY),
+      style.fontWeight ?? node.fontWeight,
+      style.italic ?? node.italic
+    ),
+    fontSize: runFontSize,
+    locale: styleRunLanguage(style, node),
+    fontStyle: {
+      weight: { value: style.fontWeight ?? node.fontWeight } as FontWeight,
+      slant: (style.italic ?? node.italic) ? ck.FontSlant.Italic : ck.FontSlant.Upright
+    },
+    fontVariations: textFontVariations(style.fontVariations ?? node.fontVariations),
+    fontFeatures: textFontFeatures(style.fontFeatures ?? node.fontFeatures),
+    letterSpacing: style.letterSpacing ?? (node.letterSpacing || 0),
+    decoration: textDecorationValue(ck, style.textDecoration ?? node.textDecoration),
+    decorationStyle: textDecorationStyleValue(
+      ck,
+      style.textDecorationStyle ?? node.textDecorationStyle
+    ),
+    decorationThickness: style.textDecorationThickness ?? node.textDecorationThickness ?? undefined,
+    decorationColor: textDecorationColor(
+      ck,
+      style.textDecorationFills ?? node.textDecorationFills,
+      baseColor
+    ),
+    heightMultiplier: runLineHeight ? runLineHeight / runFontSize : undefined,
+    halfLeading
+  })
+  pushParagraphStyle(builder, textStyle, paintStyle)
 }
 
 function addParagraphText(
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
-  node: SceneNode,
+  node: Pick<ParagraphNode, 'textCase'>,
   text: string
 ): void {
   builder.addText(transformTextCase(text, node.textCase))
@@ -469,18 +438,29 @@ function addParagraphText(
 function addStyledRuns(
   r: TextRenderer,
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
-  node: SceneNode,
+  node: ParagraphNode,
   baseColor: Float32Array,
   baseFontSize: number,
   fontFamilies: (primary: string, weight: number, italic?: boolean) => string[],
-  halfLeading: boolean
+  halfLeading: boolean,
+  paintStyle?: ParagraphPaintStyle
 ): void {
   const text = node.text
   let pos = 0
 
   for (const run of node.styleRuns) {
     if (pos < run.start) addParagraphText(builder, node, text.slice(pos, run.start))
-    pushStyleRun(r, builder, node, run, baseColor, baseFontSize, fontFamilies, halfLeading)
+    pushStyleRun(
+      r,
+      builder,
+      node,
+      run,
+      baseColor,
+      baseFontSize,
+      fontFamilies,
+      halfLeading,
+      paintStyle
+    )
     addParagraphText(builder, node, text.slice(run.start, run.start + run.length))
     builder.pop()
     pos = run.start + run.length
@@ -491,9 +471,9 @@ function addStyledRuns(
 
 export function buildParagraph(
   r: TextRenderer,
-  node: SceneNode,
+  node: ParagraphNode,
   color?: Float32Array,
-  { halfLeading = false }: { halfLeading?: boolean } = {}
+  { halfLeading = false, foregroundPaint }: ParagraphBuildOptions = {}
 ): Paragraph {
   const ck = r.ck
   const baseColor = color ?? ck.BLACK
@@ -512,52 +492,79 @@ export function buildParagraph(
       cjkFallbacks
     )
 
+  const baseTextStyle = {
+    color: baseColor,
+    fontFamilies: fontFamilies(
+      node.fontFamily || DEFAULT_FONT_FAMILY,
+      node.fontWeight,
+      node.italic
+    ),
+    fontSize: baseFontSize,
+    locale: node.textLanguage ?? undefined,
+    fontStyle: {
+      weight: { value: node.fontWeight } as FontWeight,
+      slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
+    },
+    fontVariations: textFontVariations(node.fontVariations),
+    fontFeatures: textFontFeatures(node.fontFeatures),
+    letterSpacing: node.letterSpacing || 0,
+    decoration: textDecorationValue(ck, node.textDecoration),
+    decorationStyle: textDecorationStyleValue(ck, node.textDecorationStyle),
+    decorationThickness: node.textDecorationThickness ?? undefined,
+    decorationColor: textDecorationColor(ck, node.textDecorationFills, baseColor),
+    heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
+    halfLeading
+  }
   const paraStyle = new ck.ParagraphStyle({
     textAlign: getParagraphTextAlign(ck, node),
     textDirection: textDirection === 'RTL' ? ck.TextDirection.RTL : ck.TextDirection.LTR,
     textHeightBehavior: textHeightBehaviorValue(ck, node.leadingTrim),
     ...truncateOpts,
-    textStyle: {
-      color: baseColor,
-      fontFamilies: fontFamilies(
-        node.fontFamily || DEFAULT_FONT_FAMILY,
-        node.fontWeight,
-        node.italic
-      ),
-      fontSize: baseFontSize,
-      locale: node.textLanguage ?? undefined,
-      fontStyle: {
-        weight: { value: node.fontWeight } as FontWeight,
-        slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
-      },
-      fontVariations: textFontVariations(node.fontVariations),
-      fontFeatures: textFontFeatures(node.fontFeatures),
-      letterSpacing: node.letterSpacing || 0,
-      decoration: textDecorationValue(ck, node.textDecoration),
-      decorationStyle: textDecorationStyleValue(ck, node.textDecorationStyle),
-      decorationThickness: node.textDecorationThickness ?? undefined,
-      decorationColor: textDecorationColor(ck, node.textDecorationFills, baseColor),
-      heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
-      halfLeading
-    }
+    textStyle: baseTextStyle
   })
 
   if (!r.fontProvider) throw new Error('Font provider not initialized')
   const builder = ck.ParagraphBuilder.MakeFromFontProvider(paraStyle, r.fontProvider)
 
-  if (node.styleRuns.length === 0) {
-    addParagraphText(builder, node, node.text)
-  } else {
-    addStyledRuns(r, builder, node, baseColor, baseFontSize, fontFamilies, halfLeading)
-  }
+  let background: Paint | undefined
+  try {
+    let paintStyle: ParagraphPaintStyle | undefined
+    if (foregroundPaint) {
+      background = new ck.Paint()
+      background.setColor(ck.TRANSPARENT)
+      paintStyle = { foreground: foregroundPaint, background }
+      builder.pushPaintStyle(new ck.TextStyle(baseTextStyle), foregroundPaint, background)
+    }
+    if (node.styleRuns.length === 0) {
+      addParagraphText(builder, node, node.text)
+    } else {
+      addStyledRuns(
+        r,
+        builder,
+        node,
+        baseColor,
+        baseFontSize,
+        fontFamilies,
+        halfLeading,
+        paintStyle
+      )
+    }
 
-  const paragraph = builder.build()
-  if (node.textAutoResize === 'WIDTH_AND_HEIGHT') {
-    paragraph.layout(1e6)
-    paragraph.layout(Math.max(node.width || 1, Math.ceil(paragraph.getLongestLine())))
-  } else {
-    paragraph.layout(resolveParagraphLayoutWidth(node))
+    const paragraph = builder.build()
+    try {
+      if (node.textAutoResize === 'WIDTH_AND_HEIGHT') {
+        paragraph.layout(1e6)
+        paragraph.layout(Math.max(node.width || 1, Math.ceil(paragraph.getLongestLine())))
+      } else {
+        paragraph.layout(resolveParagraphLayoutWidth(node))
+      }
+      return paragraph
+    } catch (error) {
+      paragraph.delete()
+      throw error
+    }
+  } finally {
+    builder.delete()
+    background?.delete()
   }
-  builder.delete()
-  return paragraph
 }

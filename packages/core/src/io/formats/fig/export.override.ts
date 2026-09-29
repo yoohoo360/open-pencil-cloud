@@ -22,7 +22,11 @@ import { CANVAS_BG_COLOR, IS_BROWSER, IS_TAURI } from '#core/constants'
 import { applyEnabledLibrariesPluginData } from '#core/io/formats/fig/library-metadata'
 import { findFigThumbnailPageId } from '#core/io/formats/fig/thumbnail-page'
 import { renderThumbnail } from '#core/io/formats/raster'
-import { getLazyFigImportContext, populateAllLazyFigImportRoots } from '#core/kiwi/fig/lazy-import'
+import {
+  getLazyFigImportContext,
+  populateAllLazyFigImportRoots,
+  populateLazyFigImportRootsChunked
+} from '#core/kiwi/fig/lazy-import.override'
 import {
   sceneNodeToKiwi,
   fractionalPosition,
@@ -32,11 +36,19 @@ import {
   makeCanvasNodeChange
 } from '#core/kiwi/fig/node-change/serialize'
 import { cloneSceneGraphForFigExport } from '#core/kiwi/fig/parse/transfer'
+import { normalizeImportedPageOrigins } from '#core/kiwi/fig/normalize-page-origin.override'
 import { originalFigArchive } from '#core/kiwi/fig/session/original-archive'
 
 const THUMBNAIL_1X1 = decodeBase64(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
 )
+
+/** Keep the editor interactive while export does multi-second sync work. */
+function yieldExportSlice(): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, 0)
+  })
+}
 
 type KiwiNodeChange = NodeChange & Record<string, unknown>
 type FigExportPage = ReturnType<SceneGraph['getPages']>[number]
@@ -466,9 +478,31 @@ export async function exportFigFile(
     const originalArchive = await originalFigArchive(sourceGraph)
     if (originalArchive) return originalArchive.slice()
   }
+
+  // Clone + expand can take seconds on large docs — yield around each phase so
+  // pan/zoom/selection stay responsive during Save.
+  await yieldExportSlice()
   const graph = cloneSceneGraphForFigExport(sourceGraph)
-  populateAllLazyFigImportRoots(graph)
+  await yieldExportSlice()
+
+  const lazy = getLazyFigImportContext(graph)
+  if (lazy?.materializePage) {
+    const rootIds = graph.getPages(true).map((page) => page.id)
+    await populateLazyFigImportRootsChunked(graph, rootIds, {
+      materializeBudgetMs: 8,
+      populateBudgetMs: 8,
+      yieldBetween: yieldExportSlice
+    })
+  } else {
+    // Worker-transfer stubs have no materialize hook; keep the sync fallback.
+    populateAllLazyFigImportRoots(graph)
+  }
+  // Export populate rematerializes from kiwi — fix CANVAS / child x,y directly
+  // on this clone so Ctrl+S writes corrected positions (no changeMap edits).
+  normalizeImportedPageOrigins(graph)
+  await yieldExportSlice()
   await initCodec()
+  await yieldExportSlice()
 
   // When the document was imported from a .fig file, preserve the original
   // kiwi schema for both encoding and embedding. For the current version of
@@ -601,7 +635,10 @@ export async function exportFigFile(
           propertyIdToGuid
         )
       )
+      // Large pages encode thousands of NCs — yield every few top-level roots.
+      if ((i + 1) % 4 === 0) await yieldExportSlice()
     }
+    await yieldExportSlice()
   }
 
   appendInternalResources({

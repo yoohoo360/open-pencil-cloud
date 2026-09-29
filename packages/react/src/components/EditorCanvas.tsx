@@ -13,7 +13,6 @@ import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/con
 import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { toolCursor } from '#react/editor/tool-cursor'
 import { useI18n } from '#react/i18n'
-import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 
 export function EditorCanvas({ paneId }: { paneId?: string }) {
@@ -93,8 +92,6 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
       ? 'crosshair'
       : toolCursor(store.state.activeTool, cursorOverride)
 
-  if(store.state.loading) cursor = 'wait'
-
   function onCanvasPointerDownCapture(event: PointerEvent<HTMLDivElement>) {
     activatePane()
     if (!commenting || !comments) return
@@ -149,7 +146,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
         className="absolute inset-0 block size-full touch-none outline-none"
       />
       {comments?.open ? <CommentPins /> : null}
-  
+
       {contextMenu && !previewing ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />
       ) : null}

@@ -2,6 +2,7 @@ import { DEFAULT_TEXT_HEIGHT, DEFAULT_TEXT_WIDTH } from '@open-pencil/core/const
 import type { Editor } from '@open-pencil/core/editor'
 import type { NodeType } from '@open-pencil/scene-graph'
 
+import { appPreferences } from '#react/app/settings/preferences'
 import { markTextEditStarted } from '#react/canvas/text-edit/input'
 import {
   applySlotInsertLayout,
@@ -29,7 +30,8 @@ export function startTextDraw(
 ) {
   editor.undo.beginBatch('Create text')
   const nodeId = createDrawnNode('TEXT', cx, cy, editor)
-  editor.graph.updateNode(nodeId, { text: '' })
+  const defaultFontFamily = appPreferences.get().editing.defaultFontFamily
+  editor.graph.updateNode(nodeId, { text: '', fontFamily: defaultFontFamily })
   editor.select([nodeId])
   setDrag({ type: 'draw', startX: cx, startY: cy, nodeId })
 }

@@ -14,6 +14,10 @@ export function rememberClipboardTransfer(transfer: DataTransfer) {
   memoryHtml = transfer.getData('text/html') || transfer.getData('text/plain')
 }
 
+export function rememberClipboardPayload(payload: { html: string; plainText: string }) {
+  memoryHtml = payload.html || payload.plainText
+}
+
 function cursorPos(editor: Editor): Vector | undefined {
   const x = editor.state.cursorCanvasX
   const y = editor.state.cursorCanvasY
@@ -21,23 +25,27 @@ function cursorPos(editor: Editor): Vector | undefined {
   return { x, y }
 }
 
+function applyPayloadToTransfer(
+  transfer: DataTransfer,
+  payload: { html: string; plainText: string }
+) {
+  if (payload.html) transfer.setData('text/html', payload.html)
+  if (payload.plainText) transfer.setData('text/plain', payload.plainText)
+}
+
 export async function copyEditorSelection(editor: Editor): Promise<boolean> {
-  const transfer = new DataTransfer()
-  await editor.writeCopyData(transfer)
-  const html = transfer.getData('text/html')
-  const text = transfer.getData('text/plain')
-  if (!html && !text) return false
-  rememberClipboardTransfer(transfer)
-  if (!memoryHtml) memoryHtml = html || text
+  const payload = await editor.prepareCopy()
+  if (!payload.html && !payload.plainText) return false
+  rememberClipboardPayload(payload)
   try {
     const item: Record<string, Blob> = {}
-    if (html) item['text/html'] = new Blob([html], { type: 'text/html' })
-    if (text) item['text/plain'] = new Blob([text], { type: 'text/plain' })
+    if (payload.html) item['text/html'] = new Blob([payload.html], { type: 'text/html' })
+    if (payload.plainText) item['text/plain'] = new Blob([payload.plainText], { type: 'text/plain' })
     await navigator.clipboard.write([new ClipboardItem(item)])
     return true
   } catch {
     try {
-      await navigator.clipboard.writeText(text || html)
+      await navigator.clipboard.writeText(payload.plainText || payload.html)
       return true
     } catch {
       return Boolean(memoryHtml)
@@ -77,5 +85,16 @@ export async function pasteEditorClipboard(editor: Editor, replace = false): Pro
   } finally {
     editor.state.enteredContainerId = previous
   }
+  return true
+}
+
+export async function writePreparedCopy(
+  editor: Editor,
+  transfer: DataTransfer
+): Promise<boolean> {
+  const payload = await editor.prepareCopy()
+  if (!payload.html && !payload.plainText) return false
+  applyPayloadToTransfer(transfer, payload)
+  rememberClipboardPayload(payload)
   return true
 }

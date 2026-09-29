@@ -8,6 +8,7 @@ import {
   getOpenPencilPluginValue,
   guidToString,
   importCanvasGuides,
+  linkImportedInstanceChildren,
   nodeChangeToProps,
   shouldImportTextAsAutoSize,
   sortChildren,
@@ -718,12 +719,13 @@ export function importNodeChanges(
     if (!job) {
       if (materializedPageIds.has(pageId)) return true
       const page = graph.getNode(pageId)
-      if (page?.type !== 'CANVAS') return true
+      if (page?.type !== 'CANVAS') return false
       const canvasId =
         typeof page.source.id === 'string' && page.source.id.length > 0
           ? page.source.id
           : [...canvasIdToPageId.entries()].find(([, id]) => id === pageId)?.[0]
-      if (!canvasId) return true
+      // Missing fig canvas mapping — do not pretend the page is ready.
+      if (!canvasId) return false
       const rootNcIds = getChildren(canvasId)
       job = {
         stack: rootNcIds.map((ncId) => ({ ncId, childIndex: -1 })).reverse(),
@@ -831,6 +833,9 @@ export function importNodeChanges(
     })
   }
 
+  // Link imported instance children after population so linkage operates on the final tree state.
+  linkImportedInstanceChildren(graph)
+
   if (options.populate !== 'all') {
     rememberLazyFigImportContext(
       graph,
@@ -862,10 +867,6 @@ export function importNodeChanges(
   }
 
   setVariableColorResolver(null)
-
-  if (graph.getPages(true).length === 0) {
-    graph.addPage('Page 1')
-  }
-
+  if (graph.getPages(true).length === 0) graph.addPage('Page 1')
   return graph
 }

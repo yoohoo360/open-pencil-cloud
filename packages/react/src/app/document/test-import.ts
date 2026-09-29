@@ -6,7 +6,7 @@ import {
   isLazyFigImportRootPopulated,
   listPendingLazyFigImportPages
 } from '#core/kiwi/fig/lazy-import.override'
-import { waitForCanvasPaint, yieldToUI, ensureMinimumDuration, loadingDurationForBytes } from '#react/app/document/fig'
+import { waitForCanvasPaint, yieldToUI } from '#react/app/document/fig'
 import type { EditorStore } from '#react/app/editor/store'
 import { importFigIntoStore } from '#react/app/shell/menu/files'
 
@@ -66,12 +66,8 @@ export function bindOpenPencilTestImport(store: EditorStore): () => void {
 
     // Cover download + parse + first paint under the shared canvas loading overlay.
     target.setLoading(true)
-    const loadingStartedAt = Date.now()
     let figByteLength = 0
     await yieldToUI()
-    await new Promise<void>((resolve) => {
-      globalThis.setTimeout(resolve, 32)
-    })
     try {
       const downloadStarted = performance.now()
       const response = await fetch(trimmed)
@@ -111,7 +107,6 @@ export function bindOpenPencilTestImport(store: EditorStore): () => void {
         totalMs: performance.now() - started
       }
     } finally {
-      await ensureMinimumDuration(loadingStartedAt, loadingDurationForBytes(figByteLength))
       target.setLoading(false)
     }
   }

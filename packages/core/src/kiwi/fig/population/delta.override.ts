@@ -135,3 +135,85 @@ export function applyFigPopulationDelta(graph: SceneGraph, delta: FigPopulationD
   })
   graph.instanceIndex = new Map(delta.instanceIndex.map(([id, ids]) => [id, new Set(ids)]))
 }
+
+function nowMs(): number {
+  return globalThis.performance?.now() ?? Date.now()
+}
+
+/**
+ * Apply a worker population delta in wall-clock slices so the loading overlay
+ * can keep painting. Same end state as {@link applyFigPopulationDelta}.
+ */
+export async function applyFigPopulationDeltaChunked(
+  graph: SceneGraph,
+  delta: FigPopulationDelta,
+  options: {
+    budgetMs?: number
+    yieldBetween?: () => Promise<void>
+    onChunk?: (progress: { completed: number; total: number }) => void
+  } = {}
+): Promise<void> {
+  const budgetMs = options.budgetMs ?? 8
+  const yieldBetween =
+    options.yieldBetween ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
+  const total = delta.created.length + delta.updated.length + delta.deleted.length
+  let completed = 0
+  let createdIndex = 0
+  let updatedIndex = 0
+  let deletedIndex = 0
+
+  const report = () => {
+    options.onChunk?.({ completed, total })
+  }
+
+  while (createdIndex < delta.created.length) {
+    const deadline = nowMs() + budgetMs
+    graph.runSilentMutations(() => {
+      graph.preserveSourceMetadataDuring(() => {
+        while (createdIndex < delta.created.length && nowMs() < deadline) {
+          const [, node] = delta.created[createdIndex]
+          createdIndex++
+          graph.createNodeWithId(node.id, node.type, node.parentId, node)
+          completed++
+        }
+      })
+    })
+    report()
+    if (createdIndex < delta.created.length) await yieldBetween()
+  }
+
+  while (updatedIndex < delta.updated.length) {
+    const deadline = nowMs() + budgetMs
+    graph.runSilentMutations(() => {
+      graph.preserveSourceMetadataDuring(() => {
+        while (updatedIndex < delta.updated.length && nowMs() < deadline) {
+          const [id, changes] = delta.updated[updatedIndex]
+          updatedIndex++
+          graph.updateNode(id, changes)
+          completed++
+        }
+      })
+    })
+    report()
+    if (updatedIndex < delta.updated.length) await yieldBetween()
+  }
+
+  while (deletedIndex < delta.deleted.length) {
+    const deadline = nowMs() + budgetMs
+    graph.runSilentMutations(() => {
+      graph.preserveSourceMetadataDuring(() => {
+        while (deletedIndex < delta.deleted.length && nowMs() < deadline) {
+          const id = delta.deleted[deletedIndex]
+          deletedIndex++
+          graph.deleteNode(id)
+          completed++
+        }
+      })
+    })
+    report()
+    if (deletedIndex < delta.deleted.length) await yieldBetween()
+  }
+
+  graph.instanceIndex = new Map(delta.instanceIndex.map(([id, ids]) => [id, new Set(ids)]))
+  report()
+}

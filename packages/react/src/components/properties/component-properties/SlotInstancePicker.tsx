@@ -143,7 +143,7 @@ export function SlotInstancePicker({
                 ) : null}
                 <div className="grid grid-cols-2 gap-1.5">
                   {group.assets.map((asset) => {
-                    const libraryKey = asset.libraryKey
+                    const libraryKey = asset.sourceLibraryKey
                     return (
                       <button
                         key={`${libraryKey ?? 'local'}:${asset.id}`}
@@ -156,7 +156,7 @@ export function SlotInstancePicker({
                             : ''
                         }`}
                         onClick={() => {
-                          if (asset.componentId) onSelect(asset.componentId, libraryKey)
+                          if (asset.componentId) onSelect(asset.componentId, libraryKey ?? undefined)
                         }}
                       >
                         {asset.componentId && libraryKey ? (

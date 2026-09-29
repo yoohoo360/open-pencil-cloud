@@ -7,20 +7,20 @@ import { importNodeChanges } from '#core/kiwi/fig/import'
 import { deserializeSceneGraph } from '#core/kiwi/fig/parse/transfer'
 import {
   registerFigPopulationWorker,
-  registerOriginalArchiveRequest
+  registerOriginalArchiveRequest,
+  retainOriginalArchive
 } from '#core/kiwi/fig/population/client'
-import { createFigSessionWorker } from '#core/kiwi/fig/session/client'
-import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol'
-import { randomHex } from '#core/random'
+import { createFigSessionWorker } from '#core/kiwi/fig/session/client.override'
+import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol.override'
 
 export interface ParseFigFileOptions {
   populate?: 'all' | 'first-page' | 'none'
   onPages?: (pages: readonly FigPageManifestEntry[]) => void
   signal?: AbortSignal
   /**
-   * Prefer a Web Worker for decode. For `populate: 'first-page' | 'none'` the
-   * default is main-thread so the lazy FIG context stays on the editor graph.
-   * Pass true to force a worker session (page switches then need worker deltas).
+   * Prefer a Web Worker for decode. When true (browser default), lazy FIG
+   * context stays in the worker and later page switches pay a large delta cost.
+   * Pass false to keep context on the main graph for faster page switches.
    */
   useWorker?: boolean
 }
@@ -44,7 +44,8 @@ function parseViaWorker(buffer: ArrayBuffer, options: ParseFigFileOptions): Prom
     options.signal?.throwIfAborted()
     const worker = createFigSessionWorker()
     const channel = new MessageChannel()
-    const pendingArchives = new Map<string, (bytes: Uint8Array) => void>()
+    // Keep a main-thread copy before transferring buffers into the session worker.
+    const retainedArchive = new Uint8Array(buffer.slice(0))
     const abort = () => {
       channel.port1.postMessage({ type: 'dispose' })
       channel.port1.close()
@@ -55,13 +56,6 @@ function parseViaWorker(buffer: ArrayBuffer, options: ParseFigFileOptions): Prom
     const cleanupAbort = () => options.signal?.removeEventListener('abort', abort)
 
     channel.port1.onmessage = (e: MessageEvent<FigSessionResponse>) => {
-      if (e.data.type === 'original-archive-result') {
-        const resolveArchive = pendingArchives.get(e.data.requestId)
-        if (!resolveArchive) return
-        pendingArchives.delete(e.data.requestId)
-        resolveArchive(e.data.bytes)
-        return
-      }
       if (e.data.type === 'page-manifest') {
         options.onPages?.(e.data.pages)
         return
@@ -78,16 +72,9 @@ function parseViaWorker(buffer: ArrayBuffer, options: ParseFigFileOptions): Prom
         const graph = deserializeSceneGraph(e.data.graph)
         if (options.populate === 'first-page') {
           cleanupAbort()
+          retainOriginalArchive(graph, retainedArchive)
           registerFigPopulationWorker(graph, worker, channel.port1)
-          registerOriginalArchiveRequest(
-            graph,
-            () =>
-              new Promise<Uint8Array>((resolveArchive) => {
-                const requestId = randomHex()
-                pendingArchives.set(requestId, resolveArchive)
-                channel.port1.postMessage({ type: 'original-archive', requestId })
-              })
-          )
+          registerOriginalArchiveRequest(graph, async () => retainedArchive.slice())
         } else {
           cleanupAbort()
           channel.port1.close()
@@ -114,7 +101,9 @@ function parseViaWorker(buffer: ArrayBuffer, options: ParseFigFileOptions): Prom
       type: 'open',
       originalBuffer: workerBuffer,
       archiveBuffer,
-      options: { populate: options.populate },
+      options: {
+        populate: options.populate
+      },
       port: channel.port2
     }
     worker.postMessage(request, [workerBuffer, archiveBuffer, channel.port2])
@@ -126,13 +115,7 @@ export async function parseFigFile(
   options: ParseFigFileOptions = {}
 ): Promise<SceneGraph> {
   options.signal?.throwIfAborted()
-  // first-page / none keep the lazy FIG context on the editor graph. Worker
-  // sessions leave page switches without materialize hooks (menu import looked
-  // broken while the URL test helper still worked via useWorker: false).
-  const useWorker =
-    options.populate === 'first-page' || options.populate === 'none'
-      ? options.useWorker === true
-      : options.useWorker !== false
+  const useWorker = options.useWorker !== false
   if (useWorker && typeof Worker !== 'undefined' && IS_BROWSER) {
     try {
       return await parseViaWorker(buffer, options)
@@ -141,7 +124,9 @@ export async function parseFigFile(
       console.warn('Worker parsing failed, falling back to main thread:', error)
       const copy = buffer.slice(0)
       const graph = parseFigFileSync(copy, options)
-      registerOriginalArchiveRequest(graph, async () => new Uint8Array(copy.slice(0)))
+      const retained = new Uint8Array(copy.slice(0))
+      retainOriginalArchive(graph, retained)
+      registerOriginalArchiveRequest(graph, async () => retained.slice())
       return graph
     }
   }

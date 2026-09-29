@@ -1,7 +1,7 @@
 export { buildDsdLayoutUpdates } from './derived-symbol-data/layout'
-export { applyGeneratedFreeformStretch, propagateDsdChanges } from './derived-symbol-data/propagate'
+export { applyGeneratedFreeformStretch, propagateDsdChanges } from './derived-symbol-data/propagate.override'
 export { protectField, type ProtectionMap } from './patches'
-export { syncChildrenDeep, syncNodeProps } from './sync'
+export { syncChildrenDeep, syncNodeProps } from './sync/index.override'
 export type {
   InstanceNodeChange,
   OverrideContext,
@@ -12,7 +12,7 @@ export type {
   DerivedSymbolOverride,
   SymbolData,
   SymbolOverride
-} from './types'
+} from './types.override'
 
 import { isEqual } from 'es-toolkit/predicate'
 
@@ -27,25 +27,37 @@ import {
 } from '@open-pencil/scene-graph/copy'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
-import { applyComponentProperties } from './component-props'
-import { applyConstraintScaling } from './constraints'
-import { applyDerivedSymbolData } from './derived-symbol-data'
+import { applyComponentProperties } from './component-props/index.override'
+import { applyConstraintScaling } from './constraints.override'
+import { applyDerivedSymbolData } from './derived-symbol-data/index.override'
 import {
   applyGeneratedFreeformStretch,
   reconcileEffectiveCloneGeometry
-} from './derived-symbol-data/propagate'
+} from './derived-symbol-data/propagate.override'
 import {
   advancePopulateInstances,
   createPopulateInstancesJob,
-  populateInstances,
-  populatedInstanceIds
+  populatedInstanceIds,
+  type PopulateInstancesJob
 } from './populate.override'
 import { preComputeRoots } from './resolve'
-import { applySymbolOverrides } from './symbol/overrides'
-import { propagateNodePropsTransitively, propagateOverridesTransitively } from './sync'
+import { applySymbolOverrides } from './symbol/overrides.override'
+import {
+  advancePropagateOverrides,
+  clonesMapFor,
+  createPropagateOverridesJob,
+  invalidateClonesMap,
+  propagateNodePropsTransitively,
+  type PropagateOverridesJob
+} from './sync/index.override'
 import { indexCloneNodes } from './sync/sources'
-import type { InstanceNodeChange, OverrideContext, ComponentPropValue } from './types'
-import { overrideCandidates, sliceDeadline } from './utils.override'
+import type { InstanceNodeChange, OverrideContext, ComponentPropValue } from './types.override'
+import {
+  collectActiveInstanceEntries,
+  nowMs,
+  overrideCandidates,
+  sliceDeadline
+} from './utils.override'
 
 /** Maps derived from a whole change map; rebuilt only when the change map changes. */
 interface ChangeMapIndex {
@@ -303,6 +315,12 @@ function buildOverrideContext(
   const geometryOverrideNodes = buildKiwiGeometryNodes(
     changedNodeEntries(changeMap, guidToNodeId, activeNodeIds)
   )
+  const activeInstanceEntries = collectActiveInstanceEntries(
+    changeMap,
+    guidToNodeId,
+    nodeIdToGuid,
+    activeNodeIds
+  )
 
   return {
     graph,
@@ -321,8 +339,20 @@ function buildOverrideContext(
     protectedFields: new Map(),
     kiwiPropertyNodes,
     geometryOverrideNodes,
-    activeNodeIds
+    activeNodeIds,
+    activeInstanceEntries
   }
+}
+
+function refreshActiveScope(ctx: OverrideContext, activeNodeIds: Set<string>): void {
+  ctx.activeNodeIds = activeNodeIds
+  ctx.activeInstanceEntries = collectActiveInstanceEntries(
+    ctx.changeMap,
+    ctx.guidToNodeId,
+    ctx.nodeIdToGuid,
+    activeNodeIds
+  )
+  invalidateClonesMap(ctx)
 }
 
 function applyResolvedNumericBindings(graph: SceneGraph, activeNodeIds?: Set<string>): void {
@@ -342,8 +372,13 @@ function applyResolvedNumericBindings(graph: SceneGraph, activeNodeIds?: Set<str
 export interface OverridePipeline {
   /** Expand empty instances within a wall-clock budget; true once population is complete. */
   advancePopulation(budgetMs: number): boolean
-  /** Run the next override phase; true once the whole pipeline is complete. */
-  advanceOverrides(): boolean
+  /**
+   * Run override work within a wall-clock budget; true once the whole pipeline
+   * is complete. Heavy phases (propagation, late populate) resume across calls.
+   */
+  advanceOverrides(budgetMs?: number): boolean
+  /** Completed override phases / total — for loading UI step progress. */
+  overrideProgress(): { completed: number; total: number }
 }
 
 /**
@@ -364,9 +399,31 @@ export function createOverridePipeline(
   const scaledInstances = new Set<string>()
   let ctx: OverrideContext | undefined
   let phase = 0
+  let propagateJob: PropagateOverridesJob | undefined
+  let latePopulateJob: PopulateInstancesJob | undefined
+  let lateSeeds: Set<string> | undefined
 
-  const phases: Array<() => void> = [
-    // 1. Populate — clone component trees into empty instances (driven separately).
+  const beginPropagate = (
+    seeds: Set<string>,
+    protect?: Set<string>
+  ): PropagateOverridesJob | undefined => {
+    if (!ctx) return undefined
+    return createPropagateOverridesJob(
+      graph,
+      seeds,
+      ctx.swappedInstances,
+      ctx.componentIdRoot,
+      protect,
+      ctx.activeNodeIds,
+      ctx.protectedFields,
+      clonesMapFor(ctx)
+    )
+  }
+
+  // Each phase returns true when finished. Heavy phases check `deadline` and
+  // resume on the next host slice so the loading overlay can keep painting.
+  const phases: Array<(deadline: number) => boolean> = [
+    // 1. Build override context after instance population.
     () => {
       ctx = buildOverrideContext(
         graph,
@@ -376,66 +433,76 @@ export function createOverridePipeline(
         populatedInstanceIds(graph, populationJob)
       )
       preComputeRoots(ctx)
+      return true
     },
     // 2. Symbol overrides — set property values and swap instances.
     () => {
-      if (!ctx) return
+      if (!ctx) return true
       for (const id of applySymbolOverrides(ctx)) overriddenNodes.add(id)
       // Nodes with explicit kiwi NC properties are seeds (so their clones get
       // synced with the correct values) AND protected (so sync does not
       // overwrite them with component defaults).
       for (const id of ctx.kiwiPropertyNodes) overriddenNodes.add(id)
-      propagateOverridesTransitively(
-        graph,
-        overriddenNodes,
-        ctx.swappedInstances,
-        ctx.componentIdRoot,
-        undefined,
-        ctx.activeNodeIds,
-        ctx.protectedFields
-      )
+      return true
     },
-    // 3. Component properties — toggle visibility / swap via prop assignments.
+    // 3. Propagate symbol overrides through clone chains.
+    (deadline) => {
+      if (!ctx) return true
+      if (!propagateJob) propagateJob = beginPropagate(overriddenNodes)
+      if (!propagateJob) return true
+      if (!advancePropagateOverrides(graph, propagateJob, deadline)) return false
+      propagateJob = undefined
+      return true
+    },
+    // 4. Component properties — toggle visibility / swap via prop assignments.
     () => {
-      if (!ctx) return
+      if (!ctx) return true
       for (const id of applyComponentProperties(ctx)) propModified.add(id)
-      if (propModified.size === 0) return
-      propagateOverridesTransitively(
-        graph,
-        propModified,
-        ctx.swappedInstances,
-        ctx.componentIdRoot,
-        overriddenNodes,
-        ctx.activeNodeIds,
-        ctx.protectedFields
-      )
+      return true
     },
-    // 4. Late expansion — swaps can introduce fresh empty instances.
-    () => {
-      if (!ctx || !activeRootIds) return
-      const populated = populateInstances(graph, activeRootIds)
+    // 5. Propagate component-property changes.
+    (deadline) => {
+      if (!ctx || propModified.size === 0) return true
+      if (!propagateJob) propagateJob = beginPropagate(propModified, overriddenNodes)
+      if (!propagateJob) return true
+      if (!advancePropagateOverrides(graph, propagateJob, deadline)) return false
+      propagateJob = undefined
+      return true
+    },
+    // 6. Late expansion — swaps can introduce fresh empty instances.
+    (deadline) => {
+      if (!ctx || !activeRootIds) return true
+      if (!latePopulateJob) latePopulateJob = createPopulateInstancesJob(graph, activeRootIds)
+      if (!advancePopulateInstances(graph, latePopulateJob, deadline)) return false
+      const populated = populatedInstanceIds(graph, latePopulateJob)
+      latePopulateJob = undefined
       if (populated) {
-        ctx.activeNodeIds = populated
+        refreshActiveScope(ctx, populated)
         indexCloneNodes(graph, populated, ctx.preComputedClones)
       }
-      const latePropModified = applyComponentProperties(ctx)
-      const lateSeeds = new Set([...overriddenNodes, ...propModified, ...latePropModified])
+      return true
+    },
+    // 7. Late property apply + propagate after expansion.
+    (deadline) => {
+      if (!ctx) return true
+      if (!lateSeeds) {
+        const latePropModified = applyComponentProperties(ctx)
+        lateSeeds = new Set([...overriddenNodes, ...propModified, ...latePropModified])
+      }
       if (lateSeeds.size > 0) {
-        propagateOverridesTransitively(
-          graph,
-          lateSeeds,
-          ctx.swappedInstances,
-          ctx.componentIdRoot,
-          overriddenNodes,
-          ctx.activeNodeIds,
-          ctx.protectedFields
-        )
+        if (!propagateJob) propagateJob = beginPropagate(lateSeeds, overriddenNodes)
+        if (propagateJob && !advancePropagateOverrides(graph, propagateJob, deadline)) {
+          return false
+        }
+        propagateJob = undefined
       }
       propagateResolvedChildPlacementClones(graph, instancePlacementPairs(graph, ctx.activeNodeIds))
+      lateSeeds = undefined
+      return true
     },
-    // 5. Derived symbol data — apply Figma's pre-computed sizes last.
+    // 8. Derived symbol data — apply Figma's pre-computed sizes.
     () => {
-      if (!ctx) return
+      if (!ctx) return true
       applyDerivedSymbolData(ctx)
       propagateResolvedFills(
         graph,
@@ -443,6 +510,11 @@ export function createOverridePipeline(
         componentLinkedNodes(graph, ctx.activeNodeIds)
       )
       propagateResolvedTextClones(graph, ctx.activeNodeIds)
+      return true
+    },
+    // 9. Constraint scaling + late component properties.
+    () => {
+      if (!ctx) return true
       applyConstraintScaling(ctx)
       for (const node of overrideCandidates(graph, ctx.activeNodeIds)) {
         if (node.type !== 'INSTANCE' || !node.componentId) continue
@@ -452,10 +524,11 @@ export function createOverridePipeline(
         }
       }
       applyComponentProperties(ctx)
+      return true
     },
-    // 6. Replay — final swaps recreate descendants targeted by earlier overrides.
+    // 10. Replay — final swaps recreate descendants targeted by earlier overrides.
     () => {
-      if (!ctx) return
+      if (!ctx) return true
       const replayedOverrides = applySymbolOverrides(ctx, true)
       propagateNodePropsTransitively(
         graph,
@@ -464,11 +537,17 @@ export function createOverridePipeline(
         ctx.protectedFields,
         ctx.preComputedClones
       )
+      return true
+    },
+    // 11. Final geometry / binding reconciliation.
+    () => {
+      if (!ctx) return true
       // Final swaps recreate descendants from component defaults. Reconcile only
       // geometry that already had an authoritative effective size or cross-axis position.
       reconcileEffectiveCloneGeometry(ctx, scaledInstances)
       applyResolvedNumericBindings(graph, ctx.activeNodeIds)
       applyGeneratedFreeformStretch(ctx)
+      return true
     }
   ]
 
@@ -476,11 +555,17 @@ export function createOverridePipeline(
     advancePopulation(budgetMs: number): boolean {
       return advancePopulateInstances(graph, populationJob, sliceDeadline(budgetMs))
     },
-    advanceOverrides(): boolean {
-      if (phase >= phases.length) return true
-      phases[phase]()
-      phase++
-      return phase >= phases.length
+    advanceOverrides(budgetMs = Number.POSITIVE_INFINITY): boolean {
+      const deadline = sliceDeadline(budgetMs)
+      while (phase < phases.length) {
+        if (!phases[phase](deadline)) return false
+        phase++
+        if (nowMs() >= deadline) return phase >= phases.length
+      }
+      return true
+    },
+    overrideProgress() {
+      return { completed: Math.min(phase, phases.length), total: phases.length }
     }
   }
 }
@@ -511,7 +596,7 @@ export function populateAndApplyOverrides(
   while (!pipeline.advancePopulation(Number.POSITIVE_INFINITY)) {
     // A non-finite budget always finishes in one slice.
   }
-  while (!pipeline.advanceOverrides()) {
+  while (!pipeline.advanceOverrides(Number.POSITIVE_INFINITY)) {
     // Drains every phase.
   }
 }

@@ -1,8 +1,13 @@
 import { useStore } from '@nanostores/react'
 
-import { appPreferences, updateRecoveryEnabled } from '#react/app/settings/preferences'
+import {
+  appPreferences,
+  updateDefaultFontFamily,
+  updateRecoveryEnabled
+} from '#react/app/settings/preferences'
 import { setSnappingPreference } from '#react/app/shell/menu/editor-actions'
 import { useEditorStore } from '#react/app/editor/store'
+import { FontPicker } from '#react/components/font-picker/FontPicker'
 import { AppSwitch } from '#react/components/ui/AppSwitch'
 import { useI18n } from '#react/i18n'
 
@@ -34,6 +39,20 @@ export function GeneralSettingsPanel() {
             onCheckedChange={updateRecoveryEnabled}
           />
         </label>
+      </div>
+
+      <div>
+        <h3 className="text-xs font-semibold text-surface">{dialogs.settingsTypography}</h3>
+        <p className="mt-1 text-[11px] text-muted">{dialogs.settingsDefaultFontDescription}</p>
+      </div>
+
+      <div className="rounded border border-border px-3 py-2.5" data-test-id="settings-default-font">
+        <span className="mb-1.5 block text-xs text-surface">{dialogs.settingsDefaultFont}</span>
+        <FontPicker
+          value={preferences.editing.defaultFontFamily}
+          label={dialogs.settingsDefaultFont}
+          onSelect={updateDefaultFontFamily}
+        />
       </div>
 
       <div>
