@@ -339,11 +339,27 @@ export function createPageActions(ctx: EditorContext) {
     const childIds = ctx.graph.getChildren(pageId).map((node) => node.id)
     const toLoad = fontManager.collectFontKeys(ctx.graph, childIds)
     const requirements = collectGraphFontRequirements(ctx.graph, childIds)
+    const characters = Array.from(requirements.characters)
+    const pendingFaces = toLoad.filter(
+      ([family, style]) =>
+        !fontManager.isStyleLoaded(family, style) ||
+        fontManager.remoteStyleNeedsCoverage(family, style, characters)
+    )
+    const requiredFallbacks = missingGraphFontScripts(requirements).filter((script) => {
+      const families =
+        script === 'arabic'
+          ? fontManager.getArabicFallbackFamilies()
+          : fontManager.getCJKFallbackFamilies()
+      return !families.some((family) => fontManager.isStyleLoaded(family, 'Regular'))
+    })
+    // Destination page only uses already-loaded faces — skip block / reload / picture wipe.
+    if (pendingFaces.length === 0 && requiredFallbacks.length === 0) return
+
     options.onProgress?.({
       phase: 'resolving-fonts',
       detail: pageName,
       completed: 0,
-      total: toLoad.length
+      total: pendingFaces.length
     })
     fontManager.blockNodesUntilFontsResolve(childIds)
     try {
@@ -357,13 +373,12 @@ export function createPageActions(ctx: EditorContext) {
           phase: 'resolving-fonts',
           detail: `${family} ${style}`,
           completed: completedFaces,
-          total: toLoad.length
+          total: pendingFaces.length
         })
         return result
       }, MAX_CONCURRENT_FONT_LOADS)
-      const results = await Promise.all(toLoad.map(loadFace))
+      const results = await Promise.all(pendingFaces.map(loadFace))
       throwIfAborted(options.signal)
-      const requiredFallbacks = missingGraphFontScripts(requirements)
       options.onProgress?.({
         phase: 'resolving-fallbacks',
         detail: pageName,
