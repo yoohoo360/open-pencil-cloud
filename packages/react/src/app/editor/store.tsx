@@ -131,8 +131,25 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   })
 
   const listeners = new Set<() => void>()
-  const notify = () => {
+  let notifyQueued = false
+  const flushNotify = () => {
+    notifyQueued = false
     for (const listener of listeners) listener()
+  }
+  /** Sync notify for flushSync / loading UI. Prefer scheduleNotify for graph bursts. */
+  const notify = () => {
+    if (notifyQueued) {
+      // A coalesced render notify is pending — flush now so callers see fresh UI.
+      flushNotify()
+      return
+    }
+    for (const listener of listeners) listener()
+  }
+  /** Coalesce many requestRender() calls in one mutation into a single React update. */
+  const scheduleNotify = () => {
+    if (notifyQueued) return
+    notifyQueued = true
+    queueMicrotask(flushNotify)
   }
   let loadingDepth = 0
   const setLoading = (value: boolean) => {
@@ -145,7 +162,7 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   }
   const panes = createCanvasPaneRegistry(state, notify)
 
-  editor.onEditorEvent('render:requested', notify)
+  editor.onEditorEvent('render:requested', scheduleNotify)
   // repaint-only frames drive the canvas loop; notifying React here re-rendered
   // the whole shell on every pan/zoom/page-settle paint.
   editor.onEditorEvent('selection:changed', notify)
@@ -246,13 +263,19 @@ export function useOptionalEditorStore(): EditorStore | null {
   return useContext(EditorStoreContext)
 }
 
-export function useEditorStore(): EditorStore {
+/** Editor store without subscribing — for leaves that read via useSceneComputed / props. */
+export function useEditorStoreApi(): EditorStore {
   const store = useContext(EditorStoreContext)
   if (!store) throw new Error('Editor store not provided')
+  return store
+}
+
+export function useEditorStore(): EditorStore {
+  const store = useEditorStoreApi()
   useSyncExternalStore(
     store.subscribe,
     () =>
-      `${store.state.loading}:${store.state.pageLoading.visible}:${store.state.pageLoading.completed}/${store.state.pageLoading.total}:${store.state.pageLoading.detail ?? ''}:${store.state.showUI}:${store.state.sceneVersion}:${store.state.renderVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
+      `${store.state.loading}:${store.state.pageLoading.visible}:${store.state.pageLoading.completed}/${store.state.pageLoading.total}:${store.state.pageLoading.detail ?? ''}:${store.state.showUI}:${store.state.sceneVersion}:${store.state.activeTool}:${store.state.editingTextId ?? ''}:${store.activePaneId}:${store.visiblePaneCount}:${store.state.mobileDrawerSnap}:${store.state.activeRibbonTab}:${store.state.panelMode}:${store.state.actionToast ?? ''}:${store.state.documentName}:${store.state.documentVersion}:${store.state.documentFigURL}:${store.state.documentKey}:${store.state.historyPreviewId ?? ''}:${store.state.zoom}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.guides.selected?.guideId ?? ''}:${store.state.showRulers}:${store.state.showRemoteCursors}:${store.state.autosaveEnabled}:${store.state.snappingPreferences.geometry}:${store.state.snappingPreferences.objects}:${store.state.snappingPreferences.pixelGrid}:${store.renderer?.profiler.hudVisible ?? false}:${store.state.numberFieldFocused}:${store.state.renameNodeId ?? ''}`,
     () => 'ssr'
   )
   return store

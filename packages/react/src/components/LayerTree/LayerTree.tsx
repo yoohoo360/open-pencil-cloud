@@ -1,6 +1,6 @@
 import { isSidebarTreeLoading } from '#react/app/document/page-loading/controller'
 import { nodeIcon } from '#react/app/editor/icons'
-import { useEditorStore } from '#react/app/editor/store'
+import { useEditorStoreApi, type EditorStore } from '#react/app/editor/store'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
 import { DropIndicator } from '#react/components/LayerTree/DropIndicator'
 import {
@@ -14,16 +14,17 @@ import {
 import { useLayerDrag } from '#react/components/LayerTree/useLayerDrag'
 import { useI18n } from '#react/i18n'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
-import { useSceneComputed } from '#react/internal/scene-computed/use'
 import theme from '#react/theme/layer-tree'
 import { ChevronRight } from 'lucide-react'
 import {
+  memo,
+  startTransition,
   useCallback,
   useDeferredValue,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent
 } from 'react'
@@ -32,6 +33,33 @@ import { tv } from 'tailwind-variants'
 const styles = tv(theme)()
 
 const INDENT_PER_LEVEL = 16
+
+type LayerTreeView = {
+  sceneVersion: number
+  pageId: string
+  selectedIds: ReadonlySet<string>
+  selectedKey: string
+  renameNodeId: string | null
+}
+
+function loadingSnapshot(store: EditorStore) {
+  return `${store.state.loading}:${store.state.pageLoading.visible}:${store.state.pageLoading.detail ?? ''}`
+}
+
+function sceneSnapshot(store: EditorStore) {
+  return `${store.state.sceneVersion}:${store.state.currentPageId}:${[...store.state.selectedIds].join(',')}:${store.state.renameNodeId ?? ''}`
+}
+
+function readTreeView(store: EditorStore): LayerTreeView {
+  const selectedIds = store.state.selectedIds
+  return {
+    sceneVersion: store.state.sceneVersion,
+    pageId: store.state.currentPageId,
+    selectedIds,
+    selectedKey: [...selectedIds].join(','),
+    renameNodeId: store.state.renameNodeId
+  }
+}
 
 /** Scroll so the row sits near the middle of the tree viewport. */
 function scrollRowIntoContainer(container: HTMLElement, row: HTMLElement) {
@@ -42,11 +70,15 @@ function scrollRowIntoContainer(container: HTMLElement, row: HTMLElement) {
   container.scrollTop += rowCenter - viewCenter
 }
 
-function LayerRow({
+const LayerRow = memo(function LayerRow({
   id,
   depth,
   expandedIds,
   focusedId,
+  selectedIds,
+  selectedKey,
+  renameNodeId,
+  sceneVersion,
   draggingId,
   instruction,
   instructionTargetId,
@@ -58,6 +90,10 @@ function LayerRow({
   depth: number
   expandedIds: ReadonlySet<string>
   focusedId: string | null
+  selectedIds: ReadonlySet<string>
+  selectedKey: string
+  renameNodeId: string | null
+  sceneVersion: number
   draggingId: string | null
   instruction: ReturnType<typeof useLayerDrag>['instruction']
   instructionTargetId: string | null
@@ -65,15 +101,19 @@ function LayerRow({
   onSelect: (id: string, mode: LayerSelectionMode) => void
   onToggleExpand: (id: string) => void
 }) {
-  const store = useEditorStore()
+  const store = useEditorStoreApi()
   const { panels } = useI18n()
-  const node = useSceneComputed(() => store.graph.getNode(id) ?? null)
-  const children = useSceneComputed(() => layerChildren(store.graph, id))
-  const renaming = store.state.renameNodeId === id
+  // Parent invalidates via deferred sceneVersion — no per-row canvas subscriptions.
+  void sceneVersion
+  void selectedKey
+  const node = store.graph.getNode(id) ?? null
+  const children = layerChildren(store.graph, id)
   const rowRef = useRef<HTMLDivElement>(null)
   const hasChildren = children.length > 0
   const expanded = hasChildren && expandedIds.has(id)
   const level = depth + 1
+  const selected = selectedIds.has(id)
+  const renaming = renameNodeId === id
 
   useEffect(
     () => setupItem(rowRef.current, { id, level, hasChildren, expanded }),
@@ -81,13 +121,13 @@ function LayerRow({
   )
 
   if (!node) return null
-  const selected = store.state.selectedIds.has(id)
-  const Icon = nodeIcon(node)
+  const currentNode = node
+  const Icon = nodeIcon(currentNode)
   const childDropTarget = instructionTargetId === id && instruction?.type === 'make-child'
 
   function commitRename(value: string) {
     const name = value.trim()
-    if (name && name !== node.name) store.renameNode(id, name)
+    if (name && name !== currentNode.name) store.renameNode(id, name)
     store.state.renameNodeId = null
     store.notify()
   }
@@ -144,7 +184,7 @@ function LayerRow({
         {renaming ? (
           <input
             autoFocus
-            defaultValue={node.name}
+            defaultValue={currentNode.name}
             className="min-w-0 flex-1 cursor-text rounded border border-accent bg-transparent px-0.5 text-[11px] text-surface outline-none"
             onClick={(event) => event.stopPropagation()}
             onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -152,7 +192,7 @@ function LayerRow({
           />
         ) : (
           <span data-slot="label" className={styles.label()}>
-            {node.name}
+            {currentNode.name}
           </span>
         )}
         <DropIndicator
@@ -170,6 +210,10 @@ function LayerRow({
               depth={depth + 1}
               expandedIds={expandedIds}
               focusedId={focusedId}
+              selectedIds={selectedIds}
+              selectedKey={selectedKey}
+              renameNodeId={renameNodeId}
+              sceneVersion={sceneVersion}
               draggingId={draggingId}
               instruction={instruction}
               instructionTargetId={instructionTargetId}
@@ -181,19 +225,44 @@ function LayerRow({
         : null}
     </div>
   )
-}
+})
 
+/**
+ * Layer tree rebuilds are transition-priority so canvas paints / tools stay ahead
+ * of mounting or diffing large layer rows after scene mutations.
+ */
 export function LayerTree({ className }: { className?: string }) {
-  const store = useEditorStore()
+  const store = useEditorStoreApi()
+  const loadingKey = useSyncExternalStore(
+    store.subscribe,
+    () => loadingSnapshot(store),
+    () => 'ssr'
+  )
+  void loadingKey
   const loading = isSidebarTreeLoading(store)
   // Defer layer rebuild when leaving loading so the first canvas paint wins
   // the main thread over mounting dozens of top-level rows.
   const layersBlocked = useDeferredValue(loading) || loading
-  const pageId = store.state.currentPageId
-  const children = useSceneComputed(() =>
-    layersBlocked ? [] : layerChildren(store.graph, store.state.currentPageId)
+
+  const liveSceneKey = useSyncExternalStore(
+    store.subscribe,
+    () => sceneSnapshot(store),
+    () => 'ssr'
   )
-  const selectedIds = useSceneComputed(() => store.state.selectedIds)
+  const [view, setView] = useState(() => readTreeView(store))
+  useEffect(() => {
+    startTransition(() => {
+      setView(readTreeView(store))
+    })
+  }, [liveSceneKey, store])
+
+  const pageId = view.pageId
+  const children = layersBlocked ? [] : layerChildren(store.graph, pageId)
+  const selectedIds = view.selectedIds
+  const selectedKey = view.selectedKey
+  const renameNodeId = view.renameNodeId
+  const sceneVersion = view.sceneVersion
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [revealToken, setRevealToken] = useState(0)
@@ -237,10 +306,8 @@ export function LayerTree({ className }: { className?: string }) {
     expandNode
   )
 
-  const selectedKey = [...selectedIds].join(',')
-
-  // Canvas selection only: expand ancestors and scroll the row into view.
-  useLayoutEffect(() => {
+  // After paint: expand/scroll must not block canvas frames.
+  useEffect(() => {
     if (layersBlocked) return
     if (skipCanvasLayerFocus.current) {
       skipCanvasLayerFocus.current = false
@@ -248,17 +315,19 @@ export function LayerTree({ className }: { className?: string }) {
     }
     const ids = [...selectedIds]
     if (ids.length === 0) return
-    const ancestors = ancestorIdsToExpand(store.graph, ids, store.state.currentPageId)
+    const ancestors = ancestorIdsToExpand(store.graph, ids, pageId)
     if (ancestors.length > 0) {
-      setExpandedIds((current) => {
-        let changed = false
-        const next = new Set(current)
-        for (const id of ancestors) {
-          if (next.has(id)) continue
-          next.add(id)
-          changed = true
-        }
-        return changed ? next : current
+      startTransition(() => {
+        setExpandedIds((current) => {
+          let changed = false
+          const next = new Set(current)
+          for (const id of ancestors) {
+            if (next.has(id)) continue
+            next.add(id)
+            changed = true
+          }
+          return changed ? next : current
+        })
       })
     }
     const revealId = ids.at(-1) ?? null
@@ -266,9 +335,9 @@ export function LayerTree({ className }: { className?: string }) {
     focusId.current = revealId
     setFocusedId(revealId)
     setRevealToken((token) => token + 1)
-  }, [layersBlocked, selectedIds, selectedKey, store])
+  }, [layersBlocked, pageId, selectedIds, selectedKey, store])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (layersBlocked || !focusedId || revealToken === 0) return
     const id = focusedId
     const scroll = () => {
@@ -284,34 +353,33 @@ export function LayerTree({ className }: { className?: string }) {
     return () => cancelAnimationFrame(frame)
   }, [focusedId, expandedIds, layersBlocked, revealToken])
 
-  function visibleIds() {
-    return collectVisibleLayerIds(store.graph, store.state.currentPageId, expandedIdsRef.current)
-  }
+  const applySelect = useCallback(
+    (id: string, mode: LayerSelectionMode) => {
+      const next = layerSelectionForTarget(
+        collectVisibleLayerIds(store.graph, store.state.currentPageId, expandedIdsRef.current),
+        store.state.selectedIds,
+        anchorId.current,
+        id,
+        mode
+      )
+      if (!mode.range) anchorId.current = id
+      focusId.current = id
+      skipCanvasLayerFocus.current = true
+      setFocusedId(id)
+      store.select([...next])
+      treeRef.current?.focus({ preventScroll: true })
+    },
+    [store]
+  )
 
-  function applySelect(id: string, mode: LayerSelectionMode) {
-    const next = layerSelectionForTarget(
-      visibleIds(),
-      store.state.selectedIds,
-      anchorId.current,
-      id,
-      mode
-    )
-    if (!mode.range) anchorId.current = id
-    focusId.current = id
-    skipCanvasLayerFocus.current = true
-    setFocusedId(id)
-    store.select([...next])
-    treeRef.current?.focus({ preventScroll: true })
-  }
-
-  function toggleExpand(id: string) {
+  const toggleExpand = useCallback((id: string) => {
     setExpandedIds((current) => {
       const next = new Set(current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-  }
+  }, [])
 
   function onContextMenu(event: MouseEvent) {
     event.preventDefault()
@@ -331,7 +399,7 @@ export function LayerTree({ className }: { className?: string }) {
 
   function onTreeKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (store.state.renameNodeId) return
-    const ids = visibleIds()
+    const ids = collectVisibleLayerIds(store.graph, store.state.currentPageId, expandedIdsRef.current)
     const current = currentKeyboardId(ids)
     if (!current) return
     const index = ids.indexOf(current)
@@ -406,6 +474,10 @@ export function LayerTree({ className }: { className?: string }) {
             depth={0}
             expandedIds={expandedIds}
             focusedId={focusedId}
+            selectedIds={selectedIds}
+            selectedKey={selectedKey}
+            renameNodeId={renameNodeId}
+            sceneVersion={sceneVersion}
             draggingId={draggingId}
             instruction={instruction}
             instructionTargetId={instructionTargetId}

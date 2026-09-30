@@ -1,5 +1,5 @@
 import type { InstanceNodeChange } from '@open-pencil/fig/instance-overrides'
-import { SceneGraph } from '@open-pencil/scene-graph'
+import { SceneGraph, ensureInstanceOverrideState } from '@open-pencil/scene-graph'
 import type { EnabledLibraryBinding, SceneNode } from '@open-pencil/scene-graph'
 
 import { getLazyFigImportContext, setLazyFigImportContext } from '#core/kiwi/fig/lazy-import.override'
@@ -119,7 +119,11 @@ export function cloneSceneGraphForFigExport(graph: SceneGraph): SceneGraph {
 }
 
 function normalizeNodeGuides(node: SceneNode): SceneNode {
-  return Array.isArray(node.guides) ? node : { ...node, guides: [] }
+  const withGuides = Array.isArray(node.guides) ? node : { ...node, guides: [] }
+  return {
+    ...withGuides,
+    instanceOverrides: ensureInstanceOverrideState(withGuides.instanceOverrides)
+  }
 }
 
 export function deserializeSceneGraph(data: SerializedSceneGraph): SceneGraph {

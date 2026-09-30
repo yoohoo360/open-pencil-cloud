@@ -75,12 +75,30 @@ function invalidateRenderersForChange(
 
 export function createGraphEventSubscription(options: GraphEventOptions) {
   let unbindGraphEvents: (() => void) | null = null
+  let renderQueued = false
+  const scheduleRequestRender = () => {
+    if (renderQueued) return
+    renderQueued = true
+    queueMicrotask(() => {
+      renderQueued = false
+      options.requestRender()
+    })
+  }
+
+  const LAYOUT_ONLY_KEYS = new Set<keyof SceneNode>(['x', 'y', 'width', 'height'])
+
+  function isLayoutOnlyChange(changes: Partial<SceneNode>) {
+    const keys = Object.keys(changes) as (keyof SceneNode)[]
+    return keys.length > 0 && keys.every((key) => LAYOUT_ONLY_KEYS.has(key))
+  }
 
   function onNodeUpdated(id: string, changes: Partial<SceneNode>) {
     invalidateRenderersForChange(options.getGraph(), options.getRenderers(), id, changes, true)
     options.emitEditorEvent('node:updated', id, changes)
-    options.scheduleComponentSync(id)
-    options.requestRender()
+    // Yoga layout writes x/y/width/height across huge subtrees — syncing components
+    // for those writes re-enters layout and floods requestRender.
+    if (!isLayoutOnlyChange(changes)) options.scheduleComponentSync(id)
+    scheduleRequestRender()
   }
 
   function onNodePreviewUpdated(id: string, changes: Partial<SceneNode>) {
@@ -101,7 +119,7 @@ export function createGraphEventSubscription(options: GraphEventOptions) {
       renderer.tiledScene.invalidateStructure()
     }
     options.scheduleComponentSync(nodeId)
-    options.requestRender()
+    scheduleRequestRender()
   }
 
   function subscribeToGraph() {

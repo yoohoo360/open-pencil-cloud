@@ -40,6 +40,7 @@ import { cloneNodeProps } from './copy'
 import { bindNodeEvents } from './events'
 import * as HitTest from './hit-test'
 import * as Instances from './instances'
+import { ensureInstanceOverrideState } from './instance-overrides'
 import { CONTAINER_TYPES, createDefaultNode } from './node-defaults'
 import { updateNodePreview, type NodePreviewObserver } from './preview'
 import { styleDetachmentChanges } from './shared-styles'
@@ -498,6 +499,12 @@ export class SceneGraph {
     }
     if (changes.vectorNetwork) {
       changes = { ...changes, vectorNetwork: normalizeVectorNetwork(changes.vectorNetwork) }
+    }
+    if (changes.instanceOverrides) {
+      changes = {
+        ...changes,
+        instanceOverrides: ensureInstanceOverrideState(changes.instanceOverrides)
+      }
     }
     Object.assign(node, changes)
     if (changes.fills) removeStaleBindings(node, 'fills', changes)

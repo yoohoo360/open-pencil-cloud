@@ -7,21 +7,44 @@ import {
 
 import { computeAllLayouts, computeLayout } from '#core/layout'
 
-export function createLayoutRunner(getGraph: () => SceneGraph) {
+type LayoutRunnerOptions = {
+  getGraph: () => SceneGraph
+  /** Called once after a silent layout pass so callers can invalidate + requestRender. */
+  afterSilentLayout?: () => void
+}
+
+export function createLayoutRunner(
+  getGraphOrOptions: (() => SceneGraph) | LayoutRunnerOptions
+) {
+  const getGraph =
+    typeof getGraphOrOptions === 'function' ? getGraphOrOptions : getGraphOrOptions.getGraph
+  const afterSilentLayout =
+    typeof getGraphOrOptions === 'function' ? undefined : getGraphOrOptions.afterSilentLayout
+
+  function runLayoutPass(run: () => void) {
+    const graph = getGraph()
+    graph.withLayoutMutations(() => {
+      graph.runSilentMutations(run)
+    })
+    afterSilentLayout?.()
+  }
+
   function runLayoutForNode(id: string) {
     const graph = getGraph()
     const node = graph.getNode(id)
     if (!node) return
 
-    computeAllLayouts(graph, id)
+    runLayoutPass(() => {
+      computeAllLayouts(graph, id)
 
-    let parent = node.parentId ? graph.getNode(node.parentId) : undefined
-    while (parent) {
-      if (parent.layoutMode !== 'NONE') {
-        computeLayout(graph, parent.id)
+      let parent = node.parentId ? graph.getNode(node.parentId) : undefined
+      while (parent) {
+        if (parent.layoutMode !== 'NONE') {
+          computeLayout(graph, parent.id)
+        }
+        parent = parent.parentId ? graph.getNode(parent.parentId) : undefined
       }
-      parent = parent.parentId ? graph.getNode(parent.parentId) : undefined
-    }
+    })
   }
 
   function compactLayoutScope(impact: SceneMutationImpact): string[] {
@@ -49,7 +72,9 @@ export function createLayoutRunner(getGraph: () => SceneGraph) {
     if (scopeIds.length > 0) {
       for (const id of scopeIds) runLayoutForNode(id)
     } else if (fallbackId) {
-      computeAllLayouts(graph, fallbackId)
+      runLayoutPass(() => {
+        computeAllLayouts(graph, fallbackId)
+      })
     }
     return result
   }

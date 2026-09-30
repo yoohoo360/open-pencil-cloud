@@ -24,7 +24,7 @@ import { createStructureBridge } from './bridges/structure'
 import { createUndoBridge } from './bridges/undo'
 import { createClipboardActions } from './clipboard'
 import { createColorSpaceActions } from './color-space'
-import { createComponentSyncScheduler } from './component-sync'
+import { createComponentSyncScheduler } from './component-sync.override'
 import { createComponentActions } from './components.override'
 import { createGraphEventSubscription } from './graph-events'
 import { createGraphReadActions } from './graph-reads'
@@ -170,7 +170,18 @@ export function createEditor(options?: EditorOptions) {
   }
 
   const graphReads = createGraphReadActions(() => _graph)
-  const { runLayoutForNode, runMutationWithLayout } = createLayoutRunner(() => _graph)
+  const { runLayoutForNode, runMutationWithLayout } = createLayoutRunner({
+    getGraph: () => _graph,
+    afterSilentLayout: () => {
+      // Layout geometry is applied at draw time; do not wipe every retained picture
+      // (that would stall the canvas on large pages). Structure invalidation + one
+      // render is enough after a silent layout pass.
+      for (const renderer of _renderers) {
+        renderer.tiledScene.invalidateStructure()
+      }
+      requestRender()
+    }
+  })
   const { scheduleComponentSync } = createComponentSyncScheduler(() => _graph, requestRender)
 
   const { subscribeToGraph, unsubscribeFromGraph } = createGraphEventSubscription({

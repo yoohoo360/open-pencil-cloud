@@ -1,5 +1,8 @@
 import { BLACK, DEFAULT_FONT_FAMILY, DEFAULT_STROKE_MITER_LIMIT } from './constants'
-import { createInstanceOverrideState } from './instance-overrides'
+import {
+  createInstanceOverrideState,
+  ensureInstanceOverrideState
+} from './instance-overrides'
 import type { NodeType, SceneNode, SourceMetadata } from './types'
 
 export function createDefaultSourceMetadata(): SourceMetadata {
@@ -170,7 +173,11 @@ export function createDefaultNode(
     derivedTextGlyphs: null,
     textPathData: null,
     textPathBox: null,
-    ...overrides
+    ...overrides,
+    // Always last: Partial overrides (JSON / import) can replace Maps with plain objects.
+    instanceOverrides: ensureInstanceOverrideState(
+      overrides.instanceOverrides ?? createInstanceOverrideState()
+    )
   }
 }
 

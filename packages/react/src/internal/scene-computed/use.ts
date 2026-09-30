@@ -1,10 +1,19 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { useRef, useSyncExternalStore } from 'react'
 
 import { useEditor } from '#react/editor/context'
 
 function subscribeToScene(editor: ReturnType<typeof useEditor>, onStoreChange: () => void) {
+  let queued = false
+  const schedule = () => {
+    if (queued) return
+    queued = true
+    queueMicrotask(() => {
+      queued = false
+      onStoreChange()
+    })
+  }
   const stops = [
-    editor.onEditorEvent('render:requested', onStoreChange),
+    editor.onEditorEvent('render:requested', schedule),
     editor.onEditorEvent('selection:changed', onStoreChange),
     editor.onEditorEvent('page:changed', onStoreChange)
   ]
@@ -22,11 +31,14 @@ function sceneSnapshot(editor: ReturnType<typeof useEditor>) {
  */
 export function useSceneComputed<T>(fn: () => T): T {
   const editor = useEditor()
+  const fnRef = useRef(fn)
+  fnRef.current = fn
   const version = useSyncExternalStore(
     (onStoreChange) => subscribeToScene(editor, onStoreChange),
     () => sceneSnapshot(editor),
     () => sceneSnapshot(editor)
   )
-
-  return useMemo(fn, [fn, version])
+  // version is the invalidate key; the latest fn is read through the ref.
+  void version
+  return fnRef.current()
 }
