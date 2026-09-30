@@ -1,6 +1,7 @@
 import { openDocumentShareDialog } from '#react/app/document/access'
 import { CollabAvatarStack } from '#react/components/CollabPanel/CollabAvatarStack'
 import { useOptionalComments } from '#react/components/Comments/context'
+import { WorkspaceModeSwitcher } from '#react/components/Shell/WorkspaceModeSwitcher'
 import { IconButton } from '#react/components/ui/IconButton'
 import { usePopoverUI } from '#react/components/ui/popover'
 import { useI18n } from '#react/i18n'
@@ -8,7 +9,8 @@ import { Ellipsis, MessageSquare, Share2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Right-panel chrome: connected users on the left (max 3), comments + more/share on the right.
+ * Right-panel chrome: connected users on the left (max 3),
+ * workspace mode immediately before comments, then more/share.
  */
 export function CollabPanel() {
   const comments = useOptionalComments()
@@ -44,16 +46,7 @@ export function CollabPanel() {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {comments ? (
-          <IconButton
-            active={comments.open}
-            label={dialogs.comments}
-            data-test-id="comments-toggle"
-            onClick={() => comments.toggle()}
-          >
-            <MessageSquare className="size-3.5" />
-          </IconButton>
-        ) : null}
+        <WorkspaceModeSwitcher />
 
         <div className="relative" ref={menuRef}>
           <IconButton
@@ -66,6 +59,20 @@ export function CollabPanel() {
           </IconButton>
           {menuOpen ? (
             <div className={popover.content} role="menu">
+              {comments ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-hover"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    comments.toggle()
+                  }}
+                >
+                  <MessageSquare className="size-3.5 text-muted" />
+                  {dialogs.comments}
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"

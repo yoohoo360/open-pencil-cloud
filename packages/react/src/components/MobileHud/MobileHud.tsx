@@ -4,6 +4,7 @@ import { MobileFileMenu } from '#react/components/MobileHud/MobileFileMenu'
 import { MobilePresencePopover } from '#react/components/MobileHud/MobilePresencePopover'
 import { MobileUndoRedo } from '#react/components/MobileHud/MobileUndoRedo'
 import { MobileHudProvider } from '#react/components/MobileHud/context'
+import { WorkspaceModeSwitcher } from '#react/components/Shell/WorkspaceModeSwitcher'
 
 export function MobileHud() {
   return (
@@ -20,7 +21,8 @@ export function MobileHud() {
           <MobilePresencePopover />
           <MobileActionToast />
         </div>
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-border bg-panel/95 px-0.5 py-0.5 shadow-sm backdrop-blur-sm">
+          <WorkspaceModeSwitcher />
           <MobileFileMenu />
         </div>
       </div>

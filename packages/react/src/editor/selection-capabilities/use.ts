@@ -3,17 +3,19 @@ import { canMakeBooleanSourceNode, hasVisibleStrokeSourceNode } from '@open-penc
 import { hasDocumentCapability, useDocumentAccess } from '#react/app/document/access'
 import { useEditor } from '#react/editor/context'
 import { useSelectionState } from '#react/editor/selection-state/use'
+import { useCanMutateWorkspace } from '#react/app/shell/workspace-mode'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 
 /**
  * Selection-dependent action availability for menus, toolbars, and shortcuts.
- * Document ACL (view/edit/copy) further restricts mutating and copy actions.
+ * Document ACL (view/edit/copy) and workspace mode further restrict mutating actions.
  */
 export function useSelectionCapabilities() {
   const editor = useEditor()
   const selection = useSelectionState()
   const access = useDocumentAccess()
-  const canEditDoc = hasDocumentCapability(access, 'edit')
+  const canMutate = useCanMutateWorkspace()
+  const canEditDoc = hasDocumentCapability(access, 'edit') && canMutate
   const canCopyDoc = hasDocumentCapability(access, 'copy')
   const canDuplicateDoc = hasDocumentCapability(access, 'duplicate')
   const canExportDoc = hasDocumentCapability(access, 'export')

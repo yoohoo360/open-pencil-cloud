@@ -10,11 +10,14 @@ import type {
 } from '#react/app/shell/keyboard/types'
 import { saveFigFile, saveFigFileAs } from '#react/app/shell/menu/files'
 import { appMenuTinykeysShortcut } from '#react/app/shell/menu/shortcut'
+import { getWorkspaceMode } from '#react/app/shell/workspace-mode'
 import { editorCommandMetadata, type EditorCommandId } from '#react/editor/commands'
 import { tinykeys } from 'tinykeys'
 import type { KeyBindingMap } from 'tinykeys'
 
-import { TOOL_SHORTCUTS } from '@open-pencil/core/editor'
+import { TOOL_SHORTCUTS, type Tool } from '@open-pencil/core/editor'
+
+const VIEW_SAFE_TOOLS = new Set<Tool>(['SELECT', 'HAND'])
 
 type ShortcutAction = (options: KeyboardShortcutRunOptions) => void
 
@@ -91,6 +94,8 @@ function bindToolShortcuts(bindings: KeyBindingMap, options: KeyboardShortcutRun
   for (const [code, tool] of Object.entries(TOOL_SHORTCUTS)) {
     if (!tool) continue
     bindings[code] = (event: KeyboardEvent) => {
+      const mode = getWorkspaceMode()
+      if (mode !== 'edit' && !VIEW_SAFE_TOOLS.has(tool)) return
       event.preventDefault()
       options.spaceTool.resetToolBeforeSpace()
       options.store.setTool(tool)

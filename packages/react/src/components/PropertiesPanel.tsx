@@ -1,4 +1,5 @@
 import { setPropertiesTab, usePropertiesTab } from '#react/app/shell/properties-tab'
+import { useWorkspaceMode } from '#react/app/shell/workspace-mode'
 import { ChatPanel } from '#react/components/ChatPanel'
 import { CodePanel } from '#react/components/CodePanel'
 import { DesignPanel } from '#react/components/DesignPanel'
@@ -12,58 +13,78 @@ const tabClass =
 export function PropertiesPanel() {
   const { panels } = useI18n()
   const activeTab = usePropertiesTab()
+  const mode = useWorkspaceMode()
+  // Dev mode is code-first; View keeps Design for inspect (read-only gated elsewhere).
+  const showDesignTab = mode !== 'dev'
+  const showCodeTab = true
+  const showAiTab = mode === 'edit'
 
   return (
     <aside
       data-test-id="properties-panel"
+      data-workspace-mode={mode}
       className="flex min-w-0 flex-1 flex-col overflow-hidden border-l border-border bg-panel"
       style={{ contain: 'paint layout style' }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
-          <button
-            type="button"
-            value="design"
-            data-test-id="properties-tab-design"
-            data-state={activeTab === 'design' ? 'active' : undefined}
-            className={tabClass}
-            onClick={() => setPropertiesTab('design')}
-          >
-            {panels.design}
-          </button>
-          <button
-            type="button"
-            value="code"
-            data-test-id="properties-tab-code"
-            data-state={activeTab === 'code' ? 'active' : undefined}
-            className={`flex items-center gap-1 ${tabClass}`}
-            onClick={() => setPropertiesTab('code')}
-          >
-            <Code className="size-3" />
-            {panels.code}
-          </button>
-          <button
-            type="button"
-            value="ai"
-            data-test-id="properties-tab-ai"
-            data-state={activeTab === 'ai' ? 'active' : undefined}
-            className={`flex items-center gap-1 ${tabClass}`}
-            onClick={() => setPropertiesTab('ai')}
-          >
-            <Sparkles className="size-3" />
-            {panels.ai}
-          </button>
-          {activeTab === 'design' ? <ZoomDropdown /> : null}
+          {showDesignTab ? (
+            <button
+              type="button"
+              value="design"
+              data-test-id="properties-tab-design"
+              data-state={activeTab === 'design' ? 'active' : undefined}
+              className={tabClass}
+              onClick={() => setPropertiesTab('design')}
+            >
+              {panels.design}
+            </button>
+          ) : null}
+          {showCodeTab ? (
+            <button
+              type="button"
+              value="code"
+              data-test-id="properties-tab-code"
+              data-state={activeTab === 'code' ? 'active' : undefined}
+              className={`flex items-center gap-1 ${tabClass}`}
+              onClick={() => setPropertiesTab('code')}
+            >
+              <Code className="size-3" />
+              {panels.code}
+            </button>
+          ) : null}
+          {showAiTab ? (
+            <button
+              type="button"
+              value="ai"
+              data-test-id="properties-tab-ai"
+              data-state={activeTab === 'ai' ? 'active' : undefined}
+              className={`flex items-center gap-1 ${tabClass}`}
+              onClick={() => setPropertiesTab('ai')}
+            >
+              <Sparkles className="size-3" />
+              {panels.ai}
+            </button>
+          ) : null}
+          {activeTab === 'design' && showDesignTab ? <ZoomDropdown /> : null}
         </div>
-        <div hidden={activeTab !== 'design'} className="flex min-h-0 flex-1 flex-col">
-          <DesignPanel />
-        </div>
+        {showDesignTab ? (
+          <div
+            hidden={activeTab !== 'design'}
+            data-readonly={mode === 'view' || undefined}
+            className={`flex min-h-0 flex-1 flex-col ${mode === 'view' ? 'pointer-events-none select-none opacity-90' : ''}`}
+          >
+            <DesignPanel />
+          </div>
+        ) : null}
         <div hidden={activeTab !== 'code'} className="flex min-h-0 flex-1 flex-col">
           <CodePanel active={activeTab === 'code'} />
         </div>
-        <div hidden={activeTab !== 'ai'} className="flex min-h-0 flex-1 flex-col">
-          <ChatPanel />
-        </div>
+        {showAiTab ? (
+          <div hidden={activeTab !== 'ai'} className="flex min-h-0 flex-1 flex-col">
+            <ChatPanel />
+          </div>
+        ) : null}
       </div>
     </aside>
   )
