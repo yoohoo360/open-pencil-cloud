@@ -3,6 +3,13 @@ import { DEFAULT_SNAPPING_PREFERENCES, type SnappingPreferences } from '@open-pe
 
 import { DEFAULT_FONT_FAMILY, IS_BROWSER } from '@open-pencil/core/constants'
 
+import {
+  normalizeContextMenuOrders,
+  type ContextMenuItemId,
+  type ContextMenuNodeKind,
+  type ContextMenuOrders
+} from '#react/app/settings/context-menu'
+
 export interface AppPreferences {
   version: 1
   recovery: {
@@ -13,6 +20,9 @@ export interface AppPreferences {
     /** Font applied to newly created text; omitted from Tailwind/JSX when matched. */
     defaultFontFamily: string
   }
+  menus: {
+    contextByNodeType: ContextMenuOrders
+  }
 }
 
 export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
@@ -21,6 +31,9 @@ export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
   editing: {
     snapping: { ...DEFAULT_SNAPPING_PREFERENCES },
     defaultFontFamily: DEFAULT_FONT_FAMILY
+  },
+  menus: {
+    contextByNodeType: {}
   }
 }
 
@@ -64,6 +77,11 @@ export function normalizePreferences(value: unknown): AppPreferences {
       defaultFontFamily: stringOrDefault(
         editing?.defaultFontFamily,
         DEFAULT_APP_PREFERENCES.editing.defaultFontFamily
+      )
+    },
+    menus: {
+      contextByNodeType: normalizeContextMenuOrders(
+        isStoredRecord(stored?.menus) ? stored.menus.contextByNodeType : undefined
       )
     }
   }
@@ -117,5 +135,36 @@ export function updateDefaultFontFamily(family: string) {
       ...current.editing,
       defaultFontFamily: trimmed
     }
+  })
+}
+
+export function updateContextMenuOrder(kind: ContextMenuNodeKind, order: readonly ContextMenuItemId[]) {
+  const current = appPreferences.get()
+  appPreferences.set({
+    ...current,
+    menus: {
+      contextByNodeType: normalizeContextMenuOrders({
+        ...current.menus.contextByNodeType,
+        [kind]: [...order]
+      })
+    }
+  })
+}
+
+export function resetContextMenuOrder(kind: ContextMenuNodeKind) {
+  const current = appPreferences.get()
+  const next = { ...current.menus.contextByNodeType }
+  delete next[kind]
+  appPreferences.set({
+    ...current,
+    menus: { contextByNodeType: next }
+  })
+}
+
+export function resetAllContextMenuOrders() {
+  const current = appPreferences.get()
+  appPreferences.set({
+    ...current,
+    menus: { contextByNodeType: {} }
   })
 }
