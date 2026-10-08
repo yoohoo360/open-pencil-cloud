@@ -4,16 +4,17 @@ import { expect, userEvent, within } from 'storybook/test'
 import { ref } from 'vue'
 import MoreIcon from '~icons/lucide/ellipsis'
 import EyeIcon from '~icons/lucide/eye'
+import LayoutPanelTopIcon from '~icons/lucide/layout-panel-top'
 import LinkIcon from '~icons/lucide/link'
 import RotateIcon from '~icons/lucide/rotate-ccw'
 import SquareIcon from '~icons/lucide/square'
 
+import AppButton from '@/components/ui/button/AppButton.vue'
 import IconButton from '@/components/ui/button/IconButton.vue'
 import AppInput from '@/components/ui/input/AppInput.vue'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
 import SegmentedControl from '@/components/ui/select/SegmentedControl.vue'
 
-import PanelSelectionDemo from './demo/PanelSelectionDemo.vue'
 import PanelFieldGroup from './PanelFieldGroup.vue'
 import PanelGrid from './PanelGrid.vue'
 import PanelHeader from './PanelHeader.vue'
@@ -26,7 +27,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The 26px properties-panel foundation: strict grids, field groups, action rails, and semantic field states.'
+          'The 24px properties-panel foundation: strict grids, field groups, action rails, and semantic field states.'
       }
     }
   }
@@ -36,7 +37,28 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const SelectionTransition: Story = {
-  render: () => ({ components: { PanelSelectionDemo }, template: '<PanelSelectionDemo />' })
+  render: () => ({
+    components: { AppButton, IconButton, LayoutPanelTopIcon, PanelSection },
+    setup() {
+      const container = ref(false)
+      return { container }
+    },
+    template: `
+      <div class="w-72 bg-panel text-surface">
+        <AppButton @click="container = !container">Switch selection</AppButton>
+        <PanelSection :label="container ? 'Auto layout' : 'Layout'">
+          <template v-if="container" #actions>
+            <IconButton label="Remove auto layout" active>
+              <LayoutPanelTopIcon class="size-3.5" />
+            </IconButton>
+          </template>
+          <p class="text-xs text-muted">
+            {{ container ? 'Frame selection' : 'Rectangle selection' }}
+          </p>
+        </PanelSection>
+      </div>
+    `
+  })
 }
 
 export const StateMatrix: Story = {
@@ -103,10 +125,10 @@ export const StateMatrix: Story = {
             </template>
             <PanelGrid :columns="2">
               <PanelFieldGroup label="Width">
-                <AppInput v-model="width" tone="panel" data-story-control data-state="idle" aria-label="Width" />
+                <AppInput v-model="width" tone="panel" size="xs" data-story-control data-state="idle" aria-label="Width" />
               </PanelFieldGroup>
               <PanelFieldGroup label="Height">
-                <AppInput v-model="height" tone="panel" data-story-control data-state="focus" aria-label="Height" />
+                <AppInput v-model="height" tone="panel" size="xs" data-story-control data-state="focus" aria-label="Height" />
               </PanelFieldGroup>
               <template #actions>
                 <IconButton label="Constrain proportions" size="md"><LinkIcon class="size-3.5" /></IconButton>
@@ -117,10 +139,10 @@ export const StateMatrix: Story = {
           <PanelSection label="Appearance">
             <PanelGrid :columns="2">
               <PanelFieldGroup label="Blend mode">
-                <AppSelect v-model="blendMode" :options="blendModes" data-story-control aria-label="Blend mode" />
+                <AppSelect v-model="blendMode" :options="blendModes" data-story-control label="Blend mode" />
               </PanelFieldGroup>
               <PanelFieldGroup label="Opacity">
-                <AppInput v-model="mixed" tone="panel" state="mixed" readonly data-story-control aria-label="Mixed opacity" />
+                <AppInput v-model="mixed" tone="panel" size="xs" state="mixed" readonly data-story-control aria-label="Mixed opacity" />
               </PanelFieldGroup>
               <template #actions>
                 <IconButton label="Toggle visibility"><EyeIcon class="size-3.5" /></IconButton>
@@ -131,10 +153,10 @@ export const StateMatrix: Story = {
           <PanelSection label="States">
             <div class="grid grid-cols-2 gap-1.5">
               <PanelFieldGroup label="Bound">
-                <AppInput v-model="bound" tone="panel" state="bound" readonly data-story-control aria-label="Bound value" />
+                <AppInput v-model="bound" tone="panel" size="xs" state="bound" readonly data-story-control aria-label="Bound value" />
               </PanelFieldGroup>
               <PanelFieldGroup label="Disabled">
-                <AppInput v-model="disabled" tone="panel" disabled data-story-control aria-label="Disabled value" />
+                <AppInput v-model="disabled" tone="panel" size="xs" disabled data-story-control aria-label="Disabled value" />
               </PanelFieldGroup>
               <PanelFieldGroup label="Alignment" class="col-span-2">
                 <SegmentedControl v-model="alignment" class="w-full" :options="alignmentOptions" label="Alignment" data-story-control />
@@ -149,7 +171,7 @@ export const StateMatrix: Story = {
     const canvas = within(canvasElement)
     const controls = Array.from(canvasElement.querySelectorAll<HTMLElement>('[data-story-control]'))
 
-    for (const control of controls) await expect(control).toHaveStyle({ height: '26px' })
+    for (const control of controls) await expect(control).toHaveStyle({ height: '24px' })
 
     await userEvent.click(canvas.getByLabelText('Height'))
     await userEvent.hover(canvas.getByLabelText('Width'))

@@ -28,8 +28,9 @@ import { cloneVectorNetwork } from './vector-network'
 
 // --- Individual copy functions ---
 
-export function copyFill(f: Fill): Fill {
-  const copy: Fill = { ...f, color: { ...f.color } }
+/** Generic over the paint shape so a stroke keeps its own fields while the paint deep-copies. */
+export function copyFill<T extends Fill>(f: T): T {
+  const copy: T = { ...f, color: { ...f.color } }
   if (f.gradientStops) copy.gradientStops = f.gradientStops.map(copyGradientStop)
   if (f.gradientTransform) copy.gradientTransform = { ...f.gradientTransform }
   if (f.imageTransform) copy.imageTransform = { ...f.imageTransform }
@@ -39,7 +40,7 @@ export function copyFill(f: Fill): Fill {
 }
 
 export function copyStroke(s: Stroke): Stroke {
-  const copy: Stroke = { ...s, color: { ...s.color } }
+  const copy = copyFill(s)
   if (s.dashPattern) {
     copy.dashPattern = [...s.dashPattern]
   }
@@ -203,7 +204,8 @@ function copyPropertyDefs(
     defs?.map((d) => ({
       ...d,
       variantOptions: d.variantOptions ? [...d.variantOptions] : undefined,
-      preferredValues: d.preferredValues ? [...d.preferredValues] : undefined
+      preferredValues: d.preferredValues ? [...d.preferredValues] : undefined,
+      slotSettings: d.slotSettings ? { ...d.slotSettings } : undefined
     })) ?? []
   )
 }
@@ -243,6 +245,8 @@ export function cloneNodeProps(
       ...(componentId !== null ? { componentId } : {}),
       source: createDefaultSourceMetadata(),
       boundVariables: { ...src.boundVariables },
+      variableBindingScales: { ...src.variableBindingScales },
+      variableAssignmentScales: { ...src.variableAssignmentScales },
       variableModes: { ...src.variableModes },
       instanceOverrides: cloneInstanceOverrideState(src.instanceOverrides),
       componentPropertyAssignments: { ...src.componentPropertyAssignments },
@@ -254,6 +258,8 @@ export function cloneNodeProps(
     ...rest,
     ...(componentId !== null ? { componentId } : {}),
     boundVariables: { ...src.boundVariables },
+    variableBindingScales: { ...src.variableBindingScales },
+    variableAssignmentScales: { ...src.variableAssignmentScales },
     variableModes: { ...src.variableModes },
     instanceOverrides: cloneInstanceOverrideState(src.instanceOverrides),
     fills: copyOpt(src.fills, (value) => markCopySource(value, copyFills(value))),

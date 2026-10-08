@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/vue3-vite'
+import { toUint8Array } from 'js-base64'
 
 import type { AttachmentPresentation } from '@/app/ai/attachment/presentation/types'
 
@@ -7,10 +8,9 @@ import AttachmentList from './AttachmentList.vue'
 const pixel = new Blob(
   [
     Uint8Array.from(
-      atob(
+      toUint8Array(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/69cbGAAAAABJRU5ErkJggg=='
-      ),
-      (character) => character.charCodeAt(0)
+      )
     )
   ],
   { type: 'image/png' }
@@ -42,13 +42,13 @@ type AttachmentListStoryArgs = {
 }
 
 const meta = {
-  title: 'Chat/Attachments',
+  title: 'App/Chat/Attachments',
   component: AttachmentList,
   parameters: { layout: 'centered' },
   render: (args) => ({
     components: { AttachmentList },
     setup: () => ({ args }),
-    template: '<div class="w-96 rounded-xl bg-accent p-3"><AttachmentList v-bind="args" /></div>'
+    template: '<div class="w-96 rounded-xl bg-panel p-3"><AttachmentList v-bind="args" /></div>'
   })
 } satisfies Meta<AttachmentListStoryArgs>
 

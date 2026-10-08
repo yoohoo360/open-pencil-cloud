@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/vue3-vite'
 import { expect, userEvent, within } from 'storybook/test'
 
-import PropertyPrimitivesDemo from './demo/PropertyPrimitivesDemo.vue'
+import PropertyPrimitivesStates from './examples/States.vue'
 
 const meta = {
   title: 'Vue SDK/Primitives/Property Primitives',
-  component: PropertyPrimitivesDemo,
+  component: PropertyPrimitivesStates,
   tags: ['autodocs'],
   parameters: {
     docs: {
@@ -15,7 +15,7 @@ const meta = {
       }
     }
   }
-} satisfies Meta<typeof PropertyPrimitivesDemo>
+} satisfies Meta<typeof PropertyPrimitivesStates>
 
 export default meta
 type Story = StoryObj<typeof meta>
@@ -24,10 +24,9 @@ export const StateMatrix: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
 
-    const layer = canvas.getByRole('button', { name: 'Layer' })
-    await expect(canvas.getByText('Collapsible content')).toBeVisible()
-    await userEvent.click(layer)
-    await expect(layer).toHaveAttribute('data-state', 'closed')
+    // Section titles are static, as in Figma: clicking one keeps the section open.
+    await userEvent.click(canvas.getByText('Layer', { exact: true }))
+    await expect(canvas.getByText('Section content')).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Add first effect' }))
     await expect(canvas.getByText('Drop shadow')).toBeVisible()

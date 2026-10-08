@@ -12,15 +12,19 @@ import IconSave from '~icons/lucide/save'
 import IconSettings from '~icons/lucide/settings'
 import IconType from '~icons/lucide/type'
 import IconUndo from '~icons/lucide/undo-2'
+import IconVariables from '~icons/lucide/variable'
 import IconZoomIn from '~icons/lucide/zoom-in'
 import IconZoomOut from '~icons/lucide/zoom-out'
 
+import type { BuiltinIOFormatId } from '@open-pencil/core/io'
 import type { CommandPaletteGroup, CommandPaletteItem, MenuEntry } from '@open-pencil/vue'
 import { shortcutPlatform, useEditorCommands, useI18n } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
+import { openVariablesDialog } from '@/app/editor/tokens/dialog'
 import { openSettingsDialog } from '@/app/settings/dialog'
-import { setSnappingPreference } from '@/app/settings/preferences/apply'
+import { setDesignIssuesOnCanvas, setSnappingPreference } from '@/app/settings/preferences/apply'
+import { appPreferences } from '@/app/settings/preferences/store'
 import { createSharedEditorMenuActions } from '@/app/shell/menu/editor-actions'
 import { openStorageWorkspace } from '@/app/shell/menu/navigation'
 import type {
@@ -54,6 +58,7 @@ const APP_MENU_ICONS: Record<AppMenuIcon, Component> = {
   settings: IconSettings,
   type: IconType,
   undo: IconUndo,
+  variables: IconVariables,
   'zoom-in': IconZoomIn,
   'zoom-out': IconZoomOut
 }
@@ -107,13 +112,16 @@ export function useAppMenu() {
     language: 'language',
     preferences: 'preferences',
     settings: 'settings',
+    variables: 'variables',
     'view-rulers': 'rulers',
     'view-multiplayer-cursors': 'multiplayerCursors',
+    'view-design-issues': 'designIssues',
     'snap-geometry': 'snapToGeometry',
     'snap-objects': 'snapToObjects',
     'snap-pixel-grid': 'snapToPixelGrid',
     profiler: 'profiler',
     'toggle-ui': 'toggleUI',
+    'toggle-preview': 'togglePreview',
     theme: 'theme',
     'theme-light': 'themeLight',
     'theme-dark': 'themeDark',
@@ -143,7 +151,7 @@ export function useAppMenu() {
     }))
   )
 
-  function exportSelection(format: 'png' | 'svg' | 'pptx' | 'fig') {
+  function exportSelection(format: BuiltinIOFormatId) {
     if (store.state.selectedIds.size > 0) void store.exportSelection(1, format)
   }
 
@@ -161,6 +169,7 @@ export function useAppMenu() {
       if (activeTab.value) void closeTab(activeTab.value.id)
     },
     settings: openSettingsDialog,
+    variables: () => openVariablesDialog(store),
     'export-png': () => exportSelection('png'),
     'export-svg': () => exportSelection('svg'),
     'export-pptx': () => exportSelection('pptx'),
@@ -182,6 +191,8 @@ export function useAppMenu() {
         return store.state.showRulers
       case 'view-multiplayer-cursors':
         return store.state.showRemoteCursors
+      case 'view-design-issues':
+        return appPreferences.value.designCheck.showOnCanvas
       case 'snap-geometry':
         return store.state.snappingPreferences.geometry
       case 'snap-objects':
@@ -215,6 +226,8 @@ export function useAppMenu() {
         return (value: boolean) => {
           if (store.state.showRemoteCursors !== value) itemAction(item)?.()
         }
+      case 'view-design-issues':
+        return (value: boolean) => setDesignIssuesOnCanvas(value)
       case 'snap-geometry':
         return (value: boolean) => setSnappingPreference('geometry', value)
       case 'snap-objects':

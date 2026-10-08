@@ -12,15 +12,33 @@ export async function emulateWideGamutDisplay(page: Page) {
   })
 }
 
+/** The wide-gamut notice is the only capability banner whose content names Display-P3. */
+export function wideGamutBanner(page: Page) {
+  return page.getByRole('status').filter({ hasText: 'Display-P3' })
+}
+
 /** Keep the wide-gamut notice from resizing the canvas in rendering-fidelity tests. */
 export async function dismissWideGamutBanner(page: Page) {
-  const banner = page.getByTestId('wide-gamut-banner')
+  const banner = wideGamutBanner(page)
   await banner.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
-  if (await banner.isVisible()) await page.getByTestId('wide-gamut-banner-dismiss').click()
+  if (await banner.isVisible()) await banner.locator('[data-slot="banner-dismiss"]').click()
 }
 
 /** Focus the demo's paint and effects page, where blends and masks live. */
 export async function focusPaintEffects(page: Page) {
+  // Zooming to a layer uses the viewport size the canvas last measured, so a window resize must
+  // reach it first or the zoom fits the old size. The canvas sizes its pixels in the same step.
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      '[data-test-id="scene-canvas-element"]'
+    )
+    const dpr = window.devicePixelRatio || 1
+    return (
+      !!canvas &&
+      canvas.width === Math.round(canvas.clientWidth * dpr) &&
+      canvas.height === Math.round(canvas.clientHeight * dpr)
+    )
+  })
   await page.evaluate(async () => {
     const store = window.openPencil?.getStore?.()
     if (!store) throw new Error('Editor unavailable')
