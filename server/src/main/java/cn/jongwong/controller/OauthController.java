@@ -72,15 +72,16 @@ public class OauthController {
             String error,
             HttpServletRequest request
     ) {
-        String origin = oauthService.requestOrigin(request);
+        String frontendOrigin = oauthService.requestOrigin(request);
+        String apiOrigin = oauthService.apiRequestOrigin(request);
         if (error != null && !error.isBlank()) {
             return redirectTo(oauthService.frontendLoginError(error, oauthService.frontendOriginFromState(state)));
         }
         if (code != null && !code.isBlank()) {
-            OauthCallbackResult result = oauthService.handleCallback(provider, code, state, origin);
+            OauthCallbackResult result = oauthService.handleCallback(provider, code, state, frontendOrigin);
             return redirectTo(result.location());
         }
-        return redirectTo(oauthService.authorizationUrl(provider, redirectUri, origin));
+        return redirectTo(oauthService.authorizationUrl(provider, redirectUri, apiOrigin));
     }
 
     private ResponseEntity<Void> redirectTo(String location) {

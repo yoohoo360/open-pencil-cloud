@@ -68,6 +68,19 @@ public class OauthService {
         );
     }
 
+    /** Public API origin for OAuth provider callbacks (not the SPA origin). */
+    public String apiRequestOrigin(HttpServletRequest request) {
+        return originFrom(
+                request.getHeader("X-Forwarded-Proto"),
+                request.getHeader("X-Forwarded-Host"),
+                request.getHeader("Host"),
+                request.getScheme(),
+                request.getServerName(),
+                request.getServerPort(),
+                configuredPublicUrl()
+        );
+    }
+
     public String frontendLoginError(String message) {
         return frontendLoginError(message, frontendOrigin());
     }
@@ -92,7 +105,17 @@ public class OauthService {
         }
         OauthProperties.Provider config = oauthProperties.config(normalized);
         SafeReturnTo returnTo = parseReturnTo(redirect);
-        String callbackUri = callbackUrl(normalized, apiPublicUrl());
+        // Prefer PUBLIC_URL; if it is still localhost, use the inbound API origin
+        // (X-Forwarded-Host) so Google/GitHub do not redirect users to localhost.
+        String callbackUri = callbackUrl(normalized, resolveApiPublicUrl(origin));
+        if (isLocalhostOrigin(callbackUri)) {
+            log.warn(
+                    "OAuth {} callback is {}; set PUBLIC_URL to the public API origin "
+                            + "and register that URI with the provider",
+                    normalized,
+                    callbackUri
+            );
+        }
         String state = randomToken();
         redis.opsForValue().set(
                 stateKey(state),
@@ -429,9 +452,50 @@ public class OauthService {
         return value;
     }
 
-    private String apiPublicUrl() {
+    private String configuredPublicUrl() {
         String value = trimSlash(appAuthProperties.getPublicUrl());
         return value.isBlank() ? "http://localhost:8000" : value;
+    }
+
+    private String apiPublicUrl() {
+        return configuredPublicUrl();
+    }
+
+    /**
+     * Google/GitHub {@code redirect_uri} must be a public API URL.
+     * Use configured {@code PUBLIC_URL} when it is non-local; otherwise the
+     * request's public origin (from reverse-proxy headers).
+     */
+    private String resolveApiPublicUrl(String requestApiOrigin) {
+        String configured = configuredPublicUrl();
+        if (!isLocalhostOrigin(configured)) {
+            return configured;
+        }
+        String request = trimSlash(requestApiOrigin);
+        if (!request.isBlank() && !isLocalhostOrigin(request) && !isAllowedFrontend(request)) {
+            return request;
+        }
+        return configured;
+    }
+
+    static boolean isLocalhostOrigin(String origin) {
+        String value = trimSlash(origin).toLowerCase(Locale.ROOT);
+        if (value.isBlank()) {
+            return true;
+        }
+        try {
+            URI uri = URI.create(value.contains("://") ? value : "http://" + value);
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) {
+                return value.contains("localhost") || value.contains("127.0.0.1");
+            }
+            return "localhost".equalsIgnoreCase(host)
+                    || "127.0.0.1".equals(host)
+                    || "0.0.0.0".equals(host)
+                    || "::1".equals(host);
+        } catch (RuntimeException ignored) {
+            return value.contains("localhost") || value.contains("127.0.0.1");
+        }
     }
 
     private String allowedFrontend(String origin) {
