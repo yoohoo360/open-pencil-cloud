@@ -2,6 +2,7 @@ import { commitRichMarkdown } from '#react/controls/builtin-text/history'
 import { hydrateImageSources, prepareRichImage } from '#react/controls/builtin-text/images'
 import type { RichImage } from '#react/controls/builtin-text/lists'
 import { markdownToHTML } from '#react/controls/builtin-text/markdown'
+import { markdownContentWidth } from '#react/controls/builtin-text/panel-image-scale'
 import {
   readRichImageMap,
   readRichMarkdown,
@@ -26,7 +27,8 @@ function builtinContentKey(editor: Editor): string {
   const selected = [...editor.state.selectedIds].join(',')
   const markdown = host ? readRichMarkdown(host.pluginData) : ''
   const imageMap = host ? JSON.stringify(readRichImageMap(host.pluginData)) : ''
-  return `${selected}:${host?.id ?? ''}:${markdown}:${imageMap}:${editor.graph.images.size}`
+  const contentWidth = host ? markdownContentWidth(host) : 0
+  return `${selected}:${host?.id ?? ''}:${markdown}:${imageMap}:${contentWidth}:${editor.graph.images.size}`
 }
 
 function subscribeBuiltinContent(editor: Editor, onChange: () => void) {
@@ -84,11 +86,17 @@ export function useBuiltinText() {
     [editor]
   )
 
+  const contentWidth = useMemo(
+    () => (host ? markdownContentWidth(host) : 320),
+    [host, snapshot]
+  )
+
   return {
     host,
     selectionId,
     html,
     markdown,
+    contentWidth,
     applyMarkdown,
     insertImage
   }

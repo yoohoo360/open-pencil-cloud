@@ -389,8 +389,8 @@ function imageFigureHTML(image: RichImage): string {
             )
   const hash = escapeHTML(image.hash || '')
   const oss = escapeHTML(image.ossPath || '')
-  // Visible image box for the visual editor (do not rely on post-DOM decoration).
-  return `<span data-rich-image="1" data-image-hash="${hash}" data-oss-path="${oss}" contenteditable="false" style="display:inline-block;width:${width}px;height:${height}px;max-width:100%;overflow:hidden;resize:both;background:#ececec;border:1px solid #d0d0d0"><img src="${src}" data-image-hash="${hash}" data-oss-path="${oss}" width="${width}" height="${height}" alt="image" style="width:100%;height:100%;display:block;object-fit:cover"></span>`
+  // Document px in attributes; panel scales width to canvas MD ratio, height from aspect.
+  return `<span data-rich-image="1" data-image-hash="${hash}" data-oss-path="${oss}" contenteditable="false" style="display:inline-block;max-width:100%;overflow:hidden;resize:horizontal;background:#ececec;border:1px solid #d0d0d0;aspect-ratio:${width}/${height}"><img src="${src}" data-image-hash="${hash}" data-oss-path="${oss}" width="${width}" height="${height}" alt="image" style="width:100%;height:100%;display:block;object-fit:cover"></span>`
 }
 
 function imageHTML(image: RichImage): string {

@@ -6,7 +6,8 @@ import { useI18n } from '#react/i18n'
 import { memo } from 'react'
 
 export const BuiltinTextSection = memo(function BuiltinTextSection() {
-  const { host, selectionId, html, markdown, applyMarkdown, insertImage } = useBuiltinText()
+  const { host, selectionId, html, markdown, contentWidth, applyMarkdown, insertImage } =
+    useBuiltinText()
   const { panels } = useI18n()
   if (!host) return null
 
@@ -18,6 +19,7 @@ export const BuiltinTextSection = memo(function BuiltinTextSection() {
           selectionId={selectionId}
           html={html}
           markdown={markdown}
+          contentWidth={contentWidth}
           onApply={applyMarkdown}
           onInsertImage={insertImage}
         />

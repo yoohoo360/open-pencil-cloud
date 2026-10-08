@@ -228,6 +228,8 @@
   "builtinLibrary": "内置组件",
   "builtinText": "Markdown",
   "builtinTextMode": "编辑方式",
+  "expandBuiltinText": "放大编辑",
+  "collapseBuiltinText": "缩回属性栏",
   "editAsPreview": "Preview",
   "editAsMarkdown": "Markdown",
   "headingText": "text",

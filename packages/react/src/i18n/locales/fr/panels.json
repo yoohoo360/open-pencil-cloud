@@ -399,5 +399,7 @@
   "brightness": "Luminosité",
   "lightness": "Clarté",
   "chroma": "Chroma",
-  "alpha": "Alpha"
+  "alpha": "Alpha",
+  "expandBuiltinText": "Expand editor",
+  "collapseBuiltinText": "Shrink to panel"
 }

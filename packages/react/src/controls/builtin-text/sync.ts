@@ -15,6 +15,10 @@ import {
 } from '#react/controls/builtin-text/markdown'
 import { parseRichHTML, RICH_PLUGIN_ID } from '#react/controls/builtin-text/model'
 import {
+  clampMarkdownImageSize,
+  markdownContentWidth
+} from '#react/controls/builtin-text/panel-image-scale'
+import {
   mergeRichImageMap,
   readRichImageMap,
   readRichMarkdown,
@@ -133,7 +137,7 @@ function slotsFromMarkdown(markdown: string, map: RichImageMap = {}): ContentSlo
 }
 
 function contentWidth(host: SceneNode): number {
-  return Math.max(1, host.width - host.paddingLeft - host.paddingRight)
+  return markdownContentWidth(host)
 }
 
 function measureTextHeight(node: SceneNode, width: number): number {
@@ -235,14 +239,10 @@ function imageFills(imageHash: string): Fill[] {
 }
 
 function imageBox(host: SceneNode, image: RichImage): { width: number; height: number } {
-  const maxWidth = contentWidth(host)
-  let width = image.width > 0 ? image.width : maxWidth
-  let height = image.height > 0 ? image.height : Math.max(80, Math.round(maxWidth * 0.6))
-  if (width > maxWidth) {
-    height = Math.max(1, Math.round((height * maxWidth) / width))
-    width = maxWidth
-  }
-  return { width: Math.max(1, width), height: Math.max(1, height) }
+  return clampMarkdownImageSize(
+    { width: image.width, height: image.height },
+    contentWidth(host)
+  )
 }
 
 function createImage(editor: Editor, host: SceneNode, image: ContentSlot & { kind: 'image' }): SceneNode {
@@ -258,8 +258,8 @@ function createImage(editor: Editor, host: SceneNode, image: ContentSlot & { kin
     layoutMode: 'NONE',
     layoutAlignSelf: 'MIN',
     layoutGrow: 0,
-    minWidth: width,
-    minHeight: height,
+    minWidth: 24,
+    minHeight: 24,
     fills: imageFills(key),
     pluginData: mdPlugin('image')
   })

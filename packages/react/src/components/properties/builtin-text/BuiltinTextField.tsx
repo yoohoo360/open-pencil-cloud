@@ -1,3 +1,5 @@
+import { IS_BROWSER } from '@open-pencil/core/constants'
+
 import { ColorSwatch } from '#react/components/properties/builtin-text/ColorSwatch'
 import { AppSelect, type AppSelectOption } from '#react/components/ui/AppSelect'
 import { IconButton } from '#react/components/ui/IconButton'
@@ -18,10 +20,19 @@ import {
   looksLikeMarkdown,
   markdownToHTML
 } from '#react/controls/builtin-text/markdown'
+import { clampMarkdownImageSize } from '#react/controls/builtin-text/panel-image-scale'
 import type { RichImageMap } from '#react/controls/builtin-text/storage'
 import { useBuiltinEditorMode, type BuiltinEditorMode } from '#react/controls/builtin-text/mode'
 import { useI18n } from '#react/i18n'
-import { Image as ImageIcon, Link, List, ListOrdered, Strikethrough } from 'lucide-react'
+import {
+  Image as ImageIcon,
+  Link,
+  List,
+  ListOrdered,
+  Maximize2,
+  Minimize2,
+  Strikethrough
+} from 'lucide-react'
 import {
   useEffect,
   useLayoutEffect,
@@ -30,19 +41,47 @@ import {
   type FormEvent,
   type KeyboardEvent
 } from 'react'
+import { createPortal } from 'react-dom'
 
 type EditorMode = BuiltinEditorMode
 
 const EDITOR_CLASS =
-  'min-h-56 w-full rounded border border-border bg-transparent px-1.5 py-1 text-[11px] outline-none focus:border-accent [&_a]:text-accent [&_a]:underline [&_[data-rich-marker]]:select-none [&_[data-rich-marker]]:pr-1 [&_[data-rich-marker]]:opacity-70 [&_h1]:text-[18px] [&_h1]:font-bold [&_h2]:text-[16px] [&_h2]:font-bold [&_h3]:text-[15px] [&_h3]:font-bold [&_h4]:text-[13px] [&_h4]:font-bold [&_h5]:text-[12px] [&_h5]:font-bold [&_h6]:text-[11px] [&_h6]:font-bold [&_img]:block [&_img]:max-w-full [&_[data-rich-image]]:my-1 [&_[data-rich-image]]:inline-block [&_[data-rich-image]]:min-h-[40px] [&_[data-rich-image]]:min-w-[40px] [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_pre]:my-2 [&_pre]:rounded [&_pre]:bg-muted/40 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-[11px] [&_code]:font-mono [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:opacity-80'
+  'box-border min-h-56 bg-transparent px-1.5 py-1 text-[11px] outline-none [&_a]:text-accent [&_a]:underline [&_[data-rich-marker]]:select-none [&_[data-rich-marker]]:pr-1 [&_[data-rich-marker]]:opacity-70 [&_h1]:text-[18px] [&_h1]:font-bold [&_h2]:text-[16px] [&_h2]:font-bold [&_h3]:text-[15px] [&_h3]:font-bold [&_h4]:text-[13px] [&_h4]:font-bold [&_h5]:text-[12px] [&_h5]:font-bold [&_h6]:text-[11px] [&_h6]:font-bold [&_img]:block [&_[data-rich-image]]:my-1 [&_[data-rich-image]]:inline-block [&_[data-rich-image]]:min-h-[40px] [&_[data-rich-image]]:min-w-[40px] [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_pre]:my-2 [&_pre]:rounded [&_pre]:bg-muted/40 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-[11px] [&_code]:font-mono [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:opacity-80'
 
 const MARKDOWN_CLASS =
-  'min-h-56 w-full resize-y rounded border border-border bg-panel px-1.5 py-1 font-mono text-[11px] text-surface outline-none focus:border-accent'
+  'box-border min-h-56 resize-y bg-panel px-1.5 py-1 font-mono text-[11px] text-surface outline-none'
 
 const TOOL_INPUT_CLASS =
   'h-6 rounded border border-border bg-[#eee] px-1 text-[11px] text-[#1f1f1f] outline-none placeholder:text-[#9ca3af] focus:border-accent'
 
 const CANVAS_SYNC_MS = 150
+/** Expanded float is wider than the properties panel, same height, docked right. */
+const EXPAND_WIDTH_RATIO = 1.75
+
+type PanelDockRect = {
+  top: number
+  right: number
+  height: number
+  width: number
+}
+
+function measurePropertiesDock(): PanelDockRect | null {
+  if (!IS_BROWSER) return null
+  const panel = document.querySelector<HTMLElement>('[data-test-id="properties-panel"]')
+  if (!panel) return null
+  const rect = panel.getBoundingClientRect()
+  if (rect.width < 1 || rect.height < 1) return null
+  const width = Math.max(
+    Math.round(rect.width * EXPAND_WIDTH_RATIO),
+    Math.round(rect.width + 160)
+  )
+  return {
+    top: Math.round(rect.top),
+    right: Math.max(0, Math.round(window.innerWidth - rect.right)),
+    height: Math.round(rect.height),
+    width: Math.min(width, Math.round(window.innerWidth - 24))
+  }
+}
 
 function cancelTimeout(timer: { current: ReturnType<typeof setTimeout> | null }) {
   if (timer.current == null) return
@@ -160,31 +199,71 @@ function insertNodeAt(root: HTMLElement, saved: Range | null, node: Node) {
   restoreRange(range)
 }
 
+function committedImageBox(img: HTMLImageElement): { width: number; height: number } {
+  return {
+    width: Number(img.getAttribute('width')) || img.width || 160,
+    height: Number(img.getAttribute('height')) || img.height || 100
+  }
+}
+
+/** Panel images use canvas document pixels 1:1 (no panel-width scale). */
+function layoutPanelImages(root: HTMLElement) {
+  for (const wrap of root.querySelectorAll<HTMLElement>('[data-rich-image]')) {
+    const img = wrap.querySelector('img')
+    if (!img) continue
+    const doc = committedImageBox(img)
+    const nextWidth = `${doc.width}px`
+    const nextHeight = `${doc.height}px`
+    if (
+      wrap.style.width === nextWidth &&
+      wrap.style.height === nextHeight &&
+      wrap.style.display === 'inline-block'
+    ) {
+      continue
+    }
+    wrap.style.display = 'inline-block'
+    wrap.style.width = nextWidth
+    wrap.style.height = nextHeight
+    wrap.style.maxWidth = 'none'
+    wrap.style.overflow = 'hidden'
+    wrap.style.resize = 'both'
+    wrap.style.background = wrap.style.background || '#ececec'
+    img.style.width = '100%'
+    img.style.height = '100%'
+    img.style.display = 'block'
+    img.style.objectFit = 'fill'
+  }
+}
+
 function imageElement(image: RichImage): HTMLElement {
   const wrap = document.createElement('span')
   wrap.contentEditable = 'false'
   wrap.dataset.richImage = '1'
   wrap.dataset.imageHash = image.hash
   wrap.dataset.ossPath = image.ossPath
+  const docW = Math.max(1, image.width || 160)
+  const docH = Math.max(1, image.height || 100)
   wrap.style.display = 'inline-block'
   wrap.style.resize = 'both'
   wrap.style.overflow = 'hidden'
-  wrap.style.maxWidth = '100%'
-  const width = Math.max(1, image.width || 160)
-  const height = Math.max(1, image.height || 100)
-  wrap.style.width = `${width}px`
-  wrap.style.height = `${height}px`
+  wrap.style.maxWidth = 'none'
+  wrap.style.width = `${docW}px`
+  wrap.style.height = `${docH}px`
+  wrap.style.background = '#ececec'
   const img = document.createElement('img')
   img.src = image.src || IMAGE_PLACEHOLDER
   img.alt = ''
   img.dataset.imageHash = image.hash
   img.dataset.ossPath = image.ossPath
-  img.width = width
-  img.height = height
+  img.setAttribute('width', String(docW))
+  img.setAttribute('height', String(docH))
+  img.width = docW
+  img.height = docH
   img.draggable = false
   img.style.width = '100%'
   img.style.height = '100%'
   img.style.display = 'block'
+  img.style.objectFit = 'fill'
   wrap.appendChild(img)
   return wrap
 }
@@ -194,17 +273,9 @@ function decorateImages(root: HTMLElement) {
     const width = Number(img.getAttribute('width')) || img.width || img.naturalWidth || 160
     const height = Number(img.getAttribute('height')) || img.height || img.naturalHeight || 100
     if (img.parentElement?.dataset.richImage != null) {
-      const wrap = img.parentElement
-      wrap.style.display = 'inline-block'
-      wrap.style.width = `${Math.max(1, width)}px`
-      wrap.style.height = `${Math.max(1, height)}px`
-      wrap.style.maxWidth = '100%'
-      wrap.style.overflow = 'hidden'
-      wrap.style.background = wrap.style.background || '#ececec'
       if (!img.getAttribute('src')) img.src = IMAGE_PLACEHOLDER
-      img.style.width = '100%'
-      img.style.height = '100%'
-      img.style.display = 'block'
+      img.setAttribute('width', String(Math.max(1, width)))
+      img.setAttribute('height', String(Math.max(1, height)))
       continue
     }
     img.replaceWith(
@@ -217,19 +288,13 @@ function decorateImages(root: HTMLElement) {
       })
     )
   }
+  layoutPanelImages(root)
 }
 
-function imageBox(wrap: HTMLElement, img: HTMLImageElement): { width: number; height: number } {
+function displayImageBox(wrap: HTMLElement, img: HTMLImageElement): { width: number; height: number } {
   return {
     width: Math.max(1, Math.round(wrap.offsetWidth || img.width || 0)),
     height: Math.max(1, Math.round(wrap.offsetHeight || img.height || 0))
-  }
-}
-
-function committedImageBox(img: HTMLImageElement): { width: number; height: number } {
-  return {
-    width: Number(img.getAttribute('width')) || 0,
-    height: Number(img.getAttribute('height')) || 0
   }
 }
 
@@ -237,32 +302,36 @@ function imageSizesChanged(root: HTMLElement): boolean {
   for (const wrap of root.querySelectorAll<HTMLElement>('[data-rich-image]')) {
     const img = wrap.querySelector('img')
     if (!img) continue
-    const size = imageBox(wrap, img)
+    const size = displayImageBox(wrap, img)
     const committed = committedImageBox(img)
     if (size.width !== committed.width || size.height !== committed.height) return true
   }
   return false
 }
 
-function writeImageSize(
+function writeDocumentImageSize(
   wrap: HTMLElement,
   img: HTMLImageElement,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  hostContentWidth: number
 ) {
-  img.setAttribute('width', String(size.width))
-  img.setAttribute('height', String(size.height))
-  img.width = size.width
-  img.height = size.height
-  wrap.style.width = `${size.width}px`
-  wrap.style.height = `${size.height}px`
+  const next = clampMarkdownImageSize(size, hostContentWidth)
+  img.setAttribute('width', String(next.width))
+  img.setAttribute('height', String(next.height))
+  img.width = next.width
+  img.height = next.height
+  wrap.style.width = `${next.width}px`
+  wrap.style.height = `${next.height}px`
+  return next
 }
 
-function syncImageSizes(root: HTMLElement) {
+function syncImageSizes(root: HTMLElement, hostContentWidth: number) {
   for (const wrap of root.querySelectorAll<HTMLElement>('[data-rich-image]')) {
     const img = wrap.querySelector('img')
     if (!img) continue
-    writeImageSize(wrap, img, imageBox(wrap, img))
+    writeDocumentImageSize(wrap, img, displayImageBox(wrap, img), hostContentWidth)
   }
+  layoutPanelImages(root)
 }
 
 function imageFromEvent(target: EventTarget | null): HTMLImageElement | null {
@@ -298,12 +367,15 @@ export function BuiltinTextField({
   selectionId,
   html,
   markdown,
+  contentWidth,
   onApply,
   onInsertImage
 }: {
   selectionId: string
   html: string
   markdown: string
+  /** Canvas Markdown content width — panel editor and images match this 1:1. */
+  contentWidth: number
   onApply: (markdown: string, imageHashes?: RichImageMap) => void
   onInsertImage: (file: File) => Promise<RichImage | null>
 }) {
@@ -315,6 +387,11 @@ export function BuiltinTextField({
   const skipHtmlSync = useRef(false)
   const skipMarkdownSync = useRef(false)
   const savedRange = useRef<Range | null>(null)
+  const contentWidthRef = useRef(contentWidth)
+  contentWidthRef.current = Math.max(1, contentWidth)
+  const canvasWidth = contentWidthRef.current
+  const [expanded, setExpanded] = useState(false)
+  const [dock, setDock] = useState<PanelDockRect | null>(null)
   const [heading, setHeadingValue] = useState<HeadingLevel>(0)
   const [linkURL, setLinkURL] = useState('https://')
   const [textColor, setTextColor] = useState('#1f1f1f')
@@ -337,18 +414,19 @@ export function BuiltinTextField({
     { value: 6, label: 'h6' }
   ]
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = editorRef.current
     if (!element || mode !== 'rich') return
     if (skipHtmlSync.current) {
       skipHtmlSync.current = false
+      layoutPanelImages(element)
       return
     }
     if (element.innerHTML !== html) element.innerHTML = html
     decorateImages(element)
-  }, [html, mode])
+  }, [html, mode, contentWidth, expanded])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = markdownRef.current
     if (!element || mode !== 'markdown') return
     if (skipMarkdownSync.current) {
@@ -356,7 +434,7 @@ export function BuiltinTextField({
       return
     }
     if (element.value !== markdown) element.value = markdown
-  }, [markdown, mode])
+  }, [markdown, mode, expanded])
 
   useEffect(() => {
     if (mode !== 'rich') return
@@ -378,7 +456,39 @@ export function BuiltinTextField({
     selectionIdRef.current = selectionId
     flushCanvasSyncRef.current()
     historyRef.current.clear(historyRef.current.value)
+    setExpanded(false)
   }, [selectionId])
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      setDock(null)
+      return
+    }
+    function updateDock() {
+      setDock(measurePropertiesDock())
+    }
+    updateDock()
+    const panel = document.querySelector('[data-test-id="properties-panel"]')
+    const observer =
+      typeof ResizeObserver !== 'undefined' && panel
+        ? new ResizeObserver(updateDock)
+        : null
+    if (panel && observer) observer.observe(panel)
+    window.addEventListener('resize', updateDock)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateDock)
+    }
+  }, [expanded])
+
+  useEffect(() => {
+    if (!expanded) return
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded])
 
   useLayoutEffect(() => {
     return () => {
@@ -391,7 +501,7 @@ export function BuiltinTextField({
     cancelTimeout(syncTimer)
     const element = editorRef.current
     if (!element) return
-    syncImageSizes(element)
+    syncImageSizes(element, contentWidthRef.current)
     const hashes = collectImageHashMap(element.innerHTML)
     const next = htmlToMarkdown(element.innerHTML)
     if (!historyRef.current.record(next)) {
@@ -464,15 +574,20 @@ export function BuiltinTextField({
     beginGroup()
   }
 
+  function selectedDocumentImageSize(): { width: number; height: number } | null {
+    const img = selectedImage.current
+    const wrap = img?.parentElement
+    if (!img || !wrap) return null
+    return displayImageBox(wrap, img)
+  }
+
   function refreshToolbar() {
     const element = editorRef.current
     if (!element) return
     const block = selectedBlocks(element, rememberRange())[0]
     const match = block ? /^H([1-6])$/.exec(block.tagName) : null
     setHeadingValue(match ? (Number(match[1]) as HeadingLevel) : 0)
-    const img = selectedImage.current
-    const wrap = img?.parentElement
-    if (img && wrap) setImageSize(imageBox(wrap, img))
+    setImageSize(selectedDocumentImageSize())
   }
 
   function switchMode(next: EditorMode) {
@@ -485,10 +600,8 @@ export function BuiltinTextField({
   }
 
   function pickImage(target: EventTarget | null) {
-    const img = imageFromEvent(target)
-    selectedImage.current = img
-    const wrap = img?.parentElement
-    setImageSize(img && wrap ? imageBox(wrap, img) : null)
+    selectedImage.current = imageFromEvent(target)
+    setImageSize(selectedDocumentImageSize())
   }
 
   commitResizeRef.current = commitImageResize
@@ -516,18 +629,25 @@ export function BuiltinTextField({
     const img = selectedImage.current
     const wrap = img?.parentElement
     if (!img || !wrap || !Number.isFinite(value) || value <= 0) return
-    wrap.style[axis] = `${value}px`
-    writeImageSize(wrap, img, {
-      width: axis === 'width' ? value : img.width,
-      height: axis === 'height' ? value : img.height
-    })
-    setImageSize({
-      width: axis === 'width' ? value : img.width,
-      height: axis === 'height' ? value : img.height
-    })
+    // Document pixels 1:1 with the canvas; aspect is not locked.
+    const current = committedImageBox(img)
+    const next = writeDocumentImageSize(
+      wrap,
+      img,
+      {
+        width: axis === 'width' ? Math.max(1, Math.round(value)) : current.width,
+        height: axis === 'height' ? Math.max(1, Math.round(value)) : current.height
+      },
+      contentWidthRef.current
+    )
+    setImageSize(next)
     beginGroup()
     flushCanvasSync()
     beginGroup()
+  }
+
+  function closeExpanded() {
+    setExpanded(false)
   }
 
   function run(command: string, value?: string) {
@@ -610,6 +730,174 @@ export function BuiltinTextField({
     beginGroup()
   }
 
+  const editorSurfaceStyle = {
+    width: canvasWidth,
+    minWidth: canvasWidth,
+    backgroundColor: pageBackground,
+    color: pageInk
+  } as const
+
+  function openExpanded() {
+    flushCanvasSync()
+    setDock(measurePropertiesDock())
+    setExpanded(true)
+  }
+
+  const editorBody =
+    mode === 'rich' ? (
+      <div
+        ref={editorRef}
+        role="textbox"
+        aria-label={panels.builtinText}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={false}
+        data-property="builtin-text"
+        className={EDITOR_CLASS}
+        style={editorSurfaceStyle}
+        onFocus={() => {
+          beginGroup()
+        }}
+        onMouseDown={(event) => {
+          pickImage(event.target)
+        }}
+        onInput={onEditorInput}
+        onKeyUp={onEditorKeyUp}
+        onCompositionStart={onEditorCompositionStart}
+        onCompositionEnd={onEditorCompositionEnd}
+        onDragEnd={flushCanvasSync}
+        onDrop={flushCanvasSync}
+        onMouseUp={() => {
+          refreshToolbar()
+          commitImageResize()
+        }}
+        onKeyDown={(event) => {
+          if (handleHistoryKey(event, undoEdit, redoEdit)) return
+          if (event.key !== 'Tab') return
+          event.preventDefault()
+          applyBlock((root, range) => adjustBlocksIndent(root, range, event.shiftKey ? -1 : 1))
+        }}
+        onPaste={(event) => {
+          const text = event.clipboardData?.getData('text/plain') ?? ''
+          const files = clipboardImageFiles(event)
+          if (files.length > 0 && !text.trim()) {
+            event.preventDefault()
+            event.stopPropagation()
+            void addImages(files)
+            return
+          }
+          if (text.trim() && looksLikeMarkdown(text)) {
+            event.preventDefault()
+            event.stopPropagation()
+            const fragment = markdownToHTML(text)
+            const root = editorRef.current
+            if (!root) return
+            root.focus()
+            const selection = window.getSelection()
+            if (selection && selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0)
+              range.deleteContents()
+              const template = document.createElement('template')
+              template.innerHTML = fragment
+              const node = template.content
+              range.insertNode(node)
+              selection.collapseToEnd()
+            } else {
+              root.insertAdjacentHTML('beforeend', fragment)
+            }
+            emitRich()
+          }
+        }}
+        onBlur={() => {
+          composing.current = false
+          flushCanvasSync()
+          beginGroup()
+        }}
+      />
+    ) : (
+      <textarea
+        ref={markdownRef}
+        aria-label={panels.editAsMarkdown}
+        data-property="builtin-markdown"
+        defaultValue={markdown}
+        className={MARKDOWN_CLASS}
+        style={{ width: canvasWidth, minWidth: canvasWidth }}
+        spellCheck={false}
+        onFocus={() => {
+          beginGroup()
+        }}
+        onInput={onEditorInput}
+        onKeyUp={onEditorKeyUp}
+        onCompositionStart={onEditorCompositionStart}
+        onCompositionEnd={onEditorCompositionEnd}
+        onKeyDown={(event) => {
+          handleHistoryKey(event, undoEdit, redoEdit)
+        }}
+        onPaste={(event) => {
+          const text = event.clipboardData?.getData('text/plain') ?? ''
+          const files = clipboardImageFiles(event)
+          if (files.length > 0 && !text.trim()) {
+            event.preventDefault()
+            event.stopPropagation()
+            void addMarkdownImages(files)
+            return
+          }
+          requestAnimationFrame(() => {
+            flushCanvasSync()
+          })
+        }}
+        onBlur={() => {
+          composing.current = false
+          flushCanvasSync()
+          beginGroup()
+        }}
+      />
+    )
+
+  const floatDock =
+    dock ??
+    (expanded && IS_BROWSER
+      ? {
+          top: 0,
+          right: 0,
+          height: window.innerHeight,
+          width: Math.min(Math.round(window.innerWidth * 0.4), 560)
+        }
+      : null)
+
+  const expandedFloat =
+    expanded && floatDock && IS_BROWSER
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={panels.expandBuiltinText}
+            data-slot="builtin-text-expand"
+            className="fixed z-[110] flex flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
+            style={{
+              top: floatDock.top,
+              right: floatDock.right,
+              width: floatDock.width,
+              height: floatDock.height
+            }}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-2 py-1.5">
+              <span className="text-xs font-medium text-surface">{panels.builtinText}</span>
+              <IconButton
+                label={panels.collapseBuiltinText}
+                size="xs"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={closeExpanded}
+              >
+                <Minimize2 className="size-3" />
+              </IconButton>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-2">{editorBody}</div>
+          </div>,
+          document.body
+        )
+      : null
+
   return (
     <div className="flex flex-col gap-1">
       <div
@@ -641,6 +929,18 @@ export function BuiltinTextField({
               onChange={setHeading}
             />
           )}
+          <IconButton
+            label={expanded ? panels.collapseBuiltinText : panels.expandBuiltinText}
+            size="xs"
+            active={expanded}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (expanded) closeExpanded()
+              else openExpanded()
+            }}
+          >
+            {expanded ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
+          </IconButton>
         </div>
 
         {mode === 'rich' ? (
@@ -747,116 +1047,17 @@ export function BuiltinTextField({
           </div>
         ) : null}
       </div>
-      {mode === 'rich' ? (
+      {expanded ? (
         <div
-          ref={editorRef}
-          role="textbox"
-          aria-label={panels.builtinText}
-          contentEditable
-          suppressContentEditableWarning
-          spellCheck={false}
-          data-property="builtin-text"
-          className={EDITOR_CLASS}
-          style={{ backgroundColor: pageBackground, color: pageInk }}
-          onFocus={() => {
-            beginGroup()
-          }}
-          onMouseDown={(event) => {
-            pickImage(event.target)
-          }}
-          onInput={onEditorInput}
-          onKeyUp={onEditorKeyUp}
-          onCompositionStart={onEditorCompositionStart}
-          onCompositionEnd={onEditorCompositionEnd}
-          onDragEnd={flushCanvasSync}
-          onDrop={flushCanvasSync}
-          onMouseUp={() => {
-            refreshToolbar()
-            commitImageResize()
-          }}
-          onKeyDown={(event) => {
-            if (handleHistoryKey(event, undoEdit, redoEdit)) return
-            if (event.key !== 'Tab') return
-            event.preventDefault()
-            applyBlock((root, range) => adjustBlocksIndent(root, range, event.shiftKey ? -1 : 1))
-          }}
-          onPaste={(event) => {
-            const text = event.clipboardData?.getData('text/plain') ?? ''
-            const files = clipboardImageFiles(event)
-            if (files.length > 0 && !text.trim()) {
-              event.preventDefault()
-              event.stopPropagation()
-              void addImages(files)
-              return
-            }
-            if (text.trim() && looksLikeMarkdown(text)) {
-              event.preventDefault()
-              event.stopPropagation()
-              const fragment = markdownToHTML(text)
-              const root = editorRef.current
-              if (!root) return
-              root.focus()
-              const selection = window.getSelection()
-              if (selection && selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0)
-                range.deleteContents()
-                const template = document.createElement('template')
-                template.innerHTML = fragment
-                const node = template.content
-                range.insertNode(node)
-                selection.collapseToEnd()
-              } else {
-                root.insertAdjacentHTML('beforeend', fragment)
-              }
-              emitRich()
-              return
-            }
-          }}
-          onBlur={() => {
-            composing.current = false
-            flushCanvasSync()
-            beginGroup()
-          }}
+          className="h-64 w-full rounded border border-dashed border-border/60"
+          aria-hidden
         />
       ) : (
-        <textarea
-          ref={markdownRef}
-          aria-label={panels.editAsMarkdown}
-          data-property="builtin-markdown"
-          defaultValue={markdown}
-          className={MARKDOWN_CLASS}
-          spellCheck={false}
-          onFocus={() => {
-            beginGroup()
-          }}
-          onInput={onEditorInput}
-          onKeyUp={onEditorKeyUp}
-          onCompositionStart={onEditorCompositionStart}
-          onCompositionEnd={onEditorCompositionEnd}
-          onKeyDown={(event) => {
-            handleHistoryKey(event, undoEdit, redoEdit)
-          }}
-          onPaste={(event) => {
-            const text = event.clipboardData?.getData('text/plain') ?? ''
-            const files = clipboardImageFiles(event)
-            if (files.length > 0 && !text.trim()) {
-              event.preventDefault()
-              event.stopPropagation()
-              void addMarkdownImages(files)
-              return
-            }
-            // Prefer pasted markdown text over incidental clipboard images.
-            requestAnimationFrame(() => {
-              flushCanvasSync()
-            })
-          }}
-          onBlur={() => {
-            composing.current = false
-            flushCanvasSync()
-            beginGroup()
-          }}
-        />
+        <div className="max-h-64 w-full overflow-auto rounded border border-border">
+          {editorBody}
+        </div>
       )}
+      {expandedFloat}
     </div>
   )
 }
