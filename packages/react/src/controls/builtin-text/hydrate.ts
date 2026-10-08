@@ -1,6 +1,5 @@
-import { syncBuiltinContent } from '#react/controls/builtin-text/images'
-import { markdownToBlocks } from '#react/controls/builtin-text/markdown'
 import { readRichMarkdown, writeRichMarkdown } from '#react/controls/builtin-text/storage'
+import { syncMarkdownToNodes } from '#react/controls/builtin-text/sync'
 import { collectBuiltinTextLayers, isBuiltinInstance } from '#react/graph/builtin'
 
 import type { Editor } from '@open-pencil/core/editor'
@@ -28,7 +27,7 @@ export function hydrateBuiltinInstance(editor: Editor, hostId: string): void {
       pluginData: writeRichMarkdown(host.pluginData, markdown)
     })
   }
-  syncBuiltinContent(editor, hostId, markdownToBlocks(markdown))
+  syncMarkdownToNodes(editor, hostId, markdown)
 }
 
 export function hydrateBuiltinInstances(editor: Editor): void {

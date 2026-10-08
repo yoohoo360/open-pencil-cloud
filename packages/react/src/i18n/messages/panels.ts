@@ -24,7 +24,7 @@ export const panelMessageDefaults = {
   builtinLibrary: 'Built-in',
   builtinText: 'Markdown',
   builtinTextMode: 'Editor mode',
-  editAsPreview: 'Preview',
+  editAsRichText: 'Visual',
   editAsMarkdown: 'Markdown',
   headingText: 'text',
   textColor: 'Text color',

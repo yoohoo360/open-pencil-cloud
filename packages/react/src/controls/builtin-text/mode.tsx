@@ -10,7 +10,7 @@ import {
 
 import { colorToCSS, parseColor } from '@open-pencil/core/color'
 
-export type BuiltinEditorMode = 'preview' | 'markdown'
+export type BuiltinEditorMode = 'rich' | 'markdown'
 
 const BuiltinEditorModeContext = createContext<{
   mode: BuiltinEditorMode
@@ -35,7 +35,7 @@ function usePageBackground() {
 }
 
 export function BuiltinEditorModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<BuiltinEditorMode>('preview')
+  const [mode, setMode] = useState<BuiltinEditorMode>('rich')
   const pageBackground = usePageBackground()
   const pageInk = contrastingInk(pageBackground)
   const value = useMemo(

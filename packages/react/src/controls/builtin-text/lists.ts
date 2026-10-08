@@ -11,6 +11,7 @@ export type HeadingLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6
 export type ListKind = 'ol' | 'ul' | null
 
 export type RichImage = {
+  /** Document image key; when present in graph.images the remote URL is not re-fetched. */
   hash: string
   ossPath: string
   src: string
@@ -149,14 +150,17 @@ export function flattenBlocks(blocks: RichBlock[]): {
     const prefix = `${LIST_INDENT.repeat(assigned.indent)}${assigned.marker}`
     if (text.length > 0) text += '\n'
     const lineStart = text.length
-    if (prefix && block.heading > 0) {
-      runs.push({ start: lineStart, length: prefix.length, style: styleForHeading(block.heading) })
+    const contentStart = lineStart + prefix.length
+    if (block.heading > 0 && block.runs.length === 0) {
+      runs.push({
+        start: contentStart,
+        length: block.content.length,
+        style: styleForHeading(block.heading)
+      })
     }
-    runs.push(...shiftSpan(block.runs, 0, block.content.length, lineStart + prefix.length))
-    highlights.push(
-      ...shiftSpan(block.highlights, 0, block.content.length, lineStart + prefix.length)
-    )
-    links.push(...shiftSpan(block.links, 0, block.content.length, lineStart + prefix.length))
+    runs.push(...shiftSpan(block.runs, 0, block.content.length, contentStart))
+    highlights.push(...shiftSpan(block.highlights, 0, block.content.length, contentStart))
+    links.push(...shiftSpan(block.links, 0, block.content.length, contentStart))
     text += prefix + block.content
   }
   return { text, runs: mergeHighlightRuns(runs, highlights), highlights, links }

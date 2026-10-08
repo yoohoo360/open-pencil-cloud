@@ -22,6 +22,8 @@ import type { Color } from '@open-pencil/scene-graph/primitives'
 
 export const RICH_PLUGIN_ID = 'open-pencil'
 export const RICH_PLUGIN_KEY = 'rich-text'
+/** Separate from markdown text: maps image URL / OSS path → document image hash. */
+export const RICH_IMAGE_MAP_KEY = 'rich-text-images'
 export {
   headingLevelForStyle,
   RICH_BODY_SIZE,
@@ -181,6 +183,7 @@ export function sceneStyleFromRich(style: RichStyle): CharacterStyleOverride {
   if (style.textDecoration && style.textDecoration !== 'NONE')
     next.textDecoration = style.textDecoration
   if (style.fontSize) next.fontSize = style.fontSize
+  if (style.fontFamily) next.fontFamily = style.fontFamily
   if (style.fills) next.fills = style.fills
   if (style.background) next.backgroundFills = [solidFill(style.background)]
   if (style.href && !style.fills) next.fills = [solidFill(LINK_COLOR)]
@@ -198,14 +201,18 @@ function blocksToHTML(blocks: RichBlock[]): string {
   for (const [index, block] of blocks.entries()) {
     if (block.image) {
       const image = block.image
-      const src = escapeHTML(image.src)
       const hash = escapeHTML(image.hash)
       const oss = escapeHTML(image.ossPath)
-      const size =
-        image.width > 0 && image.height > 0
-          ? ` width="${image.width}" height="${image.height}"`
-          : ''
-      html += `<p><img src="${src}" data-image-hash="${hash}" data-oss-path="${oss}"${size} alt=""></p>`
+      const width = image.width > 0 ? image.width : 160
+      const height = image.height > 0 ? image.height : 100
+      const src = escapeHTML(
+        image.src ||
+          'data:image/svg+xml,' +
+            encodeURIComponent(
+              '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100"><rect fill="#ececec" width="160" height="100"/><text x="80" y="54" text-anchor="middle" fill="#8a8a8a" font-size="12" font-family="sans-serif">image</text></svg>'
+            )
+      )
+      html += `<p><img src="${src}" data-image-hash="${hash}" data-oss-path="${oss}" width="${width}" height="${height}" alt=""></p>`
       continue
     }
     const assigned = markers[index] ?? { indent: 0, marker: '' }
@@ -230,12 +237,17 @@ export function styledTextToHTML(
   return blocksToHTML(blocks)
 }
 
+const MONO_FONT = 'Inter'
+
 function styleFromTag(name: string, style: RichStyle): RichStyle {
   if (name === 'B' || name === 'STRONG') return { ...style, fontWeight: 700 }
   if (name === 'I' || name === 'EM') return { ...style, italic: true }
   if (name === 'U') return { ...style, textDecoration: 'UNDERLINE' }
   if (name === 'S' || name === 'STRIKE' || name === 'DEL') {
     return { ...style, textDecoration: 'STRIKETHROUGH' }
+  }
+  if (name === 'CODE' || name === 'PRE') {
+    return { ...style, fontFamily: MONO_FONT, fontSize: style.fontSize ?? 12 }
   }
   if (name === 'H1') return { ...style, ...styleForHeading(1) }
   if (name === 'H2') return { ...style, ...styleForHeading(2) }
@@ -324,13 +336,18 @@ function applyImageBox(image: RichImage, box: { width: number; height: number })
 }
 
 function imageFromAttrs(attrs: string): RichImage | null {
-  const hash = quotedAttr(attrs, 'data-image-hash')
+  const ossPath = quotedAttr(attrs, 'data-oss-path') ?? ''
+  const src = quotedAttr(attrs, 'src') ?? ''
+  const attrHash = quotedAttr(attrs, 'data-image-hash') ?? ''
+  const srcKey =
+    src && !src.startsWith('data:') && !src.startsWith('blob:') ? src : ''
+  const hash = attrHash || ossPath || srcKey
   if (!hash) return null
   const box = boxFromCss(attrs)
   return {
     hash,
-    ossPath: quotedAttr(attrs, 'data-oss-path') ?? '',
-    src: quotedAttr(attrs, 'src') ?? '',
+    ossPath,
+    src,
     width: box.width || Number(quotedAttr(attrs, 'width') ?? 0) || 0,
     height: box.height || Number(quotedAttr(attrs, 'height') ?? 0) || 0
   }
@@ -342,6 +359,7 @@ function isStyled(style: RichStyle): boolean {
     style.italic ||
     (style.textDecoration && style.textDecoration !== 'NONE') ||
     style.fontSize ||
+    style.fontFamily ||
     style.fills ||
     style.background ||
     style.href
@@ -357,7 +375,21 @@ function decodeEntities(value: string): string {
     .replaceAll('&quot;', '"')
 }
 
-const BLOCK_TAGS = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'])
+const BLOCK_TAGS = new Set([
+  'P',
+  'DIV',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'LI',
+  'PRE',
+  'BLOCKQUOTE',
+  'TR'
+])
+const TABLE_SKIP_TAGS = new Set(['TABLE', 'THEAD', 'TBODY', 'TFOOT', 'COLGROUP', 'COL'])
 
 function headingFromTag(name: string): HeadingLevel | null {
   const match = /^H([1-6])$/.exec(name)
@@ -400,7 +432,11 @@ function pushBlockChunk(block: RichBlock, value: string, style: RichStyle): void
 }
 
 function openStyledTag(name: string, attrs: string, current: RichStyle): RichStyle {
-  let next = styleFromInline(attrs, styleFromTag(name, current))
+  const styleAttrs =
+    name === 'PRE' || name === 'CODE'
+      ? attrs.replace(/background(?:-color)?\s*:[^;]+;?/gi, '')
+      : attrs
+  let next = styleFromInline(styleAttrs, styleFromTag(name, current))
   if (name === 'A') {
     const href = hrefFromAttrs(attrs)
     if (href) {
@@ -423,6 +459,10 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
   let current: RichBlock | null = null
   let skipMarker = 0
   let pendingImageBox = { width: 0, height: 0 }
+  let pendingImageMeta: { hash: string; ossPath: string } = { hash: '', ossPath: '' }
+  let tableCells: string[] | null = null
+  let cellText = ''
+  let inTableCell = false
 
   function flush() {
     if (!current) return
@@ -448,36 +488,83 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
     return current ?? emptyBlock()
   }
 
+  function finishTableRow() {
+    if (!tableCells) return
+    const row = `| ${tableCells.join(' | ')} |`
+    startBlock(0, null, 0, '')
+    // Keep default body text style so canvas/Skia always has a resolvable font.
+    pushBlockChunk(ensureBlock(), row, {})
+    flush()
+    tableCells = null
+  }
+
   const token = /<(\/)?([a-z][a-z0-9]*)([^>]*)>|([^<]+)/gi
   let match: RegExpExecArray | null
   while ((match = token.exec(html))) {
     const [, slash, tag, attrs, raw] = match
     if (raw) {
       if (skipMarker === 0) {
-        pushBlockChunk(ensureBlock(), decodeEntities(raw), stack.at(-1) ?? {})
+        const text = decodeEntities(raw)
+        if (inTableCell) cellText += text
+        else pushBlockChunk(ensureBlock(), text, stack.at(-1) ?? {})
       }
       continue
     }
     const name = (tag ?? '').toUpperCase()
     const attr = attrs ?? ''
     if (!slash && name === 'IMG') {
-      const image = imageFromAttrs(attr)
+      const image =
+        imageFromAttrs(attr) ??
+        (pendingImageMeta.hash || pendingImageMeta.ossPath
+          ? imageFromAttrs(
+              `data-image-hash="${pendingImageMeta.hash}" data-oss-path="${pendingImageMeta.ossPath}" src="" width="${pendingImageBox.width}" height="${pendingImageBox.height}"`
+            )
+          : null)
       if (image) {
         flush()
         blocks.push(emptyBlock({ image: applyImageBox(image, pendingImageBox) }))
       }
       pendingImageBox = { width: 0, height: 0 }
+      pendingImageMeta = { hash: '', ossPath: '' }
+      continue
+    }
+    if (!slash && name === 'HR') {
+      flush()
+      blocks.push(emptyBlock({ content: '---' }))
       continue
     }
     if (slash) {
       if (name === 'SPAN' && skipMarker > 0) skipMarker -= 1
       if (name === 'UL' || name === 'OL') listStack.pop()
+      if (name === 'TH' || name === 'TD') {
+        if (tableCells) tableCells.push(cellText.trim())
+        inTableCell = false
+        cellText = ''
+      }
+      if (name === 'TR') finishTableRow()
       if (BLOCK_TAGS.has(name)) flush()
       if (stack.length > 1) stack.pop()
       continue
     }
     if (name === 'BR') {
-      pushBlockChunk(ensureBlock(), '\n', stack.at(-1) ?? {})
+      if (inTableCell) cellText += ' '
+      else pushBlockChunk(ensureBlock(), '\n', stack.at(-1) ?? {})
+      continue
+    }
+    if (TABLE_SKIP_TAGS.has(name)) {
+      stack.push(stack.at(-1) ?? {})
+      continue
+    }
+    if (name === 'TR') {
+      flush()
+      tableCells = []
+      stack.push(stack.at(-1) ?? {})
+      continue
+    }
+    if (name === 'TH' || name === 'TD') {
+      inTableCell = true
+      cellText = ''
+      stack.push(openStyledTag(name, attr, stack.at(-1) ?? {}))
       continue
     }
     if (name === 'UL' || name === 'OL') {
@@ -492,17 +579,30 @@ function htmlToBlocks(html: string): { blocks: RichBlock[] } {
     }
     if (name === 'SPAN' && isImageWrap(attr)) {
       pendingImageBox = boxFromCss(attr)
+      pendingImageMeta = {
+        hash: quotedAttr(attr, 'data-image-hash') ?? '',
+        ossPath: quotedAttr(attr, 'data-oss-path') ?? ''
+      }
       stack.push(stack.at(-1) ?? {})
       continue
     }
     const heading = headingFromTag(name)
-    if (heading != null || name === 'P' || name === 'DIV' || name === 'LI') {
-      const list = name === 'LI' ? (listStack.at(-1) ?? null) : listFromAttrs(attr).list
-      const indent =
-        heading != null
-          ? headingListIndent(heading, listStack.length)
-          : Math.max(0, listStack.length - (name === 'LI' ? 1 : 0))
-      startBlock(heading ?? 0, list, indent, attr)
+    if (
+      heading != null ||
+      name === 'P' ||
+      name === 'DIV' ||
+      name === 'LI' ||
+      name === 'PRE' ||
+      name === 'BLOCKQUOTE'
+    ) {
+      if (!inTableCell) {
+        const list = name === 'LI' ? (listStack.at(-1) ?? null) : listFromAttrs(attr).list
+        const indent =
+          heading != null
+            ? headingListIndent(heading, listStack.length)
+            : Math.max(0, listStack.length - (name === 'LI' ? 1 : 0))
+        startBlock(heading ?? 0, list, indent, attr)
+      }
     }
     stack.push(openStyledTag(name, attr, stack.at(-1) ?? {}))
   }

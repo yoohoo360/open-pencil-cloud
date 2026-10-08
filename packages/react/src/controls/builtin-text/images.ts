@@ -1,12 +1,14 @@
-import { uploadOSSImage } from '#react/app/document/oss'
-import type { RichBlock, RichImage } from '#react/controls/builtin-text/lists'
-import { flattenBlocks } from '#react/controls/builtin-text/lists'
-import { BUILTIN_COMPONENT_NAME } from '#react/graph/builtin'
+import {
+  downloadOSSObject,
+  fetchRemoteImageViaApi,
+  ossPublicUrl,
+  uploadOSSImage
+} from '#react/app/document/oss'
+import type { RichImage } from '#react/controls/builtin-text/lists'
 
 import { TRANSPARENT } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
-import { computeAllLayouts, computeLayout } from '@open-pencil/core/layout'
-import type { Fill, SceneNode } from '@open-pencil/scene-graph'
+import type { Fill } from '@open-pencil/scene-graph'
 
 const RASTER_IMAGE_TYPES = new Set([
   'image/png',
@@ -16,7 +18,86 @@ const RASTER_IMAGE_TYPES = new Set([
   'image/avif'
 ])
 
-const BLACK = { r: 0.12, g: 0.12, b: 0.12, a: 1 }
+const PLACEHOLDER_GRAY = { r: 0.93, g: 0.93, b: 0.93, a: 1 }
+const DEFAULT_IMAGE_WIDTH = 160
+const DEFAULT_IMAGE_HEIGHT = 100
+
+export const IMAGE_PLACEHOLDER =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100"><rect fill="#ececec" width="160" height="100"/><text x="80" y="54" text-anchor="middle" fill="#8a8a8a" font-size="12" font-family="sans-serif">image</text></svg>'
+  )
+
+const imageSourceCache = new Map<string, { bytes: Uint8Array; src: string }>()
+
+function decodeAttr(value: string): string {
+  const next = value.replaceAll('&amp;', '&')
+  try {
+    return decodeURIComponent(next)
+  } catch {
+    return next
+  }
+}
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')
+}
+
+function bytesToSrc(key: string, bytes: Uint8Array): string {
+  const cached = imageSourceCache.get(key)
+  if (cached && cached.bytes === bytes) return cached.src
+  if (cached) URL.revokeObjectURL(cached.src)
+  const src = URL.createObjectURL(new Blob([bytes]))
+  imageSourceCache.set(key, { bytes, src })
+  return src
+}
+
+function resolveImageSrc(
+  graph: { images?: Map<string, Uint8Array> } | null | undefined,
+  hash: string,
+  ossPath: string,
+  existingSrc = ''
+): string {
+  const images = graph?.images
+  if (images) {
+    for (const key of [hash, ossPath]) {
+      if (!key) continue
+      const bytes = images.get(key)
+      if (!bytes || bytes.length === 0) continue
+      return bytesToSrc(key, bytes)
+    }
+  }
+  if (ossPath && isHttpUrl(ossPath)) return ossPath
+  if (hash && isHttpUrl(hash)) return hash
+  const publicUrl = ossPath ? ossPublicUrl(ossPath) : undefined
+  if (publicUrl) return publicUrl
+  if (existingSrc && !existingSrc.startsWith('data:')) return existingSrc
+  return IMAGE_PLACEHOLDER
+}
+
+export function rememberGraphImage(
+  editor: Editor,
+  bytes: Uint8Array,
+  aliases: readonly string[] = []
+): string {
+  const hash = editor.storeImage(bytes)
+  for (const alias of aliases) {
+    if (alias && alias !== hash) editor.graph.images.set(alias, bytes)
+  }
+  return hash
+}
+
+/** Match an already-downloaded image by its document `hash` (preferred) or URL aliases. */
+export function lookupCanvasImageKey(
+  graph: { images: Map<string, Uint8Array> },
+  image: RichImage
+): string | null {
+  if (image.hash && graph.images.has(image.hash)) return image.hash
+  for (const key of [image.ossPath, image.src, resolveCanvasImageKey(image)]) {
+    if (key && key !== image.hash && graph.images.has(key)) return key
+  }
+  return null
+}
 
 export function uniqueClipboardImages(files: File[], items: File[]): File[] {
   const listed = uniqueImageFiles(files)
@@ -37,7 +118,9 @@ function uniqueImageFiles(files: File[]): File[] {
   return unique
 }
 
-export function clipboardImageFiles(event: ClipboardEvent): File[] {
+export function clipboardImageFiles(event: {
+  clipboardData: DataTransfer | null
+}): File[] {
   const files = [...(event.clipboardData?.files ?? [])]
   const items: File[] = []
   for (const item of event.clipboardData?.items ?? []) {
@@ -57,7 +140,6 @@ async function imageSize(file: Blob): Promise<{ width: number; height: number }>
 
 export async function prepareRichImage(editor: Editor, file: File): Promise<RichImage> {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  const hash = editor.storeImage(bytes)
   const { width, height } = await imageSize(file)
   let ossPath = ''
   try {
@@ -65,203 +147,133 @@ export async function prepareRichImage(editor: Editor, file: File): Promise<Rich
   } catch (error) {
     console.error('Failed to upload image to OSS', error)
   }
+  const hash = rememberGraphImage(editor, bytes, [ossPath])
   return {
     hash,
     ossPath,
-    src: URL.createObjectURL(file),
+    src: bytesToSrc(hash, bytes),
     width,
     height
   }
 }
 
-const imageSourceCache = new Map<string, { bytes: Uint8Array; src: string }>()
-
 export function hydrateImageSources(
   html: string,
   graph: { images: Map<string, Uint8Array> }
 ): string {
-  return html.replace(/<img\b([^>]*)>/gi, (full, attrs: string) => {
-    const hash = /data-image-hash="([^"]+)"/i.exec(attrs)?.[1]
-    if (!hash) return full
-    const bytes = graph.images.get(hash)
-    if (!bytes) return full
-    const cached = imageSourceCache.get(hash)
-    let src = cached?.src
-    if (!cached || cached.bytes !== bytes) {
-      if (cached) URL.revokeObjectURL(cached.src)
-      src = URL.createObjectURL(new Blob([bytes]))
-      imageSourceCache.set(hash, { bytes, src })
-    }
-    if (!src) return full
-    if (/\ssrc="/i.test(attrs)) {
-      return `<img${attrs.replace(/\ssrc="[^"]*"/i, ` src="${src}"`)}>`
-    }
-    return `<img src="${src}"${attrs}>`
+  return html.replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
+    const hash = decodeAttr(/data-image-hash="([^"]*)"/i.exec(attrs)?.[1] ?? '')
+    const ossPath = decodeAttr(/data-oss-path="([^"]*)"/i.exec(attrs)?.[1] ?? '')
+    const existingSrc = /src="([^"]*)"/i.exec(attrs)?.[1] ?? ''
+    const src = resolveImageSrc(graph, hash, ossPath, existingSrc)
+    let next = attrs.replace(/\ssrc="[^"]*"/i, '').replace(/\salt="[^"]*"/i, '')
+    if (hash && !/data-image-hash=/i.test(next)) next += ` data-image-hash="${hash}"`
+    if (ossPath && !/data-oss-path=/i.test(next)) next += ` data-oss-path="${ossPath}"`
+    if (!/\swidth=/i.test(next)) next += ` width="${DEFAULT_IMAGE_WIDTH}"`
+    if (!/\sheight=/i.test(next)) next += ` height="${DEFAULT_IMAGE_HEIGHT}"`
+    return `<img src="${src}" alt="image"${next}>`
   })
 }
 
-function imageHash(node: SceneNode): string | undefined {
-  return node.fills.find((fill) => fill.type === 'IMAGE')?.imageHash
-}
-
-function isImageRect(node: SceneNode): boolean {
-  return node.type === 'RECTANGLE' && Boolean(imageHash(node))
-}
-
-function imageFill(hash: string): Fill {
+export function imageFill(hash: string): Fill {
   return {
     type: 'IMAGE',
     imageHash: hash,
     imageScaleMode: 'FILL',
     color: TRANSPARENT,
     opacity: 1,
-    visible: true
+    visible: true,
+    blendMode: 'NORMAL'
   }
 }
 
-type ContentSlot =
-  | { kind: 'text'; text: string; styleRuns: ReturnType<typeof flattenBlocks>['runs'] }
-  | { kind: 'image'; image: RichImage }
-
-function contentSlots(blocks: RichBlock[]): ContentSlot[] {
-  const slots: ContentSlot[] = []
-  let textBlocks: RichBlock[] = []
-  function flush() {
-    if (textBlocks.length === 0) return
-    const flattened = flattenBlocks(textBlocks)
-    slots.push({ kind: 'text', text: flattened.text, styleRuns: flattened.runs })
-    textBlocks = []
-  }
-  for (const block of blocks) {
-    if (block.image) {
-      flush()
-      slots.push({ kind: 'image', image: block.image })
-      continue
-    }
-    textBlocks.push(block)
-  }
-  flush()
-  return slots
-}
-
-function contentWidth(host: SceneNode): number {
-  return Math.max(1, host.width - host.paddingLeft - host.paddingRight)
-}
-
-function textLeafLayout(host: SceneNode): Partial<SceneNode> {
+export function placeholderImageFill(): Fill {
   return {
-    x: host.paddingLeft,
-    width: contentWidth(host),
-    fontSize: 14,
-    textAutoResize: 'HEIGHT',
-    layoutAlignSelf: 'STRETCH',
-    layoutGrow: 0
+    type: 'SOLID',
+    color: PLACEHOLDER_GRAY,
+    opacity: 1,
+    visible: true,
+    blendMode: 'NORMAL'
   }
 }
 
-function createTextNode(
-  editor: Editor,
-  host: SceneNode,
-  slot: Extract<ContentSlot, { kind: 'text' }>
-) {
-  return editor.graph.createNode('TEXT', host.id, {
-    name: BUILTIN_COMPONENT_NAME,
-    text: slot.text,
-    styleRuns: slot.styleRuns,
-    y: host.paddingTop,
-    height: Math.max(16, slot.text ? 20 : 16),
-    fills: [{ type: 'SOLID', color: BLACK, opacity: 1, visible: true }],
-    ...textLeafLayout(host)
-  })
+export function resolveCanvasImageKey(image: RichImage): string {
+  if (image.hash) return image.hash
+  if (image.ossPath) return image.ossPath
+  return `placeholder:${image.width}x${image.height}`
 }
 
-function createImageNode(editor: Editor, host: SceneNode, image: RichImage) {
-  const width = Math.max(1, image.width || 1)
-  const height = Math.max(1, image.height || 1)
-  return editor.graph.createNode('RECTANGLE', host.id, {
-    name: 'Image',
-    x: host.paddingLeft,
-    y: host.paddingTop,
-    width,
-    height,
-    layoutAlignSelf: 'AUTO',
-    layoutGrow: 0,
-    fills: [imageFill(image.hash)]
-  })
-}
-
-function snapBuiltinPadding(editor: Editor, hostId: string): void {
-  const host = editor.graph.getNode(hostId)
-  if (!host) return
-  const children = editor.graph
-    .getChildren(hostId)
-    .filter((node) => node.visible && node.layoutPositioning !== 'ABSOLUTE')
-  for (const [index, child] of children.entries()) {
-    const next: Partial<SceneNode> = {}
-    if (host.paddingLeft > 0 && Math.abs(child.x) < 0.51) next.x = host.paddingLeft
-    if (index === 0 && host.paddingTop > 0 && Math.abs(child.y) < 0.51) next.y = host.paddingTop
-    if (child.type === 'TEXT' && child.layoutAlignSelf === 'STRETCH') {
-      const width = contentWidth(host)
-      if (Math.abs(child.width - width) > 0.51) next.width = width
-    }
-    if (Object.keys(next).length > 0) editor.graph.updateNode(child.id, next)
-  }
-}
-
-function layoutBuiltinHost(editor: Editor, hostId: string): void {
-  const host = editor.graph.getNode(hostId)
-  if (host && host.layoutMode !== 'NONE') computeLayout(editor.graph, hostId)
-  snapBuiltinPadding(editor, hostId)
-  computeAllLayouts(editor.graph, editor.state.currentPageId)
-  editor.requestRender()
-}
-
-export function syncBuiltinContent(editor: Editor, hostId: string, blocks: RichBlock[]): void {
-  const host = editor.graph.getNode(hostId)
-  if (!host) return
-  const slots = contentSlots(blocks)
-  const children = editor.graph
-    .getChildren(hostId)
-    .filter((node) => node.type === 'TEXT' || isImageRect(node))
-  const used = new Set<string>()
-  const order: string[] = []
-  for (const slot of slots) {
-    if (slot.kind === 'text') {
-      const existing = children.find((node) => node.type === 'TEXT' && !used.has(node.id))
-      if (existing) {
-        editor.graph.updateNode(existing.id, {
-          text: slot.text,
-          styleRuns: slot.styleRuns,
-          ...textLeafLayout(host)
-        })
-        used.add(existing.id)
-        order.push(existing.id)
-      } else {
-        order.push(createTextNode(editor, host, slot).id)
+export async function downloadRemoteImageBytes(path: string): Promise<Uint8Array | null> {
+  try {
+    if (/^https?:\/\//i.test(path)) {
+      try {
+        const proxied = await fetchRemoteImageViaApi(path)
+        if (proxied.length > 0) return proxied
+      } catch (error) {
+        console.warn('API image proxy failed, falling back', path, error)
       }
-      continue
+      try {
+        const response = await fetch(path)
+        if (response.ok) {
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          if (bytes.length > 0) return bytes
+        }
+      } catch {
+        // Browser canvas can still rasterize some URLs that fetch cannot read.
+      }
+      return await rasterizeUrl(path)
     }
-    const existing =
-      children.find((node) => imageHash(node) === slot.image.hash && !used.has(node.id)) ??
-      children.find((node) => isImageRect(node) && !used.has(node.id))
-    if (existing) {
-      editor.graph.updateNode(existing.id, {
-        x: host.paddingLeft,
-        width: Math.max(1, slot.image.width),
-        height: Math.max(1, slot.image.height),
-        layoutAlignSelf: 'AUTO',
-        layoutGrow: 0,
-        fills: [imageFill(slot.image.hash)]
-      })
-      used.add(existing.id)
-      order.push(existing.id)
-    } else {
-      order.push(createImageNode(editor, host, slot.image).id)
+    if (path.startsWith('data:') || path.startsWith('blob:')) {
+      try {
+        const response = await fetch(path)
+        if (response.ok) {
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          if (bytes.length > 0) return bytes
+        }
+      } catch {
+        return await rasterizeUrl(path)
+      }
+      return await rasterizeUrl(path)
     }
+    try {
+      return await downloadOSSObject(path)
+    } catch {
+      const publicUrl = ossPublicUrl(path)
+      if (!publicUrl) return null
+      try {
+        return await fetchRemoteImageViaApi(publicUrl)
+      } catch {
+        return await rasterizeUrl(publicUrl)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load builtin markdown image', path, error)
+    return null
   }
-  for (const child of children) {
-    if (!used.has(child.id)) editor.graph.deleteNode(child.id)
+}
+
+async function rasterizeUrl(url: string): Promise<Uint8Array | null> {
+  if (typeof Image === 'undefined' || typeof document === 'undefined') return null
+  const image = new Image()
+  image.referrerPolicy = 'no-referrer'
+  if (!url.startsWith('blob:') && !url.startsWith('data:')) image.crossOrigin = 'anonymous'
+  const loaded = new Promise<boolean>((resolve) => {
+    image.onload = () => resolve(true)
+    image.onerror = () => resolve(false)
+  })
+  image.src = url
+  if (!(await loaded) || image.naturalWidth < 1 || image.naturalHeight < 1) return null
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth
+  canvas.height = image.naturalHeight
+  const context = canvas.getContext('2d')
+  if (!context) return null
+  try {
+    context.drawImage(image, 0, 0)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!blob) return null
+    return new Uint8Array(await blob.arrayBuffer())
+  } catch {
+    return null
   }
-  for (const [index, id] of order.entries()) editor.graph.reorderChild(id, hostId, index)
-  layoutBuiltinHost(editor, hostId)
 }

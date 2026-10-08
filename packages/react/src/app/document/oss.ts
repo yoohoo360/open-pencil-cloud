@@ -118,6 +118,17 @@ export async function resolveOssReadUrl(path: string, revision?: string | number
   return URL.createObjectURL(res.data)
 }
 
+/** Server-side fetch for cross-origin images (avoids browser CORS). */
+export async function fetchRemoteImageViaApi(url: string): Promise<Uint8Array> {
+  const res = await apiClient.get<ArrayBuffer>('/api/common/fetch-url', {
+    params: { url },
+    responseType: 'arraybuffer',
+    timeout: 60_000
+  })
+  if (!res.data) throw new Error('Empty remote image response')
+  return new Uint8Array(res.data)
+}
+
 export async function downloadOSSObject(path: string): Promise<Uint8Array> {
   const objectPath = ossObjectPath(path)
   if (!objectPath) throw new Error('Empty OSS path')

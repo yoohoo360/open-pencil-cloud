@@ -1,6 +1,11 @@
-import { syncBuiltinContent } from '#react/controls/builtin-text/images'
-import { markdownToBlocks } from '#react/controls/builtin-text/markdown'
-import { readRichMarkdown, writeRichMarkdown } from '#react/controls/builtin-text/storage'
+import { collectImageHashMap, normalizeRichMarkdown } from '#react/controls/builtin-text/markdown'
+import {
+  mergeRichImageMap,
+  readRichMarkdown,
+  writeRichMarkdown,
+  type RichImageMap
+} from '#react/controls/builtin-text/storage'
+import { syncMarkdownToNodes } from '#react/controls/builtin-text/sync'
 
 import type { Editor } from '@open-pencil/core/editor'
 import type { PluginDataEntry } from '@open-pencil/scene-graph'
@@ -13,15 +18,25 @@ export function applyRichPluginData(
   const host = editor.graph.getNode(hostId)
   if (!host) return
   editor.graph.updateNode(hostId, { pluginData })
-  syncBuiltinContent(editor, hostId, markdownToBlocks(readRichMarkdown(pluginData) || 'Write here'))
+  syncMarkdownToNodes(editor, hostId, readRichMarkdown(pluginData) || 'Write here')
 }
 
-export function commitRichMarkdown(editor: Editor, hostId: string, markdown: string): boolean {
+export function commitRichMarkdown(
+  editor: Editor,
+  hostId: string,
+  markdown: string,
+  imageHashes: RichImageMap = {}
+): boolean {
   const host = editor.graph.getNode(hostId)
   if (!host) return false
   const previous = structuredClone(host.pluginData ?? [])
-  if (readRichMarkdown(previous) === markdown) return false
-  applyRichPluginData(editor, hostId, writeRichMarkdown(previous, markdown))
+  const harvested = { ...collectImageHashMap(markdown), ...imageHashes }
+  const normalized = normalizeRichMarkdown(markdown)
+  const markdownChanged = readRichMarkdown(previous) !== normalized
+  let next = markdownChanged ? writeRichMarkdown(previous, normalized) : previous
+  next = mergeRichImageMap(next, harvested)
+  if (!markdownChanged && JSON.stringify(next) === JSON.stringify(previous)) return false
+  applyRichPluginData(editor, hostId, next)
   return true
 }
 

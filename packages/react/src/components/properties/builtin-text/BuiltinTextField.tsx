@@ -1,5 +1,5 @@
 import { ColorSwatch } from '#react/components/properties/builtin-text/ColorSwatch'
-import { AppSelect } from '#react/components/ui/AppSelect'
+import { AppSelect, type AppSelectOption } from '#react/components/ui/AppSelect'
 import { IconButton } from '#react/components/ui/IconButton'
 import { SegmentedControl } from '#react/components/ui/SegmentedControl'
 import {
@@ -9,9 +9,16 @@ import {
   toggleBlocksList
 } from '#react/controls/builtin-text/edit'
 import { MarkdownEditHistory } from '#react/controls/builtin-text/history'
-import { clipboardImageFiles } from '#react/controls/builtin-text/images'
+import { clipboardImageFiles, IMAGE_PLACEHOLDER } from '#react/controls/builtin-text/images'
 import type { HeadingLevel, RichImage } from '#react/controls/builtin-text/lists'
-import { htmlToMarkdown, insertMarkdownImages } from '#react/controls/builtin-text/markdown'
+import {
+  collectImageHashMap,
+  htmlToMarkdown,
+  insertMarkdownImages,
+  looksLikeMarkdown,
+  markdownToHTML
+} from '#react/controls/builtin-text/markdown'
+import type { RichImageMap } from '#react/controls/builtin-text/storage'
 import { useBuiltinEditorMode, type BuiltinEditorMode } from '#react/controls/builtin-text/mode'
 import { useI18n } from '#react/i18n'
 import { Image as ImageIcon, Link, List, ListOrdered, Strikethrough } from 'lucide-react'
@@ -27,10 +34,10 @@ import {
 type EditorMode = BuiltinEditorMode
 
 const EDITOR_CLASS =
-  'min-h-24 w-full rounded border border-border bg-transparent px-1.5 py-1 text-[11px] outline-none focus:border-accent [&_a]:text-accent [&_a]:underline [&_[data-rich-marker]]:select-none [&_[data-rich-marker]]:pr-1 [&_[data-rich-marker]]:opacity-70 [&_h1]:text-[18px] [&_h1]:font-bold [&_h2]:text-[16px] [&_h2]:font-bold [&_h3]:text-[15px] [&_h3]:font-bold [&_h4]:text-[13px] [&_h4]:font-bold [&_h5]:text-[12px] [&_h5]:font-bold [&_h6]:text-[11px] [&_h6]:font-bold [&_img]:block [&_img]:max-w-full'
+  'min-h-56 w-full rounded border border-border bg-transparent px-1.5 py-1 text-[11px] outline-none focus:border-accent [&_a]:text-accent [&_a]:underline [&_[data-rich-marker]]:select-none [&_[data-rich-marker]]:pr-1 [&_[data-rich-marker]]:opacity-70 [&_h1]:text-[18px] [&_h1]:font-bold [&_h2]:text-[16px] [&_h2]:font-bold [&_h3]:text-[15px] [&_h3]:font-bold [&_h4]:text-[13px] [&_h4]:font-bold [&_h5]:text-[12px] [&_h5]:font-bold [&_h6]:text-[11px] [&_h6]:font-bold [&_img]:block [&_img]:max-w-full [&_[data-rich-image]]:my-1 [&_[data-rich-image]]:inline-block [&_[data-rich-image]]:min-h-[40px] [&_[data-rich-image]]:min-w-[40px] [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_pre]:my-2 [&_pre]:rounded [&_pre]:bg-muted/40 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-[11px] [&_code]:font-mono [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:opacity-80'
 
 const MARKDOWN_CLASS =
-  'min-h-24 w-full resize-y rounded border border-border bg-panel px-1.5 py-1 font-mono text-[11px] text-surface outline-none focus:border-accent'
+  'min-h-56 w-full resize-y rounded border border-border bg-panel px-1.5 py-1 font-mono text-[11px] text-surface outline-none focus:border-accent'
 
 const TOOL_INPUT_CLASS =
   'h-6 rounded border border-border bg-[#eee] px-1 text-[11px] text-[#1f1f1f] outline-none placeholder:text-[#9ca3af] focus:border-accent'
@@ -157,16 +164,18 @@ function imageElement(image: RichImage): HTMLElement {
   const wrap = document.createElement('span')
   wrap.contentEditable = 'false'
   wrap.dataset.richImage = '1'
+  wrap.dataset.imageHash = image.hash
+  wrap.dataset.ossPath = image.ossPath
   wrap.style.display = 'inline-block'
   wrap.style.resize = 'both'
   wrap.style.overflow = 'hidden'
   wrap.style.maxWidth = '100%'
-  const width = Math.max(1, image.width || 120)
-  const height = Math.max(1, image.height || 80)
+  const width = Math.max(1, image.width || 160)
+  const height = Math.max(1, image.height || 100)
   wrap.style.width = `${width}px`
   wrap.style.height = `${height}px`
   const img = document.createElement('img')
-  img.src = image.src
+  img.src = image.src || IMAGE_PLACEHOLDER
   img.alt = ''
   img.dataset.imageHash = image.hash
   img.dataset.ossPath = image.ossPath
@@ -182,16 +191,31 @@ function imageElement(image: RichImage): HTMLElement {
 
 function decorateImages(root: HTMLElement) {
   for (const img of [...root.querySelectorAll('img')]) {
-    if (img.parentElement?.dataset.richImage != null) continue
-    const image: RichImage = {
-      hash: img.dataset.imageHash ?? '',
-      ossPath: img.dataset.ossPath ?? '',
-      src: img.src,
-      width: img.width || img.naturalWidth || 120,
-      height: img.height || img.naturalHeight || 80
+    const width = Number(img.getAttribute('width')) || img.width || img.naturalWidth || 160
+    const height = Number(img.getAttribute('height')) || img.height || img.naturalHeight || 100
+    if (img.parentElement?.dataset.richImage != null) {
+      const wrap = img.parentElement
+      wrap.style.display = 'inline-block'
+      wrap.style.width = `${Math.max(1, width)}px`
+      wrap.style.height = `${Math.max(1, height)}px`
+      wrap.style.maxWidth = '100%'
+      wrap.style.overflow = 'hidden'
+      wrap.style.background = wrap.style.background || '#ececec'
+      if (!img.getAttribute('src')) img.src = IMAGE_PLACEHOLDER
+      img.style.width = '100%'
+      img.style.height = '100%'
+      img.style.display = 'block'
+      continue
     }
-    if (!image.hash) continue
-    img.replaceWith(imageElement(image))
+    img.replaceWith(
+      imageElement({
+        hash: img.dataset.imageHash || img.dataset.ossPath || 'image',
+        ossPath: img.dataset.ossPath ?? '',
+        src: img.src,
+        width,
+        height
+      })
+    )
   }
 }
 
@@ -280,7 +304,7 @@ export function BuiltinTextField({
   selectionId: string
   html: string
   markdown: string
-  onApply: (markdown: string) => void
+  onApply: (markdown: string, imageHashes?: RichImageMap) => void
   onInsertImage: (file: File) => Promise<RichImage | null>
 }) {
   const { panels, menu } = useI18n()
@@ -303,7 +327,7 @@ export function BuiltinTextField({
   const flushCanvasSyncRef = useRef<() => void>(() => {})
   const historyRef = useRef(new MarkdownEditHistory(markdown))
   const selectionIdRef = useRef(selectionId)
-  const headingOptions = [
+  const headingOptions: AppSelectOption<HeadingLevel>[] = [
     { value: 0, label: 'text' },
     { value: 1, label: 'h1' },
     { value: 2, label: 'h2' },
@@ -315,7 +339,7 @@ export function BuiltinTextField({
 
   useEffect(() => {
     const element = editorRef.current
-    if (!element || mode !== 'preview') return
+    if (!element || mode !== 'rich') return
     if (skipHtmlSync.current) {
       skipHtmlSync.current = false
       return
@@ -335,7 +359,7 @@ export function BuiltinTextField({
   }, [markdown, mode])
 
   useEffect(() => {
-    if (mode !== 'preview') return
+    if (mode !== 'rich') return
     function onPointerUp() {
       const root = editorRef.current
       if (!root || !imageSizesChanged(root)) return
@@ -363,29 +387,35 @@ export function BuiltinTextField({
     }
   }, [])
 
-  function emitPreview() {
+  function emitRich() {
     cancelTimeout(syncTimer)
     const element = editorRef.current
     if (!element) return
     syncImageSizes(element)
+    const hashes = collectImageHashMap(element.innerHTML)
     const next = htmlToMarkdown(element.innerHTML)
     if (!historyRef.current.record(next)) {
+      if (Object.keys(hashes).length > 0) onApply(next, hashes)
       refreshToolbar()
       return
     }
     skipHtmlSync.current = true
-    onApply(next)
+    onApply(next, hashes)
     refreshToolbar()
   }
 
-  function emitMarkdownPreview() {
+  function emitMarkdown() {
     cancelTimeout(syncTimer)
     const element = markdownRef.current
     if (!element) return
     const next = element.value
-    if (!historyRef.current.record(next)) return
+    const hashes = collectImageHashMap(next)
+    if (!historyRef.current.record(next)) {
+      if (Object.keys(hashes).length > 0) onApply(next, hashes)
+      return
+    }
     skipMarkdownSync.current = true
-    onApply(next)
+    onApply(next, hashes)
   }
 
   function beginGroup() {
@@ -411,8 +441,8 @@ export function BuiltinTextField({
 
   function flushCanvasSync() {
     cancelTimeout(syncTimer)
-    if (mode === 'preview') emitPreview()
-    else emitMarkdownPreview()
+    if (mode === 'rich') emitRich()
+    else emitMarkdown()
   }
 
   function scheduleCanvasSync() {
@@ -430,7 +460,7 @@ export function BuiltinTextField({
     const element = editorRef.current
     if (!element || !imageSizesChanged(element)) return
     beginGroup()
-    emitPreview()
+    emitRich()
     beginGroup()
   }
 
@@ -506,7 +536,7 @@ export function BuiltinTextField({
     document.execCommand('styleWithCSS', false, 'true')
     document.execCommand(command, false, value)
     beginGroup()
-    emitPreview()
+    emitRich()
     beginGroup()
   }
 
@@ -518,7 +548,7 @@ export function BuiltinTextField({
     wrapRange(element, savedRange.current, property, value)
     savedRange.current = rememberRange()
     beginGroup()
-    emitPreview()
+    emitRich()
     beginGroup()
   }
 
@@ -530,7 +560,7 @@ export function BuiltinTextField({
     mutate(element, savedRange.current)
     savedRange.current = rememberRange()
     beginGroup()
-    emitPreview()
+    emitRich()
     beginGroup()
   }
 
@@ -555,7 +585,7 @@ export function BuiltinTextField({
       insertNodeAt(element, savedRange.current, imageElement(image))
       savedRange.current = rememberRange()
     }
-    emitPreview()
+    emitRich()
     beginGroup()
   }
 
@@ -576,7 +606,7 @@ export function BuiltinTextField({
     )
     element.value = next.value
     element.setSelectionRange(next.cursor, next.cursor)
-    emitMarkdownPreview()
+    emitMarkdown()
     beginGroup()
   }
 
@@ -594,14 +624,14 @@ export function BuiltinTextField({
             size="sm"
             value={mode}
             options={[
-              { value: 'preview', label: panels.editAsPreview },
+              { value: 'rich', label: panels.editAsRichText },
               { value: 'markdown', label: panels.editAsMarkdown }
             ]}
             ui={{ root: 'shrink-0' }}
             onChange={(value) => switchMode(value as EditorMode)}
           />
 
-          {mode === 'preview' && (
+          {mode === 'rich' && (
             <AppSelect<HeadingLevel>
               label={panels.headingText}
               value={heading}
@@ -613,7 +643,7 @@ export function BuiltinTextField({
           )}
         </div>
 
-        {mode === 'preview' ? (
+        {mode === 'rich' ? (
           <div className={'inline-flex items-center'}>
             <ColorSwatch
               kind="text"
@@ -717,7 +747,7 @@ export function BuiltinTextField({
           </div>
         ) : null}
       </div>
-      {mode === 'preview' ? (
+      {mode === 'rich' ? (
         <div
           ref={editorRef}
           role="textbox"
@@ -751,11 +781,36 @@ export function BuiltinTextField({
             applyBlock((root, range) => adjustBlocksIndent(root, range, event.shiftKey ? -1 : 1))
           }}
           onPaste={(event) => {
+            const text = event.clipboardData?.getData('text/plain') ?? ''
             const files = clipboardImageFiles(event)
-            if (files.length === 0) return
-            event.preventDefault()
-            event.stopPropagation()
-            void addImages(files)
+            if (files.length > 0 && !text.trim()) {
+              event.preventDefault()
+              event.stopPropagation()
+              void addImages(files)
+              return
+            }
+            if (text.trim() && looksLikeMarkdown(text)) {
+              event.preventDefault()
+              event.stopPropagation()
+              const fragment = markdownToHTML(text)
+              const root = editorRef.current
+              if (!root) return
+              root.focus()
+              const selection = window.getSelection()
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0)
+                range.deleteContents()
+                const template = document.createElement('template')
+                template.innerHTML = fragment
+                const node = template.content
+                range.insertNode(node)
+                selection.collapseToEnd()
+              } else {
+                root.insertAdjacentHTML('beforeend', fragment)
+              }
+              emitRich()
+              return
+            }
           }}
           onBlur={() => {
             composing.current = false
@@ -782,11 +837,18 @@ export function BuiltinTextField({
             handleHistoryKey(event, undoEdit, redoEdit)
           }}
           onPaste={(event) => {
+            const text = event.clipboardData?.getData('text/plain') ?? ''
             const files = clipboardImageFiles(event)
-            if (files.length === 0) return
-            event.preventDefault()
-            event.stopPropagation()
-            void addMarkdownImages(files)
+            if (files.length > 0 && !text.trim()) {
+              event.preventDefault()
+              event.stopPropagation()
+              void addMarkdownImages(files)
+              return
+            }
+            // Prefer pasted markdown text over incidental clipboard images.
+            requestAnimationFrame(() => {
+              flushCanvasSync()
+            })
           }}
           onBlur={() => {
             composing.current = false
