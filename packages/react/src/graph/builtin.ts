@@ -114,14 +114,21 @@ function ensureWhiteFill(graph: SceneGraph): void {
   }
 }
 
+/** Migrations for an already-present builtin library (used by the Markdown hosted plugin). */
+export function migrateBuiltinLibrary(graph: SceneGraph): void {
+  const existing = getLib(graph, BUILTIN_LIBRARY_KEY)
+  if (!existing) return
+  renameBuiltinMarkdown(existing.graph)
+  renameBuiltinMarkdown(graph)
+  ensureWhiteFill(existing.graph)
+  ensureWhiteFill(graph)
+  copyBuiltinImages(graph)
+}
+
 export function ensureBuiltinLibrary(graph: SceneGraph): boolean {
   const existing = getLib(graph, BUILTIN_LIBRARY_KEY)
   if (existing) {
-    renameBuiltinMarkdown(existing.graph)
-    renameBuiltinMarkdown(graph)
-    ensureWhiteFill(existing.graph)
-    ensureWhiteFill(graph)
-    copyBuiltinImages(graph)
+    migrateBuiltinLibrary(graph)
     return false
   }
   addLib(graph, BUILTIN_LIBRARY_KEY, 'Built-in', '', createBuiltinCatalog())

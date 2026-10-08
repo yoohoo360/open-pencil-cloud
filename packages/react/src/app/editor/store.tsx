@@ -15,10 +15,13 @@ import {
   type PageLoadingProgress
 } from '#react/app/document/page-loading/types'
 import { appPreferences } from '#react/app/settings/preferences'
-import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
 import { createCanvasPaneRegistry, type CanvasPaneRegistry } from '#react/editor/panes/registry'
 import type { CanvasSplitNode, SplitDirection } from '#react/editor/panes/split-tree'
-import { ensureBuiltinLibrary } from '#react/graph/builtin'
+import {
+  bootstrapHostedComponents,
+  ensureHostedLibraries,
+  hydrateHostedInstances
+} from '#react/hosted-components'
 import {
   createContext,
   useContext,
@@ -123,11 +126,12 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
           }
   })
   if (initialGraph) editor.subscribeToGraph()
-  ensureBuiltinLibrary(editor.graph)
-  hydrateBuiltinInstances(editor)
+  bootstrapHostedComponents()
+  ensureHostedLibraries(editor.graph)
+  hydrateHostedInstances(editor)
   editor.onEditorEvent('graph:replaced', (graph) => {
-    ensureBuiltinLibrary(graph)
-    hydrateBuiltinInstances(editor)
+    ensureHostedLibraries(graph)
+    hydrateHostedInstances(editor)
   })
 
   const listeners = new Set<() => void>()

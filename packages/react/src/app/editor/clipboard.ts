@@ -1,4 +1,4 @@
-import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
+import { hydrateHostedInstances } from '#react/hosted-components'
 import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
 import type { Editor } from '@open-pencil/core/editor'
@@ -81,7 +81,7 @@ export async function pasteEditorClipboard(editor: Editor, replace = false): Pro
   if (parentId !== editor.state.currentPageId) editor.state.enteredContainerId = parentId
   try {
     await editor.pasteFromHTML(html, cursorPos(editor), { replaceSelection: replace })
-    hydrateBuiltinInstances(editor)
+    hydrateHostedInstances(editor)
   } finally {
     editor.state.enteredContainerId = previous
   }

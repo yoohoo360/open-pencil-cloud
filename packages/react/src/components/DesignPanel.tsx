@@ -1,7 +1,6 @@
 import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AppearanceSection } from '#react/components/properties/AppearanceSection'
-import { BuiltinTextSection } from '#react/components/properties/builtin-text/BuiltinTextSection'
 import { ComponentPropertiesSection } from '#react/components/properties/component-properties/ComponentPropertiesSection'
 import { InstanceSwapSlotField } from '#react/components/properties/component-properties/InstanceSwapSlotField'
 import { SlotBindField } from '#react/components/properties/component-properties/SlotBindField'
@@ -32,10 +31,16 @@ import { Tip } from '#react/components/ui/Tip'
 import { useEditorCommands } from '#react/editor/commands/use'
 import { useSelectionState } from '#react/editor/selection-state/use'
 import {
-  enclosingBuiltinInstance,
-  isBuiltinDescendant,
-  isBuiltinTextLayer
-} from '#react/graph/builtin'
+  enclosingHostedInstance,
+  HostedComponentPanel,
+  hostedPanelChrome,
+  isHostedDescendant,
+  isHostedTextLayer
+} from '#react/hosted-components'
+import type {
+  HostedDesignSectionId,
+  HostedPanelChrome
+} from '#react/hosted-components'
 import { useI18n } from '#react/i18n'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { Layers3 } from 'lucide-react'
@@ -43,16 +48,26 @@ import { useState } from 'react'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
 
+function designSectionVisible(chrome: HostedPanelChrome, id: HostedDesignSectionId): boolean {
+  if (chrome.hideStandardDesignSections) return false
+  if (chrome.designSections) return chrome.designSections.includes(id)
+  return true
+}
+
 function DesignNodeText({ selectedNode }: { selectedNode: SceneNode }) {
   const store = useEditorStore()
-  const builtinHost = enclosingBuiltinInstance(store.graph, selectedNode.id)
-  const showPlain = selectedNode.type === 'TEXT' && !isBuiltinTextLayer(store.graph, selectedNode)
+  const chrome = hostedPanelChrome(store.graph, selectedNode.id)
+  const hosted = enclosingHostedInstance(store.graph, selectedNode.id)
+  const showPlain =
+    selectedNode.type === 'TEXT' &&
+    !isHostedTextLayer(store.graph, selectedNode) &&
+    !chrome.hidePlainTypographyContent
   return (
     <>
       {showPlain ? (
         <TypographyContentField nodeId={selectedNode.id} text={selectedNode.text} />
       ) : null}
-      {builtinHost ? <BuiltinTextSection /> : null}
+      {hosted ? <HostedComponentPanel /> : null}
     </>
   )
 }
@@ -125,6 +140,13 @@ export function DesignPanel() {
   }
 
   if (selectedNode) {
+    const chrome = hostedPanelChrome(store.graph, selectedNode.id)
+    const hostedDescendant = isHostedDescendant(store.graph, selectedNode)
+    const showInstanceActions =
+      selectedNode.type === 'INSTANCE' && !chrome.hideInstanceActions
+    const showDesign = (id: Parameters<typeof designSectionVisible>[1]) =>
+      !hostedDescendant && designSectionVisible(chrome, id)
+
     return (
       <div data-test-id="design-panel" className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
@@ -152,8 +174,8 @@ export function DesignPanel() {
           <DesignNodeText selectedNode={selectedNode} />
           {selectedNode.type === 'FRAME' ? <SlotBindField /> : null}
           {selectedNode.type === 'FRAME' ? <SlotInsertField /> : null}
-          {selectedNode.type === 'INSTANCE' ? <InstanceSwapSlotField /> : null}
-          {selectedNode.type === 'INSTANCE' ? (
+          {showInstanceActions ? <InstanceSwapSlotField /> : null}
+          {showInstanceActions ? (
             <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
               <button
                 type="button"
@@ -171,28 +193,23 @@ export function DesignPanel() {
               </button>
             </div>
           ) : null}
-          {selectedNode.type === 'INSTANCE' &&
-          !enclosingBuiltinInstance(store.graph, selectedNode.id) ? (
+          {selectedNode.type === 'INSTANCE' && !chrome.hideComponentProperties ? (
             <ComponentPropertiesSection />
           ) : null}
           {showVariantAuthoring ? <VariantAuthoringSection /> : null}
           {selectedNode.type === 'FRAME' ? <FramePresetSelect /> : null}
-          {isBuiltinDescendant(store.graph, selectedNode) ? null : (
-            <>
-              <PositionSection />
-              <ConstraintsSection />
-              <LayoutSection />
-              <AppearanceSection />
-              <MaskSection />
-              {selectedNode.type === 'TEXT' ? <TypographySection /> : null}
-              <FillSection />
-              <StrokeSection />
-              <SelectionColorsSection />
-              {supportsLayoutGuides ? <LayoutGridSection /> : null}
-              <EffectsSection />
-              <ExportSection />
-            </>
-          )}
+          {showDesign('position') ? <PositionSection /> : null}
+          {showDesign('constraints') ? <ConstraintsSection /> : null}
+          {showDesign('layout') ? <LayoutSection /> : null}
+          {showDesign('appearance') ? <AppearanceSection /> : null}
+          {showDesign('mask') ? <MaskSection /> : null}
+          {showDesign('typography') && selectedNode.type === 'TEXT' ? <TypographySection /> : null}
+          {showDesign('fill') ? <FillSection /> : null}
+          {showDesign('stroke') ? <StrokeSection /> : null}
+          {showDesign('selectionColors') ? <SelectionColorsSection /> : null}
+          {showDesign('layoutGrid') && supportsLayoutGuides ? <LayoutGridSection /> : null}
+          {showDesign('effects') ? <EffectsSection /> : null}
+          {showDesign('export') ? <ExportSection /> : null}
         </div>
       </div>
     )

@@ -5,7 +5,7 @@ import type { EditorStore } from '#react/app/editor/store'
 import { exportSelectionPNG as exportSelectionPngFile } from '#react/app/shell/menu/files'
 import { getPropertiesTab, setPropertiesTab } from '#react/app/shell/properties-tab'
 import type { EditorCommandId } from '#react/editor/commands/types'
-import { isBuiltinTextLayer } from '#react/graph/builtin'
+import { hostedAllowsTextEdit } from '#react/hosted-components'
 
 type KeyboardActionsOptions = {
   store: EditorStore
@@ -56,7 +56,7 @@ export function createKeyboardActions({
       return
     }
     const node = store.getSelectedNode()
-    if (node?.type === 'TEXT' && !isBuiltinTextLayer(store.graph, node)) {
+    if (node?.type === 'TEXT' && hostedAllowsTextEdit(store.graph, node)) {
       requestAnimationFrame(() => {
         store.startTextEditing(node.id)
         store.textEditor?.selectAll()

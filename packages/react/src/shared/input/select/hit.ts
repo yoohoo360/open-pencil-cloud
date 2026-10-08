@@ -1,4 +1,4 @@
-import { enclosingBuiltinInstance } from '#react/graph/builtin'
+import { resolveHostedSelection } from '#react/hosted-components'
 import type { HitTestFns } from '#react/shared/input/select'
 
 import type { Editor } from '@open-pencil/core/editor'
@@ -6,7 +6,7 @@ import type { SceneNode } from '@open-pencil/scene-graph'
 
 function hostOrHit(editor: Editor, hit: SceneNode | null): SceneNode | null {
   if (!hit) return null
-  return enclosingBuiltinInstance(editor.graph, hit.id) ?? hit
+  return resolveHostedSelection(editor.graph, hit)
 }
 
 export function resolveHit(

@@ -1,5 +1,4 @@
-import { hydrateBuiltinInstance } from '#react/controls/builtin-text/hydrate'
-import { BUILTIN_LIBRARY_KEY, copyBuiltinImages } from '#react/graph/builtin'
+import { hydrateHostedInstance, listHostedComponents } from '#react/hosted-components'
 import { addRemoteComponent, getLib } from '#react/graph/remote-lib'
 
 import type { Editor } from '@open-pencil/core/editor'
@@ -52,7 +51,8 @@ export function materializeComponent(
       sourceComponent,
       remoteSet?.type === 'COMPONENT_SET' ? remoteSet : undefined
     )
-    if (sourceLibraryKey === BUILTIN_LIBRARY_KEY) copyBuiltinImages(editor.graph)
+    const hosted = listHostedComponents().find((def) => def.libraryKey === sourceLibraryKey)
+    hosted?.copyLibraryAssets?.(editor.graph)
     return sourceComponent.id
   } finally {
     materializing.delete(key)
@@ -72,9 +72,12 @@ export function createInstanceFromComponent(
   if (!resolvedId) return null
   const instanceId = editor.createInstanceFromComponent(resolvedId, x, y, parent)
   if (instanceId && sourceLibraryKey) editor.graph.updateNode(instanceId, { sourceLibraryKey })
-  if (instanceId && sourceLibraryKey === BUILTIN_LIBRARY_KEY) {
-    copyBuiltinImages(editor.graph)
-    hydrateBuiltinInstance(editor, instanceId)
+  if (instanceId && sourceLibraryKey) {
+    const hosted = listHostedComponents().find((def) => def.libraryKey === sourceLibraryKey)
+    if (hosted) {
+      hosted.copyLibraryAssets?.(editor.graph)
+      hydrateHostedInstance(editor, instanceId)
+    }
   }
   return instanceId
 }

@@ -5,7 +5,7 @@ import {
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAccessStore, hasDocumentCapability } from '#react/app/document/access'
 import { isEditing } from '#react/app/shell/keyboard/focus'
-import { hydrateBuiltinInstances } from '#react/controls/builtin-text/hydrate'
+import { hydrateHostedInstances } from '#react/hosted-components'
 import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
 const RASTER_IMAGE_TYPES = new Set([
@@ -51,7 +51,7 @@ function pasteIntoInsertionParent(
   if (parentId !== store.state.currentPageId) store.state.enteredContainerId = parentId
   return store.pasteFromHTML(html, cursorPos).finally(() => {
     store.state.enteredContainerId = previous
-    hydrateBuiltinInstances(store)
+    hydrateHostedInstances(store)
   })
 }
 

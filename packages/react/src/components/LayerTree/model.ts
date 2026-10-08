@@ -1,4 +1,4 @@
-import { isBuiltinInstance } from '#react/graph/builtin'
+import { hostedShowsLayerChildren, matchHostedComponent } from '#react/hosted-components'
 
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
@@ -9,7 +9,9 @@ export interface LayerSelectionMode {
 
 export function layerChildren(graph: SceneGraph, id: string): SceneNode[] {
   const parent = graph.getNode(id)
-  if (isBuiltinInstance(parent, graph)) return []
+  if (parent && matchHostedComponent(parent, graph) && !hostedShowsLayerChildren(graph, parent)) {
+    return []
+  }
   return graph.getChildren(id).filter((child) => !child.internalOnly)
 }
 

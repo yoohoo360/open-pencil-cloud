@@ -3,9 +3,10 @@ import {
   isSlotNode,
   resolveSelectedInsertionParent
 } from '#react/controls/component-props/slot-insert'
-import { BUILTIN_LIBRARY_KEY, ensureBuiltinLibrary } from '#react/graph/builtin'
+import { BUILTIN_LIBRARY_KEY } from '#react/graph/builtin'
 import { createInstanceFromComponent } from '#react/graph/instances'
 import { getLib, getRemoteImports } from '#react/graph/remote-lib'
+import { bootstrapHostedComponents, ensureHostedLibraries } from '#react/hosted-components'
 
 import type { Editor } from '@open-pencil/core/editor'
 import { renderNodesToImage } from '@open-pencil/core/io'
@@ -129,7 +130,8 @@ export function listAssetLibraries(
   localName: string,
   builtinName = 'Built-in'
 ): AssetLibraryItem[] {
-  ensureBuiltinLibrary(graph)
+  bootstrapHostedComponents()
+  ensureHostedLibraries(graph)
   const builtin = getLib(graph, BUILTIN_LIBRARY_KEY)
   return [
     { key: LOCAL_LIBRARY_KEY, name: localName, remote: false },
