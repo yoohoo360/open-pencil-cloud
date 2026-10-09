@@ -1,8 +1,10 @@
+import { cloneInstanceOverrideState } from '@open-pencil/scene-graph'
 import type { SceneNode, Vector } from '@open-pencil/scene-graph'
 import { getAxisAlignedWorldBounds, getWorldMatrix } from '@open-pencil/scene-graph/coordinate'
 import Matrix from '@open-pencil/scene-graph/matrix'
 
-import { addRemoteComponent, getLib, removeRemoteComponent } from '#core/editor/remote-lib.override'
+import { prepareSlotEdits } from '#core/editor/components/slots'
+import { addRemoteComponent, getLib, removeRemoteComponent } from '#core/editor/remote-lib'
 import type { EditorContext } from '#core/editor/types'
 
 type InstanceCreateSnapshot = Partial<SceneNode> & { id: string }
@@ -87,7 +89,7 @@ function materializeRemoteComponent(
 }
 
 export function createComponentInstanceActions(ctx: EditorContext) {
-  function createInstanceFromComponent(
+  function createInstance(
     componentId: string,
     x?: number,
     y?: number,
@@ -97,6 +99,7 @@ export function createComponentInstanceActions(ctx: EditorContext) {
     const materialized = materializeRemoteComponent(ctx, componentId, sourceLibraryKey)
     if (!materialized) return null
     const { component, sourceComponent, importGraph } = materialized
+    if (!prepareSlotEdits(ctx, [parentId])) return null
 
     const previousSelection = new Set(ctx.state.selectedIds)
     const defaultPlacement = defaultInstancePlacement(ctx, component, parentId)
@@ -155,10 +158,24 @@ export function createComponentInstanceActions(ctx: EditorContext) {
     return instanceId
   }
 
+  /** Place an instance of a component; claiming a slot it lands in is part of the same undo step. */
+  function createInstanceFromComponent(
+    componentId: string,
+    x?: number,
+    y?: number,
+    parentId = ctx.state.currentPageId,
+    sourceLibraryKey?: string
+  ) {
+    return ctx.undo.runBatch('Create instance', () =>
+      createInstance(componentId, x, y, parentId, sourceLibraryKey)
+    )
+  }
+
   function detachInstance(selectedNode: SceneNode | undefined) {
     if (selectedNode?.type !== 'INSTANCE') return
 
     const prevComponentId = selectedNode.componentId
+    const previousOverrides = cloneInstanceOverrideState(selectedNode.instanceOverrides)
 
     ctx.graph.detachInstance(selectedNode.id)
     ctx.setSelectedIds(new Set([selectedNode.id]))
@@ -173,7 +190,7 @@ export function createComponentInstanceActions(ctx: EditorContext) {
         ctx.graph.updateNode(selectedNode.id, {
           type: 'INSTANCE',
           componentId: prevComponentId,
-          overrides: {}
+          instanceOverrides: cloneInstanceOverrideState(previousOverrides)
         })
       }
     })

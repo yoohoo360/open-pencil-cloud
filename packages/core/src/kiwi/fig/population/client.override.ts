@@ -1,9 +1,10 @@
 import type { SceneGraph } from '@open-pencil/scene-graph'
+import { randomHex } from '@open-pencil/scene-graph/random'
 
 import { getLazyFigImportContext } from '#core/kiwi/fig/lazy-import.override'
 import { createFigSessionWorker } from '#core/kiwi/fig/session/client.override'
+import { releaseReaderRecovery } from '#core/kiwi/fig/session/document-state'
 import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol.override'
-import { randomHex } from '#core/random'
 
 import {
   applyFigPopulationDeltaChunked,
@@ -76,8 +77,6 @@ export function registerFigPopulationWorker(
 }
 
 export function canUseFigPopulationWorker(graph: SceneGraph): boolean {
-  // Worker retains the lazy import context; the main-thread graph is a transfer
-  // copy and usually has no WeakMap context of its own.
   return populationWorkers.has(graph)
 }
 
@@ -86,8 +85,9 @@ export function registerOriginalArchiveRequest(
   request: () => Promise<Uint8Array>
 ): void {
   const entry: OriginalArchiveRequest = { request, valid: true, unbind: () => undefined }
+  // Layout and the layers a page loads from this archive leave it describing the document.
   const invalidate = () => {
-    if (!graph.isApplyingLayout) entry.valid = false
+    if (!graph.isApplyingLayout && !graph.isApplyingImportedState) entry.valid = false
   }
   entry.unbind = graph.onNodeEvents({
     created: invalidate,
@@ -167,23 +167,22 @@ export async function reviveFigPopulationWorker(
       worker.terminate()
       finish(null)
     }
-    const originalBuffer = archive.buffer.slice(
+    const workerBuffer = archive.buffer.slice(
       archive.byteOffset,
       archive.byteOffset + archive.byteLength
     ) as ArrayBuffer
-    const archiveBuffer = originalBuffer.slice(0)
     const request: FigSessionOpenRequest = {
       type: 'open',
-      originalBuffer,
-      archiveBuffer,
+      buffer: workerBuffer,
       options: { populate: 'first-page' },
       port: channel.port2
     }
-    worker.postMessage(request, [originalBuffer, archiveBuffer, channel.port2])
+    worker.postMessage(request, [workerBuffer, channel.port2])
   })
 }
 
 export function releaseFigPopulationWorker(graph: SceneGraph): void {
+  releaseReaderRecovery(graph)
   populationWorkers.get(graph)?.terminate()
   populationWorkers.delete(graph)
   originalArchiveRequests.get(graph)?.unbind()
@@ -226,10 +225,10 @@ export function createFigPopulationWorker(graph: SceneGraph): FigPopulationWorke
   return populationWorkers.get(graph) ?? null
 }
 
-function createPopulationWorkerClient(
+export function createPopulationWorkerClient(
   graph: SceneGraph,
-  worker: Worker,
-  port?: MessagePort
+  worker: Pick<Worker, 'postMessage' | 'terminate' | 'onerror' | 'onmessage'>,
+  port?: Pick<MessagePort, 'postMessage' | 'start' | 'close' | 'onmessage'>
 ): FigPopulationWorker {
   const pending = new Map<
     string,
@@ -353,8 +352,7 @@ function createPopulationWorkerClient(
     })()
   }
   if (port) {
-    port.onmessage = (event: MessageEvent<FigSessionResponse>) =>
-      receive(event.data as WorkerResult)
+    port.onmessage = (event: MessageEvent<WorkerResult>) => receive(event.data)
     port.start()
   } else {
     worker.onmessage = (event: MessageEvent<WorkerResult>) => receive(event.data)

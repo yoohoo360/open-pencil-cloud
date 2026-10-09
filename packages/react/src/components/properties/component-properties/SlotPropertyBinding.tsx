@@ -5,7 +5,7 @@ export function SlotPropertyBinding() {
   const { panels } = useI18n()
   return (
     <PropertyBindingMenu
-      field="SLOT"
+      field="SLOT_CONTENT"
       applyLabel={panels.applySlotProperty}
       detachLabel={panels.detachSlotProperty}
       emptyLabel={panels.noSlotProperties}

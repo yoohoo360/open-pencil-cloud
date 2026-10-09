@@ -1,10 +1,9 @@
 import { COMPONENT_TYPES, nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AppearanceSection } from '#react/components/properties/AppearanceSection'
+import { BehaviourPanel } from '#react/components/properties/component-properties/BehaviourPanel'
 import { ComponentPropertiesSection } from '#react/components/properties/component-properties/ComponentPropertiesSection'
-import { InstanceSwapSlotField } from '#react/components/properties/component-properties/InstanceSwapSlotField'
-import { SlotBindField } from '#react/components/properties/component-properties/SlotBindField'
-import { SlotInsertField } from '#react/components/properties/component-properties/SlotInsertField'
+import { SlotAuthoringSection } from '#react/components/properties/component-properties/SlotAuthoringSection'
 import { VariantAuthoringSection } from '#react/components/properties/component-properties/VariantAuthoringSection'
 import { ConstraintsSection } from '#react/components/properties/constraints/ConstraintsSection'
 import { EffectsSection } from '#react/components/properties/EffectsSection'
@@ -172,9 +171,6 @@ export function DesignPanel() {
             </span>
           </PanelHeader>
           <DesignNodeText selectedNode={selectedNode} />
-          {selectedNode.type === 'FRAME' ? <SlotBindField /> : null}
-          {selectedNode.type === 'FRAME' ? <SlotInsertField /> : null}
-          {showInstanceActions ? <InstanceSwapSlotField /> : null}
           {showInstanceActions ? (
             <div className="flex flex-col gap-1 border-b border-border px-3 py-2">
               <button
@@ -197,6 +193,10 @@ export function DesignPanel() {
             <ComponentPropertiesSection />
           ) : null}
           {showVariantAuthoring ? <VariantAuthoringSection /> : null}
+          <SlotAuthoringSection />
+          {selectedNode.type === 'COMPONENT' || selectedNode.type === 'COMPONENT_SET' ? (
+            <BehaviourPanel />
+          ) : null}
           {selectedNode.type === 'FRAME' ? <FramePresetSelect /> : null}
           {showDesign('position') ? <PositionSection /> : null}
           {showDesign('constraints') ? <ConstraintsSection /> : null}

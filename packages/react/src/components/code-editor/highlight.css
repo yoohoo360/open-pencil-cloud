@@ -1,0 +1,70 @@
+.op-hljs-editor {
+  background: transparent;
+  color: var(--color-surface);
+}
+
+.op-hljs-layer {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  margin: 0;
+  border: 0;
+  font-size: inherit;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.op-hljs-editor .hljs {
+  background: transparent;
+  color: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  padding: 0;
+}
+
+.op-hljs-editor .hljs-comment,
+.op-hljs-editor .hljs-quote {
+  color: color-mix(in srgb, var(--color-muted) 70%, transparent);
+  font-style: italic;
+}
+
+.op-hljs-editor .hljs-keyword,
+.op-hljs-editor .hljs-selector-tag,
+.op-hljs-editor .hljs-literal,
+.op-hljs-editor .hljs-section,
+.op-hljs-editor .hljs-link {
+  color: var(--color-accent);
+}
+
+.op-hljs-editor .hljs-string,
+.op-hljs-editor .hljs-title,
+.op-hljs-editor .hljs-name,
+.op-hljs-editor .hljs-type,
+.op-hljs-editor .hljs-attribute,
+.op-hljs-editor .hljs-symbol,
+.op-hljs-editor .hljs-bullet,
+.op-hljs-editor .hljs-built_in,
+.op-hljs-editor .hljs-addition,
+.op-hljs-editor .hljs-variable,
+.op-hljs-editor .hljs-template-tag,
+.op-hljs-editor .hljs-template-variable {
+  color: color-mix(in srgb, var(--color-success, #3ecf8e) 85%, var(--color-surface));
+}
+
+.op-hljs-editor .hljs-number,
+.op-hljs-editor .hljs-meta,
+.op-hljs-editor .hljs-deletion,
+.op-hljs-editor .hljs-selector-attr,
+.op-hljs-editor .hljs-selector-pseudo {
+  color: color-mix(in srgb, var(--color-warning, #e6a23c) 80%, var(--color-surface));
+}
+
+.op-hljs-editor .hljs-emphasis {
+  font-style: italic;
+}
+
+.op-hljs-editor .hljs-strong {
+  font-weight: 600;
+}

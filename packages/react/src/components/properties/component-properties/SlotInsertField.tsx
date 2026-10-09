@@ -44,7 +44,7 @@ export function SlotInsertField() {
       <SlotInsertControl
         propertyId={slotPropertyId(slot) ?? slot.id}
         preferredValues={definition?.preferredValues}
-        onlyPreferredInstances={definition?.onlyPreferredInstances}
+        onlyPreferredInstances={definition?.slotSettings?.allowPreferredValuesOnly}
         onInsert={(componentId, sourceLibraryKey) => {
           const insertedId = insertInstanceIntoSlot(editor, slot, componentId, sourceLibraryKey)
           if (insertedId) editor.select([insertedId])

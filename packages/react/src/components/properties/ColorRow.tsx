@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { colorToHex, colorToHexRaw, parseColor } from '@open-pencil/core/color'
+import { colorToHex, colorToHexRaw, parseColor } from '@open-pencil/scene-graph/color'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { panelFieldBase } from '#react/theme/panel/field'

@@ -1,7 +1,7 @@
 import { atom } from 'nanostores'
 import { useStore } from '@nanostores/react'
 
-import { parseColor } from '@open-pencil/core/color'
+import { parseColor } from '@open-pencil/scene-graph/color'
 import { IS_BROWSER } from '@open-pencil/core/constants'
 import type { RulerTheme } from '@open-pencil/core/canvas'
 

@@ -7,7 +7,7 @@ import {
 } from '#react/controls/builtin-text/lists'
 import { parseRichHTML } from '#react/controls/builtin-text/model'
 
-import { colorToHex } from '@open-pencil/core/color'
+import { colorToHex } from '@open-pencil/scene-graph/color'
 import type { CharacterStyleOverride } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 

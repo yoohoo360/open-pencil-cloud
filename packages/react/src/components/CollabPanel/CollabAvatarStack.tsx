@@ -5,7 +5,7 @@ import { useI18n } from '#react/i18n'
 import collaborationTheme from '#react/theme/collaboration'
 import { tv } from 'tailwind-variants'
 
-import { colorToCSS } from '@open-pencil/core/color'
+import { colorToCSS } from '@open-pencil/scene-graph/color'
 
 const DEFAULT_MAX_VISIBLE = 3
 

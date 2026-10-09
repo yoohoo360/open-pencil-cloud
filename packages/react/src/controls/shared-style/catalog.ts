@@ -1,4 +1,4 @@
-import { randomHex } from '@open-pencil/core/random'
+import { randomHex } from '@open-pencil/scene-graph/random'
 import type { Editor } from '@open-pencil/core/editor'
 import {
   getSharedStyles,

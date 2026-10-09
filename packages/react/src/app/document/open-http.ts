@@ -23,9 +23,12 @@ export async function applyImportedGraph(store: EditorStore, imported: SceneGrap
 
 async function applyFigBytes(
   store: EditorStore,
-  bytes: Uint8Array,
+  bytes: Uint8Array | null | undefined,
   _fileName: string
 ): Promise<void> {
+  if (!bytes || bytes.byteLength === 0) {
+    throw new Error('Document bytes are missing or empty')
+  }
   // Exact copy — avoid File([arrayBuffer]) pitfalls with offset views.
   const copy = bytes.slice()
   await finishFigImport(store, await readFigDocument(copy.buffer, store))
@@ -87,7 +90,7 @@ export async function openHttpDocument(
     if (payload.byteLength > 0) {
       if (documentKey) {
         const draft = await maybeRestoreLocalDraft(documentKey, documentMeta?.updated_at)
-        if (draft) {
+        if (draft?.figBytes?.byteLength) {
           await applyFigBytes(store, draft.figBytes, `${name}.fig`)
         } else {
           await applyDocumentBytes(store, payload, `${name}.fig`)

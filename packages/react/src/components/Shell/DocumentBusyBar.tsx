@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { useStore } from '@nanostores/react'
 import { LoaderCircle } from 'lucide-react'
 
-import { colorToCSS } from '@open-pencil/core/color'
+import { colorToCSS } from '@open-pencil/scene-graph/color'
 import type { Color } from '@open-pencil/scene-graph'
 
 import { documentBusyTasks } from '#react/app/document/busy/store'

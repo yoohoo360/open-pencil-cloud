@@ -12,7 +12,7 @@ import type { BindingTarget } from '#react/controls/binding/types'
 import { useI18n } from '#react/i18n'
 import { BindableValueRoot } from '#react/primitives/BindableValue/BindableValueRoot'
 
-import { colorToHexRaw } from '@open-pencil/core/color'
+import { colorToHexRaw } from '@open-pencil/scene-graph/color'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 export function BoundColorRow({

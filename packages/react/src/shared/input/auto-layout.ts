@@ -1,5 +1,5 @@
 import type { Editor } from '@open-pencil/core/editor'
-import { resolveNodeLayoutDirection } from '@open-pencil/core/text'
+import { resolveNodeLayoutDirection } from '@open-pencil/scene-graph/text-direction'
 import type { SceneNode } from '@open-pencil/scene-graph'
 import type { Vector } from '@open-pencil/scene-graph/primitives'
 

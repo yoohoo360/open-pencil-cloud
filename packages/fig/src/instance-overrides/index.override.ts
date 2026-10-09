@@ -1,3 +1,17 @@
+// Upstream (fork) occurrence-scoped interpreter — kept available through the override alias.
+export { interpretInstance, interpretComponent } from './interpret'
+export type {
+  InstanceOccurrence,
+  InterpretInstanceOptions,
+  InstancePathDiagnostic
+} from './occurrence/types'
+export { materializeInstance } from './materialize-instance'
+export { materializeComponentClosure } from './component-closure'
+export { linkInstanceSourceChildren, mapInstanceSourceChildren } from './source-children'
+export type { MaterializedInstance } from './materialize-instance'
+export { symbolDataOf, symbolOverridesOf } from './types.override'
+
+// Cloud override pipeline (legacy populate / sync path).
 export { buildDsdLayoutUpdates } from './derived-symbol-data/layout'
 export { applyGeneratedFreeformStretch, propagateDsdChanges } from './derived-symbol-data/propagate.override'
 export { protectField, type ProtectionMap } from './patches'

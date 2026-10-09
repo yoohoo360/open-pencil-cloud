@@ -1,13 +1,16 @@
+import { toUint8Array } from 'js-base64'
+
+import { slotPropertyId } from '@open-pencil/scene-graph'
 import type { SceneNode, SceneGraph, Fill, Stroke } from '@open-pencil/scene-graph'
+import type { RenderColorSpace, ResolvedRenderColor } from '@open-pencil/scene-graph/color'
 import type { Color, Rect, Vector } from '@open-pencil/scene-graph/primitives'
 import type { SnapGuide } from '@open-pencil/scene-graph/snap'
 
-import { decodeBase64 } from '#core/bytes'
-import type { RenderColorSpace, ResolvedRenderColor } from '#core/color/management'
 /* eslint-disable max-lines -- SkiaRenderer facade owns CanvasKit state and delegates domain drawing */
 import {
   SELECTION_COLOR,
   COMPONENT_COLOR,
+  SLOT_COLOR,
   CANVAS_BG_COLOR,
   DEFAULT_FONT_SIZE,
   COMPONENT_SET_DASH,
@@ -20,6 +23,8 @@ import { RenderProfiler } from '#core/profiler'
 import type { TextEditor } from '#core/text/editor'
 import type { FontResolutionSnapshot } from '#core/text/resolver'
 
+import { createImageCache } from './images/cache'
+import { ImagePreviewCache } from './images/previews'
 import { LabelCache } from './labels/cache'
 import * as LabelHitTest from './labels/hit-test'
 import { LabelParagraphCache } from './labels/paragraph-cache'
@@ -35,9 +40,8 @@ import * as RendererState from './renderer/state'
 import * as RenderText from './text'
 import { createGlyphSilhouetteCache } from './text/derived'
 import { TextPreparationCache } from './text/preparation-cache'
-export type { MeasurementMode, RenderOverlays, RulerTheme } from './renderer/types'
+export type { MeasurementMode, PresenceCursor, RenderOverlays, RulerTheme } from './renderer/types'
 import type {
-  Image as CKImage,
   Path,
   CanvasKit,
   Surface,
@@ -66,9 +70,11 @@ export interface PendingFontNode {
   keys: Set<string>
 }
 
+import type { PlacedIssueMarker } from './issues/types'
 import { EffectRasterCache } from './renderer/effect-raster-cache'
 import { TiledSceneController } from './renderer/tiles'
-import type { RenderOverlays, RulerTheme } from './renderer/types'
+import type { TransientCanvasPreview } from './renderer/transient-previews'
+import type { PresenceCursor, RenderOverlays, RulerTheme } from './renderer/types'
 
 export class SkiaRenderer {
   ck: CanvasKit
@@ -101,7 +107,13 @@ export class SkiaRenderer {
     | undefined
   pendingFontNodes = new Map<string, PendingFontNode>()
   textPictureGenerations = new Map<string, { data: Uint8Array; generation: number }>()
-  imageCache = new Map<string, CKImage>()
+  readonly transientPreviews = new Map<string, TransientCanvasPreview>()
+  imageCache = createImageCache()
+  viewportImageRendering = false
+  imageMemoryGraph: SceneGraph | null = null
+  imageMemoryPage: string | null = null
+  onImagePreviewReady: (() => void) | null = null
+  readonly imagePreviews = new ImagePreviewCache(() => this.onImagePreviewReady?.())
   vectorPathCache = new Map<string, Path[]>()
   vectorStrokePathCache = new Map<string, Path[]>()
   vectorStrokeOutlineCache = new Map<string, Path[]>()
@@ -173,6 +185,10 @@ export class SkiaRenderer {
   pageColor = CANVAS_BG_COLOR
   rulerTheme: RulerTheme | null = null
   pageId: string | null = null
+  /** Issue markers placed in the last overlay pass; hit testing reads the same layout. */
+  issueMarkers: PlacedIssueMarker[] = []
+  /** Screen rectangles of UI floating over this canvas, which overlays such as edge pins avoid. */
+  overlayObstacles: readonly Rect[] = []
 
   boundEffectLayersToViewport = false
   worldViewport = { x: 0, y: 0, w: 0, h: 0 }
@@ -265,16 +281,22 @@ export class SkiaRenderer {
     editState?: RenderOverlays['nodeEditState']
   ) => void
   declare drawPenOverlay: (canvas: Canvas, penState: RenderOverlays['penState']) => void
-  declare drawRemoteCursors: (
+  declare drawPresenceCursors: (
     canvas: Canvas,
     graph: SceneGraph,
-    cursors?: RenderOverlays['remoteCursors']
+    cursors?: PresenceCursor[]
   ) => void
   declare drawRulers: (
     canvas: Canvas,
     graph: SceneGraph,
     selectedIds: Set<string>,
     guides?: RenderOverlays['guides']
+  ) => void
+  declare drawFrameTitles: (
+    canvas: Canvas,
+    graph: SceneGraph,
+    selectedIds: ReadonlySet<string>,
+    overlays?: RenderOverlays
   ) => void
   declare drawSectionTitles: (canvas: Canvas, graph: SceneGraph, overlays?: RenderOverlays) => void
   declare drawComponentLabels: (
@@ -407,6 +429,16 @@ export class SkiaRenderer {
     return this.ck.Color4f(COMPONENT_COLOR.r, COMPONENT_COLOR.g, COMPONENT_COLOR.b, alpha)
   }
 
+  slotColor(alpha = 1) {
+    return this.ck.Color4f(SLOT_COLOR.r, SLOT_COLOR.g, SLOT_COLOR.b, alpha)
+  }
+
+  /** The outline colour for a node: pink for slots, purple for components, blue otherwise. */
+  outlineColor(node: SceneNode) {
+    if (slotPropertyId(node)) return this.slotColor()
+    return this.isComponentType(node.type) ? this.compColor() : this.selColor()
+  }
+
   isComponentType(type: string): boolean {
     return type === 'COMPONENT' || type === 'COMPONENT_SET' || type === 'INSTANCE'
   }
@@ -467,11 +499,7 @@ export class SkiaRenderer {
     return RendererFonts.isTextPictureCurrent(this, node)
   }
 
-  async prepareForExport(
-    graph: SceneGraph,
-    pageId: string,
-    nodeIds: string[]
-  ): Promise<() => void> {
+  async prepareForExport(graph: SceneGraph, pageId: string, nodeIds: string[]): Promise<void> {
     return RendererFonts.prepareForExport(this, graph, pageId, nodeIds)
   }
 
@@ -491,8 +519,9 @@ export class SkiaRenderer {
     RendererState.invalidateAllPictures(this)
   }
 
-  invalidateNodePicture(nodeId: string): void {
-    RendererState.invalidateNodePicture(this, nodeId)
+  /** Drops `nodeId`'s cached drawing; `changedKeys`, when known, lets text keep its glyph coverage. */
+  invalidateNodePicture(nodeId: string, changedKeys?: readonly (keyof SceneNode)[]): void {
+    RendererState.invalidateNodePicture(this, nodeId, changedKeys)
   }
 
   flashNode(nodeId: string): void {
@@ -563,7 +592,6 @@ export class SkiaRenderer {
     graph: SceneGraph,
     canvasX: number,
     canvasY: number,
-    selectedIds: Set<string>,
     preview?: RenderOverlays['rotationPreview']
   ): SceneNode | null {
     return LabelHitTest.hitTestFrameTitle(
@@ -571,8 +599,9 @@ export class SkiaRenderer {
       canvasX,
       canvasY,
       this.zoom,
-      selectedIds,
+      this.pageId ?? graph.rootId,
       this.labelFont,
+      this.labelCache,
       labelHitOptions(this, graph, preview)
     )
   }
@@ -747,7 +776,7 @@ export class SkiaRenderer {
       if (!dataURL.startsWith(`data:${mime}`)) return null
       const base64 = dataURL.split(',')[1]
       if (!base64) return null
-      return decodeBase64(base64)
+      return toUint8Array(base64)
     } catch (err) {
       console.warn('Raster encode fallback failed:', err)
       return null

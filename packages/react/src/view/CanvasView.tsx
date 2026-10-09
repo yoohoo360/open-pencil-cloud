@@ -41,7 +41,7 @@ function addDemoButtonIcon(store: EditorStore, parentId: string, componentId: st
     height: 16,
     componentPropertyReferences: [
       { propertyId: 'prop:show-icon', field: 'VISIBLE' },
-      { propertyId: 'prop:icon', field: 'SLOT' }
+      { propertyId: 'prop:icon', field: 'SLOT_CONTENT' }
     ]
   })
 }
@@ -178,7 +178,7 @@ function addDemoCard(store: EditorStore) {
         visible: true
       }
     ],
-    componentPropertyReferences: [{ propertyId: 'prop:body', field: 'SLOT' }]
+    componentPropertyReferences: [{ propertyId: 'prop:body', field: 'SLOT_CONTENT' }]
   })
   store.graph.createInstance(variant.id, pageId, {
     x: 400,

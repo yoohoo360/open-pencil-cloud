@@ -1,10 +1,8 @@
 export {
   ancestorPublishedInstance,
-  applySlotDraft,
   booleanPropertyDefinitions,
   canBindInstanceSwapProperty,
   canBindSlotProperty,
-  emptySlotDraft,
   compatibleComponentPropertyDefinitions,
   findFirstUnboundDescendant,
   findNodesBoundToProperty,
@@ -25,7 +23,6 @@ export {
   referencedDescendantText,
   referencedDescendantVisible,
   resolveVariantAuthoringChange,
-  slotDraftFromDefinition,
   textPropertyDefinitions,
   textPropertyId,
   uniquePropertyName,
@@ -34,14 +31,29 @@ export {
 } from '#react/controls/component-props/model'
 export type {
   ComponentPropertyControl,
-  ComponentPropertyOption,
-  SlotPropertyDraft,
-  VariantDefinitionControl
+  ComponentPropertyOption
 } from '#react/controls/component-props/model'
 export { bindFirstUnboundDescendant, setNodePropertyReference } from '#react/controls/component-props/binding'
 export { useComponentProperties } from '#react/controls/component-props/use'
-export { useVariantAuthoring } from '#react/controls/component-props/authoring'
+export {
+  useVariantAuthoring,
+  type VariantDefinitionControl
+} from '#react/controls/component-props/authoring'
 export { useInstanceSwap } from '#react/controls/component-props/swap'
+export {
+  slotInstanceOptions,
+  slotLimits,
+  useSlotProperties
+} from '#react/controls/component-props/slots'
+export type {
+  SlotInstanceOption,
+  SlotLimit,
+  SlotPropertyControl
+} from '#react/controls/component-props/slots'
+export {
+  useSlotAuthoring,
+  type SlotDefinitionControl
+} from '#react/controls/component-props/slot-authoring'
 export {
   applySlotInsertLayout,
   canAcceptInsertedChild,

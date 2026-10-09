@@ -1,18 +1,14 @@
 import type { VariantConflict } from '@open-pencil/core/editor'
-import type { ComponentPropertyDefinition, ComponentPropertyType, SceneNode } from '@open-pencil/scene-graph'
+import type { ComponentPropertyDefinition, SceneNode } from '@open-pencil/scene-graph'
 
-import { bindFirstUnboundDescendant } from '#react/controls/component-props/binding'
-import {
-  applySlotDraft,
-  findFirstUnboundDescendant,
-  orderedVariantValues,
-  resolveVariantAuthoringChange,
-  uniquePropertyName,
-  type SlotPropertyDraft,
-  type VariantDefinitionControl
-} from '#react/controls/component-props/model'
 import { useEditor } from '#react/editor/context'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
+
+export interface VariantDefinitionControl {
+  id: string
+  name: string
+  values: string[]
+}
 
 function variantContext(node: SceneNode | null, graph: ReturnType<typeof useEditor>['graph']) {
   if (node?.type === 'COMPONENT_SET') return { componentSet: node, variant: null }
@@ -21,6 +17,7 @@ function variantContext(node: SceneNode | null, graph: ReturnType<typeof useEdit
   return parent?.type === 'COMPONENT_SET' ? { componentSet: parent, variant: node } : null
 }
 
+/** Variant dimensions on a component set — same surface as Vue `useVariantAuthoring`. */
 export function useVariantAuthoring() {
   const editor = useEditor()
   const context = useSceneComputed(() => {
@@ -34,126 +31,42 @@ export function useVariantAuthoring() {
     const componentSetId = componentSet?.id
     if (!componentSetId) return []
     const values = editor.collectVariantOptions(componentSetId)
-    return editor.getComponentSetPropertyDefs(componentSetId).map((definition) => ({
-      id: definition.id,
-      name: definition.name,
-      type: definition.type,
-      defaultValue: definition.defaultValue,
-      description: definition.description,
-      preferredValues: definition.preferredValues,
-      slotMinLayers: definition.slotMinLayers,
-      slotMaxLayers: definition.slotMaxLayers,
-      onlyPreferredInstances: definition.onlyPreferredInstances,
-      emptySlotByDefault: definition.emptySlotByDefault,
-      fillCounterAxisByDefault: definition.fillCounterAxisByDefault,
-      values:
-        definition.type === 'VARIANT'
-          ? orderedVariantValues(definition.variantOptions, values.get(definition.name))
-          : []
-    }))
+    return editor
+      .getComponentSetPropertyDefs(componentSetId)
+      .filter(
+        (definition): definition is ComponentPropertyDefinition => definition.type === 'VARIANT'
+      )
+      .map((definition) => ({
+        id: definition.id,
+        name: definition.name,
+        values: [...(values.get(definition.name) ?? [])]
+      }))
   })
   const diagnostics = useSceneComputed<VariantConflict[]>(() => {
     const componentSetId = componentSet?.id
     return componentSetId ? editor.getComponentSetVariantConflicts(componentSetId) : []
   })
 
-  function addProperty(type: ComponentPropertyType, name: string, initialValue: string) {
+  /**
+   * Add a variant property, by default named Property 1, Property 2, … with the value Default,
+   * as Figma does; returns its id so the caller can start renaming it.
+   */
+  function addProperty(name?: string, initialValue = 'Default'): string | undefined {
     const componentSetId = componentSet?.id
-    if (!componentSetId) return
-    const uniqueName = uniquePropertyName(
-      definitions.map((definition) => definition.name),
-      name.trim()
+    if (!componentSetId) return undefined
+    return editor.addPropertyDefinition(
+      componentSetId,
+      name ?? nextPropertyName(),
+      'VARIANT',
+      initialValue
     )
-    const field =
-      type === 'TEXT'
-        ? 'TEXT'
-        : type === 'BOOLEAN'
-          ? 'VISIBLE'
-          : type === 'INSTANCE_SWAP'
-            ? 'INSTANCE_SWAP'
-            : type === 'SLOT'
-              ? 'SLOT'
-              : null
-    let value = initialValue
-    if (type === 'INSTANCE_SWAP' && !value) {
-      for (const variant of editor.graph.getChildren(componentSetId)) {
-        if (variant.type !== 'COMPONENT') continue
-        const nested = findFirstUnboundDescendant(
-          variant,
-          field ?? 'SLOT',
-          (id) => editor.graph.getChildren(id),
-          true
-        )
-        if (nested?.componentId) {
-          value = nested.componentId
-          break
-        }
-      }
-    }
-    const propertyId = editor.addPropertyDefinition(componentSetId, uniqueName, type, value)
-    if (propertyId && field && type !== 'SLOT') {
-      for (const variant of editor.graph.getChildren(componentSetId)) {
-        if (variant.type === 'COMPONENT') {
-          bindFirstUnboundDescendant(editor, variant.id, field, propertyId)
-        }
-      }
-    }
-    return propertyId
   }
 
-  function patchDefinitions(
-    componentSetId: string,
-    label: string,
-    mutate: (definitions: ComponentPropertyDefinition[]) => ComponentPropertyDefinition[]
-  ) {
-    const previous = structuredClone(editor.getComponentSetPropertyDefs(componentSetId))
-    const next = mutate(previous)
-    editor.graph.updateNode(componentSetId, { componentPropertyDefinitions: next })
-    editor.undo.push({
-      label,
-      forward: () => {
-        editor.graph.updateNode(componentSetId, {
-          componentPropertyDefinitions: structuredClone(next)
-        })
-        editor.requestRender()
-      },
-      inverse: () => {
-        editor.graph.updateNode(componentSetId, {
-          componentPropertyDefinitions: structuredClone(previous)
-        })
-        editor.requestRender()
-      }
-    })
-    editor.requestRender()
-    return true
-  }
-
-  function addSlotProperty(draft: SlotPropertyDraft) {
-    const propertyId = addProperty('SLOT', draft.name, '')
-    const componentSetId = componentSet?.id
-    if (!propertyId || !componentSetId) return propertyId
-    patchDefinitions(componentSetId, 'Add property', (definitions) =>
-      definitions.map((definition) =>
-        definition.id === propertyId
-          ? applySlotDraft(definition, { ...draft, name: definition.name })
-          : definition
-      )
-    )
-    return propertyId
-  }
-
-  function updateSlotProperty(propertyId: string, draft: SlotPropertyDraft) {
-    const componentSetId = componentSet?.id
-    if (!componentSetId) return false
-    const current = editor
-      .getComponentSetPropertyDefs(componentSetId)
-      .find((definition) => definition.id === propertyId)
-    if (!current || current.type !== 'SLOT') return false
-    return patchDefinitions(componentSetId, `Change ${draft.name.trim() || current.name}`, (definitions) =>
-      definitions.map((definition) =>
-        definition.id === propertyId ? applySlotDraft(definition, draft) : definition
-      )
-    )
+  function nextPropertyName(): string {
+    const taken = new Set(definitions.map((definition) => definition.name))
+    let index = 1
+    while (taken.has(`Property ${index}`)) index++
+    return `Property ${index}`
   }
 
   function renameProperty(propertyId: string, name: string) {
@@ -185,63 +98,11 @@ export function useVariantAuthoring() {
     return componentSetId ? editor.reorderVariantValues(componentSetId, propertyId, values) : false
   }
 
-  function setPropertyDefaultValue(propertyId: string, value: string) {
-    const componentSetId = componentSet?.id
-    if (!componentSetId) return false
-    const definitions = editor.getComponentSetPropertyDefs(componentSetId)
-    const definition = definitions.find((item) => item.id === propertyId)
-    if (!definition || definition.type === 'VARIANT' || definition.defaultValue === value) {
-      return false
-    }
-    const previous = structuredClone(definitions)
-    const next = definitions.map((item) =>
-      item.id === propertyId ? { ...item, defaultValue: value } : item
-    )
-    editor.graph.updateNode(componentSetId, { componentPropertyDefinitions: next })
-    editor.undo.push({
-      label: `Change ${definition.name}`,
-      forward: () => {
-        editor.graph.updateNode(componentSetId, {
-          componentPropertyDefinitions: structuredClone(next)
-        })
-        editor.requestRender()
-      },
-      inverse: () => {
-        editor.graph.updateNode(componentSetId, {
-          componentPropertyDefinitions: structuredClone(previous)
-        })
-        editor.requestRender()
-      }
-    })
-    editor.requestRender()
-    return true
-  }
-
-  function applyVariantValue(propertyId: string, value: string) {
+  function setVariantValue(propertyId: string, value: string) {
     const variantId = variant?.id
-    const componentSetId = componentSet?.id
-    const definition = definitions.find((item) => item.id === propertyId)
-    const live = variantId ? editor.graph.getNode(variantId) : null
-    if (!variantId || !componentSetId || !definition || live?.type !== 'COMPONENT') {
-      return { kind: 'invalid' as const }
-    }
-    const currentValues = Object.fromEntries(
-      definitions
-        .filter((item) => item.type === 'VARIANT')
-        .map((item) => [item.name, live.componentPropertyValues[item.name] ?? ''])
-    )
-    const resolved = resolveVariantAuthoringChange(
-      variantId,
-      currentValues,
-      definition.name,
-      value,
-      (values) => editor.findVariantByValues(componentSetId, values)
-    )
-    if (resolved.kind === 'select') {
-      editor.select([resolved.id])
-      return { kind: 'selected' as const, componentId: resolved.id }
-    }
-    return editor.setVariantPropertyValue(variantId, propertyId, resolved.value)
+    return variantId
+      ? editor.setVariantPropertyValue(variantId, propertyId, value)
+      : { kind: 'invalid' as const }
   }
 
   function addVariant() {
@@ -265,15 +126,12 @@ export function useVariantAuthoring() {
     definitions,
     diagnostics,
     addProperty,
-    addSlotProperty,
-    updateSlotProperty,
     renameProperty,
     removeProperty,
     reorderProperties,
     renameValue,
     reorderValues,
-    setPropertyDefaultValue,
-    applyVariantValue,
+    setVariantValue,
     addVariant,
     duplicateVariant,
     removeVariant

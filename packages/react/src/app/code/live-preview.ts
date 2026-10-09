@@ -1,5 +1,5 @@
 import { IS_BROWSER } from '@open-pencil/core/constants'
-import type { TreeNode } from '@open-pencil/core/design-jsx'
+import type { TreeNode } from '@open-pencil/design-jsx'
 import { renderTree } from '@open-pencil/core/design-jsx'
 import { computeAllLayouts } from '@open-pencil/core/layout'
 import type { Vector } from '@open-pencil/scene-graph'

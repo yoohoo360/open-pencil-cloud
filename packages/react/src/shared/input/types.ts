@@ -37,6 +37,15 @@ export interface DragMove {
   duplicatedPreviousSelection?: Set<string>
   autoLayoutParentId?: string
   brokeFromAutoLayout?: boolean
+  /** Click without drag selects this nested layer inside the current selection. */
+  selectOnClick?: string
+}
+
+export interface DragMarquee {
+  type: 'marquee'
+  startX: number
+  startY: number
+  containerId?: string
 }
 
 export interface DragPan {
@@ -64,12 +73,6 @@ export interface DragResize {
   origTextPathBox: Rect | null
   origChildren: Map<string, ResizeSnapshot> | null
   appliedRect?: Rect
-}
-
-export interface DragMarquee {
-  type: 'marquee'
-  startX: number
-  startY: number
 }
 
 export interface DragRotate {

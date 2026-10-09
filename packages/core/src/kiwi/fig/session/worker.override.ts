@@ -15,8 +15,9 @@ import type {
   FigSessionRequest,
   FigSessionResponse
 } from '#core/kiwi/fig/session/protocol.override'
+import { openReaderSession } from '#core/kiwi/fig/session/reader'
 
-let graph: SceneGraph | undefined
+let session: ReturnType<typeof openReaderSession> | undefined
 let originalArchive: Uint8Array | undefined
 let port: MessagePort | undefined
 
@@ -94,7 +95,7 @@ async function handleRequest(request: FigSessionRequest): Promise<void> {
       return
     }
     if (request.type === 'dispose') {
-      graph = undefined
+      session = undefined
       originalArchive = undefined
       respond({ type: 'disposed' })
       port?.close()
@@ -120,17 +121,20 @@ self.onmessage = (event: MessageEvent<FigSessionOpenRequest>) => {
     void handleRequest(message.data)
   }
   port.start()
-  originalArchive = new Uint8Array(request.archiveBuffer)
+  // The worker copies the archive itself, so the main thread sends the file once.
+  originalArchive = new Uint8Array(request.buffer.slice(0))
   try {
-    const { nodeChanges, blobs, images, figKiwiVersion, figSchemaDeflated } = parseFigBuffer(
-      request.originalBuffer,
-      (pages) => respond({ type: 'page-manifest', pages })
-    )
-    const parsedGraph = importNodeChanges(nodeChanges, blobs, new Map(images), request.options)
-    parsedGraph.figKiwiVersion = figKiwiVersion
-    parsedGraph.figSchemaDeflated = figSchemaDeflated
-    graph = request.options?.populate === 'first-page' ? parsedGraph : undefined
-    respond({ type: 'graph', graph: serializeSceneGraph(parsedGraph) })
+    const opened = openReaderSession(request.buffer, request.options?.populate)
+    respond({ type: 'page-manifest', pages: opened.pages })
+    session =
+      request.options?.populate === 'first-page' || request.options?.populate === 'none'
+        ? opened
+        : undefined
+    respond({
+      type: 'graph',
+      graph: serializeSceneGraph(opened.graph),
+      checkpoint: opened.checkpoint()
+    })
   } catch (error) {
     respond({ type: 'graph', error: error instanceof Error ? error.message : String(error) })
   }

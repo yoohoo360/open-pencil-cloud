@@ -78,7 +78,7 @@
         "../../packages/scene-graph/src/*"
       ],
       "@open-pencil/scene-graph": [
-        "../../packages/scene-graph/src/index.ts"
+        "../../packages/scene-graph/src/index.override.ts"
       ],
       "@open-pencil/scene-graph/types": [
         "../../packages/scene-graph/src/types.ts"

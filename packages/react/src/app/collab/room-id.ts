@@ -7,7 +7,7 @@ import {
 } from '#react/constants'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
-import { randomIndex } from '@open-pencil/core/random'
+import { randomIndex } from '@open-pencil/scene-graph/random'
 
 export function generateRoomId(): string {
   let result = ''

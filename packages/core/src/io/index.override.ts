@@ -1,15 +1,18 @@
 export { IORegistry } from './registry'
-export { extractExportGraph } from './subgraph'
+export { extractExportGraph, findPageId } from './subgraph'
 export {
   BUILTIN_IO_FORMATS,
+  type BuiltinIOFormatId,
   figFormat,
   penFormat,
   pngFormat,
   jpgFormat,
   webpFormat,
   svgFormat,
-  jsxFormat
-} from './formats'
+  jsxFormat,
+  htmlFormat,
+  tailwindJSXFormat
+} from './formats.override'
 export {
   exportFigFile,
   parseFigFile,
@@ -19,7 +22,6 @@ export {
 } from './formats/fig/index.override'
 export { findFigThumbnailPageId } from './formats/fig/thumbnail-page'
 export { parsePenFile, readPenFile } from '@open-pencil/pen'
-export { sceneNodeToJSX, selectionToJSX, type JSXFormat } from './formats/jsx'
 export {
   computeContentBounds,
   renderNodesToImage,
@@ -32,7 +34,7 @@ export {
   type RasterExportFormat,
   type ExportFormat,
   type CoverCapture
-} from './formats/raster'
+} from './formats/raster/index.override'
 export {
   createSVGNodes,
   createSVGNodesFromImport,
@@ -42,7 +44,7 @@ export {
   vectorNetworkToSVGPaths,
   type SVGImportData,
   type SVGImportOptions
-} from './formats/svg'
+} from './formats/svg/index.override'
 export {
   renderNodesToPPTX,
   type PPTXExportOptions,
@@ -60,13 +62,14 @@ export type {
   ReadDocumentResult,
   ExportTarget,
   ExportRequest,
+  ExportAsset,
   ExportResult,
+  HTMLExportOptions,
   IOContext,
   FigWriteOptions,
   RasterExportOptions,
   SVGExportOptions,
-  JSXExportOptions,
   IOFormatSupport,
   IOFormatExportOptions,
   IOFormatAdapter
-} from './types'
+} from './types.override'

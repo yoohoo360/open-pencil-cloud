@@ -1,5 +1,5 @@
 import { BLACK, DEFAULT_FONT_FAMILY, DEFAULT_SHAPE_FILL } from '@open-pencil/core/constants'
-import { colorToHex } from '@open-pencil/core/color'
+import { colorToHex } from '@open-pencil/scene-graph/color'
 import {
   copyEffects,
   copyFills,

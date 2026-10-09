@@ -86,7 +86,13 @@ function workspaceSourceAliases() {
     '@open-pencil/core': pkgSrc('core'),
     '@open-pencil/dom-css/browser$': path.join(pkgSrc('dom-css'), 'browser.ts'),
     '@open-pencil/dom-css$': path.join(pkgSrc('dom-css'), 'index.ts'),
-    '@open-pencil/dom-css': pkgSrc('dom-css')
+    '@open-pencil/dom-css': pkgSrc('dom-css'),
+    '@open-pencil/design-jsx$': path.join(pkgSrc('design-jsx'), 'index.ts'),
+    '@open-pencil/design-jsx': pkgSrc('design-jsx'),
+    '#design-jsx': pkgSrc('design-jsx'),
+    '@open-pencil/emit$': path.join(pkgSrc('emit'), 'index.ts'),
+    '@open-pencil/emit': pkgSrc('emit'),
+    '#emit': pkgSrc('emit')
   }
 }
 

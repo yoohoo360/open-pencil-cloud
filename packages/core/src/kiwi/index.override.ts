@@ -1,0 +1,52 @@
+export { prefetchFigmaSchema } from '#core/clipboard'
+export { readFigFile, parseFigFile } from './fig/file'
+export { importNodeChanges } from './fig/import.override'
+export {
+  populateAllLazyFigImportRoots,
+  populateLazyFigImportRoots
+} from './fig/lazy-import.override'
+export { deduplicateNodeChangePluginData } from '@open-pencil/kiwi/fig/parse'
+export {
+  initCodec,
+  encodeMessage,
+  decodeMessage,
+  compress,
+  decompress,
+  getCompiledSchema,
+  getSchemaBytes,
+  isCodecReady,
+  peekMessageType,
+  createNodeChangesMessage,
+  createNodeChange,
+  parseVariableId,
+  type NodeChange,
+  type GUID,
+  type Color,
+  type Paint,
+  type Effect,
+  type VariableAnyValue,
+  type VariableDataEntry,
+  type VariableConsumptionEntry,
+  type VariableDataValuesEntry,
+  type ParentIndex,
+  type FigmaMessage
+} from '@open-pencil/kiwi/fig/codec'
+export {
+  MESSAGE_TYPES,
+  NODE_TYPES,
+  NODE_PHASES,
+  BLEND_MODES,
+  PAINT_TYPES,
+  PROTOCOL_VERSION,
+  KIWI,
+  SESSION_ID,
+  ZSTD_MAGIC,
+  buildMultiplayerURL,
+  isZstdCompressed,
+  hasFigWireHeader,
+  skipFigWireHeader,
+  isKiwiMessage,
+  getKiwiMessageType,
+  parseVarint,
+  FIG_WIRE_MAGIC
+} from '@open-pencil/kiwi/fig'

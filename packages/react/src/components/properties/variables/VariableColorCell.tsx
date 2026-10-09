@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { colorToCSS, colorToHexRaw } from '@open-pencil/core/color'
+import { colorToCSS, colorToHexRaw } from '@open-pencil/scene-graph/color'
 import { IS_BROWSER } from '@open-pencil/core/constants'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 

@@ -11,7 +11,7 @@ import { materializeComponent } from '#react/graph/instances'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 
 function swapPropertyId(node: SceneNode) {
-  return propertyIdForField(node, 'SLOT') ?? propertyIdForField(node, 'INSTANCE_SWAP')
+  return propertyIdForField(node, 'SLOT_CONTENT') ?? propertyIdForField(node, 'INSTANCE_SWAP')
 }
 
 function boundSwapDefinition(
@@ -78,7 +78,7 @@ export function useInstanceSwap() {
     active: bindable,
     componentId,
     preferredValues: definition?.preferredValues,
-    onlyPreferredInstances: definition?.onlyPreferredInstances,
+    onlyPreferredInstances: definition?.slotSettings?.allowPreferredValuesOnly,
     swap
   }
 }

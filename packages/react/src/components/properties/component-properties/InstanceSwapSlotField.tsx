@@ -1,11 +1,11 @@
+import { InstanceSwapControl } from '#react/components/properties/component-properties/InstanceSwapControl'
 import { InstanceSwapPropertyBinding } from '#react/components/properties/component-properties/InstanceSwapPropertyBinding'
-import { SlotInsertControl } from '#react/components/properties/component-properties/SlotInsertControl'
 import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
 import { useInstanceSwap } from '#react/controls/component-props'
 import { useI18n } from '#react/i18n'
 
 export function InstanceSwapSlotField() {
-  const { active, preferredValues, onlyPreferredInstances, swap } = useInstanceSwap()
+  const { active, componentId, preferredValues, swap } = useInstanceSwap()
   const { panels } = useI18n()
   if (!active) return null
 
@@ -18,11 +18,11 @@ export function InstanceSwapSlotField() {
         container: 'min-w-0 flex-1 flex-row items-center gap-1'
       }}
     >
-      <SlotInsertControl
+      <InstanceSwapControl
         propertyId="instance-swap"
+        value={componentId}
         preferredValues={preferredValues}
-        onlyPreferredInstances={onlyPreferredInstances}
-        onInsert={swap}
+        onSelect={swap}
       />
       <InstanceSwapPropertyBinding />
     </PanelFieldGroup>

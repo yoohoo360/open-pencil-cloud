@@ -11,7 +11,7 @@ import {
   type RichImage
 } from '#react/controls/builtin-text/lists'
 
-import { colorToHex, parseColor } from '@open-pencil/core/color'
+import { colorToHex, parseColor } from '@open-pencil/scene-graph/color'
 import type {
   CharacterStyleOverride,
   Fill,

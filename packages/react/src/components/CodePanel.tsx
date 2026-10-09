@@ -3,7 +3,7 @@ import { BookOpen, Check, Copy, RotateCcw } from 'lucide-react'
 import { useStore } from '@nanostores/react'
 import { tv } from 'tailwind-variants'
 
-import { JSX_REFERENCE, selectionToJSX } from '@open-pencil/core/design-jsx'
+import { JSX_REFERENCE, selectionToJSX } from '@open-pencil/design-jsx'
 
 import {
   commitDesignJSXSession,

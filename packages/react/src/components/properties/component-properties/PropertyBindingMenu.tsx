@@ -14,7 +14,7 @@ export function PropertyBindingMenu({
   detachLabel,
   emptyLabel
 }: {
-  field: 'VISIBLE' | 'TEXT' | 'INSTANCE_SWAP' | 'SLOT'
+  field: 'VISIBLE' | 'TEXT' | 'INSTANCE_SWAP' | 'SLOT_CONTENT'
   applyLabel: string
   detachLabel: string
   emptyLabel: string

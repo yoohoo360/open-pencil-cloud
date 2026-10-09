@@ -1,6 +1,6 @@
 import type { BindingTarget } from '#react/controls/binding/types'
 
-import { colorToHex } from '@open-pencil/core/color'
+import { colorToHex } from '@open-pencil/scene-graph/color'
 import type { Editor } from '@open-pencil/core/editor'
 import type {
   Effect,

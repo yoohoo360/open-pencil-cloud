@@ -1,173 +1,54 @@
+import {
+  applyComponentPropertyValue,
+  cloneInstanceOverrideState,
+  componentPropertyDefinitions,
+  findComponentPropertyTarget,
+  instanceComponentPropertyAssignment,
+  resolveComponentPropertyValue,
+  setInstanceOverride
+} from '@open-pencil/scene-graph'
 import type {
   ComponentPropertyDefinition,
-  ComponentPropertyReferenceField,
+  ComponentPropertyTarget,
   SceneNode
 } from '@open-pencil/scene-graph'
 
 import { assertNodeEditable } from '#core/editor/capabilities'
 import type { EditorContext } from '#core/editor/types'
 
-interface PropertyTarget {
-  node: SceneNode
-  field: ComponentPropertyReferenceField
-  source: SceneNode
-}
-
-function definitionOwners(ctx: Pick<EditorContext, 'graph'>, instance: SceneNode): SceneNode[] {
-  if (!instance.componentId) return []
-  const component = ctx.graph.getNode(instance.componentId)
-  if (!component) return []
-  const parent = component.parentId ? ctx.graph.getNode(component.parentId) : null
-  return parent?.type === 'COMPONENT_SET' ? [parent, component] : [component]
-}
-
 function definitionsForInstance(
   ctx: Pick<EditorContext, 'graph'>,
   instance: SceneNode
 ): ComponentPropertyDefinition[] {
-  const byId = new Map<string, ComponentPropertyDefinition>()
-  for (const owner of definitionOwners(ctx, instance)) {
-    for (const definition of owner.componentPropertyDefinitions) {
-      if (!byId.has(definition.id)) byId.set(definition.id, definition)
-    }
-  }
-  return [...byId.values()]
-}
-
-function findPropertyPath(
-  ctx: Pick<EditorContext, 'graph'>,
-  sourceParent: SceneNode,
-  propertyId: string,
-  path: number[] = []
-): { path: number[]; field: ComponentPropertyReferenceField; source: SceneNode } | null {
-  for (const [index, childId] of sourceParent.childIds.entries()) {
-    const child = ctx.graph.getNode(childId)
-    if (!child) continue
-    const reference = child.componentPropertyReferences.find((ref) => ref.propertyId === propertyId)
-    if (reference) return { path: [...path, index], field: reference.field, source: child }
-    const nested = findPropertyPath(ctx, child, propertyId, [...path, index])
-    if (nested) return nested
-  }
-  return null
-}
-
-function nodeAtPath(
-  ctx: Pick<EditorContext, 'graph'>,
-  root: SceneNode,
-  path: number[]
-): SceneNode | null {
-  let node = root
-  for (const index of path) {
-    const childId = node.childIds[index]
-    const child = childId ? ctx.graph.getNode(childId) : undefined
-    if (!child) return null
-    node = child
-  }
-  return node
+  return componentPropertyDefinitions(ctx.graph, instance)
 }
 
 function propertyTarget(
   ctx: Pick<EditorContext, 'graph'>,
   instance: SceneNode,
   propertyId: string
-): PropertyTarget | null {
-  const component = instance.componentId ? ctx.graph.getNode(instance.componentId) : null
-  if (!component) return null
-  const match = findPropertyPath(ctx, component, propertyId)
-  if (!match) return null
-  const node = nodeAtPath(ctx, instance, match.path)
-  return node ? { node, field: match.field, source: match.source } : null
-}
-
-function isSwapField(field: ComponentPropertyReferenceField | undefined): boolean {
-  return field === 'INSTANCE_SWAP' || field === 'SLOT'
-}
-
-function isSwapType(type: ComponentPropertyDefinition['type']): boolean {
-  return type === 'INSTANCE_SWAP' || type === 'SLOT'
+): ComponentPropertyTarget | null {
+  return findComponentPropertyTarget(ctx.graph, instance, propertyId)
 }
 
 function swapTargetId(ctx: Pick<EditorContext, 'graph'>, value: string): string | null {
-  const direct = ctx.graph.getNode(value)
-  if (direct?.type === 'COMPONENT') return direct.id
-  for (const node of ctx.graph.getAllNodes()) {
-    if (node.type !== 'COMPONENT') continue
-    if (
-      node.source.id === value ||
-      node.componentKey === value ||
-      node.sourceLibraryKey === value
-    ) {
-      return node.id
-    }
-  }
-  return null
+  return resolveComponentPropertyValue(ctx.graph, value)?.id ?? null
 }
 
-function targetValue(target: PropertyTarget | null): string {
+function targetValue(target: ComponentPropertyTarget | null): string {
   if (!target) return ''
   if (target.field === 'TEXT') return target.node.text
   if (target.field === 'VISIBLE') return String(target.node.visible)
   return target.source.componentId ?? target.node.componentId ?? ''
 }
-
-function propertyOverrides(
-  ctx: Pick<EditorContext, 'graph'>,
-  instance: SceneNode,
-  target: PropertyTarget | null,
-  value: string,
-  swapComponentId: string | null
-): Record<string, unknown> {
-  const overrides = { ...instance.overrides }
-  if (target?.field === 'TEXT') overrides[`${target.node.id}:text`] = value
-  else if (target?.field === 'VISIBLE') overrides[`${target.node.id}:visible`] = value === 'true'
-  else if (target && isSwapField(target.field)) {
-    overrides[`${target.node.id}:componentId`] = value
-    overrides[`${target.node.id}:sourceComponentId`] = target.source.id
-    const componentName = swapComponentId ? ctx.graph.getNode(swapComponentId)?.name : undefined
-    if (componentName) overrides[`${target.node.id}:name`] = componentName
-  }
-  return overrides
-}
-
-function updatePropertyTarget(
-  ctx: Pick<EditorContext, 'graph'>,
-  target: PropertyTarget | null,
-  value: string,
-  swapComponentId: string | null
-): void {
-  if (target?.field === 'TEXT' && target.node.type === 'TEXT') {
-    ctx.graph.updateNode(target.node.id, { text: value })
-  } else if (target?.field === 'VISIBLE') {
-    ctx.graph.updateNode(target.node.id, { visible: value === 'true' })
-  } else if (
-    target &&
-    isSwapField(target.field) &&
-    target.node.type === 'INSTANCE' &&
-    swapComponentId
-  ) {
-    if (target.node.componentId === swapComponentId) return
-    ctx.graph.swapInstanceComponent(target.node.id, swapComponentId)
-  }
-}
-
 function applyPropertyValue(
   ctx: Pick<EditorContext, 'graph'>,
   instanceId: string,
   definition: ComponentPropertyDefinition,
   value: string
-): void {
-  const instance = ctx.graph.getNode(instanceId)
-  if (instance?.type !== 'INSTANCE') return
-  const target = propertyTarget(ctx, instance, definition.id)
-  const swapComponentId = isSwapField(target?.field) ? swapTargetId(ctx, value) : null
-  ctx.graph.updateNode(instance.id, {
-    componentPropertyAssignments: {
-      ...instance.componentPropertyAssignments,
-      [definition.id]: value
-    },
-    overrides: propertyOverrides(ctx, instance, target, value, swapComponentId)
-  })
-  updatePropertyTarget(ctx, target, value, swapComponentId)
+): boolean {
+  const result = applyComponentPropertyValue(ctx.graph, instanceId, definition, value)
+  return definition.type !== 'INSTANCE_SWAP' || result !== null
 }
 
 export function reapplyInstanceComponentProperties(
@@ -206,8 +87,10 @@ export function createComponentPropertyActions(
       const component = instance.componentId ? ctx.graph.getNode(instance.componentId) : null
       return component?.componentPropertyValues[definition.name] ?? definition.defaultValue
     }
-    const value = instance.componentPropertyAssignments[definition.id] ?? definition.defaultValue
-    return isSwapType(definition.type) ? (swapTargetId(ctx, value) ?? value) : value
+    const value =
+      instanceComponentPropertyAssignment(ctx.graph, instance, definition.id) ??
+      definition.defaultValue
+    return definition.type === 'INSTANCE_SWAP' ? (swapTargetId(ctx, value) ?? value) : value
   }
 
   function setInstanceComponentProperty(instanceId: string, propertyId: string, value: string) {
@@ -221,23 +104,17 @@ export function createComponentPropertyActions(
       return
     }
 
-    const assignedValue = instance.componentPropertyAssignments[propertyId]
-    if (assignedValue === value) return
-    const target = propertyTarget(ctx, instance, propertyId)
-    if (assignedValue === undefined && isSwapType(definition.type)) {
-      const live = swapTargetId(ctx, targetValue(target)) ?? targetValue(target)
-      const next = swapTargetId(ctx, value) ?? value
-      if (live === next) return
-    }
-
     const previousAssignments = { ...instance.componentPropertyAssignments }
-    const previousOverrides = structuredClone(instance.overrides)
+    const previousOverrides = cloneInstanceOverrideState(instance.instanceOverrides)
+
+    const target = propertyTarget(ctx, instance, propertyId)
+    const assignedValue = instance.componentPropertyAssignments[propertyId]
     const previousValue =
-      isSwapType(definition.type) && assignedValue
+      definition.type === 'INSTANCE_SWAP' && assignedValue
         ? (swapTargetId(ctx, assignedValue) ?? assignedValue)
         : targetValue(target)
 
-    applyPropertyValue(ctx, instanceId, definition, value)
+    if (!applyPropertyValue(ctx, instanceId, definition, value)) return
     ctx.undo.push({
       label: `Change ${definition.name}`,
       forward: () => {
@@ -247,19 +124,27 @@ export function createComponentPropertyActions(
       inverse: () => {
         const live = ctx.graph.getNode(instanceId)
         if (live) {
+          const restoredTarget = propertyTarget(ctx, live, propertyId)
           ctx.graph.updateNode(instanceId, {
             componentPropertyAssignments: previousAssignments,
-            overrides: previousOverrides
+            instanceOverrides: cloneInstanceOverrideState(previousOverrides)
           })
-          const restoredTarget = propertyTarget(ctx, live, propertyId)
           if (restoredTarget?.field === 'TEXT' && restoredTarget.node.type === 'TEXT') {
             ctx.graph.updateNode(restoredTarget.node.id, { text: previousValue })
           } else if (restoredTarget?.field === 'VISIBLE') {
             ctx.graph.updateNode(restoredTarget.node.id, { visible: previousValue === 'true' })
-          } else if (restoredTarget && isSwapField(restoredTarget.field)) {
+          } else if (restoredTarget?.field === 'INSTANCE_SWAP') {
             const componentId = swapTargetId(ctx, previousValue)
             if (componentId && restoredTarget.node.type === 'INSTANCE') {
               ctx.graph.swapInstanceComponent(restoredTarget.node.id, componentId)
+              setInstanceOverride(
+                live.instanceOverrides,
+                live.id,
+                restoredTarget.node.id,
+                'sourceComponentId',
+                restoredTarget.source.id
+              )
+              ctx.graph.updateNode(live.id, { instanceOverrides: live.instanceOverrides })
             }
           }
         }

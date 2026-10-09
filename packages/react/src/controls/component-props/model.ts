@@ -13,6 +13,8 @@ export interface ComponentPropertyOption {
   label: string
   missing?: boolean
   disabled?: boolean
+  /** A swap choice the property's definition recommends. */
+  preferred?: boolean
 }
 
 export interface ComponentPropertyControl {
@@ -21,9 +23,7 @@ export interface ComponentPropertyControl {
   type: ComponentPropertyType
   value: MixedValue<string>
   options: ComponentPropertyOption[]
-  insertable?: boolean
   preferredValues?: string[]
-  onlyPreferredInstances?: boolean
   boundLayerNames?: string[]
 }
 
@@ -67,25 +67,19 @@ export function emptySlotDraft(name: string): SlotPropertyDraft {
 export function slotDraftFromDefinition(
   definition: Pick<
     ComponentPropertyDefinition,
-    | 'name'
-    | 'description'
-    | 'preferredValues'
-    | 'slotMinLayers'
-    | 'slotMaxLayers'
-    | 'onlyPreferredInstances'
-    | 'emptySlotByDefault'
-    | 'fillCounterAxisByDefault'
+    'name' | 'description' | 'preferredValues' | 'slotSettings'
   >
 ): SlotPropertyDraft {
+  const settings = definition.slotSettings
   return {
     name: definition.name,
     description: definition.description ?? '',
     preferredValues: [...(definition.preferredValues ?? [])],
-    slotMinLayers: definition.slotMinLayers,
-    slotMaxLayers: definition.slotMaxLayers,
-    onlyPreferredInstances: definition.onlyPreferredInstances ?? false,
-    emptySlotByDefault: definition.emptySlotByDefault ?? false,
-    fillCounterAxisByDefault: definition.fillCounterAxisByDefault ?? false
+    slotMinLayers: settings?.minChildren,
+    slotMaxLayers: settings?.maxChildren,
+    onlyPreferredInstances: settings?.allowPreferredValuesOnly ?? false,
+    emptySlotByDefault: settings?.displayEmptyByDefault ?? false,
+    fillCounterAxisByDefault: settings?.stretchChildOnInsert ?? false
   }
 }
 
@@ -99,11 +93,13 @@ export function applySlotDraft(
     name,
     description: draft.description,
     preferredValues: [...draft.preferredValues],
-    slotMinLayers: draft.slotMinLayers,
-    slotMaxLayers: draft.slotMaxLayers,
-    onlyPreferredInstances: draft.onlyPreferredInstances,
-    emptySlotByDefault: draft.emptySlotByDefault,
-    fillCounterAxisByDefault: draft.fillCounterAxisByDefault
+    slotSettings: {
+      minChildren: draft.slotMinLayers,
+      maxChildren: draft.slotMaxLayers,
+      allowPreferredValuesOnly: draft.onlyPreferredInstances,
+      displayEmptyByDefault: draft.emptySlotByDefault,
+      stretchChildOnInsert: draft.fillCounterAxisByDefault
+    }
   }
 }
 
@@ -126,7 +122,16 @@ export function compatibleComponentPropertyDefinitions(
   const signature = (items: ComponentPropertyDefinition[]) =>
     items.map((item) => `${item.id}:${item.type}`).join('\u0000')
   const expected = signature(first)
-  return definitions.every((items) => signature(items) === expected) ? first : []
+  if (!definitions.every((items) => signature(items) === expected)) return []
+  // Defensive: instance owners may still surface same-name historical copies.
+  const byId = new Map<string, ComponentPropertyDefinition>()
+  const names = new Set<string>()
+  for (const definition of first) {
+    if (byId.has(definition.id) || names.has(definition.name)) continue
+    byId.set(definition.id, definition)
+    names.add(definition.name)
+  }
+  return [...byId.values()]
 }
 
 export function mergedComponentPropertyValue(values: string[]): MixedValue<string> {
@@ -293,7 +298,7 @@ export function findReferencedSwapInstance(
     root.componentPropertyReferences.some(
       (reference) =>
         reference.propertyId === propertyId &&
-        (reference.field === 'INSTANCE_SWAP' || reference.field === 'SLOT')
+        (reference.field === 'INSTANCE_SWAP' || reference.field === 'SLOT_CONTENT')
     )
   ) {
     return root
@@ -343,7 +348,7 @@ export function findFirstUnboundDescendant(
         ? !VISIBILITY_BIND_SKIP.has(root.type)
         : field === 'INSTANCE_SWAP'
           ? root.type === 'INSTANCE'
-          : field === 'SLOT'
+          : field === 'SLOT_CONTENT'
             ? root.type === 'FRAME'
             : false
   if (
@@ -390,11 +395,14 @@ export function propertyDefinitionsOfType(
   type: ComponentPropertyType
 ): ComponentPropertyDefinition[] {
   const byId = new Map<string, ComponentPropertyDefinition>()
+  const names = new Set<string>()
   for (const owner of owners) {
     for (const definition of owner.componentPropertyDefinitions) {
-      if (definition.type === type && !byId.has(definition.id)) {
-        byId.set(definition.id, definition)
+      if (definition.type !== type || byId.has(definition.id) || names.has(definition.name)) {
+        continue
       }
+      byId.set(definition.id, definition)
+      names.add(definition.name)
     }
   }
   return [...byId.values()]
@@ -427,7 +435,7 @@ export function isSwapPropertyType(type: ComponentPropertyType): boolean {
 }
 
 export function isSwapReferenceField(field: ComponentPropertyReferenceField): boolean {
-  return field === 'INSTANCE_SWAP' || field === 'SLOT'
+  return field === 'INSTANCE_SWAP' || field === 'SLOT_CONTENT'
 }
 
 export function instanceSwapOptions(
@@ -460,7 +468,6 @@ export function instanceSwapOptions(
       (left, right) =>
         Number(right.preferred) - Number(left.preferred) || left.label.localeCompare(right.label)
     )
-    .map(({ value: optionValue, label }) => ({ value: optionValue, label }))
   if (value && !options.some((option) => option.value === value)) {
     options.push({ value, label: value, missing: true })
   }

@@ -8,7 +8,7 @@ import {
   type ReactNode
 } from 'react'
 
-import { colorToCSS, parseColor } from '@open-pencil/core/color'
+import { colorToCSS, parseColor } from '@open-pencil/scene-graph/color'
 
 export type BuiltinEditorMode = 'rich' | 'markdown'
 

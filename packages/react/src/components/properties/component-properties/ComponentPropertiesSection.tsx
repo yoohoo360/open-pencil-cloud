@@ -3,13 +3,15 @@ import {
   propertyBindingTooltip,
   PropertyTypeIcon
 } from '#react/components/properties/component-properties/PropertyTypeIcon'
-import { SlotInsertControl } from '#react/components/properties/component-properties/SlotInsertControl'
+import { InstanceSwapControl } from '#react/components/properties/component-properties/InstanceSwapControl'
+import { SlotPropertyRow } from '#react/components/properties/component-properties/SlotPropertyRow'
 import { AppSelect } from '#react/components/ui/AppSelect'
 import { AppSwitch } from '#react/components/ui/AppSwitch'
 import { PanelFieldGroup } from '#react/components/ui/panel/PanelFieldGroup'
 import { PanelSection } from '#react/components/ui/panel/PanelSection'
 import { Tip } from '#react/components/ui/Tip'
 import { useComponentProperties } from '#react/controls/component-props'
+import { useSlotProperties } from '#react/controls/component-props/slots'
 import { MIXED } from '#react/controls/mixed'
 import { useI18n } from '#react/i18n'
 
@@ -19,13 +21,17 @@ const PROPERTY_ROW = {
 }
 
 export function ComponentPropertiesSection() {
-  const { active, controls, setValue, insertIntoSlot } = useComponentProperties()
+  const { active, controls, setValue } = useComponentProperties()
+  const slotProperties = useSlotProperties()
+  const { slots } = slotProperties
   const { panels } = useI18n()
-  if (!active) return null
+  const visible = active || slots.length > 0
+  if (!visible) return null
 
-  const sectionLabel = controls.every((control) => control.type === 'VARIANT')
-    ? panels.variants
-    : panels.componentProperties
+  const sectionLabel =
+    slots.length === 0 && controls.every((control) => control.type === 'VARIANT')
+      ? panels.variants
+      : panels.componentProperties
 
   return (
     <PanelSection label={sectionLabel} titleClass="text-component">
@@ -80,24 +86,17 @@ export function ComponentPropertiesSection() {
                   />
                 </div>
               ) : null}
-              {control.type === 'SLOT' || control.type === 'INSTANCE_SWAP' ? (
-                <>
-                  <span></span>
-                  <SlotInsertControl
-                    propertyId={control.id}
-                    preferredValues={control.preferredValues}
-                    onlyPreferredInstances={control.onlyPreferredInstances}
-                    onInsert={(componentId, sourceLibraryKey) => {
-                      if (
-                        control.type === 'SLOT' &&
-                        insertIntoSlot(control.id, componentId, sourceLibraryKey)
-                      ) {
-                        return
-                      }
-                      setValue(control.id, componentId, sourceLibraryKey)
-                    }}
-                  />
-                </>
+              {control.type === 'INSTANCE_SWAP' ? (
+                <InstanceSwapControl
+                  propertyId={control.id}
+                  value={control.value === MIXED ? '' : control.value}
+                  preferredValues={control.preferredValues}
+                  mixed={control.value === MIXED}
+                  mixedPlaceholder={panels.mixed}
+                  onSelect={(componentId, sourceLibraryKey) => {
+                    setValue(control.id, componentId, sourceLibraryKey)
+                  }}
+                />
               ) : null}
               {control.type === 'VARIANT' ? (
                 <AppSelect
@@ -113,6 +112,22 @@ export function ComponentPropertiesSection() {
             </PanelFieldGroup>
           )
         })}
+        {slots.map((slot) => (
+          <SlotPropertyRow
+            key={slot.id}
+            name={slot.name}
+            propertyId={slot.id}
+            modified={slot.modified}
+            itemCount={slot.itemCount}
+            limits={slot.limits}
+            preferredValues={slot.preferredValues}
+            preferredOnly={slot.preferredOnly}
+            onAdd={(componentId) => slotProperties.add(slot.frameId, componentId)}
+            onReset={() => slotProperties.reset(slot.frameId)}
+            onDeleteContents={() => slotProperties.clear(slot.frameId)}
+            onSelectLayers={() => slotProperties.selectLayers(slot.offendingIds)}
+          />
+        ))}
       </div>
     </PanelSection>
   )

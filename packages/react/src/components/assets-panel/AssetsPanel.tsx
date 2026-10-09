@@ -120,9 +120,13 @@ export function AssetsPanel() {
   }
 
   async function onSelectCatalogItem(item: RemoteLibraryCatalogItem) {
-    await attachRemoteLibrary(store, fileKey, item)
-    refreshLibraries()
-    setAddOpen(false)
+    try {
+      await attachRemoteLibrary(store, fileKey, item)
+      refreshLibraries()
+      setAddOpen(false)
+    } catch (reason) {
+      console.warn('[Assets] Failed to add library', item.key, reason)
+    }
   }
 
   function onDragStart(event: DragEvent<HTMLDivElement>, asset: LocalAsset) {

@@ -9,11 +9,11 @@ import type {
 } from 'canvaskit-wasm'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
+import { resolveRGBAForPreview } from '@open-pencil/scene-graph/color'
+import { resolveNodeTextDirection } from '@open-pencil/scene-graph/text-direction'
 
-import { resolveRGBAForPreview } from '#core/color/management'
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '#core/constants'
 import { transformTextCase } from '#core/text/case'
-import { resolveNodeTextDirection } from '#core/text/direction'
 import { fontManager, weightToStyle } from '#core/text/fonts'
 import {
   fontCoverageDemand,
@@ -202,9 +202,13 @@ function canObserveGlyphCoverage(r: FontReadinessRenderer): r is TextRenderer {
 export function nodeFontReadiness(r: FontReadinessRenderer, node: SceneNode): NodeFontReadiness {
   if (node.type !== 'TEXT') return 'ready'
   const faces = requiredFacesReadiness(r, node)
-  if (faces !== 'ready') return faces
-  if (!node.text || !canObserveGlyphCoverage(r)) return 'ready'
-  return observedGlyphReadiness(r, node)
+  if (faces === 'pending' || faces === 'exhausted') return faces
+  if (!node.text || !canObserveGlyphCoverage(r)) return faces
+  const glyphs = observedGlyphReadiness(r, node)
+  // Substituted text still needs script fallbacks (for example CJK) for glyphs the substitute
+  // lacks, but stays visible when none can be found.
+  if (faces === 'substituted') return glyphs === 'pending' ? 'pending' : 'substituted'
+  return glyphs
 }
 
 export function isNodeFontLoaded(r: FontReadinessRenderer, node: SceneNode): boolean {
@@ -219,12 +223,25 @@ export function measureTextNode(
   if (!r.fontsLoaded || !r.fontProvider || !isNodeFontLoaded(r, node)) return null
   if (node.type !== 'TEXT' || !node.text) return null
 
-  const paragraph = buildParagraph(r, node)
-  paragraph.layout(resolveParagraphLayoutWidth(node, maxWidth))
-  const width = paragraph.getLongestLine()
-  const height = paragraph.getHeight()
-  paragraph.delete()
-  return { width: Math.ceil(width), height: Math.ceil(height) }
+  const layoutWidth = resolveParagraphLayoutWidth(node, maxWidth)
+  const measure = () => {
+    const paragraph = buildParagraph(r, node)
+    paragraph.layout(layoutWidth)
+    const width = paragraph.getLongestLine()
+    const height = paragraph.getHeight()
+    paragraph.delete()
+    return { width: Math.ceil(width), height: Math.ceil(height) }
+  }
+  // Layout asks for the same text at the same width many times per pass.
+  return r.textPreparationCache
+    ? r.textPreparationCache.measure(
+        node,
+        layoutWidth,
+        fontManager.generation(),
+        r.fontProvider,
+        measure
+      )
+    : measure()
 }
 
 export function buildTextPicture(r: TextRenderer, node: SceneNode): Uint8Array | null {
@@ -246,6 +263,14 @@ export function buildTextPicture(r: TextRenderer, node: SceneNode): Uint8Array |
   const bytes = picture.serialize()
   picture.delete()
   return bytes ?? null
+}
+
+/** Offset that places laid-out text of `contentHeight` in the node box by vertical alignment. */
+export function textVerticalOffset(node: SceneNode, contentHeight: number): number {
+  const available = Math.max(0, node.height - contentHeight)
+  if (node.textAlignVertical === 'CENTER') return available / 2
+  if (node.textAlignVertical === 'BOTTOM') return available
+  return 0
 }
 
 function resolveParagraphLayoutWidth(node: ParagraphNode, maxWidth?: number): number {
@@ -287,11 +312,18 @@ function getParagraphTextAlign(
   }
 }
 
+/** Explicit axes win over the named-instance axes of a variable face (`implicit`). */
 export function textFontVariations(
-  variations: SceneNode['fontVariations'] | undefined
+  variations: SceneNode['fontVariations'] | undefined,
+  implicit: SceneNode['fontVariations'] | null = null
 ): TextFontVariations[] | undefined {
-  if (!variations || variations.length === 0) return undefined
-  return variations.map((variation) => ({ axis: variation.axis, value: variation.value }))
+  const explicitAxes = new Set(variations?.map((variation) => variation.axis))
+  const merged = [
+    ...(implicit ?? []).filter((variation) => !explicitAxes.has(variation.axis)),
+    ...(variations ?? [])
+  ]
+  if (merged.length === 0) return undefined
+  return merged.map((variation) => ({ axis: variation.axis, value: variation.value }))
 }
 
 export function textFontFeatures(
@@ -391,23 +423,23 @@ function pushStyleRun(
   const style = run.style
   const runLineHeight = style.lineHeight !== undefined ? style.lineHeight : node.lineHeight
   const runFontSize = style.fontSize ?? baseFontSize
-  const backgroundColor = styleRunBackground(ck, style)
+  const runFamily = style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY)
+  const runWeight = style.fontWeight ?? node.fontWeight
+  const runItalic = style.italic ?? node.italic
 
   const textStyle = new ck.TextStyle({
     color: styleRunColor(ck, style, baseColor),
-    ...(backgroundColor ? { backgroundColor } : {}),
-    fontFamilies: fontFamilies(
-      style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY),
-      style.fontWeight ?? node.fontWeight,
-      style.italic ?? node.italic
-    ),
+    fontFamilies: fontFamilies(runFamily, runWeight, runItalic),
     fontSize: runFontSize,
     locale: styleRunLanguage(style, node),
     fontStyle: {
-      weight: { value: style.fontWeight ?? node.fontWeight } as FontWeight,
-      slant: (style.italic ?? node.italic) ? ck.FontSlant.Italic : ck.FontSlant.Upright
+      weight: { value: runWeight } as FontWeight,
+      slant: runItalic ? ck.FontSlant.Italic : ck.FontSlant.Upright
     },
-    fontVariations: textFontVariations(style.fontVariations ?? node.fontVariations),
+    fontVariations: textFontVariations(
+      style.fontVariations ?? node.fontVariations,
+      fontManager.namedInstanceVariations(runFamily, weightToStyle(runWeight, runItalic))
+    ),
     fontFeatures: textFontFeatures(style.fontFeatures ?? node.fontFeatures),
     letterSpacing: style.letterSpacing ?? (node.letterSpacing || 0),
     decoration: textDecorationValue(ck, style.textDecoration ?? node.textDecoration),
@@ -505,7 +537,13 @@ export function buildParagraph(
       weight: { value: node.fontWeight } as FontWeight,
       slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
     },
-    fontVariations: textFontVariations(node.fontVariations),
+    fontVariations: textFontVariations(
+      node.fontVariations,
+      fontManager.namedInstanceVariations(
+        node.fontFamily || DEFAULT_FONT_FAMILY,
+        weightToStyle(node.fontWeight, node.italic)
+      )
+    ),
     fontFeatures: textFontFeatures(node.fontFeatures),
     letterSpacing: node.letterSpacing || 0,
     decoration: textDecorationValue(ck, node.textDecoration),

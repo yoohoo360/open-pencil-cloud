@@ -1,31 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
-import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
-import { html } from '@codemirror/lang-html'
-import { javascript } from '@codemirror/lang-javascript'
-import {
-  bracketMatching,
-  defaultHighlightStyle,
-  foldGutter,
-  foldKeymap,
-  indentOnInput,
-  syntaxHighlighting
-} from '@codemirror/language'
-import { lintKeymap } from '@codemirror/lint'
-import { searchKeymap } from '@codemirror/search'
-import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state'
-import {
-  drawSelection,
-  EditorView,
-  highlightActiveLine,
-  highlightActiveLineGutter,
-  highlightSpecialChars,
-  keymap,
-  lineNumbers
-} from '@codemirror/view'
+import { useEffect, useMemo, useRef } from 'react'
 
-import { designJSXExtensions } from '#react/components/code-editor/extensions'
+import { highlightCode } from '#react/components/code-editor/highlight'
 import type { CodeEditorLanguage } from '#react/components/code-editor/types'
+
+import './highlight.css'
 
 export function CodeEditor({
   value,
@@ -40,120 +18,68 @@ export function CodeEditor({
   label?: string
   onChange: (value: string) => void
 }) {
-  const hostRef = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<EditorView | null>(null)
-  const languageCompartment = useRef(new Compartment())
-  const editableCompartment = useRef(new Compartment())
-  const labelCompartment = useRef(new Compartment())
-  const onChangeRef = useRef(onChange)
-  const externalUpdate = useRef(false)
-  onChangeRef.current = onChange
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const preRef = useRef<HTMLPreElement>(null)
+  const pendingCaret = useRef<number | null>(null)
+  const highlighted = useMemo(() => highlightCode(value, language), [value, language])
 
   useEffect(() => {
-    const parent = hostRef.current
-    if (!parent) return
-
-    const view = new EditorView({
-      doc: value,
-      parent,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightSpecialChars(),
-        history(),
-        foldGutter(),
-        drawSelection(),
-        EditorState.allowMultipleSelections.of(true),
-        indentOnInput(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        bracketMatching(),
-        closeBrackets(),
-        highlightActiveLine(),
-        keymap.of([
-          { key: 'Ctrl-z', run: undo },
-          { key: 'Ctrl-Shift-z', run: redo },
-          ...closeBracketsKeymap,
-          ...defaultKeymap,
-          ...searchKeymap,
-          ...historyKeymap,
-          ...foldKeymap,
-          ...completionKeymap,
-          ...lintKeymap
-        ]),
-        languageCompartment.current.of(languageExtensions(language)),
-        editableCompartment.current.of(editableExtensions(readOnly)),
-        labelCompartment.current.of(EditorView.contentAttributes.of({ 'aria-label': label })),
-        EditorView.lineWrapping,
-        EditorView.theme({
-          '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--color-surface)' },
-          '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-mono)' },
-          '.cm-content': { padding: '12px 0', caretColor: 'var(--color-accent)' },
-          '.cm-line': { padding: '0 12px' },
-          '.cm-gutters': {
-            backgroundColor: 'transparent',
-            color: 'color-mix(in srgb, var(--color-muted) 45%, transparent)',
-            border: 'none'
-          },
-          '&.cm-focused': { outline: 'none' },
-          '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-            backgroundColor: 'color-mix(in srgb, var(--color-accent) 22%, transparent)'
-          }
-        }),
-        EditorView.updateListener.of((update) => {
-          if (!update.docChanged || externalUpdate.current) return
-          onChangeRef.current(update.state.doc.toString())
-        })
-      ]
-    })
-    viewRef.current = view
-    return () => {
-      view.destroy()
-      viewRef.current = null
+    const textarea = textareaRef.current
+    const pre = preRef.current
+    if (!textarea || !pre) return
+    const syncScroll = () => {
+      pre.scrollTop = textarea.scrollTop
+      pre.scrollLeft = textarea.scrollLeft
     }
+    textarea.addEventListener('scroll', syncScroll)
+    return () => textarea.removeEventListener('scroll', syncScroll)
   }, [])
 
   useEffect(() => {
-    const view = viewRef.current
-    if (!view || view.state.doc.toString() === value) return
-    externalUpdate.current = true
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-      annotations: Transaction.addToHistory.of(false)
-    })
-    externalUpdate.current = false
+    const caret = pendingCaret.current
+    const textarea = textareaRef.current
+    if (caret === null || !textarea) return
+    textarea.selectionStart = caret
+    textarea.selectionEnd = caret
+    pendingCaret.current = null
   }, [value])
 
-  useEffect(() => {
-    viewRef.current?.dispatch({
-      effects: languageCompartment.current.reconfigure(languageExtensions(language))
-    })
-  }, [language])
-
-  useEffect(() => {
-    viewRef.current?.dispatch({
-      effects: editableCompartment.current.reconfigure(editableExtensions(readOnly))
-    })
-  }, [readOnly])
-
-  useEffect(() => {
-    viewRef.current?.dispatch({
-      effects: labelCompartment.current.reconfigure(
-        EditorView.contentAttributes.of({ 'aria-label': label })
-      )
-    })
-  }, [label])
-
-  return <div ref={hostRef} data-slot="code-editor" className="min-h-0 flex-1 overflow-hidden text-xs" />
-}
-
-function languageExtensions(language: CodeEditorLanguage): Extension {
-  if (language === 'html-css') return html()
-  return [
-    javascript({ jsx: true, typescript: true }),
-    ...(language === 'design-jsx' ? designJSXExtensions() : [])
-  ]
-}
-
-function editableExtensions(readOnly: boolean): Extension {
-  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]
+  return (
+    <div
+      data-slot="code-editor"
+      className="op-hljs-editor relative min-h-0 flex-1 overflow-hidden text-xs"
+    >
+      <pre
+        ref={preRef}
+        aria-hidden
+        className="op-hljs-layer pointer-events-none absolute inset-0 m-0 overflow-auto"
+      >
+        <code
+          className="hljs block min-h-full font-mono whitespace-pre-wrap break-words"
+          dangerouslySetInnerHTML={{ __html: highlighted }}
+        />
+      </pre>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        readOnly={readOnly}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        aria-label={label}
+        data-testid="code-editor-input"
+        className="op-hljs-layer absolute inset-0 z-[1] m-0 resize-none overflow-auto border-0 bg-transparent font-mono text-transparent caret-[var(--color-accent)] outline-none"
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab' || readOnly) return
+          event.preventDefault()
+          const target = event.currentTarget
+          const start = target.selectionStart
+          const end = target.selectionEnd
+          pendingCaret.current = start + 2
+          onChange(`${value.slice(0, start)}  ${value.slice(end)}`)
+        }}
+      />
+    </div>
+  )
 }

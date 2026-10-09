@@ -6,7 +6,7 @@ import {
   isPastPointerDragThreshold,
   POINTER_DRAG_START_THRESHOLD_PX
 } from '#react/shared/input/drag-threshold'
-import { findMoveDropTarget, reparentOutsideNodes } from '#react/shared/input/drop-target'
+import { findMoveDropTarget, reparentDroppedNodes } from '#react/shared/input/drop-target'
 export { duplicateAndDrag } from '#react/shared/input/duplicate-drag'
 import { AUTO_LAYOUT_BREAK_THRESHOLD } from '@open-pencil/core/constants'
 import type { Editor } from '@open-pencil/core/editor'
@@ -147,6 +147,7 @@ export function handleMoveUp(d: DragMove, editor: Editor) {
     editor.setLayoutInsertIndicator(null)
     editor.setSnapGuides([])
     editor.setDropTarget(null)
+    if (d.selectOnClick) editor.select([d.selectOnClick])
     return
   }
 
@@ -171,12 +172,7 @@ export function handleMoveUp(d: DragMove, editor: Editor) {
   if (moved) {
     restoreOriginalPositions(d, editor)
     applyFinalPositions(d, editor)
-    const dropId = editor.state.dropTargetId
-    if (dropId) {
-      editor.reparentNodes([...editor.state.selectedIds], dropId)
-    } else {
-      reparentOutsideNodes(editor)
-    }
+    reparentDroppedNodes(editor, [...d.originals.keys()], editor.state.dropTargetId)
   }
 
   if (d.duplicated) {

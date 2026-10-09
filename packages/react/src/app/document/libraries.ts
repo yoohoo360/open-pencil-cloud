@@ -1,15 +1,31 @@
 import { parseFigFile } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
-import { downloadOSSObject } from '#react/app/document/oss'
+import { downloadOSSObjectViaProxy } from '#react/app/document/oss'
+import { asFigObjectPath, legacyJsonObjectPath } from '#react/app/document/oss-path'
 import type { EditorStore } from '#react/app/editor/store'
 import { addLib } from '#react/graph/remote-lib'
 import { documentAPI, type RemoteLibraryCatalogItem } from '#react/lib/client'
 
+async function downloadLibraryObject(path: string): Promise<Uint8Array> {
+  const figPath = asFigObjectPath(path)
+  try {
+    return await downloadOSSObjectViaProxy(figPath)
+  } catch (error) {
+    const legacy = legacyJsonObjectPath(figPath)
+    if (!legacy || legacy === figPath) throw error
+    return downloadOSSObjectViaProxy(legacy)
+  }
+}
+
+/**
+ * Remote libraries are private catalog objects. Always use the authenticated `/api/oss/download`
+ * proxy — `OSS_READ_MODE=direct` public/presign URLs 404 for `libraries/*` keys.
+ */
 export async function downloadRemoteLibraryFig(
   item: Pick<RemoteLibraryCatalogItem, 'key' | 'url'>
 ): Promise<SceneGraph> {
-  const bytes = await downloadOSSObject(item.url)
+  const bytes = await downloadLibraryObject(item.url)
   return parseFigFile(bytes.slice().buffer, { populate: 'first-page' })
 }
 
@@ -39,6 +55,7 @@ export async function attachRemoteLibrary(
   item: RemoteLibraryCatalogItem
 ): Promise<void> {
   await addRemoteLibraryToGraph(store.graph, item)
+  store.notify()
   if (!fileKey) return
   await documentAPI.attachLibrary(fileKey, {
     library_key: item.key,

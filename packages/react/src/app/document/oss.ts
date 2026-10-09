@@ -89,9 +89,11 @@ export function ossPublicUrl(path: string): string | undefined {
   return `${base}/${ossObjectPath(path)}`
 }
 
-async function directReadUrl(path: string): Promise<string> {
-  const publicUrl = ossPublicUrl(path)
-  if (publicUrl) return publicUrl
+async function directReadUrl(path: string, options?: { public?: boolean }): Promise<string> {
+  if (options?.public !== false) {
+    const publicUrl = ossPublicUrl(path)
+    if (publicUrl) return publicUrl
+  }
   const res = await apiClient.post<OssPresignResponse>('/api/oss/presign-download', {
     path: ossObjectPath(path)
   })
@@ -129,24 +131,49 @@ export async function fetchRemoteImageViaApi(url: string): Promise<Uint8Array> {
   return new Uint8Array(res.data)
 }
 
-export async function downloadOSSObject(path: string): Promise<Uint8Array> {
-  const objectPath = ossObjectPath(path)
-  if (!objectPath) throw new Error('Empty OSS path')
-  if (config.OSS_READ_MODE === 'direct') {
-    const url = await directReadUrl(objectPath)
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`OSS direct download failed (${response.status})`)
-    }
-    return new Uint8Array(await response.arrayBuffer())
-  }
+/** Authenticated download through the API — used for private keys and filesystem OSS backends. */
+export async function downloadOSSObjectViaProxy(objectPath: string): Promise<Uint8Array> {
   const res = await apiClient.get<ArrayBuffer>('/api/oss/download', {
-    params: { path: objectPath },
+    params: { path: ossObjectPath(objectPath) },
     responseType: 'arraybuffer',
     timeout: 120_000
   })
   if (!res.data) throw new Error('Empty OSS download')
   return new Uint8Array(res.data)
+}
+
+async function downloadFromUrl(url: string): Promise<Uint8Array | number> {
+  const response = await fetch(url)
+  if (response.ok) return new Uint8Array(await response.arrayBuffer())
+  return response.status
+}
+
+export async function downloadOSSObject(path: string): Promise<Uint8Array> {
+  const objectPath = ossObjectPath(path)
+  if (!objectPath) throw new Error('Empty OSS path')
+  // Absolute URLs (library covers, signed links) skip the object-key pipeline.
+  if (/^https?:\/\//i.test(objectPath)) {
+    const result = await downloadFromUrl(objectPath)
+    if (typeof result !== 'number') return result
+    throw new Error(`OSS download failed (${result})`)
+  }
+  if (config.OSS_READ_MODE === 'direct') {
+    const publicUrl = ossPublicUrl(objectPath)
+    if (publicUrl) {
+      const result = await downloadFromUrl(publicUrl)
+      if (typeof result !== 'number') return result
+    }
+    // Private objects (e.g. `libraries/*.fig`) need a signed URL; the public base 404s.
+    try {
+      const signed = await directReadUrl(objectPath, { public: false })
+      const result = await downloadFromUrl(signed)
+      if (typeof result !== 'number') return result
+    } catch {
+      // Fall through to the authenticated download proxy.
+    }
+    return downloadOSSObjectViaProxy(objectPath)
+  }
+  return downloadOSSObjectViaProxy(objectPath)
 }
 
 /** Download a cloud document object, preferring `.fig` over legacy `.json`. */

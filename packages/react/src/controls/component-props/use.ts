@@ -1,38 +1,29 @@
 import {
-  boundLayerNamesForProperty,
   compatibleComponentPropertyDefinitions,
   findReferencedSwapInstance,
-  instanceBooleanPropertyValue,
   instanceSwapOptions,
-  instanceSwapPropertyValue,
-  instanceTextPropertyValue,
   isSwapPropertyType,
-  instanceVariantOptions,
   mergedComponentPropertyValue,
-  type ComponentPropertyControl
+  type ComponentPropertyControl,
+  type ComponentPropertyOption
 } from '#react/controls/component-props/model'
-import {
-  findSlotFrameForProperty,
-  insertIntoSlot as insertIntoSlotFrames
-} from '#react/controls/component-props/slot-insert'
 import { MIXED } from '#react/controls/mixed'
 import { useEditor } from '#react/editor/context'
 import { materializeComponent } from '#react/graph/instances'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 
-import type { ComponentPropertyDefinition, SceneNode } from '@open-pencil/scene-graph'
+import type { SceneNode } from '@open-pencil/scene-graph'
 
 function variantOptions(
   editor: ReturnType<typeof useEditor>,
   instance: SceneNode,
-  definition: ComponentPropertyDefinition,
-  currentValue: string
-) {
-  return instanceVariantOptions(
-    editor.getVariantOptionAvailability(instance.id, definition.name),
-    definition.variantOptions ?? [],
-    currentValue
-  )
+  propertyName: string
+): ComponentPropertyOption[] {
+  return editor.getVariantOptionAvailability(instance.id, propertyName).map(({ value, available }) => ({
+    value,
+    label: value,
+    disabled: !available
+  }))
 }
 
 export function useComponentProperties() {
@@ -41,71 +32,32 @@ export function useComponentProperties() {
     editor.getSelectedNodes().filter((node) => node.type === 'INSTANCE')
   )
   const selectedCount = editor.state.selectedIds.size
+  const allSelectedAreInstances =
+    instances.length > 0 && instances.length === selectedCount
   const definitionSets = useSceneComputed(() =>
     instances.map((instance) => editor.getInstanceComponentPropertyDefinitions(instance.id))
   )
-  const definitions = compatibleComponentPropertyDefinitions(definitionSets)
-  const active =
-    instances.length > 0 && instances.length === selectedCount && definitions.length > 0
+  // Slots render as their own rows (useSlotProperties), not as value controls.
+  const definitions = compatibleComponentPropertyDefinitions(definitionSets).filter(
+    (definition) => definition.type !== 'SLOT'
+  )
+  const active = allSelectedAreInstances && definitions.length > 0
   const controls = useSceneComputed<ComponentPropertyControl[]>(() => {
     if (!active || instances.length === 0) return []
     const firstInstance = instances[0]
+    // Swap options scan the graph, so resolve that list once for every swap control.
+    let componentNodes: SceneNode[] | null = null
     return definitions.map((definition) => {
-      const values = instances.map((instance) => {
-        if (definition.type === 'TEXT') {
-          return instanceTextPropertyValue(instance, definition, (id) =>
-            editor.graph.getChildren(id)
-          )
-        }
-        if (definition.type === 'BOOLEAN') {
-          return instanceBooleanPropertyValue(instance, definition, (id) =>
-            editor.graph.getChildren(id)
-          )
-        }
-        if (isSwapPropertyType(definition.type)) {
-          return instanceSwapPropertyValue(
-            instance,
-            definition,
-            (id) => editor.graph.getChildren(id),
-            (id) => editor.graph.getNode(id)
-          )
-        }
-        return editor.getInstanceComponentPropertyValue(instance.id, definition)
-      })
+      const values = instances.map((instance) =>
+        editor.getInstanceComponentPropertyValue(instance.id, definition)
+      )
       const value = mergedComponentPropertyValue(values)
-      const current = value === MIXED ? '' : value
-      let options =
-        definition.type === 'VARIANT'
-          ? variantOptions(editor, firstInstance, definition, current)
-          : []
-      const insertable =
-        definition.type === 'SLOT' &&
-        instances.some((instance) =>
-          findSlotFrameForProperty(
-            instance,
-            definition.id,
-            (id) => editor.graph.getChildren(id),
-            (id) => editor.graph.getNode(id)
-          )
-        )
-      if (definition.type === 'INSTANCE_SWAP' || (definition.type === 'SLOT' && !insertable)) {
-        const host = firstInstance.componentId
-        const hostNode = host ? editor.graph.getNode(host) : undefined
-        const hostSet =
-          hostNode?.parentId && editor.graph.getNode(hostNode.parentId)?.type === 'COMPONENT_SET'
-            ? hostNode.parentId
-            : undefined
-        const exclude = new Set<string>()
-        if (host) exclude.add(host)
-        if (hostSet) {
-          for (const sibling of editor.graph.getChildren(hostSet)) {
-            if (sibling.type === 'COMPONENT') exclude.add(sibling.id)
-          }
-        }
-        options = instanceSwapOptions([...editor.graph.getAllNodes()], definition, current, exclude)
-      }
-      if (insertable) {
-        options = []
+      let options: ComponentPropertyOption[] = []
+      if (definition.type === 'VARIANT') {
+        options = variantOptions(editor, firstInstance, definition.name)
+      } else if (definition.type === 'INSTANCE_SWAP') {
+        componentNodes ??= [...editor.graph.getAllNodes()]
+        options = instanceSwapOptions(componentNodes, definition, value === MIXED ? '' : value)
       }
       return {
         id: definition.id,
@@ -113,12 +65,7 @@ export function useComponentProperties() {
         type: definition.type,
         value,
         options,
-        insertable,
-        preferredValues: definition.preferredValues,
-        onlyPreferredInstances: definition.onlyPreferredInstances,
-        boundLayerNames: boundLayerNamesForProperty(instances, definition.id, (id) =>
-          editor.graph.getChildren(id)
-        )
+        preferredValues: definition.preferredValues
       }
     })
   })
@@ -129,19 +76,9 @@ export function useComponentProperties() {
     const definition = definitions.find((item) => item.id === propertyId)
     if (!definition) return
     if (
-      instances.every((instance) => {
-        if (isSwapPropertyType(definition.type)) {
-          return (
-            instanceSwapPropertyValue(
-              instance,
-              definition,
-              (id) => editor.graph.getChildren(id),
-              (id) => editor.graph.getNode(id)
-            ) === value
-          )
-        }
-        return editor.getInstanceComponentPropertyValue(instance.id, definition) === value
-      })
+      instances.every(
+        (instance) => editor.getInstanceComponentPropertyValue(instance.id, definition) === value
+      )
     ) {
       return
     }
@@ -162,14 +99,5 @@ export function useComponentProperties() {
     if (nested) editor.select([nested.id])
   }
 
-  function insertIntoSlot(propertyId: string, componentId: string, sourceLibraryKey?: string) {
-    if (!active || !componentId) return false
-    const definition = definitions.find((item) => item.id === propertyId)
-    if (!definition || definition.type !== 'SLOT') return false
-    return Boolean(
-      insertIntoSlotFrames(editor, [...instances], propertyId, componentId, sourceLibraryKey)
-    )
-  }
-
-  return { active, controls, setValue, insertIntoSlot }
+  return { active, controls, setValue }
 }

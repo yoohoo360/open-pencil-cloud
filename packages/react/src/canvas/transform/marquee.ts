@@ -16,7 +16,7 @@ export function handleMarqueeMove(
   const maxX = Math.max(d.startX, cx)
   const maxY = Math.max(d.startY, cy)
 
-  const scopeId = editor.state.enteredContainerId
+  const scopeId = d.containerId ?? editor.state.enteredContainerId
   const parentId = scopeId ?? editor.state.currentPageId
   const localMin = scopeId ? canvasToLocal(minX, minY, scopeId) : { lx: minX, ly: minY }
   const localMax = scopeId ? canvasToLocal(maxX, maxY, scopeId) : { lx: maxX, ly: maxY }

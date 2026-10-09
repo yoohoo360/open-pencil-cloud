@@ -4,17 +4,18 @@ import { materializeComponent } from '#react/graph/instances'
 import type { Editor } from '@open-pencil/core/editor'
 import { computeAllLayouts } from '@open-pencil/core/layout'
 import type { ComponentPropertyDefinition, SceneNode } from '@open-pencil/scene-graph'
+import { layoutSizingUpdates } from '@open-pencil/scene-graph/layout-sizing'
 import { CONTAINER_TYPES } from '@open-pencil/scene-graph/node-defaults'
 
 export function isSlotNode(node: SceneNode | undefined): boolean {
   return (
     node?.type === 'FRAME' &&
-    node.componentPropertyReferences.some((reference) => reference.field === 'SLOT')
+    node.componentPropertyReferences.some((reference) => reference.field === 'SLOT_CONTENT')
   )
 }
 
 export function slotPropertyId(node: SceneNode): string | undefined {
-  return node.componentPropertyReferences.find((reference) => reference.field === 'SLOT')
+  return node.componentPropertyReferences.find((reference) => reference.field === 'SLOT_CONTENT')
     ?.propertyId
 }
 
@@ -196,23 +197,32 @@ export function worldToParentLocal(
 
 export function slotInsertOptions(
   components: SceneNode[],
-  definition: Pick<ComponentPropertyDefinition, 'preferredValues' | 'onlyPreferredInstances'>
+  definition: Pick<ComponentPropertyDefinition, 'preferredValues' | 'slotSettings'>
 ) {
   const preferred = new Set(definition.preferredValues ?? [])
-  const onlyPreferred = definition.onlyPreferredInstances === true && preferred.size > 0
+  const onlyPreferred =
+    definition.slotSettings?.allowPreferredValuesOnly === true && preferred.size > 0
   return components
     .filter((node) => node.type === 'COMPONENT')
-    .filter((node) => !onlyPreferred || preferred.has(node.id))
+    .filter(
+      (node) =>
+        !onlyPreferred ||
+        preferred.has(node.id) ||
+        preferred.has(node.componentKey ?? '') ||
+        preferred.has(node.sourceLibraryKey ?? '')
+    )
     .map((node) => ({
       value: node.id,
       label: node.name,
-      preferred: preferred.has(node.id)
+      preferred:
+        preferred.has(node.id) ||
+        preferred.has(node.componentKey ?? '') ||
+        preferred.has(node.sourceLibraryKey ?? '')
     }))
     .sort(
       (left, right) =>
         Number(right.preferred) - Number(left.preferred) || left.label.localeCompare(right.label)
     )
-    .map(({ value, label }) => ({ value, label }))
 }
 
 function resolveInsertComponentId(
@@ -242,8 +252,12 @@ export function applySlotInsertLayout(editor: Editor, childId: string, slot: Sce
           .find((item) => item.id === propertyId)
       : undefined
     : undefined
-  if (!definition?.fillCounterAxisByDefault || slot.layoutMode === 'NONE') return
-  editor.graph.updateNode(childId, { counterAxisSizing: 'FILL' })
+  if (!definition?.slotSettings?.stretchChildOnInsert || slot.layoutMode === 'NONE') return
+  const child = editor.graph.getNode(childId)
+  if (!child) return
+  const axis = slot.layoutMode === 'VERTICAL' ? 'HORIZONTAL' : 'VERTICAL'
+  const updates = layoutSizingUpdates(editor.graph, child, axis, 'FILL')
+  if (Object.keys(updates).length > 0) editor.graph.updateNode(childId, updates)
 }
 
 export function insertInstanceIntoSlot(
@@ -263,46 +277,18 @@ export function insertInstanceIntoSlot(
           .find((item) => item.id === propertyId)
       : undefined
     : undefined
-  if (
-    typeof definition?.slotMaxLayers === 'number' &&
-    definition.slotMaxLayers > 0 &&
-    slot.childIds.length >= definition.slotMaxLayers
-  ) {
+  const maxChildren = definition?.slotSettings?.maxChildren
+  if (typeof maxChildren === 'number' && maxChildren > 0 && slot.childIds.length >= maxChildren) {
     return null
   }
   const resolvedId = resolveInsertComponentId(editor, componentId, sourceLibraryKey)
   if (!resolvedId) return null
 
-  const x = slot.paddingLeft
-  const y = slot.paddingTop
-  const created = editor.graph.createInstance(resolvedId, slot.id, { x, y })
-  if (!created) return null
-  if (created.parentId !== slot.id) {
-    editor.graph.reparentNode(created.id, slot.id)
-    editor.graph.updateNode(created.id, { x, y })
-  }
-  if (sourceLibraryKey) editor.graph.updateNode(created.id, { sourceLibraryKey })
-  applySlotInsertLayout(editor, created.id, slot)
-
-  const live = editor.graph.getNode(created.id)
-  if (!live) return null
-  const { childIds: _childIds, parentId: _parentId, type: _type, ...snapshot } = live
-  const instanceId = live.id
-  editor.undo.push({
-    label: 'Insert into slot',
-    forward: () => {
-      editor.graph.createInstance(resolvedId, slot.id, { ...snapshot, x, y })
-      if (sourceLibraryKey) editor.graph.updateNode(instanceId, { sourceLibraryKey })
-      applySlotInsertLayout(editor, instanceId, slot)
-      computeAllLayouts(editor.graph, editor.state.currentPageId)
-      editor.requestRender()
-    },
-    inverse: () => {
-      editor.graph.deleteNode(instanceId)
-      computeAllLayouts(editor.graph, editor.state.currentPageId)
-      editor.requestRender()
-    }
-  })
+  // Claim slot ownership + subtree history through Core, matching Vue.
+  const instanceId = editor.addInstanceToSlot(slot.id, resolvedId)
+  if (!instanceId) return null
+  if (sourceLibraryKey) editor.graph.updateNode(instanceId, { sourceLibraryKey })
+  applySlotInsertLayout(editor, instanceId, slot)
   computeAllLayouts(editor.graph, editor.state.currentPageId)
   editor.requestRender()
   return instanceId

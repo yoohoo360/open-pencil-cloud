@@ -5,7 +5,7 @@ import { AppInput } from '#react/components/ui/AppInput'
 import { AppSwitch } from '#react/components/ui/AppSwitch'
 import { IconButton } from '#react/components/ui/IconButton'
 import { usePopoverUI } from '#react/components/ui/popover'
-import type { VariantDefinitionControl } from '#react/controls/component-props'
+import type { VariantDefinitionControl } from '#react/controls/component-props/model'
 import { useI18n } from '#react/i18n'
 
 export function PropertySettingsPopover({

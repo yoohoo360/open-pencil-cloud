@@ -40,7 +40,7 @@ const FIELD_BINDING: Record<
     detach: 'Detach instance swap property',
     canBind: canBindInstanceSwapProperty
   },
-  SLOT: {
+  SLOT_CONTENT: {
     type: 'SLOT',
     apply: 'Apply slot property',
     detach: 'Detach slot property',
@@ -55,13 +55,29 @@ export function boundReferenceForField(
 ): { propertyId: string; name: string; field: ComponentPropertyReferenceField } | undefined {
   if (!node) return
   const fields: ComponentPropertyReferenceField[] =
-    field === 'INSTANCE_SWAP' ? ['INSTANCE_SWAP', 'SLOT'] : [field]
+    field === 'INSTANCE_SWAP' ? ['INSTANCE_SWAP', 'SLOT_CONTENT'] : [field]
   const definitions = owners.flatMap((owner) => owner.componentPropertyDefinitions)
   for (const candidate of fields) {
     const propertyId = propertyIdForField(node, candidate)
     if (!propertyId) continue
-    const definition = definitions.find((item) => item.id === propertyId)
-    return { propertyId, name: definition?.name ?? propertyId, field: candidate }
+    const slots = definitions.filter((item) => item.type === 'SLOT')
+    const definition =
+      definitions.find((item) => item.id === propertyId) ??
+      (candidate === 'SLOT_CONTENT'
+        ? (slots.find((item) => item.name === node.name) ??
+          (slots.length === 1 ? slots[0] : undefined))
+        : undefined)
+    // Prefer the deduped owner definition id so bind/unbind targets the property the panel lists.
+    const listed =
+      definition &&
+      propertyDefinitionsOfType(owners, definition.type).find(
+        (item) => item.name === definition.name
+      )
+    return {
+      propertyId: listed?.id ?? definition?.id ?? propertyId,
+      name: listed?.name ?? definition?.name ?? propertyId,
+      field: candidate
+    }
   }
 }
 
@@ -94,12 +110,12 @@ export function useComponentPropertyBinding(field: ComponentPropertyReferenceFie
   const boundName = bound?.name
   const boundField = bound?.field ?? field
   const boundType: ComponentPropertyType =
-    boundField === 'SLOT' ? 'SLOT' : boundField === 'INSTANCE_SWAP' ? 'INSTANCE_SWAP' : config.type
+    boundField === 'SLOT_CONTENT' ? 'SLOT' : boundField === 'INSTANCE_SWAP' ? 'INSTANCE_SWAP' : config.type
   const active = owners.length > 0 && node !== null && config.canBind(node)
 
   function fieldForProperty(propertyId: string): ComponentPropertyReferenceField {
     const definition = properties.find((item) => item.id === propertyId)
-    return definition?.type === 'SLOT' ? 'SLOT' : field
+    return definition?.type === 'SLOT' ? 'SLOT_CONTENT' : field
   }
 
   function bind(propertyId: string) {
@@ -136,5 +152,5 @@ export function useInstanceSwapPropertyBinding() {
 }
 
 export function useSlotPropertyBinding() {
-  return useComponentPropertyBinding('SLOT')
+  return useComponentPropertyBinding('SLOT_CONTENT')
 }
