@@ -46,6 +46,7 @@
   "oneKeyManyModels": "一个密钥即可使用来自所有提供商的 100+ 模型。",
   "describeChange": "描述一个更改…",
   "describeCreateOrChange": "描述你想创建或更改的内容。",
+  "chatPrototypeTitle": "原型对话",
   "stopGenerating": "停止生成",
   "sendMessage": "发送消息",
   "baseURLPlaceholder": "Base URL（例如 http://localhost:11434/v1）",

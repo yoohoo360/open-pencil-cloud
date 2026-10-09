@@ -1,14 +1,18 @@
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
+import markdown from 'highlight.js/lib/languages/markdown'
 import xml from 'highlight.js/lib/languages/xml'
 
 import type { CodeEditorLanguage } from '#react/components/code-editor/types'
 
 hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('markdown', markdown)
 hljs.registerLanguage('xml', xml)
 
 export function highlightLanguage(language: CodeEditorLanguage): string {
-  return language === 'html-css' ? 'xml' : 'javascript'
+  if (language === 'html-css') return 'xml'
+  if (language === 'markdown') return 'markdown'
+  return 'javascript'
 }
 
 /** Highlight source for the underlay; always ends with a newline so scroll heights match. */

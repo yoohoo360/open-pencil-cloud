@@ -438,6 +438,7 @@
         "axios": "^1.19.0",
         "cross-env": "^10.1.0",
         "es-toolkit": "^1.51.0",
+        "fflate": "^0.8.3",
         "highlight.js": "11.11.1",
         "js-cookie": "^3.0.8",
         "lib0": "^0.2.117",
@@ -3346,7 +3347,7 @@
 
     "hi-base32": ["hi-base32@0.5.1", "https://registry.npmmirror.com/hi-base32/-/hi-base32-0.5.1.tgz", {}, "sha512-EmBBpvdYh/4XxsnUybsPag6VikPYnN30td+vQk+GI3qpahVEG9+gTkG0aXVxTjBqQ5T6ijbWIu77O+C5WFWsnA=="],
 
-    "highlight.js": ["highlight.js@11.11.1", "", {}, "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w=="],
+    "highlight.js": ["highlight.js@11.11.1", "https://registry.npmmirror.com/highlight.js/-/highlight.js-11.11.1.tgz", {}, "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w=="],
 
     "hono": ["hono@4.13.13", "https://registry.npmmirror.com/hono/-/hono-4.13.13.tgz", {}, "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA=="],
 

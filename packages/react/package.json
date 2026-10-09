@@ -45,6 +45,7 @@
     "axios": "^1.19.0",
     "cross-env": "^10.1.0",
     "es-toolkit": "^1.51.0",
+    "fflate": "^0.8.3",
     "highlight.js": "11.11.1",
     "js-cookie": "^3.0.8",
     "lib0": "^0.2.117",

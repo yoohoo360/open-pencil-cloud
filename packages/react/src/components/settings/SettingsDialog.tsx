@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '@nanostores/react'
-import { Code2, ListOrdered, Plug, Sparkles, Settings, X } from 'lucide-react'
+import { Code2, ListOrdered, Plug, Sparkles, Settings, WandSparkles, X } from 'lucide-react'
 
 import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
 
@@ -14,6 +14,7 @@ import { AISettingsPanel } from '#react/components/settings/ai/AISettingsPanel'
 import { GeneralSettingsPanel } from '#react/components/settings/general/GeneralSettingsPanel'
 import { MenuSettingsPanel } from '#react/components/settings/menus/MenuSettingsPanel'
 import { MCPSettingsPanel } from '#react/components/settings/mcp/MCPSettingsPanel'
+import { SkillsSettingsPanel } from '#react/components/settings/skills/SkillsSettingsPanel'
 import { TailwindSettingsPanel } from '#react/components/settings/tailwind/TailwindSettingsPanel'
 import { useDialogUI } from '#react/components/ui/dialog'
 import { useI18n } from '#react/i18n'
@@ -94,6 +95,14 @@ export function SettingsDialog() {
               {dialogs.settingsAIAndAgents}
             </SettingsNavButton>
             <SettingsNavButton
+              section="skills"
+              active={section === 'skills'}
+              icon={<WandSparkles className="size-3.5" />}
+              testId="settings-section-skills"
+            >
+              {dialogs.settingsSkills}
+            </SettingsNavButton>
+            <SettingsNavButton
               section="tailwind"
               active={section === 'tailwind'}
               icon={<Code2 className="size-3.5" />}
@@ -115,6 +124,7 @@ export function SettingsDialog() {
             {section === 'general' ? <GeneralSettingsPanel /> : null}
             {section === 'menus' ? <MenuSettingsPanel /> : null}
             {section === 'ai' ? <AISettingsPanel /> : null}
+            {section === 'skills' ? <SkillsSettingsPanel /> : null}
             {section === 'tailwind' ? <TailwindSettingsPanel /> : null}
             {section === 'mcp' ? (
               <section className="flex flex-col" data-test-id="settings-mcp-panel">

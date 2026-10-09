@@ -32,6 +32,10 @@ import {
 import { starterSourceFor, type CodeSource } from '#react/app/code/templates'
 import { useEditorStore } from '#react/app/editor/store'
 import { appPreferences } from '#react/app/settings/preferences'
+import { setPropertiesTab } from '#react/app/shell/properties-tab'
+import { useWorkspaceMode } from '#react/app/shell/workspace-mode'
+import { type CodegenArtifacts } from '#react/app/skills/codegen-reply'
+import { CodegenChat } from '#react/components/code/CodegenChat'
 import { CodeEditor } from '#react/components/code-editor/CodeEditor'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppSelect } from '#react/components/ui/AppSelect'
@@ -40,17 +44,28 @@ import { useI18n } from '#react/i18n'
 import { useSceneComputed } from '#react/internal/scene-computed/use'
 import statusTheme from '#react/theme/status'
 
+export type CodePanelViewTab = 'source' | 'ai'
+
 async function copyText(text: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return
   await navigator.clipboard.writeText(text)
 }
 
-export function CodePanel({ active = true }: { active?: boolean }) {
+export function CodePanel({
+  active = true,
+  viewTab = 'source'
+}: {
+  active?: boolean
+  /** Dev: properties top Code | AI. Edit/View: always source. */
+  viewTab?: CodePanelViewTab
+}) {
   const store = useEditorStore()
   const { dialogs } = useI18n()
+  const workspaceMode = useWorkspaceMode()
   const [source, setSource] = useState<CodeSource>('design-jsx')
   const [sourceReady, setSourceReady] = useState(false)
   const [draft, setDraft] = useState('')
+  const [aiDraft, setAiDraft] = useState('')
   const [baseline, setBaseline] = useState('')
   const [status, setStatus] = useState<'idle' | 'updating' | 'updated' | 'error'>('idle')
   const [error, setError] = useState('')
@@ -65,12 +80,15 @@ export function CodePanel({ active = true }: { active?: boolean }) {
   const disposing = useRef(false)
   const sourceRef = useRef(source)
   const draftRef = useRef(draft)
+  const aiDraftRef = useRef(aiDraft)
   const errorRef = useRef(error)
   const tailwindConfig = useStore(tailwindConfigStore)
   const preferences = useStore(appPreferences)
   const defaultFontFamily = preferences.editing.defaultFontFamily
+  const showDevCodegen = workspaceMode === 'dev'
   sourceRef.current = source
   draftRef.current = draft
+  aiDraftRef.current = aiDraft
   errorRef.current = error
 
   useEffect(() => {
@@ -117,6 +135,8 @@ export function CodePanel({ active = true }: { active?: boolean }) {
   )
   const readOnly = source === 'tailwind-jsx'
   const dirty = draft !== baseline
+  const showingSource = !showDevCodegen || viewTab === 'source'
+  const showingAi = showDevCodegen && viewTab === 'ai'
   const editorLabel =
     source === 'html-css' ? dialogs.codeEditorHTMLCSSLabel : dialogs.codeEditorDesignLabel
   const statusTone = status === 'error' ? 'error' : status === 'updated' ? 'success' : 'neutral'
@@ -233,6 +253,7 @@ export function CodePanel({ active = true }: { active?: boolean }) {
     const initial = next === 'html-css' ? starterSourceFor(next) : generatedFor(next)
     setBaseline(initial)
     setDraft(initial)
+    setAiDraft('')
     setError('')
     setStatus('idle')
   }
@@ -267,53 +288,93 @@ export function CodePanel({ active = true }: { active?: boolean }) {
     if (!active && !disposing.current) void commitCurrentSession()
   }, [active, commitCurrentSession])
 
+  const sourceLabel =
+    source === 'html-css'
+      ? dialogs.codeSourceHTMLCSS
+      : source === 'tailwind-jsx'
+        ? dialogs.codeSourceTailwindJSX
+        : dialogs.codeSourceDesignJSX
+
+  const getBaselineCode = useCallback(
+    () => aiDraftRef.current.trim() || draftRef.current || baseline,
+    [baseline]
+  )
+
+  const handleArtifacts = useCallback((next: CodegenArtifacts) => {
+    if (next.code) setAiDraft(next.code)
+  }, [])
+
+  function applyAiToSource(code?: string) {
+    const next = (code ?? aiDraft).trim()
+    if (!next) return
+    updateDraft(next)
+    setAiDraft(next)
+    setPropertiesTab('code')
+  }
+
   return (
     <div data-test-id="code-panel-root" className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
-        <AppSelect
-          value={source}
-          options={sourceOptions}
-          label={dialogs.codeSource}
-          className="h-7 min-w-0 flex-1 text-[11px]"
-          data-test-id="code-panel-source"
-          onChange={changeSource}
-        />
-        {source !== 'html-css' ? (
-          <Tip label={dialogs.copyJSXReference}>
-            <AppButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              shape="square"
-              data-test-id="code-panel-copy-ref"
-              onClick={() => {
-                void copyText(JSX_REFERENCE).then(() => {
-                  setCopiedReference(true)
-                  setTimeout(() => setCopiedReference(false), 2000)
-                })
-              }}
-            >
-              {copiedReference ? (
-                <Check className="size-3 text-[var(--color-success)]" />
-              ) : (
-                <BookOpen className="size-3" />
-              )}
-            </AppButton>
-          </Tip>
-        ) : null}
-      </header>
+      {showingSource ? (
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+          <AppSelect
+            value={source}
+            options={sourceOptions}
+            label={dialogs.codeSource}
+            className="h-7 min-w-0 flex-1 text-[11px]"
+            data-test-id="code-panel-source"
+            onChange={changeSource}
+          />
+          {source !== 'html-css' ? (
+            <Tip label={dialogs.copyJSXReference}>
+              <AppButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                shape="square"
+                data-test-id="code-panel-copy-ref"
+                onClick={() => {
+                  void copyText(JSX_REFERENCE).then(() => {
+                    setCopiedReference(true)
+                    setTimeout(() => setCopiedReference(false), 2000)
+                  })
+                }}
+              >
+                {copiedReference ? (
+                  <Check className="size-3 text-[var(--color-success)]" />
+                ) : (
+                  <BookOpen className="size-3" />
+                )}
+              </AppButton>
+            </Tip>
+          ) : null}
+        </header>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <CodeEditor
-          value={draft}
-          language={source}
-          readOnly={readOnly}
-          label={editorLabel}
-          onChange={updateDraft}
-        />
+        <div hidden={!showingSource} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <CodeEditor
+            value={draft}
+            language={source}
+            readOnly={readOnly}
+            label={editorLabel}
+            onChange={updateDraft}
+          />
+        </div>
+        {showDevCodegen ? (
+          <div hidden={!showingAi} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <CodegenChat
+              active={active && showDevCodegen}
+              store={store}
+              sourceLabel={sourceLabel}
+              getBaselineCode={getBaselineCode}
+              onArtifacts={handleArtifacts}
+              onApplyCode={readOnly ? undefined : applyAiToSource}
+            />
+          </div>
+        ) : null}
       </div>
 
-      {error ? (
+      {error && showingSource ? (
         <div
           role="alert"
           data-test-id="code-panel-error"
@@ -323,48 +384,50 @@ export function CodePanel({ active = true }: { active?: boolean }) {
         </div>
       ) : null}
 
-      <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2">
-        <span
-          data-test-id="code-panel-status"
-          data-tone={statusTone}
-          className={`min-w-0 truncate ${statusStyles.text()}`}
-        >
-          {readOnly ? dialogs.codeGeneratedReadOnly : statusText}
-        </span>
-        <div className="flex items-center gap-1">
-          {dirty && !readOnly ? (
+      {showingSource ? (
+        <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2">
+          <span
+            data-test-id="code-panel-status"
+            data-tone={statusTone}
+            className={`min-w-0 truncate ${statusStyles.text()}`}
+          >
+            {readOnly ? dialogs.codeGeneratedReadOnly : statusText}
+          </span>
+          <div className="flex items-center gap-1">
+            {dirty && !readOnly ? (
+              <AppButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                data-test-id="code-panel-reset"
+                onClick={() => void resetDraft()}
+              >
+                <RotateCcw className="size-3" />
+                {dialogs.codeReset}
+              </AppButton>
+            ) : null}
             <AppButton
               color="neutral"
               variant="ghost"
               size="xs"
-              data-test-id="code-panel-reset"
-              onClick={() => void resetDraft()}
+              data-test-id="code-panel-copy"
+              onClick={() => {
+                void copyText(draft).then(() => {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                })
+              }}
             >
-              <RotateCcw className="size-3" />
-              {dialogs.codeReset}
+              {copied ? (
+                <Check className="size-3 text-[var(--color-success)]" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+              {copied ? dialogs.copied : dialogs.copy}
             </AppButton>
-          ) : null}
-          <AppButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            data-test-id="code-panel-copy"
-            onClick={() => {
-              void copyText(draft).then(() => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              })
-            }}
-          >
-            {copied ? (
-              <Check className="size-3 text-[var(--color-success)]" />
-            ) : (
-              <Copy className="size-3" />
-            )}
-            {copied ? dialogs.copied : dialogs.copy}
-          </AppButton>
-        </div>
-      </footer>
+          </div>
+        </footer>
+      ) : null}
     </div>
   )
 }

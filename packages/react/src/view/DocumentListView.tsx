@@ -1,6 +1,7 @@
-import { OssCoverImage } from '#react/app/document/oss-cover'
 import { readStoredUser } from '#react/app/auth/storage'
 import type { DocumentPermissionRequest } from '#react/app/document/access'
+import { OssCoverImage } from '#react/app/document/oss-cover'
+import { normalizeOrgId, readActiveOrgId, writeActiveOrgId } from '#react/app/org/active'
 import {
   authAPI,
   documentAPI,
@@ -29,6 +30,7 @@ import {
   Plus,
   Settings,
   Shield,
+  Sparkles,
   Trash2,
   Users,
   X
@@ -42,8 +44,6 @@ type MemberChip = {
   id: string
   label: string
 }
-
-const ACTIVE_ORG_KEY = 'open-pencil.active-org-id'
 
 const TEAM_COLORS = [
   'bg-[#0d99ff]',
@@ -90,29 +90,6 @@ function teamColor(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
   return TEAM_COLORS[hash % TEAM_COLORS.length]!
-}
-
-/** Normalize CHAR(36)/UUID ids — DB may pad with spaces. */
-function normalizeOrgId(id: string | null | undefined): string {
-  return id?.trim() ?? ''
-}
-
-function readStoredOrgId(): string {
-  try {
-    return normalizeOrgId(localStorage.getItem(ACTIVE_ORG_KEY))
-  } catch {
-    return ''
-  }
-}
-
-function writeStoredOrgId(id: string) {
-  try {
-    const normalized = normalizeOrgId(id)
-    if (normalized) localStorage.setItem(ACTIVE_ORG_KEY, normalized)
-    else localStorage.removeItem(ACTIVE_ORG_KEY)
-  } catch {
-    /* ignore */
-  }
 }
 
 function pickRandomOrgId(list: OrganizationSummary[]): string {
@@ -205,7 +182,7 @@ export default function DocumentListView() {
   function selectOrg(id: string) {
     const normalized = normalizeOrgId(id)
     setSelectedOrgId(normalized)
-    writeStoredOrgId(normalized)
+    writeActiveOrgId(normalized)
     setOrgMenuOpen(false)
     setNav('all-teams')
   }
@@ -215,11 +192,11 @@ export default function DocumentListView() {
       const res = await orgAPI.mine()
       const list = res.data ?? []
       setOrgs(list)
-      const storedId = readStoredOrgId()
+      const storedId = readActiveOrgId()
       const { orgId, changed } = resolveActiveOrgId(list, storedId)
       setSelectedOrgId(orgId)
       // Only rewrite cache when selection actually changes (avoid churn).
-      if (changed) writeStoredOrgId(orgId)
+      if (changed) writeActiveOrgId(orgId)
     } catch {
       setOrgs([])
     }
@@ -805,6 +782,15 @@ export default function DocumentListView() {
             <button type="button" className={navItemClass('trash')} onClick={() => setNav('trash')}>
               <Trash2 className="size-3.5 opacity-70" />
               Trash
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted hover:bg-hover hover:text-surface"
+              data-test-id="nav-skills"
+              onClick={() => void navigate('/skills')}
+            >
+              <Sparkles className="size-3.5 opacity-70" />
+              Skills
             </button>
           </nav>
 

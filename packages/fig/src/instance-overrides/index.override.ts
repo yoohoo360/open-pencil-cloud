@@ -1,10 +1,11 @@
 // Upstream (fork) occurrence-scoped interpreter — kept available through the override alias.
-export { interpretInstance, interpretComponent } from './interpret'
+export { interpretInstance, interpretComponent } from './interpret.override'
 export type {
   InstanceOccurrence,
   InterpretInstanceOptions,
-  InstancePathDiagnostic
-} from './occurrence/types'
+  InstancePathDiagnostic,
+  CyclicComponentDiagnostic
+} from './occurrence/types.override'
 export { materializeInstance } from './materialize-instance'
 export { materializeComponentClosure } from './component-closure'
 export { linkInstanceSourceChildren, mapInstanceSourceChildren } from './source-children'

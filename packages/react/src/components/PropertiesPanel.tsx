@@ -17,7 +17,11 @@ export function PropertiesPanel() {
   // Dev mode is code-first; View keeps Design for inspect (read-only gated elsewhere).
   const showDesignTab = mode !== 'dev'
   const showCodeTab = true
-  const showAiTab = mode === 'edit'
+  // Edit: design AI chat. Dev: codegen chat (Code | AI at the properties top).
+  const showAiTab = mode === 'edit' || mode === 'dev'
+  const codePanelActive =
+    activeTab === 'code' || (mode === 'dev' && activeTab === 'ai')
+  const codePanelView = mode === 'dev' && activeTab === 'ai' ? 'ai' : 'source'
 
   return (
     <aside
@@ -77,10 +81,10 @@ export function PropertiesPanel() {
             <DesignPanel />
           </div>
         ) : null}
-        <div hidden={activeTab !== 'code'} className="flex min-h-0 flex-1 flex-col">
-          <CodePanel active={activeTab === 'code'} />
+        <div hidden={!codePanelActive} className="flex min-h-0 flex-1 flex-col">
+          <CodePanel active={codePanelActive} viewTab={codePanelView} />
         </div>
-        {showAiTab ? (
+        {mode === 'edit' ? (
           <div hidden={activeTab !== 'ai'} className="flex min-h-0 flex-1 flex-col">
             <ChatPanel />
           </div>

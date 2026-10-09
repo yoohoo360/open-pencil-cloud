@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ClipboardCopy, MessageCircle, Trash2 } from 'lucide-react'
 
 import { useAIChat } from '#react/app/ai/chat/use'
@@ -12,6 +12,7 @@ import { useI18n } from '#react/i18n'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
 const IS_DEV = import.meta.env.DEV
+const STICK_BOTTOM_PX = 48
 
 export function ChatPanel() {
   const {
@@ -20,14 +21,23 @@ export function ChatPanel() {
     status,
     chatFailure,
     clearChatFailure,
+    enabledSkills,
+    skillsReady,
     sendMessage,
     stop,
     resetChat
   } = useAIChat()
-  const { dialogs } = useI18n()
+  const { dialogs, panels } = useI18n()
   const { showActionToast } = useActionToast()
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
+  const stickToBottom = useRef(true)
   const [debugCopied, setDebugCopied] = useState(false)
+  const skillsLabel = !skillsReady
+    ? '…'
+    : enabledSkills.length === 0
+      ? panels.codegenChatNoSkills
+      : panels.codegenChatSkillsActive({ count: enabledSkills.length })
 
   const failureMessage =
     chatFailure?.reason === 'insufficient-credit'
@@ -54,18 +64,37 @@ export function ChatPanel() {
     if (messages.length === 0) return true
     const last = messages[messages.length - 1]
     if (last.role !== 'assistant') return true
+    const plan = last.planArtifacts
+    const hasPlan =
+      Boolean(plan?.thinking?.trim()) ||
+      Boolean(plan?.plan?.trim()) ||
+      Boolean(plan?.steps?.trim()) ||
+      last.phase === 'route' ||
+      last.phase === 'loading-skills'
     const parts = last.parts
     const hasVisibleText = parts.some((part) => part.type === 'text' && part.text.length > 0)
     const hasTools = parts.some((part) => part.type === 'tool')
-    if (!hasVisibleText && !hasTools) return true
-    const lastPart = parts[parts.length - 1] as JSONObject
-    if (lastPart.type === 'step-start') return true
-    if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
-    if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
-    return status === 'submitted'
+    // Plan UI already shows progress — skip the typing dots.
+    if (hasPlan || hasVisibleText || hasTools) {
+      if (parts.length === 0) return false
+      const lastPart = parts[parts.length - 1] as JSONObject
+      if (lastPart?.type === 'step-start') return true
+      if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
+      if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
+      return false
+    }
+    return true
   })()
 
+  const updateStick = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    stickToBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_BOTTOM_PX
+  }, [])
+
   useEffect(() => {
+    if (!stickToBottom.current) return
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages, isThinking])
 
@@ -76,6 +105,7 @@ export function ChatPanel() {
 
   async function handleSubmit(text: string, images: Parameters<typeof sendMessage>[1] = []) {
     if (status === 'streaming' || status === 'submitted') return
+    stickToBottom.current = true
     clearChatFailure()
     try {
       await sendMessage(text, images)
@@ -97,7 +127,21 @@ export function ChatPanel() {
         <ProviderSetup />
       ) : (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+            <span className="truncate text-[11px] text-muted">{dialogs.chatPrototypeTitle}</span>
+            <span
+              data-test-id="design-chat-skills-count"
+              className="shrink-0 text-[10px] text-muted"
+              title={dialogs.settingsSkillsHelp}
+            >
+              {skillsLabel}
+            </span>
+          </div>
+          <div
+            ref={scrollerRef}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            onScroll={updateStick}
+          >
             {messages.length === 0 ? (
               <AppPlaceholder
                 data-test-id="chat-empty-state"

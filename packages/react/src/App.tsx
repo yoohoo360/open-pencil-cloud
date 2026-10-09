@@ -11,6 +11,7 @@ import DocumentView from './view/DocumentView'
 import LoginView from './view/LoginView'
 import OauthCallbackView from './view/OauthCallbackView'
 import RegisterView from './view/RegisterView'
+import SkillsView from './view/SkillsView'
 import VerifyEmailView from './view/VerifyEmailView'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -75,6 +76,14 @@ export function App() {
         element={
           <RequireAuth>
             <AdminOrgsView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/skills"
+        element={
+          <RequireAuth>
+            <SkillsView/>
           </RequireAuth>
         }
       />

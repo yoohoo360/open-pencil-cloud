@@ -1,4 +1,5 @@
 import { useEditorStore } from '#react/app/editor/store'
+import { useWorkspaceMode } from '#react/app/shell/workspace-mode'
 import { ChatPanel } from '#react/components/ChatPanel'
 import { CodePanel } from '#react/components/CodePanel'
 import { DesignPanel } from '#react/components/DesignPanel'
@@ -17,6 +18,7 @@ type DrawerTab = 'layers' | 'design' | 'code' | 'ai'
 export function MobileDrawer() {
   const store = useEditorStore()
   const { dialogs } = useI18n()
+  const workspaceMode = useWorkspaceMode()
   const headerRef = useRef<HTMLElement>(null)
   const [headerH, setHeaderH] = useState(56)
   const [windowH, setWindowH] = useState(() => (IS_BROWSER ? window.innerHeight : 800))
@@ -158,12 +160,18 @@ export function MobileDrawer() {
               <DesignPanel />
             </div>
           ) : null}
-          {drawerTab === 'code' ? (
-            <div data-test-id="mobile-drawer-code" className="flex h-full flex-col">
-              <CodePanel active={isOpen && drawerTab === 'code'} />
+          {drawerTab === 'code' || (workspaceMode === 'dev' && drawerTab === 'ai') ? (
+            <div
+              data-test-id={drawerTab === 'ai' ? 'mobile-drawer-ai' : 'mobile-drawer-code'}
+              className="flex h-full flex-col"
+            >
+              <CodePanel
+                active={isOpen}
+                viewTab={workspaceMode === 'dev' && drawerTab === 'ai' ? 'ai' : 'source'}
+              />
             </div>
           ) : null}
-          {drawerTab === 'ai' ? (
+          {workspaceMode !== 'dev' && drawerTab === 'ai' ? (
             <div data-test-id="mobile-drawer-ai" className="flex h-full flex-col">
               <ChatPanel />
             </div>

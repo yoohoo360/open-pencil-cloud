@@ -629,6 +629,215 @@ export const libraryAPI = {
   }
 }
 
+export type PencilSkill = {
+  id: string
+  skill_key: string
+  name: string
+  description?: string
+  content: string
+  owner_id?: string
+  group_id: string
+  org_id?: string
+  team_id?: string | null
+  created_at?: string | number
+  updated_at?: string | number
+}
+
+export type PencilSkillGroup = {
+  id: string
+  group_key: string
+  name: string
+  description?: string
+  owner_id?: string
+  owned_by_me?: boolean
+  sort_order?: number
+  skill_count?: number
+  team_ids?: string[]
+  skills?: PencilSkill[]
+  created_at?: string | number
+  updated_at?: string | number
+}
+
+export type SkillCatalogCategory = {
+  kind: 'personal' | 'team'
+  team_id?: string
+  team_name?: string
+  groups: PencilSkillGroup[]
+}
+
+export type UpsertSkillRequest = {
+  skill_key: string
+  name: string
+  description?: string
+  content?: string
+  group_id: string
+  org_id?: string
+}
+
+export type SkillMergeRequest = {
+  id: string
+  org_id: string
+  source_skill_id: string
+  target_team_id: string
+  target_skill_id?: string
+  skill_key: string
+  title: string
+  message?: string
+  status: 'pending' | 'approved' | 'rejected' | 'merged' | 'cancelled' | string
+  created_by: string
+  reviewed_by?: string
+  review_note?: string
+  created_at?: number
+  updated_at?: number
+  merged_at?: number
+  source_skill_name?: string
+  target_team_name?: string
+}
+
+export type UpsertSkillGroupRequest = {
+  name: string
+  description?: string
+  group_key?: string
+  team_ids?: string[]
+}
+
+export type SkillEntryKind = 'file' | 'directory'
+
+export type SkillEntry = {
+  id: string
+  skill_id: string
+  parent_id?: string
+  kind: SkillEntryKind
+  name: string
+  path: string
+  content?: string | null
+  sort_order?: number
+  children?: SkillEntry[]
+  created_at?: string | number
+  updated_at?: string | number
+}
+
+export type CreateSkillEntryRequest = {
+  kind: SkillEntryKind
+  name: string
+  parent_id?: string
+  content?: string
+}
+
+export type UpdateSkillEntryRequest = {
+  name?: string
+  content?: string
+}
+
+export const skillAPI = {
+  catalog(params?: { org_id?: string }): Promise<APIResponse<SkillCatalogCategory[]>> {
+    return apiClient.get<SkillCatalogCategory[]>('/api/skills/catalog', { params })
+  },
+  list(params?: { group_id?: string; org_id?: string }): Promise<APIResponse<PencilSkill[]>> {
+    return apiClient.get<PencilSkill[]>('/api/skills', { params })
+  },
+  get(id: string): Promise<APIResponse<PencilSkill>> {
+    return apiClient.get<PencilSkill>(`/api/skills/${id}`)
+  },
+  create(data: UpsertSkillRequest): Promise<APIResponse<PencilSkill>> {
+    return apiClient.post<PencilSkill>('/api/skills', data)
+  },
+  update(id: string, data: UpsertSkillRequest): Promise<APIResponse<PencilSkill>> {
+    return apiClient.put<PencilSkill>(`/api/skills/${id}`, data)
+  },
+  remove(id: string): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/skills/${id}`)
+  },
+  tree(skillId: string): Promise<APIResponse<SkillEntry[]>> {
+    return apiClient.get<SkillEntry[]>(`/api/skills/${skillId}/tree`)
+  },
+  createEntry(skillId: string, data: CreateSkillEntryRequest): Promise<APIResponse<SkillEntry>> {
+    return apiClient.post<SkillEntry>(`/api/skills/${skillId}/entries`, data)
+  },
+  updateEntry(entryId: string, data: UpdateSkillEntryRequest): Promise<APIResponse<SkillEntry>> {
+    return apiClient.put<SkillEntry>(`/api/skills/entries/${entryId}`, data)
+  },
+  removeEntry(entryId: string): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/skills/entries/${entryId}`)
+  },
+  download(skillId: string): Promise<APIResponse<Blob>> {
+    return apiClient.get<Blob>(`/api/skills/${skillId}/download`, { responseType: 'blob' })
+  },
+  upload(skillId: string, file: File | Blob): Promise<APIResponse<PencilSkill>> {
+    const form = new FormData()
+    form.append('file', file, file instanceof File ? file.name : 'skill.zip')
+    return apiClient.post<PencilSkill>(`/api/skills/${skillId}/upload`, form, { timeout: 120_000 })
+  },
+  share(
+    skillId: string,
+    data: { team_id: string; title?: string; message?: string }
+  ): Promise<APIResponse<SkillMergeRequest>> {
+    return apiClient.post<SkillMergeRequest>(`/api/skills/${skillId}/share`, data)
+  },
+  fetch(data: {
+    team_id: string
+    skill_key: string
+    group_id: string
+    org_id: string
+  }): Promise<APIResponse<PencilSkill>> {
+    return apiClient.post<PencilSkill>('/api/skills/fetch', data)
+  },
+  listMergeRequests(params: {
+    org_id: string
+    status?: string
+  }): Promise<APIResponse<SkillMergeRequest[]>> {
+    return apiClient.get<SkillMergeRequest[]>('/api/skills/merge-requests', { params })
+  },
+  approveMergeRequest(
+    id: string,
+    data?: { review_note?: string }
+  ): Promise<APIResponse<SkillMergeRequest>> {
+    return apiClient.post<SkillMergeRequest>(`/api/skills/merge-requests/${id}/approve`, data ?? {})
+  },
+  rejectMergeRequest(
+    id: string,
+    data?: { review_note?: string }
+  ): Promise<APIResponse<SkillMergeRequest>> {
+    return apiClient.post<SkillMergeRequest>(`/api/skills/merge-requests/${id}/reject`, data ?? {})
+  },
+  mergeMergeRequest(
+    id: string,
+    data?: { review_note?: string }
+  ): Promise<APIResponse<SkillMergeRequest>> {
+    return apiClient.post<SkillMergeRequest>(`/api/skills/merge-requests/${id}/merge`, data ?? {})
+  },
+  cancelMergeRequest(id: string): Promise<APIResponse<SkillMergeRequest>> {
+    return apiClient.post<SkillMergeRequest>(`/api/skills/merge-requests/${id}/cancel`)
+  },
+  createGroup(
+    data: UpsertSkillGroupRequest,
+    params?: { org_id?: string }
+  ): Promise<APIResponse<PencilSkillGroup>> {
+    return apiClient.post<PencilSkillGroup>('/api/skills/groups', data, { params })
+  },
+  updateGroup(
+    id: string,
+    data: UpsertSkillGroupRequest,
+    params?: { org_id?: string }
+  ): Promise<APIResponse<PencilSkillGroup>> {
+    return apiClient.put<PencilSkillGroup>(`/api/skills/groups/${id}`, data, { params })
+  },
+  setGroupTeams(
+    id: string,
+    teamIds: string[],
+    params?: { org_id?: string }
+  ): Promise<APIResponse<PencilSkillGroup>> {
+    return apiClient.put<PencilSkillGroup>(
+      `/api/skills/groups/${id}/teams`,
+      { team_ids: teamIds },
+      { params }
+    )
+  },
+  removeGroup(id: string): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/skills/groups/${id}`)
+  }
+}
+
 export const teamAPI = {
   myTeams(params?: { org_id?: string }): Promise<APIResponse<TeamSummary[]>> {
     return apiClient.get<TeamSummary[]>('/api/teams/my-teams', { params })

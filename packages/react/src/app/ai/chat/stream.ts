@@ -35,10 +35,12 @@ export async function streamChatCompletion(options: {
   store: EditorStore
   settings: ChatProviderSettings
   messages: ChatMessage[]
+  /** Appended after the base design system prompt (plan, skills, scene notes). */
+  systemExtra?: string
   signal?: AbortSignal
   onAssistantParts: (parts: ChatMessagePart[]) => void
 }): Promise<void> {
-  const openaiMessages = toOpenAIMessages(options.messages)
+  const openaiMessages = toOpenAIMessages(options.messages, options.systemExtra)
   const completed: ChatMessagePart[] = []
 
   for (let step = 0; step < MAX_AGENT_STEPS; step++) {
@@ -220,8 +222,11 @@ function completedToolCalls(toolCalls: OpenAIToolCall[]): OpenAIToolCall[] {
   return toolCalls.filter((call) => Boolean(call.id) && Boolean(call.function.name))
 }
 
-function toOpenAIMessages(messages: ChatMessage[]): OpenAIChatMessage[] {
-  const converted: OpenAIChatMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }]
+function toOpenAIMessages(messages: ChatMessage[], systemExtra?: string): OpenAIChatMessage[] {
+  const system = systemExtra?.trim()
+    ? `${SYSTEM_PROMPT}\n\n${systemExtra.trim()}`
+    : SYSTEM_PROMPT
+  const converted: OpenAIChatMessage[] = [{ role: 'system', content: system }]
   for (const message of messages) {
     if (message.role === 'user') {
       converted.push({
