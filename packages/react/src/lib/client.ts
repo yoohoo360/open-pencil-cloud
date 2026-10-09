@@ -170,6 +170,17 @@ export type AttachDocumentLibraryRequest = {
   library_version?: string
 }
 
+export type PublishLibraryRequest = {
+  key: string
+  name: string
+  url: string
+  description?: string
+  thumbnail_url?: string
+  version?: string
+  schema_version?: string
+  project_id?: string
+}
+
 type RetryRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean }
 const http = axios.create({
   baseURL: getHttpClientBaseUrl(),
@@ -521,6 +532,14 @@ export const documentAPI = {
   attachLibrary(fileKey: string, data: AttachDocumentLibraryRequest): Promise<APIResponse<void>> {
     return apiClient.put(`/api/document/${fileKey}/library`, data)
   },
+  detachLibrary(fileKey: string, data: AttachDocumentLibraryRequest): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/document/${fileKey}/library`, {
+      params: {
+        library_key: data.library_key,
+        document_version: data.document_version
+      }
+    })
+  },
   updateThumbnail(fileKey: string, file: File): Promise<APIResponse<boolean>> {
     const form = new FormData()
     form.append('file', file)
@@ -604,6 +623,9 @@ export const documentAPI = {
 export const libraryAPI = {
   list(): Promise<APIResponse<RemoteLibraryCatalogItem[]>> {
     return apiClient.get<RemoteLibraryCatalogItem[]>('/api/libraries/list')
+  },
+  publish(data: PublishLibraryRequest): Promise<APIResponse<RemoteLibraryCatalogItem>> {
+    return apiClient.post<RemoteLibraryCatalogItem>('/api/libraries', data)
   }
 }
 

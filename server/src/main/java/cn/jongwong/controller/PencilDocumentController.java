@@ -123,4 +123,25 @@ public class PencilDocumentController {
         return ApiResponse.ok(vo);
     }
 
+    @DeleteMapping("/{documentKey}/library")
+    public ApiResponse<Void> detachLibrary(
+            @PathVariable String documentKey,
+            @RequestParam("library_key") String libraryKey,
+            @RequestParam(value = "document_version", required = false) String documentVersion
+    ) {
+        // Prefer exact version match when provided; fall back to document+library so a stale
+        // client version cannot leave the attachment row behind.
+        int removed = 0;
+        if (documentVersion != null && !documentVersion.isBlank()) {
+            removed = pencilDocumentLibraryRefRepository
+                    .deleteByDocumentKeyAndLibraryKeyAndDocumentVersion(
+                            documentKey, libraryKey, documentVersion);
+        }
+        if (removed == 0) {
+            removed = pencilDocumentLibraryRefRepository
+                    .deleteByDocumentKeyAndLibraryKey(documentKey, libraryKey);
+        }
+        return ApiResponse.ok();
+    }
+
 }

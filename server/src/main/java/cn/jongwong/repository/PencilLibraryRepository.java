@@ -7,5 +7,5 @@ public interface PencilLibraryRepository extends JpaRepository<PencilLibrary, St
 
     PencilLibrary findOneByKeyAndVersion(String key, String version);
 
-
+    PencilLibrary findOneByKey(String key);
 }

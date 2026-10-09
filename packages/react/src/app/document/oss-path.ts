@@ -34,6 +34,11 @@ export function opDocumentDirectory(key: string, date = new Date()): string {
   return `op/${quarterDirectory(date)}/${key}`
 }
 
+/** Relative library object key; OSS `base-path` (e.g. `pencil-dev/`) is applied on upload. */
+export function libraryFigObjectPath(libraryKey: string): string {
+  return `libraries/${sanitizeStorageSegment(libraryKey)}.fig`
+}
+
 export function splitOSSObjectURL(url: string): {
   path: string
   fileName: string

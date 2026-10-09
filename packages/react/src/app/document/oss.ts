@@ -202,9 +202,10 @@ export function splitOSSFigURL(url: string): {
   return splitOSSObjectURL(url)
 }
 
-export async function uploadOSSFig(url: string, data: Uint8Array): Promise<void> {
+export async function uploadOSSFig(url: string, data: Uint8Array): Promise<string> {
   const { path, fileName } = splitOSSObjectURL(asFigObjectPath(url))
   const copy = new Uint8Array(data.byteLength)
   copy.set(data)
-  await uploadOSSObject(new Blob([copy], { type: 'application/octet-stream' }), fileName, path)
+  // Returns the full object key (e.g. `pencil-dev/libraries/web_lib_button.fig`).
+  return uploadOSSObject(new Blob([copy], { type: 'application/octet-stream' }), fileName, path)
 }

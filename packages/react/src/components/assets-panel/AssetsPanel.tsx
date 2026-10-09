@@ -1,4 +1,9 @@
-import { attachRemoteLibrary } from '#react/app/document/libraries'
+import { attachRemoteLibrary, detachRemoteLibrary } from '#react/app/document/libraries'
+import {
+  useLibraryEnabledAssets,
+  useLibraryService,
+  useLibrarySummaries
+} from '#react/app/libraries'
 import { nodeIcon } from '#react/app/editor/icons'
 import { useEditorStore } from '#react/app/editor/store'
 import { AddLibraryDialog } from '#react/components/assets-panel/AddLibraryDialog'
@@ -11,9 +16,13 @@ import {
   filterAssets,
   groupAssets,
   insertAssetInstance,
+  insertDocumentLibraryAsset,
   listAssetLibraries,
   listAssets,
+  listLocalAndFigAssets,
   openExternalLink,
+  parseFigLibraryKey,
+  type AssetLibraryItem,
   type LocalAsset
 } from '#react/components/assets-panel/assets'
 import { AssetThumbnail } from '#react/components/assets-panel/AssetThumbnail'
@@ -24,19 +33,34 @@ import { IconButton } from '#react/components/ui/IconButton'
 import { useMenuUI } from '#react/components/ui/menu'
 import { SegmentedControl } from '#react/components/ui/SegmentedControl'
 import { ASSET_GRID_THUMBNAIL_SIZE, ASSET_LIST_THUMBNAIL_SIZE } from '#react/constants'
-import { getLib } from '#react/graph/remote-lib'
+import { BUILTIN_LIBRARY_KEY } from '#react/graph/builtin'
+import { getLib, getRemoteImports } from '#react/graph/remote-lib'
 import { useI18n } from '#react/i18n'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { libraryAPI, type RemoteLibraryCatalogItem } from '#react/lib/client'
-import { BookOpen, ChevronDown, ChevronLeft, Component, LayoutGrid, List, Plus } from 'lucide-react'
-import { useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronLeft,
+  Component,
+  LayoutGrid,
+  Library,
+  List,
+  Plus,
+  Trash2
+} from 'lucide-react'
+import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useParams } from 'react-router-dom'
 
 type AssetView = 'grid' | 'list'
 
 export function AssetsPanel() {
   const store = useEditorStore()
-  const { fileKey } = useParams<{ fileKey?: string }>()
+  const libraryService = useLibraryService()
+  const librarySummaries = useLibrarySummaries()
+  const enabledLibraryAssets = useLibraryEnabledAssets()
+  const { fileKey: routeFileKey } = useParams<{ fileKey?: string }>()
+  const fileKey = routeFileKey?.trim() || store.state.documentKey?.trim() || undefined
   const { panels, commands } = useI18n()
   const contextMenu = useMenuUI({ content: 'min-w-44' })
   const [query, setQuery] = useState('')
@@ -53,10 +77,22 @@ export function AssetsPanel() {
   const librariesScrollRef = useOverlayScrollbar<HTMLDivElement>()
   const assetsScrollRef = useOverlayScrollbar<HTMLDivElement>()
 
+  useEffect(() => {
+    libraryService.bindEditor(store)
+    void libraryService.refresh(store)
+  }, [libraryService, store])
+
   const libraries = useMemo(
-    () => listAssetLibraries(store.graph, panels.createdInThisFile, panels.builtinLibrary),
+    () =>
+      listAssetLibraries(
+        store.graph,
+        panels.createdInThisFile,
+        panels.builtinLibrary,
+        librarySummaries
+      ),
     [
       libRevision,
+      librarySummaries,
       panels.builtinLibrary,
       panels.createdInThisFile,
       store.graph,
@@ -64,15 +100,33 @@ export function AssetsPanel() {
     ]
   )
   const activeLib = libraries.find((lib) => lib.key === activeLibKey) ?? null
-  const sourceLibraryKey = activeLib?.remote ? activeLib.key : undefined
+  const figLibraryId = activeLibKey ? parseFigLibraryKey(activeLibKey) : null
+  const sourceLibraryKey =
+    activeLib?.remote && !figLibraryId ? activeLib.key : undefined
   const activeGraph = sourceLibraryKey
     ? (getLib(store.graph, sourceLibraryKey)?.graph ?? store.graph)
     : store.graph
 
-  const assets = useMemo(
-    () => (activeLibKey ? listAssets(store, activeGraph, panels.page) : []),
-    [activeGraph, activeLibKey, panels.page, store, store.state.sceneVersion]
-  )
+  const assets = useMemo(() => {
+    if (!activeLibKey) return []
+    if (figLibraryId || activeLibKey === LOCAL_LIBRARY_KEY) {
+      return listLocalAndFigAssets(
+        store,
+        enabledLibraryAssets,
+        figLibraryId,
+        panels.page
+      )
+    }
+    return listAssets(store, activeGraph, panels.page)
+  }, [
+    activeGraph,
+    activeLibKey,
+    enabledLibraryAssets,
+    figLibraryId,
+    panels.page,
+    store,
+    store.state.sceneVersion
+  ])
   const filteredAssets = useMemo(() => filterAssets(assets, query), [assets, query])
   const assetGroups = useMemo(() => groupAssets(filteredAssets), [filteredAssets])
   const detailsAsset = assets.find((asset) => asset.id === detailsAssetId) ?? null
@@ -119,6 +173,11 @@ export function AssetsPanel() {
     }
   }
 
+  const attachedLibraryKeys = useMemo(
+    () => new Set([...getRemoteImports(store.graph).keys()]),
+    [store.graph, store.state.sceneVersion, libRevision]
+  )
+
   async function onSelectCatalogItem(item: RemoteLibraryCatalogItem) {
     try {
       await attachRemoteLibrary(store, fileKey, item)
@@ -126,7 +185,40 @@ export function AssetsPanel() {
       setAddOpen(false)
     } catch (reason) {
       console.warn('[Assets] Failed to add library', item.key, reason)
+      throw reason
     }
+  }
+
+  function canRemoveLibrary(libItem: AssetLibraryItem): boolean {
+    return libItem.key !== LOCAL_LIBRARY_KEY && libItem.key !== BUILTIN_LIBRARY_KEY
+  }
+
+  async function removeLibrary(event: MouseEvent<HTMLButtonElement>, libItem: AssetLibraryItem) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (activeLibKey === libItem.key) closeLibrary()
+    try {
+      if (libItem.figLibraryId) {
+        await libraryService.disable(store, libItem.figLibraryId)
+      } else {
+        await detachRemoteLibrary(store, fileKey, libItem.key)
+      }
+    } catch (reason) {
+      console.warn('[Assets] Failed to remove library', libItem.key, reason)
+    } finally {
+      // remoteLibs / enabledLibraries mutate without bumping sceneVersion — force list refresh.
+      refreshLibraries()
+      void libraryService.refresh(store)
+    }
+  }
+
+  async function insertAsset(asset: LocalAsset) {
+    if (asset.libraryId) {
+      const ok = await insertDocumentLibraryAsset(store, asset, libraryService)
+      if (ok) store.notify()
+      return
+    }
+    insertAssetInstance(store, asset, sourceLibraryKey)
   }
 
   function onDragStart(event: DragEvent<HTMLDivElement>, asset: LocalAsset) {
@@ -144,7 +236,7 @@ export function AssetsPanel() {
     }
     if (event.code === 'Enter' || event.code === 'Space') {
       event.preventDefault()
-      insertAssetInstance(store, asset, sourceLibraryKey)
+      void insertAsset(asset)
     }
   }
 
@@ -175,30 +267,48 @@ export function AssetsPanel() {
           >
             <div className="space-y-1">
               {libraries.map((libItem) => (
-                <button
+                <div
                   key={libItem.key}
-                  type="button"
                   data-test-id="assets-lib-item"
                   data-lib-key={libItem.key}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded px-1.5 py-1.5 text-left text-xs text-surface hover:bg-hover"
-                  onClick={() => openLibrary(libItem.key)}
+                  className="group/lib flex w-full items-center gap-1 rounded px-1.5 py-1.5 text-xs text-surface hover:bg-hover"
                 >
-                  {libItem.remote ? (
-                    <AssetRemoteThumbnail
-                      nodeId={getLib(store.graph, libItem.key)?.graph.getPages()[0]?.id ?? ''}
-                      remoteKey={libItem.key}
-                      alt={`${libItem.name} preview`}
-                      size={ASSET_LIST_THUMBNAIL_SIZE}
-                    />
-                  ) : (
-                    <AssetThumbnail
-                      nodeId={store.state.currentPageId}
-                      alt={`${libItem.name} preview`}
-                      size={ASSET_LIST_THUMBNAIL_SIZE}
-                    />
-                  )}
-                  <span className="truncate">{libItem.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-left text-inherit"
+                    onClick={() => openLibrary(libItem.key)}
+                  >
+                    {libItem.figLibraryId ? (
+                      <Library className="size-4 shrink-0 text-component" aria-hidden="true" />
+                    ) : libItem.remote ? (
+                      <AssetRemoteThumbnail
+                        nodeId={getLib(store.graph, libItem.key)?.graph.getPages()[0]?.id ?? ''}
+                        remoteKey={libItem.key}
+                        alt={`${libItem.name} preview`}
+                        size={ASSET_LIST_THUMBNAIL_SIZE}
+                      />
+                    ) : (
+                      <AssetThumbnail
+                        nodeId={store.state.currentPageId}
+                        alt={`${libItem.name} preview`}
+                        size={ASSET_LIST_THUMBNAIL_SIZE}
+                      />
+                    )}
+                    <span className="truncate">{libItem.name}</span>
+                  </button>
+                  {canRemoveLibrary(libItem) ? (
+                    <button
+                      type="button"
+                      data-test-id="assets-lib-remove"
+                      data-lib-key={libItem.key}
+                      aria-label={panels.removeLibrary}
+                      className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted opacity-0 hover:bg-hover hover:text-danger group-hover/lib:opacity-100 focus-visible:opacity-100"
+                      onClick={(event) => void removeLibrary(event, libItem)}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
               ))}
               <button
                 type="button"
@@ -254,7 +364,7 @@ export function AssetsPanel() {
           ) : null}
 
           {activeLib ? (
-            <div className="mb-1 inline-flex items-center px-2 py-2">
+            <div className="mb-1 flex items-center gap-1 px-2 py-2">
               <button
                 type="button"
                 data-test-id="assets-lib-back"
@@ -263,7 +373,19 @@ export function AssetsPanel() {
               >
                 <ChevronLeft className="size-4" />
               </button>
-              <span className="truncate text-xs text-surface">{activeLib.name}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-surface">{activeLib.name}</span>
+              {canRemoveLibrary(activeLib) ? (
+                <button
+                  type="button"
+                  data-test-id="assets-lib-remove"
+                  data-lib-key={activeLib.key}
+                  aria-label={panels.removeLibrary}
+                  className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted hover:bg-hover hover:text-danger"
+                  onClick={(event) => void removeLibrary(event, activeLib)}
+                >
+                  <Trash2 className="size-3.5" aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -423,7 +545,7 @@ export function AssetsPanel() {
                                       onPointerDown={(event) => event.stopPropagation()}
                                       onClick={(event) => {
                                         event.stopPropagation()
-                                        insertAssetInstance(store, asset, sourceLibraryKey)
+                                        void insertAsset(asset)
                                       }}
                                     >
                                       <Plus className="size-3" />
@@ -498,8 +620,9 @@ export function AssetsPanel() {
         <AddLibraryDialog
           items={catalog}
           loading={catalogLoading}
+          attachedKeys={attachedLibraryKeys}
           onClose={() => setAddOpen(false)}
-          onSelect={(item) => void onSelectCatalogItem(item)}
+          onSelect={onSelectCatalogItem}
         />
       ) : null}
     </section>

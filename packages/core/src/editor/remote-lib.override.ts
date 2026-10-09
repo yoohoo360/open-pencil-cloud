@@ -80,6 +80,22 @@ export function getRemoteImports(graph: SceneGraph): Map<string, RemoteLibrary> 
   return stateOf(graph).remoteLibs
 }
 
+/** Detach a remote library catalog from the document graph (does not delete OSS bytes). */
+export function removeLib(graph: SceneGraph, sourceLibraryKey: string): void {
+  const state = stateOf(graph)
+  state.remoteLibs.delete(sourceLibraryKey)
+  state.imports.delete(sourceLibraryKey)
+  const libPage = graph.nodes.get(sourceLibraryKey)
+  if (!libPage) return
+  const removeNodeTree = (nodeId: string) => {
+    const node = graph.nodes.get(nodeId)
+    if (!node) return
+    for (const childId of node.childIds) removeNodeTree(childId)
+    graph.nodes.delete(nodeId)
+  }
+  removeNodeTree(libPage.id)
+}
+
 function ensureLibPage(graph: SceneGraph, libraryKey: string): SceneNode {
   const existing = graph
     .getPages(true)

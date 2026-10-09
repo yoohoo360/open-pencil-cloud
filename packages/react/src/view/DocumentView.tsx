@@ -8,6 +8,7 @@ import { useCloudDocumentPersist } from '#react/app/document/cloud-persist'
 import { useDocumentBusyLeaveGuard } from '#react/app/document/busy/leave'
 import { useLocalDraftPersist } from '#react/app/document/local-draft/use'
 import { loadDocumentLibraries } from '#react/app/document/libraries'
+import { getLibraryService } from '#react/app/libraries'
 import { openHttpDocument } from '#react/app/document/open-http'
 import { asFigObjectPath } from '#react/app/document/oss-path'
 import {
@@ -84,6 +85,11 @@ export default function DocumentView() {
           if (!cancelled) setLoading(false)
           await openHttpDocument(store, documentMeta)
           store.notify()
+          const libraryService = getLibraryService()
+          libraryService.bindEditor(store)
+          void libraryService.refresh(store).then(() => {
+            if (!cancelled) store.notify()
+          })
           void loadDocumentLibraries(store, fileKey).then(() => {
             if (!cancelled) store.notify()
           })

@@ -11,13 +11,28 @@ import { bootstrapHostedComponents, ensureHostedLibraries } from '#react/hosted-
 import type { Editor } from '@open-pencil/core/editor'
 import { renderNodesToImage } from '@open-pencil/core/io'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import { createDefaultNode } from '@open-pencil/scene-graph/node-defaults'
 import type { Vector } from '@open-pencil/scene-graph/primitives'
+
+import type { EditorStore } from '#react/app/editor/store'
+import type { EnabledLibraryAsset, LibraryService } from '#react/app/libraries/service'
+import type { LibrarySummary } from '@open-pencil/core/library'
 
 import { findAssetPage, isInternalOnlyPage } from './page'
 
 export const COMPONENT_MIME = 'application/x-openpencil-component'
 export const COMPONENT_LIB_MIME = 'application/x-openpencil-component-lib'
 export const LOCAL_LIBRARY_KEY = 'default'
+export const FIG_LIBRARY_KEY_PREFIX = 'fig:'
+
+export function figLibraryKey(libraryId: string): string {
+  return `${FIG_LIBRARY_KEY_PREFIX}${libraryId}`
+}
+
+export function parseFigLibraryKey(key: string): string | null {
+  if (!key.startsWith(FIG_LIBRARY_KEY_PREFIX)) return null
+  return key.slice(FIG_LIBRARY_KEY_PREFIX.length)
+}
 
 export type LocalAsset = {
   id: string
@@ -31,6 +46,10 @@ export type LocalAsset = {
   sourceLibraryKey: string | null
   description: string
   docsURL: string | null
+  libraryId: string | null
+  revisionId: string | null
+  assetKey: string | null
+  libraryName: string | null
   pageId: string
   pageName: string
 }
@@ -45,6 +64,8 @@ export type AssetLibraryItem = {
   key: string
   name: string
   remote: boolean
+  /** Document-sourced library (enabledLibraries), not OSS remote-lib. */
+  figLibraryId?: string
 }
 
 function variantInfoFromGraph(graph: SceneGraph, componentSetId: string) {
@@ -125,16 +146,36 @@ function hasVariantConflicts(graph: SceneGraph, componentSetId: string): boolean
   return [...counts.values()].some((count) => count > 1)
 }
 
+export function listFigAssetLibraries(
+  summaries: LibrarySummary[],
+  graph: SceneGraph
+): AssetLibraryItem[] {
+  const items: AssetLibraryItem[] = []
+  for (const summary of summaries) {
+    const binding = graph.enabledLibraries.get(summary.libraryId)
+    if (!binding?.enabled) continue
+    items.push({
+      key: figLibraryKey(summary.libraryId),
+      name: summary.name,
+      remote: true,
+      figLibraryId: summary.libraryId
+    })
+  }
+  return items
+}
+
 export function listAssetLibraries(
   graph: SceneGraph,
   localName: string,
-  builtinName = 'Built-in'
+  builtinName = 'Built-in',
+  figSummaries: LibrarySummary[] = []
 ): AssetLibraryItem[] {
   bootstrapHostedComponents()
   ensureHostedLibraries(graph)
   const builtin = getLib(graph, BUILTIN_LIBRARY_KEY)
   return [
     { key: LOCAL_LIBRARY_KEY, name: localName, remote: false },
+    ...listFigAssetLibraries(figSummaries, graph),
     ...(builtin ? [{ key: BUILTIN_LIBRARY_KEY, name: builtinName, remote: true as const }] : []),
     ...[...getRemoteImports(graph).values()]
       .filter((lib) => lib.key !== BUILTIN_LIBRARY_KEY)
@@ -164,9 +205,46 @@ function toLocalAsset(graph: SceneGraph, node: SceneNode): LocalAsset {
     sourceLibraryKey: node.sourceLibraryKey,
     description: node.symbolDescription,
     docsURL: node.symbolLinks[0]?.uri ?? null,
+    libraryId: null,
+    revisionId: null,
+    assetKey: null,
+    libraryName: null,
     pageId: hidePage ? '' : (page?.id ?? ''),
     pageName: hidePage ? '' : (page?.name ?? '')
   }
+}
+
+export function enabledLibraryAssetsToLocalAssets(
+  entries: EnabledLibraryAsset[],
+  libraryId: string | null,
+  fallbackPageName: string
+): LocalAsset[] {
+  const filtered = libraryId ? entries.filter((entry) => entry.libraryId === libraryId) : entries
+  return filtered
+    .map(({ libraryId: id, libraryName, revisionId, asset }) => ({
+      id: `${id}:${asset.key}`,
+      name: asset.name,
+      node: createDefaultNode(() => asset.sourceNodeId, asset.type, {
+        name: asset.name,
+        symbolDescription: asset.description,
+        sourceLibraryKey: asset.key
+      }),
+      componentId: null,
+      componentIds: [],
+      variants: [],
+      variantCount: 0,
+      hasConflicts: false,
+      sourceLibraryKey: asset.key,
+      description: asset.description,
+      docsURL: null,
+      libraryId: id,
+      revisionId,
+      assetKey: asset.key,
+      libraryName,
+      pageId: `library:${id}`,
+      pageName: libraryName || fallbackPageName
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function listAssets(
@@ -178,6 +256,7 @@ export function listAssets(
   const assets: LocalAsset[] = []
   for (const node of graph.nodes.values()) {
     if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') continue
+    if (node.librarySource?.readOnly) continue
 
     const listed = node.type === 'COMPONENT_SET' ? node : (owningComponentSet(graph, node) ?? node)
     if (seen.has(listed.id)) continue
@@ -202,6 +281,17 @@ export function listAssets(
 
 export function listLocalAssets(editor: Editor, fallbackPageName: string): LocalAsset[] {
   return listAssets(editor, editor.graph, fallbackPageName)
+}
+
+export function listLocalAndFigAssets(
+  editor: Editor,
+  enabledAssets: EnabledLibraryAsset[],
+  figLibraryId: string | null,
+  fallbackPageName: string
+): LocalAsset[] {
+  const local = figLibraryId ? [] : listLocalAssets(editor, fallbackPageName)
+  const remote = enabledLibraryAssetsToLocalAssets(enabledAssets, figLibraryId, fallbackPageName)
+  return [...local, ...remote].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function assetMatchesComponentId(asset: LocalAsset, componentId: string): boolean {
@@ -259,11 +349,48 @@ export function resolveAssetGraph(editor: Editor, sourceLibraryKey?: string): Sc
   return getLib(editor.graph, sourceLibraryKey)?.graph ?? editor.graph
 }
 
+export async function insertDocumentLibraryAsset(
+  store: EditorStore,
+  asset: LocalAsset,
+  libraryService: LibraryService
+): Promise<boolean> {
+  let componentId = asset.componentId
+  if (!componentId && asset.libraryId && asset.revisionId && asset.assetKey) {
+    const materialized = await libraryService.materialize(
+      store,
+      asset.libraryId,
+      asset.revisionId,
+      asset.assetKey
+    )
+    componentId = materialized.componentId
+  }
+  if (!componentId) return false
+  const component = store.graph.getNode(componentId)
+  if (!component) return false
+  const parentId = resolveSelectedInsertionParent(store)
+  const parent = store.graph.getNode(parentId)
+  const center = viewportCanvasCenter()
+  const canvasWorld = store.screenToCanvas(center.x, center.y)
+  const parentOffset =
+    parentId === store.state.currentPageId
+      ? { x: 0, y: 0 }
+      : store.graph.getAbsolutePosition(parentId)
+  const point =
+    parent && isSlotNode(parent)
+      ? { x: parent.paddingLeft, y: parent.paddingTop }
+      : assetInsertionPoint(component, canvasWorld, parentOffset)
+  const instanceId = store.createInstanceFromComponent(componentId, point.x, point.y, parentId)
+  if (instanceId && parent && isSlotNode(parent)) applySlotInsertLayout(store, instanceId, parent)
+  store.requestRender()
+  return Boolean(instanceId)
+}
+
 export function insertAssetInstance(
   editor: Editor,
   asset: LocalAsset,
   sourceLibraryKey?: string
 ): boolean {
+  if (asset.libraryId) return false
   if (!asset.componentId) return false
   const graph = resolveAssetGraph(editor, sourceLibraryKey)
   const component = graph.getNode(asset.componentId)
