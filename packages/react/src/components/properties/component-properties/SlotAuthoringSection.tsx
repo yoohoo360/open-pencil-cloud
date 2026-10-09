@@ -14,9 +14,19 @@ export function SlotAuthoringSection() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
 
   useEffect(() => {
-    const next: Record<string, string> = {}
-    for (const slot of slots) next[slot.id] = slot.name
-    setNames(next)
+    setNames((current) => {
+      const next: Record<string, string> = {}
+      for (const slot of slots) next[slot.id] = slot.name
+      const currentKeys = Object.keys(current)
+      const nextKeys = Object.keys(next)
+      if (
+        currentKeys.length === nextKeys.length &&
+        nextKeys.every((key) => current[key] === next[key])
+      ) {
+        return current
+      }
+      return next
+    })
   }, [slots])
 
   if (!active) return null

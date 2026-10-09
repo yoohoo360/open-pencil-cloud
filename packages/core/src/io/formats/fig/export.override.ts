@@ -371,6 +371,29 @@ export async function exportFigFile(
     if (originalArchive) return originalArchive.slice()
   }
 
+  return withFigExportRuntime(sourceGraph, ck, (runtime) =>
+    writeFigFile(
+      sourceGraph,
+      runtime,
+      ck,
+      renderer,
+      pageId,
+      renderHeadlessThumbnail,
+      options
+    )
+  )
+}
+
+async function writeFigFile(
+  sourceGraph: SceneGraph,
+  runtime: FigNodeChangeExportRuntime,
+  ck: CanvasKit | undefined,
+  renderer: SkiaRenderer | undefined,
+  pageId: string | undefined,
+  renderHeadlessThumbnail: boolean,
+  options?: ExportFigFileOptions
+): Promise<Uint8Array> {
+  void options
   // Clone + expand can take seconds on large docs — yield around each phase so
   // pan/zoom/selection stay responsive during Save.
   await yieldExportSlice()
