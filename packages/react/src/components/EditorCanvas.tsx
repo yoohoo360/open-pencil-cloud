@@ -9,6 +9,8 @@ import { useCanvasInput } from '#react/canvas/useCanvasInput'
 import { CanvasMenu } from '#react/components/canvas/CanvasMenu'
 import { CommentPins } from '#react/components/Comments/CommentPins'
 import { useOptionalComments } from '#react/components/Comments/context'
+import { AiReviewMarkers } from '#react/components/AiReview/AiReviewMarkers'
+import { useOptionalAiReview } from '#react/components/AiReview/context'
 import { useOptionalCollabPanelContext } from '#react/components/CollabPanel/context'
 import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { toolCursor } from '#react/editor/tool-cursor'
@@ -60,9 +62,11 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
   const collab = useOptionalCollabPanelContext()
   const history = useOptionalVersionHistory()
   const comments = useOptionalComments()
+  const aiReview = useOptionalAiReview()
   const { dialogs, locale, panels } = useI18n()
   const previewing = Boolean(store.state.historyPreviewId)
   const commenting = Boolean(comments?.open) && !previewing
+  const reviewing = Boolean(aiReview?.open) && !previewing
   const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
 
   useEffect(() => {
@@ -146,6 +150,7 @@ export function EditorCanvas({ paneId }: { paneId?: string }) {
         className="absolute inset-0 block size-full touch-none outline-none"
       />
       {comments?.open ? <CommentPins /> : null}
+      {reviewing ? <AiReviewMarkers /> : null}
 
       {contextMenu && !previewing ? (
         <CanvasMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} />

@@ -38,7 +38,6 @@ export const APP_MENU_SCHEMA = [
       { type: 'separator' },
       { id: 'save', label: 'Save', shortcut: 'MOD+S' },
       { id: 'save-as', label: 'Save As…', shortcut: 'MOD+SHIFT+S' },
-      { id: 'show-version-history', label: 'Show version history' },
       { id: 'save-version', label: 'Save to version history', shortcut: 'MOD+ALT+S' },
       { id: 'share-document', label: 'Share…' },
       { type: 'separator' },
@@ -126,7 +125,6 @@ export const APP_MENU_SCHEMA = [
       { type: 'separator' },
       { id: 'view-rulers', label: 'Rulers', checkbox: true },
       { id: 'view-multiplayer-cursors', label: 'Multiplayer Cursors', checkbox: true },
-      { id: 'show-comments', label: 'Show comments', shortcut: 'SHIFT+C' },
       { type: 'separator' },
       {
         id: 'theme',

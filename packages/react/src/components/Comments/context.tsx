@@ -5,6 +5,7 @@ import type {
   DocumentCommentList,
   DocumentCommentThread
 } from '#react/app/document/comments/types'
+import { closeAiReview } from '#react/app/document/ai-review/actions'
 import { closeVersionHistory } from '#react/app/document/version-history/actions'
 import { useEditorStore } from '#react/app/editor/store'
 import { useI18n } from '#react/i18n'
@@ -93,6 +94,7 @@ export function useCommentsState() {
       return
     }
     closeVersionHistory()
+    closeAiReview()
     setState((current) => ({
       ...current,
       open: true,
@@ -134,12 +136,12 @@ export function useCommentsState() {
     (thread: DocumentCommentThread) => {
       setState((current) => ({ ...current, selectedId: thread.id, draft: null }))
       if (thread.page_id !== store.state.currentPageId) {
-        void store.switchPage(thread.page_id)
+        void store.switchPage(thread.page_id).then(() => {
+          store.centerOn(thread.x, thread.y)
+        })
+        return
       }
-      const viewport = store.getViewportSize()
-      store.state.panX = viewport.width / 2 - thread.x * store.state.zoom
-      store.state.panY = viewport.height / 2 - thread.y * store.state.zoom
-      store.requestRepaint()
+      store.centerOn(thread.x, thread.y)
     },
     [store]
   )

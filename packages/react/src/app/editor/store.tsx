@@ -9,7 +9,6 @@ import {
   pageLoadingLabels,
   pageLoadingProgressDetail
 } from '#react/app/document/page-loading/labels'
-import { startIdlePageSnapshotWriter } from '#react/app/document/page-loading/snapshot'
 import {
   emptyPageLoadingProgress,
   type PageLoadingProgress
@@ -259,7 +258,9 @@ export function EditorStoreProvider({
   children?: ReactNode
 }) {
   useEffect(() => bindOpenPencilTestImport(store), [store])
-  useEffect(() => startIdlePageSnapshotWriter(store), [store])
+  // Page IDB snapshots are not restored on switch yet; the idle writer
+  // structuredClone'd whole pages into IndexedDB and contended with cold/warm
+  // switches (main-thread stalls / OOM). Re-enable only with a read path.
   return <EditorStoreContext.Provider value={store}>{children}</EditorStoreContext.Provider>
 }
 

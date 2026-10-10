@@ -1,44 +1,51 @@
 import { canvasToScreen } from '#react/app/document/comments/coords'
 import { commentAuthorName } from '#react/app/document/comments/format'
 import type { CommentDraft, DocumentCommentThread } from '#react/app/document/comments/types'
-import { useEditorStore } from '#react/app/editor/store'
+import { useEditorStore, useEditorStoreApi } from '#react/app/editor/store'
+import { useOverlayViewport } from '#react/canvas/overlay-viewport'
+import { BubblePin, bubblePinTipOffset } from '#react/components/canvas/BubblePin'
 import { CommentComposer } from '#react/components/Comments/CommentComposer'
 import { useComments } from '#react/components/Comments/context'
 import { useI18n } from '#react/i18n'
-import { Check } from 'lucide-react'
 import { type PointerEvent as ReactPointerEvent } from 'react'
+
+const PIN_SIZE = 24
+const COMMENT_FILL = 'var(--color-accent, #3b82f6)'
 
 function PinBubble({
   thread,
+  index,
   selected,
   onSelect
 }: {
   thread: DocumentCommentThread
+  index: number
   selected: boolean
   onSelect: () => void
 }) {
   const name = commentAuthorName(thread)
-  const initial = name.slice(0, 1).toUpperCase()
   return (
     <button
       type="button"
       data-comment-pin={thread.id}
-      aria-label={name}
+      data-comment-index={index}
+      aria-label={`${index}. ${name}`}
       onPointerDown={(event: ReactPointerEvent) => {
         event.stopPropagation()
         onSelect()
       }}
       className={[
-        'flex size-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white shadow-md',
-        selected ? 'scale-110 bg-accent' : 'bg-accent/90 hover:bg-accent',
+        'block outline-none origin-bottom-left transition-transform',
+        selected ? '' : 'hover:scale-105',
         thread.resolved ? 'opacity-70' : ''
       ].join(' ')}
     >
-      {thread.resolved ? <Check className="size-3.5" /> : thread.created_by_avatar ? (
-        <img src={thread.created_by_avatar} alt="" className="size-full rounded-full object-cover" />
-      ) : (
-        initial
-      )}
+      <BubblePin
+        fill={COMMENT_FILL}
+        size={PIN_SIZE}
+        focused={selected}
+        label={index}
+      />
     </button>
   )
 }
@@ -64,12 +71,10 @@ function DraftComposer({
     <div
       data-comment-pin="draft"
       className="absolute z-20"
-      style={{ left: screen.x, top: screen.y, transform: 'translate(-14px, -14px)' }}
+      style={{ left: screen.x, top: screen.y, transform: bubblePinTipOffset(PIN_SIZE) }}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="flex size-7 items-center justify-center rounded-full border-2 border-white bg-accent text-[10px] font-semibold text-white shadow-md">
-        +
-      </div>
+      <BubblePin fill={COMMENT_FILL} size={PIN_SIZE} label="+" />
       <div className="absolute top-0 left-8 w-56 rounded-lg border border-border bg-panel p-2 shadow-lg">
         <CommentComposer
           autoFocus
@@ -84,24 +89,25 @@ function DraftComposer({
 }
 
 export function CommentPins() {
-  const store = useEditorStore()
+  const storeApi = useEditorStoreApi()
+  useEditorStore()
+  const { panX, panY, zoom } = useOverlayViewport(storeApi)
   const comments = useComments()
   if (!comments.open) return null
 
-  const { panX, panY, zoom } = store.state
-
   return (
     <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-      {comments.pagePins.map((thread) => {
+      {comments.pagePins.map((thread, index) => {
         const screen = canvasToScreen(thread.x, thread.y, panX, panY, zoom)
         return (
           <div
             key={thread.id}
             className="pointer-events-auto absolute"
-            style={{ left: screen.x, top: screen.y, transform: 'translate(-14px, -14px)' }}
+            style={{ left: screen.x, top: screen.y, transform: bubblePinTipOffset(PIN_SIZE) }}
           >
             <PinBubble
               thread={thread}
+              index={index + 1}
               selected={comments.selectedId === thread.id}
               onSelect={() => comments.selectThread(thread)}
             />

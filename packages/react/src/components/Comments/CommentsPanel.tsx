@@ -5,6 +5,7 @@ import {
 } from '#react/app/document/comments/format'
 import { groupCommentThreads } from '#react/app/document/comments/group'
 import type { DocumentComment, DocumentCommentThread } from '#react/app/document/comments/types'
+import { BubblePin } from '#react/components/canvas/BubblePin'
 import { CommentAuthor, CommentComposer } from '#react/components/Comments/CommentComposer'
 import { useComments } from '#react/components/Comments/context'
 import { AppButton } from '#react/components/ui/AppButton'
@@ -15,13 +16,17 @@ import { useI18n } from '#react/i18n'
 import { useOverlayScrollbar } from '#react/internal/overlay-scrollbar/use'
 import { ArrowLeft, Check, MessageSquare, Trash2, X } from 'lucide-react'
 
+const COMMENT_FILL = 'var(--color-accent, #3b82f6)'
+
 function ThreadRow({
   thread,
+  index,
   selected,
   locale,
   onSelect
 }: {
   thread: DocumentCommentThread
+  index: number
   selected: boolean
   locale: string
   onSelect: () => void
@@ -31,19 +36,26 @@ function ThreadRow({
       type="button"
       data-test-id="comment-thread"
       data-comment-id={thread.id}
+      data-comment-index={index}
       className={[
-        'flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left',
-        selected ? 'bg-hover text-surface' : 'text-surface hover:bg-hover/70'
+        'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left',
+        selected ? 'bg-hover text-surface' : 'text-surface hover:bg-hover/70',
+        thread.resolved ? 'opacity-70' : ''
       ].join(' ')}
       onClick={onSelect}
     >
-      <span className="flex items-center justify-between gap-2">
-        <CommentAuthor name={thread.created_by_name} avatar={thread.created_by_avatar} />
-        <span className="shrink-0 text-[10px] text-muted">
-          {formatCommentTimestamp(thread.updated_at ?? thread.created_at, locale)}
-        </span>
+      <span className="mt-0.5 shrink-0">
+        <BubblePin fill={COMMENT_FILL} size={20} focused={selected} label={index} />
       </span>
-          <span className="line-clamp-2 pl-7 text-[11px] text-muted">{threadPreview(thread)}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center justify-between gap-2">
+          <CommentAuthor name={thread.created_by_name} avatar={thread.created_by_avatar} />
+          <span className="shrink-0 text-[10px] text-muted">
+            {formatCommentTimestamp(thread.updated_at ?? thread.created_at, locale)}
+          </span>
+        </span>
+        <span className="line-clamp-2 text-[11px] text-muted">{threadPreview(thread)}</span>
+      </span>
     </button>
   )
 }
@@ -87,6 +99,16 @@ export function CommentsPanel() {
   const currentUser = readStoredUser()
   const groups = groupCommentThreads(comments.threads)
   const selected = comments.selectedThread
+  /** Match canvas pin numbers on the current page. */
+  const indexById = new Map(comments.pagePins.map((thread, index) => [thread.id, index + 1]))
+  if (!comments.currentPageOnly) {
+    let next = 1
+    for (const thread of comments.threads) {
+      if (indexById.has(thread.id)) continue
+      indexById.set(thread.id, next)
+      next += 1
+    }
+  }
 
   return (
     <aside
@@ -179,6 +201,7 @@ export function CommentsPanel() {
                 <ThreadRow
                   key={thread.id}
                   thread={thread}
+                  index={indexById.get(thread.id) ?? 0}
                   selected={comments.selectedId === thread.id}
                   locale={locale}
                   onSelect={() => comments.selectThread(thread)}

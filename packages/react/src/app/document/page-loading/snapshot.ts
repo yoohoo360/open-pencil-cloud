@@ -41,9 +41,13 @@ export function capturePageSnapshotInput(
   }
 }
 
+/** Skip captures that would clone too much on the main thread. */
+const MAX_SNAPSHOT_NODES = 8_000
+
 /**
- * Idle writer: one populated page per idle slice so open/switch work stays smooth.
- * Skips while the loading overlay is up.
+ * Idle writer: one populated page per true-idle slice.
+ * Not started from the editor store until `readPageSnapshot` is used on switch —
+ * forced idle timeouts + full-page `structuredClone` contended with page switches.
  */
 export function startIdlePageSnapshotWriter(store: EditorStore): () => void {
   if (typeof window === 'undefined') return () => undefined
@@ -56,9 +60,13 @@ export function startIdlePageSnapshotWriter(store: EditorStore): () => void {
     if (cancelled) return
     const ric = window.requestIdleCallback?.bind(window)
     if (ric) {
-      handle = ric(tick, { timeout: 2500 })
+      // No timeout: never force capture while the tab is busy switching pages.
+      handle = ric(tick)
     } else {
-      handle = window.setTimeout(() => tick({ timeRemaining: () => 16, didTimeout: true }), 800) as unknown as number
+      handle = window.setTimeout(
+        () => tick({ timeRemaining: () => 16, didTimeout: false }),
+        2_000
+      ) as unknown as number
     }
   }
 
@@ -66,6 +74,11 @@ export function startIdlePageSnapshotWriter(store: EditorStore): () => void {
     handle = null
     if (cancelled) return
     if (store.state.loading || store.state.pageLoading.visible) {
+      schedule()
+      return
+    }
+    // Need real idle time — skip forced/timeout callbacks.
+    if (deadline.didTimeout || deadline.timeRemaining() < 24) {
       schedule()
       return
     }
@@ -78,10 +91,9 @@ export function startIdlePageSnapshotWriter(store: EditorStore): () => void {
     for (const page of store.graph.getPages()) {
       if (written.has(page.id)) continue
       if (!isLazyFigImportRootPopulated(store.graph, page.id)) continue
-      if (!deadline.didTimeout && deadline.timeRemaining() < 10) break
 
       const input = capturePageSnapshotInput(store, page.id)
-      if (!input) {
+      if (!input || input.nodes.length > MAX_SNAPSHOT_NODES) {
         written.add(page.id)
         continue
       }

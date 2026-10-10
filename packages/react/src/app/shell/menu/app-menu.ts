@@ -1,13 +1,9 @@
-import { toggleComments } from '#react/app/document/comments/actions'
 import {
   hasDocumentCapability,
   openDocumentShareDialog,
   useDocumentAccess
 } from '#react/app/document/access'
-import {
-  openVersionHistory,
-  saveNamedDocumentVersion
-} from '#react/app/document/version-history/actions'
+import { saveNamedDocumentVersion } from '#react/app/document/version-history/actions'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog } from '#react/app/settings/dialog'
 import {
@@ -56,9 +52,7 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
   'open-storage-workspace': 'openStorageWorkspace',
   save: 'save',
   'save-as': 'saveAs',
-  'show-version-history': 'showVersionHistory',
   'save-version': 'saveToVersionHistory',
-  'show-comments': 'showComments',
   'export-selection': 'exportSelection',
   autosave: 'autosave',
   close: 'closeTab',
@@ -139,9 +133,7 @@ export function useAppMenu() {
     'open-storage-workspace': () => openStorageWorkspace(navigate),
     save: () => void saveFigFile(store),
     'save-as': () => void saveFigFileAs(store),
-    'show-version-history': openVersionHistory,
     'save-version': saveNamedDocumentVersion,
-    'show-comments': toggleComments,
     'share-document': () => openDocumentShareDialog(),
     'export-selection': () => exportCurrentSelection('png'),
     ...createSelectionMenuActions(store),

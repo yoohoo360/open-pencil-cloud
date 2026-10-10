@@ -1,4 +1,5 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
+import { closeAiReview } from '#react/app/document/ai-review/actions'
 import { closeComments } from '#react/app/document/comments/actions'
 import { applyDocumentBytes } from '#react/app/document/open-http'
 import { registerVersionHistoryActions } from '#react/app/document/version-history/actions'
@@ -136,6 +137,7 @@ export function useVersionHistoryState() {
       return
     }
     closeComments()
+    closeAiReview()
     setState((current) => ({
       ...current,
       open: true,
@@ -145,6 +147,14 @@ export function useVersionHistoryState() {
     }))
     void refresh()
   }, [dialogs.versionHistoryNeedsCloud, refresh, store])
+
+  const openRef = useRef(state.open)
+  openRef.current = state.open
+
+  const toggle = useCallback(() => {
+    if (openRef.current) close()
+    else openPanel()
+  }, [close, openPanel])
 
   const selectCurrent = useCallback(async () => {
     setState((current) => ({ ...current, selectedId: 'current' }))
@@ -233,6 +243,7 @@ export function useVersionHistoryState() {
     }
     if (store.state.historyPreviewId) return
     closeComments()
+    closeAiReview()
     setState((current) => ({ ...current, open: true, saveDialogOpen: true }))
     if (!state.open) void refresh()
   }, [dialogs.versionHistoryNeedsCloud, refresh, state.open, store])
@@ -288,6 +299,7 @@ export function useVersionHistoryState() {
     previewVersion,
     openPanel,
     close,
+    toggle,
     refresh,
     selectCurrent,
     selectVersion,

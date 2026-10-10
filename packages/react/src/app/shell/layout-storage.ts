@@ -10,9 +10,9 @@ export function loadEditorLayout(): number[] {
     if (!raw) return DEFAULT_EDITOR_LAYOUT
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) &&
-      parsed.length === 3 &&
+      parsed.length >= 3 &&
       parsed.every((v) => typeof v === 'number')
-      ? parsed
+      ? parsed.slice(0, 3)
       : DEFAULT_EDITOR_LAYOUT
   } catch {
     return DEFAULT_EDITOR_LAYOUT
@@ -21,5 +21,5 @@ export function loadEditorLayout(): number[] {
 
 export function saveEditorLayout(layout: number[]): void {
   if (!IS_BROWSER) return
-  window.localStorage.setItem(EDITOR_LAYOUT_KEY, JSON.stringify(layout))
+  window.localStorage.setItem(EDITOR_LAYOUT_KEY, JSON.stringify(layout.slice(0, 3)))
 }

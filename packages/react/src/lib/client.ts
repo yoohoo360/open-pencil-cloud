@@ -10,6 +10,12 @@ import type {
   DocumentCommentThread
 } from '#react/app/document/comments/types'
 import type {
+  AiReviewList,
+  AiReviewPayload,
+  AiReviewRecord,
+  AiReviewStatus
+} from '#react/app/document/ai-review/types'
+import type {
   DocumentVersion,
   DocumentVersionKind,
   DocumentVersionList
@@ -617,6 +623,49 @@ export const documentAPI = {
   },
   deleteComment(fileKey: string, threadId: string, commentId: string): Promise<APIResponse<void>> {
     return apiClient.delete(`/api/document/${fileKey}/comments/${threadId}/messages/${commentId}`)
+  },
+  listAiReviews(fileKey: string): Promise<APIResponse<AiReviewList>> {
+    return apiClient.get<AiReviewList>(`/api/document/${fileKey}/ai-reviews`)
+  },
+  getAiReview(
+    fileKey: string,
+    reviewId: string
+  ): Promise<APIResponse<AiReviewRecord>> {
+    return apiClient.get<AiReviewRecord>(
+      `/api/document/${fileKey}/ai-reviews/${reviewId}`
+    )
+  },
+  createAiReview(
+    fileKey: string,
+    data: {
+      title?: string
+      status?: AiReviewStatus
+      history_id: string
+      payload: AiReviewPayload
+    }
+  ): Promise<APIResponse<AiReviewRecord>> {
+    return apiClient.post<AiReviewRecord>(
+      `/api/document/${fileKey}/ai-reviews`,
+      data
+    )
+  },
+  updateAiReview(
+    fileKey: string,
+    reviewId: string,
+    data: {
+      title?: string
+      status?: AiReviewStatus
+      history_id?: string
+      payload?: AiReviewPayload
+    }
+  ): Promise<APIResponse<AiReviewRecord>> {
+    return apiClient.put<AiReviewRecord>(
+      `/api/document/${fileKey}/ai-reviews/${reviewId}`,
+      data
+    )
+  },
+  deleteAiReview(fileKey: string, reviewId: string): Promise<APIResponse<void>> {
+    return apiClient.delete(`/api/document/${fileKey}/ai-reviews/${reviewId}`)
   }
 }
 

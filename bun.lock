@@ -449,6 +449,7 @@
         "tailwind-variants": "^3.3.1",
         "tinykeys": "^3.1.0",
         "uuid": "^14.0.2",
+        "valibot": "^1.5.0",
         "y-indexeddb": "^9.0.12",
         "y-protocols": "^1.0.7",
         "yjs": "^13.6.32",

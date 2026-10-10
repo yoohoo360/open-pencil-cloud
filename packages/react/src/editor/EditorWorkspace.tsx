@@ -8,6 +8,11 @@ import { CollabPanel } from '#react/components/CollabPanel/CollabPanel'
 import { CollabPanelProvider } from '#react/components/CollabPanel/context'
 import { CommentsPanel } from '#react/components/Comments/CommentsPanel'
 import { CommentsProvider, useComments } from '#react/components/Comments/context'
+import { AiReviewPanel } from '#react/components/AiReview/AiReviewPanel'
+import {
+  AiReviewProvider,
+  useAiReview
+} from '#react/components/AiReview/context'
 import { EditorCanvas } from '#react/components/EditorCanvas'
 import { PageLoadingOverlay } from '#react/components/PageLoadingOverlay'
 import { DocumentBusyBar } from '#react/components/Shell/DocumentBusyBar'
@@ -34,7 +39,9 @@ export function EditorWorkspace({ collabRoomId }: { collabRoomId?: string | null
     <CollabPanelProvider roomId={collabRoomId}>
       <VersionHistoryProvider>
         <CommentsProvider>
-          <EditorWorkspaceLayout />
+          <AiReviewProvider>
+            <EditorWorkspaceLayout />
+          </AiReviewProvider>
         </CommentsProvider>
       </VersionHistoryProvider>
     </CollabPanelProvider>
@@ -50,6 +57,7 @@ function EditorWorkspaceLayout() {
   const activeTab = useActiveTab()
   const versionHistory = useVersionHistory()
   const comments = useComments()
+  const aiReview = useAiReview()
   const initialEditorLayout = useMemo(() => loadEditorLayout(), [])
   const horizontalSplitterStyles = useMemo(() => tv(splitterTheme)({ direction: 'horizontal' }), [])
   useKeyboard()
@@ -107,6 +115,8 @@ function EditorWorkspaceLayout() {
             <CommentsPanel />
           ) : versionHistory.open ? (
             <VersionHistoryPanel />
+          ) : aiReview.open ? (
+            <AiReviewPanel />
           ) : (
             <PropertiesPanel />
           )}
