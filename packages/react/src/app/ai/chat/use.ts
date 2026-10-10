@@ -44,7 +44,7 @@ import {
 } from '#react/app/skills/package-load'
 import {
   isSkillEnabledForCodegen,
-  skillCodegenPreferences
+  skillChatPreferences
 } from '#react/app/skills/preferences'
 import {
   gatherPlanningSceneContext,
@@ -71,7 +71,7 @@ function planFromReply(text: string, reasoning: string): DesignPlanArtifacts {
 export function useAIChat() {
   const store = useEditorStore()
   const settings = useStore(chatProviderSettings)
-  const prefs = useStore(skillCodegenPreferences)
+  const prefs = useStore(skillChatPreferences('design'))
   const configured = isChatConfigured(settings)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [status, setStatus] = useState<ChatStatus>('ready')

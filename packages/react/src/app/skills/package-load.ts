@@ -24,10 +24,16 @@ export async function loadSkillPackageText(skill: PencilSkill): Promise<string> 
   }
 }
 
+function isPersonalSkillGroup(group: { id: string; group_key?: string | null }): boolean {
+  return !group.group_key?.startsWith('tr-') && !group.id.startsWith('__team_remotes__:')
+}
+
 export function collectPersonalSkills(categories: SkillCatalogCategory[]): PencilSkill[] {
   const unique = new Map<string, PencilSkill>()
   for (const category of categories) {
+    if (category.kind !== 'personal') continue
     for (const group of category.groups) {
+      if (!isPersonalSkillGroup(group)) continue
       for (const skill of group.skills ?? []) {
         if (skill.team_id) continue
         unique.set(skill.id, skill)
@@ -38,7 +44,7 @@ export function collectPersonalSkills(categories: SkillCatalogCategory[]): Penci
 }
 
 export function skillCatalogBlock(skills: PencilSkill[]): string {
-  if (skills.length === 0) return '(No skills enabled in Settings.)'
+  if (skills.length === 0) return '(No skills enabled in AI settings.)'
   return skills
     .map(
       (skill) =>

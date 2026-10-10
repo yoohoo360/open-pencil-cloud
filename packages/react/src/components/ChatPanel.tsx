@@ -4,6 +4,7 @@ import { Check, ClipboardCopy, MessageCircle, Trash2 } from 'lucide-react'
 import { useAIChat } from '#react/app/ai/chat/use'
 import { ChatInput } from '#react/components/chat/ChatInput'
 import { ChatMessageView } from '#react/components/chat/ChatMessage'
+import { ChatSkillPicker } from '#react/components/chat/ChatSkillPicker'
 import { ProviderSetup } from '#react/components/chat/ProviderSetup'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppPlaceholder } from '#react/components/ui/AppPlaceholder'
@@ -27,17 +28,12 @@ export function ChatPanel() {
     stop,
     resetChat
   } = useAIChat()
-  const { dialogs, panels } = useI18n()
+  const { dialogs } = useI18n()
   const { showActionToast } = useActionToast()
   const scrollerRef = useRef<HTMLDivElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
   const [debugCopied, setDebugCopied] = useState(false)
-  const skillsLabel = !skillsReady
-    ? '…'
-    : enabledSkills.length === 0
-      ? panels.codegenChatNoSkills
-      : panels.codegenChatSkillsActive({ count: enabledSkills.length })
 
   const failureMessage =
     chatFailure?.reason === 'insufficient-credit'
@@ -129,13 +125,11 @@ export function ChatPanel() {
         <>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
             <span className="truncate text-[11px] text-muted">{dialogs.chatPrototypeTitle}</span>
-            <span
-              data-test-id="design-chat-skills-count"
-              className="shrink-0 text-[10px] text-muted"
-              title={dialogs.settingsSkillsHelp}
-            >
-              {skillsLabel}
-            </span>
+            <ChatSkillPicker
+              scope="design"
+              enabledCount={enabledSkills.length}
+              ready={skillsReady}
+            />
           </div>
           <div
             ref={scrollerRef}

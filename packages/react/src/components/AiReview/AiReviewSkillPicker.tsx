@@ -1,4 +1,5 @@
 import {
+  isGroupSelected,
   isSkillSelected,
   skillSelectionOf,
   toggleSkill,
@@ -56,10 +57,14 @@ export function AiReviewSkillPicker({
         ) ?? [],
     [categories]
   )
+  const allGroupIds = personalGroups.map((group) => group.id)
 
   return (
     <div className="flex flex-col gap-1.5" data-test-id="ai-review-skill-picker">
       <span className="text-[11px] text-muted">{dialogs.aiReviewSkills}</span>
+      {selection.all ? (
+        <p className="text-[10px] text-accent">{dialogs.settingsSkillsAllSelected}</p>
+      ) : null}
       {loading ? <p className="text-[11px] text-muted">{panels.loading}</p> : null}
       {error ? (
         <p role="alert" className="text-[11px] text-danger">
@@ -71,8 +76,9 @@ export function AiReviewSkillPicker({
       ) : null}
       <div className="flex flex-col gap-2">
         {personalGroups.map((group) => {
-          const groupEnabled = selection.group_ids.includes(group.id)
+          const groupEnabled = isGroupSelected(group.id, selection)
           const skills = (group.skills ?? []).filter((skill) => !skill.team_id)
+          const siblingSkillIds = skills.map((skill) => skill.id)
           return (
             <div
               key={group.id}
@@ -86,7 +92,9 @@ export function AiReviewSkillPicker({
                   checked={groupEnabled}
                   disabled={readOnly || !onChange}
                   onChange={(event) =>
-                    onChange?.(toggleSkillGroup(selection, group.id, event.target.checked))
+                    onChange?.(
+                      toggleSkillGroup(selection, group.id, event.target.checked, allGroupIds)
+                    )
                   }
                 />
                 <span className="min-w-0 flex-1 truncate">{group.name}</span>
@@ -103,9 +111,15 @@ export function AiReviewSkillPicker({
                             type="checkbox"
                             className="size-3 accent-[var(--color-accent)]"
                             checked={skillEnabled}
-                            disabled={readOnly || !onChange || groupEnabled}
+                            disabled={readOnly || !onChange}
                             onChange={(event) =>
-                              onChange?.(toggleSkill(selection, skill.id, event.target.checked))
+                              onChange?.(
+                                toggleSkill(selection, skill.id, event.target.checked, {
+                                  groupId: group.id,
+                                  allGroupIds,
+                                  siblingSkillIds
+                                })
+                              )
                             }
                           />
                           <span className="min-w-0 truncate text-surface">{skill.name}</span>

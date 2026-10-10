@@ -30,6 +30,8 @@ export type AiReviewMarker = {
 }
 
 export type AiReviewSkillSelection = {
+  /** When true, every personal skill is included (default from chat skill prefs). */
+  all?: boolean
   group_ids: string[]
   skill_ids: string[]
 }

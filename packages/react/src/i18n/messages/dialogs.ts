@@ -233,7 +233,8 @@ export const dialogMessageDefaults = {
   settingsAIAndAgents: 'AI & agents',
   settingsSkills: 'Skills',
   settingsSkillsHelp:
-    'Choose skill groups or individual skills used by Edit prototype chat and Dev code chat. Checked groups include every skill in the group.',
+    'Skills for this chat. All personal skills are selected by default; uncheck groups or skills to exclude them. Your choice is saved on this device.',
+  settingsSkillsAllSelected: 'All personal skills are selected.',
   settingsSkillsEmpty: 'No personal skill groups yet. Create skills on the Skills page first.',
   settingsSkillsManageHint: 'Author and fetch skills on the',
   settingsUsage: 'Usage',
@@ -541,7 +542,7 @@ export const dialogMessageDefaults = {
   aiReviewScopePage: 'Current page',
   aiReviewScopePageHint: 'No markers — AI will review the current page. Optionally add a selection.',
   aiReviewSkills: 'Skills',
-  aiReviewSkillsEmpty: 'No personal skill groups yet. Create skills in Settings.',
+  aiReviewSkillsEmpty: 'No personal skill groups yet. Create skills on the Skills page.',
   aiReviewRunAi: 'Run AI review',
   aiReviewRunning: 'Running AI…',
   aiReviewAnalysis: 'Analysis',

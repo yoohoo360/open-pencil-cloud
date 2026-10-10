@@ -19,7 +19,7 @@ import {
 } from '#react/app/skills/codegen-reply'
 import {
   isSkillEnabledForCodegen,
-  skillCodegenPreferences
+  skillChatPreferences
 } from '#react/app/skills/preferences'
 import {
   gatherPlanningSceneContext,
@@ -229,7 +229,7 @@ export function useCodegenChat(options: {
   store: EditorStore
 }) {
   const settings = useStore(chatProviderSettings)
-  const prefs = useStore(skillCodegenPreferences)
+  const prefs = useStore(skillChatPreferences('codegen'))
   const configured = isChatConfigured(settings)
   const [messages, setMessages] = useState<CodegenChatMessage[]>([])
   const [status, setStatus] = useState<ChatStatus>('ready')

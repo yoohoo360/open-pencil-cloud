@@ -50,6 +50,7 @@ export const AiReviewPayloadSchema = v.object({
   markers: v.array(MarkerSchema),
   skills: v.optional(
     v.object({
+      all: v.optional(v.boolean()),
       group_ids: v.array(v.string()),
       skill_ids: v.array(v.string())
     })

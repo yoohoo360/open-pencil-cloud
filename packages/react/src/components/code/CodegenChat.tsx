@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Copy, LoaderCircle, MessageCircle, Settings, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Copy, LoaderCircle, MessageCircle, Trash2 } from 'lucide-react'
 
-import { openSettingsDialog } from '#react/app/settings/dialog'
 import { isTextPart } from '#react/app/ai/chat/types'
 import type { EditorStore } from '#react/app/editor/store'
 import {
@@ -15,6 +14,7 @@ import {
   type CodegenPhase
 } from '#react/app/skills/use-codegen-chat'
 import { ChatInput } from '#react/components/chat/ChatInput'
+import { ChatSkillPicker } from '#react/components/chat/ChatSkillPicker'
 import { ProviderSetup } from '#react/components/chat/ProviderSetup'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppPlaceholder } from '#react/components/ui/AppPlaceholder'
@@ -43,7 +43,7 @@ export function CodegenChat({
   onArtifacts: (artifacts: CodegenArtifacts) => void
   onApplyCode?: (code: string) => void
 }) {
-  const { dialogs, panels } = useI18n()
+  const { panels } = useI18n()
   const {
     isConfigured,
     messages,
@@ -97,25 +97,12 @@ export function CodegenChat({
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border px-2">
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted">
           {panels.codegenChatTitle}
-          {skillsReady ? (
-            <span className="ml-1 font-normal">
-              ·{' '}
-              {enabledSkills.length > 0
-                ? panels.codegenChatSkillsActive({ count: enabledSkills.length })
-                : panels.codegenChatNoSkills}
-            </span>
-          ) : null}
         </span>
-        <AppButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          shape="square"
-          title={dialogs.settingsSkills}
-          onClick={() => openSettingsDialog('skills')}
-        >
-          <Settings className="size-3" />
-        </AppButton>
+        <ChatSkillPicker
+          scope="codegen"
+          enabledCount={enabledSkills.length}
+          ready={skillsReady}
+        />
         {messages.length > 0 ? (
           <AppButton color="neutral" variant="ghost" size="xs" shape="square" onClick={resetChat}>
             <Trash2 className="size-3" />
