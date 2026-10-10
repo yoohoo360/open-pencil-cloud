@@ -72,7 +72,7 @@ jobs:
       # Rspack config loads @open-pencil/mcp/tools via Node/jiti (import → dist), so
       # workspace package artifacts must exist before `bun run build:*` in packages/react.
       - name: Build MCP package
-        run: bun --filter @open-pencil/mcp run build
+        run: bun --filter @open-pencil/mcp build
 
       - name: Build project
         working-directory: ${{ env.BUILD_DIR }}
