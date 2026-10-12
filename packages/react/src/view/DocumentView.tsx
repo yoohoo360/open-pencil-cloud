@@ -26,6 +26,7 @@ import { documentAPI, getAPIErrorMessage } from '#react/lib/client'
 import { Check, Copy, Link2, Lock, Shield } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useMakePrototypeHost } from '#react/app/make/use-prototype-host'
 
 export default function DocumentView() {
   const { fileKey } = useParams<{ fileKey: string }>()
@@ -128,6 +129,11 @@ export default function DocumentView() {
     Boolean(fileKey) && !loading && !loadError && !forbidden && !notFound
   )
   useDocumentBusyLeaveGuard()
+  useMakePrototypeHost(
+    store,
+    fileKey,
+    Boolean(fileKey) && !loading && !forbidden && !notFound
+  )
 
   if (!loading && fileKey && (forbidden || notFound)) {
     return (

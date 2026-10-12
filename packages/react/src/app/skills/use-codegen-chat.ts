@@ -9,6 +9,13 @@ import {
 import type { ChatMessage, ChatStatus } from '#react/app/ai/chat/types'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 import { readActiveOrgId } from '#react/app/org/active'
+import { extractMakeProjectPayload } from '#react/app/make/project-files'
+import {
+  createDefaultMakeSkill,
+  resolveMakeSkillKeys,
+  resolveMakeSkillsToLoad,
+  withDefaultMakeSkill
+} from '#react/app/make/skills/default-make-skill'
 import {
   emptyCodegenArtifacts,
   extractGeneratedCode,
@@ -19,7 +26,8 @@ import {
 } from '#react/app/skills/codegen-reply'
 import {
   isSkillEnabledForCodegen,
-  skillChatPreferences
+  skillChatPreferences,
+  type SkillChatScope
 } from '#react/app/skills/preferences'
 import {
   gatherPlanningSceneContext,
@@ -55,12 +63,17 @@ function buildRoutePrompt(options: {
   baselineCode: string
   skills: PencilSkill[]
   sceneContext: string
+  skillScope: SkillChatScope
 }): string {
+  const makeSkillHint =
+    options.skillScope === 'make'
+      ? `Make mode: always include make-react-tailwind. Also list every other enabled skill key that applies — the host loads those packages with the default skill.`
+      : `Prefer few skills; omit unused ones.`
   return `You are a code assistant in OpenPencil Dev mode.
 Help the user generate or refine ${options.sourceLabel} for the current selection.
 
 You only see a catalog of enabled skills (key + name + description). Do not invent package contents.
-Break the work into steps and choose which skill keys apply. Prefer few skills; omit unused ones.
+Break the work into steps and choose which skill keys apply. ${makeSkillHint}
 
 Canvas context below includes a semantic describe of the selection, plus related layers
 outside the selection (parent/siblings) and nearby text/copy. Use that copy when planning
@@ -109,6 +122,7 @@ function buildGeneratePrompt(options: {
   steps: string
   sceneContext: string
   lookupContext: string
+  skillScope: SkillChatScope
 }): string {
   const skillsBlock =
     options.skillPackages.length === 0
@@ -119,6 +133,21 @@ function buildGeneratePrompt(options: {
               `## Skill ${skill.name} (${skill.key})\n${skill.body || '(empty package)'}`
           )
           .join('\n\n')
+  const makeOutput =
+    options.skillScope === 'make'
+      ? `The host project starts empty. make-react-tailwind owns project shape; every other skill package below is also loaded — follow them for domain UI and behavior.
+/src/index.tsx must default-export the root component — the host mounts it. Do not bootstrap React DOM yourself.
+Output one or more fenced files with the path in the fence info line, for example:
+\`\`\`/src/index.tsx
+...
+\`\`\`
+\`\`\`/package.json
+...
+\`\`\`
+Add more /src files as needed. Do NOT invent package-lock.json — the build server generates it.
+Do not output <thinking>, <plan>, <steps>, or any prose outside the fences.`
+      : `Output ONLY one fenced code block with the full updated source.
+Do not output <thinking>, <plan>, <steps>, or any prose outside the fence.`
   return `You are a code assistant in OpenPencil Dev mode.
 Produce the final ${options.sourceLabel} for the selection.
 Follow the plan/steps and ONLY the skill packages below as binding instructions.
@@ -142,8 +171,7 @@ Current ${options.sourceLabel} code:
 ${options.baselineCode || '(empty)'}
 \`\`\`
 
-Output ONLY one fenced code block with the full updated source.
-Do not output <thinking>, <plan>, <steps>, or any prose outside the fence.`
+${makeOutput}`
 }
 
 function deltaReasoning(delta: {
@@ -222,14 +250,17 @@ async function streamChatCompletion(options: {
 
 export function useCodegenChat(options: {
   sourceLabel: string
-  getBaselineCode: () => string
-  onArtifacts: (artifacts: CodegenArtifacts) => void
+  getBaselineCode: () => string | Promise<string>
+  onArtifacts: (artifacts: CodegenArtifacts, phase: CodegenPhase) => void
   active: boolean
   /** Editor store for planning-time describe / find_nodes (React bridge only). */
   store: EditorStore
+  /** Per-tool skill preference scope (defaults to codegen). */
+  skillScope?: SkillChatScope
 }) {
   const settings = useStore(chatProviderSettings)
-  const prefs = useStore(skillChatPreferences('codegen'))
+  const skillScope = options.skillScope ?? 'codegen'
+  const prefs = useStore(skillChatPreferences(skillScope))
   const configured = isChatConfigured(settings)
   const [messages, setMessages] = useState<CodegenChatMessage[]>([])
   const [status, setStatus] = useState<ChatStatus>('ready')
@@ -251,18 +282,21 @@ export function useCodegenChat(options: {
       .then((response) => {
         if (cancelled) return
         const personal = collectPersonalSkills(response.data ?? [])
-        setEnabledSkills(personal.filter((skill) => isSkillEnabledForCodegen(skill, prefs)))
+        const enabled = personal.filter((skill) => isSkillEnabledForCodegen(skill, prefs))
+        setEnabledSkills(
+          skillScope === 'make' ? withDefaultMakeSkill(enabled) : enabled
+        )
         setSkillsReady(true)
       })
       .catch(() => {
         if (cancelled) return
-        setEnabledSkills([])
+        setEnabledSkills(skillScope === 'make' ? [createDefaultMakeSkill()] : [])
         setSkillsReady(true)
       })
     return () => {
       cancelled = true
     }
-  }, [options.active, prefs])
+  }, [options.active, prefs, skillScope])
 
   const resetChat = useCallback(() => {
     operationRef.current += 1
@@ -270,7 +304,7 @@ export function useCodegenChat(options: {
     abortRef.current = null
     setMessages([])
     setStatus('ready')
-    onArtifacts(emptyCodegenArtifacts())
+    onArtifacts(emptyCodegenArtifacts(), 'route')
   }, [onArtifacts])
 
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -328,12 +362,12 @@ export function useCodegenChat(options: {
             }
           })
         )
-        onArtifacts(patch.artifacts)
+        onArtifacts(patch.artifacts, patch.phase)
       }
 
       try {
         if (operation !== operationRef.current) return
-        const baselineCode = getBaselineCode()
+        const baselineCode = await Promise.resolve(getBaselineCode())
         const historyApi: ApiChatMessage[] = history.map((message) => ({
           role: message.role as 'user' | 'assistant',
           content: message.parts
@@ -357,7 +391,8 @@ export function useCodegenChat(options: {
                 sourceLabel,
                 baselineCode,
                 skills: enabledSkills,
-                sceneContext
+                sceneContext,
+                skillScope
               })
             },
             ...historyApi
@@ -378,7 +413,11 @@ export function useCodegenChat(options: {
           key: skill.skill_key,
           name: skill.name
         }))
-        const selectedKeys = extractSkillKeys(route.text, catalog)
+        const routeKeys = extractSkillKeys(route.text, catalog)
+        const selectedKeys =
+          skillScope === 'make'
+            ? resolveMakeSkillKeys(enabledSkills, routeKeys)
+            : routeKeys
         const routeArtifacts = parseCodegenReply(route.text, route.reasoning)
         let planWithSkills = withSkillsInPlan(routeArtifacts.plan, selectedKeys)
 
@@ -405,9 +444,10 @@ export function useCodegenChat(options: {
           }
         }
 
-        const selectedSkills = enabledSkills.filter((skill) =>
-          selectedKeys.includes(skill.skill_key)
-        )
+        const selectedSkills =
+          skillScope === 'make'
+            ? resolveMakeSkillsToLoad(enabledSkills, routeKeys)
+            : enabledSkills.filter((skill) => selectedKeys.includes(skill.skill_key))
         const packages = await Promise.all(
           selectedSkills.map(async (skill) => ({
             name: skill.name,
@@ -436,7 +476,8 @@ export function useCodegenChat(options: {
                 plan: planWithSkills,
                 steps: routeArtifacts.steps,
                 sceneContext,
-                lookupContext
+                lookupContext,
+                skillScope
               })
             },
             ...historyApi,
@@ -448,7 +489,10 @@ export function useCodegenChat(options: {
           ],
           onDelta: (textOut) => {
             if (operation !== operationRef.current) return
-            const code = extractGeneratedCode(textOut)
+            const code =
+              skillScope === 'make'
+                ? extractMakeProjectPayload(textOut)
+                : extractGeneratedCode(textOut)
             publish({
               text: `${route.text}\n\n${textOut}`,
               reasoning: route.reasoning,
@@ -465,7 +509,10 @@ export function useCodegenChat(options: {
         })
         if (operation !== operationRef.current) return
 
-        const finalCode = extractGeneratedCode(generate.text)
+        const finalCode =
+          skillScope === 'make'
+            ? extractMakeProjectPayload(generate.text)
+            : extractGeneratedCode(generate.text)
         publish({
           text: `${route.text}\n\n${generate.text}`,
           reasoning: route.reasoning,
@@ -507,6 +554,7 @@ export function useCodegenChat(options: {
       messages,
       onArtifacts,
       settings,
+      skillScope,
       sourceLabel,
       status,
       store

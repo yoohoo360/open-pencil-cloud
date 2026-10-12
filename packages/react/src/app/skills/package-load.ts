@@ -1,3 +1,4 @@
+import { isBuiltinMakeSkillId } from '#react/app/make/skills/default-make-skill'
 import { skillAPI, type PencilSkill, type SkillCatalogCategory, type SkillEntry } from '#react/lib/client'
 
 function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
@@ -10,6 +11,9 @@ function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
 }
 
 export async function loadSkillPackageText(skill: PencilSkill): Promise<string> {
+  if (isBuiltinMakeSkillId(skill.id) || skill.id === 'inline-ai') {
+    return skill.content ?? ''
+  }
   try {
     const response = await skillAPI.tree(skill.id)
     const files = flattenFiles(response.data ?? []).sort((a, b) => {

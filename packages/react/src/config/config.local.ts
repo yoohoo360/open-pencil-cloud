@@ -11,7 +11,9 @@ const config: AppConfig = {
   OSS_READ_MODE: 'direct',
   OSS_PUBLIC_BASE_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com',
   CANVASKIT_WASM_URL:
-    'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/canvaskit-0.41.1.wasm'
+    'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/canvaskit-0.41.1.wasm',
+  // e.g. 'https://fe-esbuild-package-test.pupuvip.com'
+  MAKE_SANDBOX_SERVER_URL: 'https://fe-esbuild-package.pupuvip.com'
 }
 
 export default config

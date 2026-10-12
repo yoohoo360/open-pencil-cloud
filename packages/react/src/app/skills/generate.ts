@@ -23,7 +23,7 @@ function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
 }
 
 async function loadSkillPackageText(skill: PencilSkill): Promise<string> {
-  if (!skill.id || skill.id === 'inline-ai') {
+  if (!skill.id || skill.id === 'inline-ai' || skill.id.startsWith('builtin:')) {
     return skill.content ?? ''
   }
   try {

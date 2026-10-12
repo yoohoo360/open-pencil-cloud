@@ -50,6 +50,12 @@ Keep the frame; rewrite the label.
     ).toBe('<Frame />')
   })
 
+  test('code extractor yields partial body while a fence is still open', () => {
+    expect(extractGeneratedCode('```tsx\nexport default function App() {\n  return (')).toBe(
+      'export default function App() {\n  return ('
+    )
+  })
+
   test('extracts allowed skill keys from the skills section and names', () => {
     const catalog = [
       { key: 'foo', name: 'Foo Skill' },

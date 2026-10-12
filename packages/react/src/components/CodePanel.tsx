@@ -300,7 +300,7 @@ export function CodePanel({
     [baseline]
   )
 
-  const handleArtifacts = useCallback((next: CodegenArtifacts) => {
+  const handleArtifacts = useCallback((next: CodegenArtifacts, _phase?: unknown) => {
     if (next.code) setAiDraft(next.code)
   }, [])
 

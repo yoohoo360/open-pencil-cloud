@@ -33,6 +33,7 @@ export function sanitizeCodePayload(value: string): string {
 
 /**
  * Only fenced blocks or `<code>…</code>`. Never the whole reply (avoids think/plan in the code box).
+ * While streaming, an unclosed fence / `<code>` tag still yields the partial body.
  */
 export function extractGeneratedCode(text: string): string {
   const trimmed = text.trim()
@@ -43,6 +44,9 @@ export function extractGeneratedCode(text: string): string {
     .map((match) => sanitizeCodePayload(match[1] ?? ''))
     .filter(Boolean)
   if (blocks.length > 0) return blocks[blocks.length - 1] ?? ''
+  // Incomplete fence during generate stream: ```tsx\npartial…
+  const openFence = trimmed.match(/```(?:[\w-]*)?\r?\n([\s\S]*)$/)
+  if (openFence?.[1] != null) return sanitizeCodePayload(openFence[1])
   return ''
 }
 

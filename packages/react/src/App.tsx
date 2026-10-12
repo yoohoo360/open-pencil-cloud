@@ -8,6 +8,7 @@ import AdminOrgsView from './view/AdminOrgsView'
 import CanvasView from './view/CanvasView'
 import DocumentListView from './view/DocumentListView'
 import DocumentView from './view/DocumentView'
+import MakeView from './view/MakeView'
 import LoginView from './view/LoginView'
 import OauthCallbackView from './view/OauthCallbackView'
 import RegisterView from './view/RegisterView'
@@ -84,6 +85,22 @@ export function App() {
         element={
           <RequireAuth>
             <SkillsView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/design/:fileKey/make"
+        element={
+          <RequireAuth>
+            <MakeView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/design/:fileKey/*"
+        element={
+          <RequireAuth>
+            <DocumentView/>
           </RequireAuth>
         }
       />

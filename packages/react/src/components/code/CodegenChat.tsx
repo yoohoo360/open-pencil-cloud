@@ -34,14 +34,21 @@ export function CodegenChat({
   sourceLabel,
   getBaselineCode,
   onArtifacts,
-  onApplyCode
+  onApplyCode,
+  skillScope = 'codegen',
+  initialPrompt,
+  title
 }: {
   active: boolean
   store: EditorStore
   sourceLabel: string
-  getBaselineCode: () => string
-  onArtifacts: (artifacts: CodegenArtifacts) => void
+  getBaselineCode: () => string | Promise<string>
+  onArtifacts: (artifacts: CodegenArtifacts, phase: CodegenPhase) => void
   onApplyCode?: (code: string) => void
+  skillScope?: 'design' | 'codegen' | 'make'
+  /** Sent once when the chat becomes active and configured. */
+  initialPrompt?: string
+  title?: string
 }) {
   const { panels } = useI18n()
   const {
@@ -58,11 +65,13 @@ export function CodegenChat({
     store,
     sourceLabel,
     getBaselineCode,
-    onArtifacts
+    onArtifacts,
+    skillScope
   })
   const scrollerRef = useRef<HTMLDivElement>(null)
   const messagesEnd = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
+  const initialPromptSent = useRef(false)
 
   const updateStick = useCallback(() => {
     const el = scrollerRef.current
@@ -84,6 +93,15 @@ export function CodegenChat({
     [sendMessage]
   )
 
+  useEffect(() => {
+    if (!active || !isConfigured || !initialPrompt?.trim()) return
+    if (initialPromptSent.current || messages.length > 0) return
+    if (status === 'streaming' || status === 'submitted') return
+    initialPromptSent.current = true
+    stickToBottom.current = true
+    void sendMessage(initialPrompt.trim())
+  }, [active, initialPrompt, isConfigured, messages.length, sendMessage, status])
+
   if (!isConfigured) {
     return (
       <div data-test-id="code-panel-codegen-chat" className="flex min-h-0 flex-1 flex-col">
@@ -96,10 +114,10 @@ export function CodegenChat({
     <div data-test-id="code-panel-codegen-chat" className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border px-2">
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted">
-          {panels.codegenChatTitle}
+          {title ?? panels.codegenChatTitle}
         </span>
         <ChatSkillPicker
-          scope="codegen"
+          scope={skillScope}
           enabledCount={enabledSkills.length}
           ready={skillsReady}
         />

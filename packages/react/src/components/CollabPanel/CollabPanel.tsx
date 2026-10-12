@@ -1,5 +1,8 @@
 import { openDocumentShareDialog } from '#react/app/document/access'
+import { useEditorStore } from '#react/app/editor/store'
 import { openPublishLibraryDialog } from '#react/app/libraries'
+import { isMakeSandboxConfigured } from '#react/app/make/settings'
+import { makePageHref } from '#react/app/make/session'
 import { useOptionalAiReview } from '#react/components/AiReview/context'
 import { CollabAvatarStack } from '#react/components/CollabPanel/CollabAvatarStack'
 import { useOptionalComments } from '#react/components/Comments/context'
@@ -9,8 +12,17 @@ import { IconButton } from '#react/components/ui/IconButton'
 import { usePopoverUI } from '#react/components/ui/popover'
 import { useOptionalVersionHistory } from '#react/components/VersionHistory/context'
 import { useI18n } from '#react/i18n'
-import { ClipboardCheck, Ellipsis, History, MessageSquare, Share2, Upload } from 'lucide-react'
+import {
+  ClipboardCheck,
+  Ellipsis,
+  History,
+  MessageSquare,
+  Share2,
+  Sparkles,
+  Upload
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 /**
  * Right-panel chrome: connected users on the left (max 3),
@@ -20,12 +32,21 @@ export function CollabPanel() {
   const comments = useOptionalComments()
   const aiReview = useOptionalAiReview()
   const versionHistory = useOptionalVersionHistory()
+  const store = useEditorStore()
+  const { fileKey } = useParams<{ fileKey: string }>()
   const { dialogs, panels } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const makeEnabled = isMakeSandboxConfigured()
   const popover = usePopoverUI({
     content: 'absolute right-0 top-full z-[60] mt-1.5 w-48 overflow-hidden p-1'
   })
+
+  function openMake() {
+    if (!fileKey || !makeEnabled) return
+    setMenuOpen(false)
+    window.open(makePageHref(fileKey, [...store.state.selectedIds]), '_blank', 'noopener,noreferrer')
+  }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -57,7 +78,7 @@ export function CollabPanel() {
 
           <div className="relative" ref={menuRef}>
             <IconButton
-              label="More"
+              label={panels.moreEllipsis}
               data-test-id="document-more-menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((open) => !open)}
@@ -66,6 +87,18 @@ export function CollabPanel() {
             </IconButton>
             {menuOpen ? (
               <div className={popover.content} role="menu">
+                {makeEnabled ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-test-id="document-make"
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-hover"
+                    onClick={openMake}
+                  >
+                    <Sparkles className="size-3.5 text-muted" />
+                    {panels.make}
+                  </button>
+                ) : null}
                 {comments ? (
                   <button
                     type="button"

@@ -2,6 +2,7 @@ import { useStore } from '@nanostores/react'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { createDefaultMakeSkill } from '#react/app/make/skills/default-make-skill'
 import {
   isGroupEnabledForCodegen,
   isSkillEnabledForCodegen,
@@ -68,10 +69,15 @@ export function ChatSkillPicker({
 
   const groups = useMemo(() => personalGroups(categories), [categories])
   const allGroupIds = groups.map((group) => group.id)
+  const builtinMake = useMemo(
+    () => (scope === 'make' ? createDefaultMakeSkill() : null),
+    [scope]
+  )
+  const displayCount = builtinMake ? Math.max(enabledCount, 1) : enabledCount
   const label = ready
-    ? prefs.allEnabled
+    ? prefs.allEnabled || builtinMake
       ? dialogs.settingsSkills
-      : `${dialogs.settingsSkills} (${enabledCount})`
+      : `${dialogs.settingsSkills} (${displayCount})`
     : dialogs.settingsSkills
 
   return (
@@ -107,7 +113,35 @@ export function ChatSkillPicker({
               {error}
             </p>
           ) : null}
-          {!loading && groups.length === 0 ? (
+          {builtinMake ? (
+            <div
+              className="rounded border border-border px-2 py-1.5"
+              data-test-id="chat-skill-group-builtin-make"
+            >
+              <div className="flex items-center gap-2 text-xs font-medium text-surface">
+                <span className="min-w-0 flex-1 truncate">{panels.makeBuiltinSkills}</span>
+                <span className="text-[10px] font-normal text-muted">1</span>
+              </div>
+              <ul className="mt-1.5 space-y-1 border-t border-border/60 pt-1.5 pl-5">
+                <li>
+                  <label className="flex items-center gap-2 text-[11px] text-muted">
+                    <input
+                      type="checkbox"
+                      className="size-3 accent-[var(--color-accent)]"
+                      checked
+                      disabled
+                      readOnly
+                      aria-label={builtinMake.name}
+                    />
+                    <span className="min-w-0 truncate text-surface" title={builtinMake.description}>
+                      {builtinMake.name}
+                    </span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+          {!loading && groups.length === 0 && !builtinMake ? (
             <p className="text-[11px] text-muted">{dialogs.settingsSkillsEmpty}</p>
           ) : null}
           {groups.map((group) => {

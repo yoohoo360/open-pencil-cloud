@@ -47,7 +47,7 @@ export function CodeEditor({
   return (
     <div
       data-slot="code-editor"
-      className="op-hljs-editor relative min-h-0 flex-1 overflow-hidden text-xs"
+      className="op-hljs-editor relative h-full min-h-0 flex-1 overflow-hidden text-xs"
     >
       <pre
         ref={preRef}

@@ -5,7 +5,8 @@ const config: AppConfig = {
   OSS_UPLOAD_MODE: 'direct',
   OSS_READ_MODE: 'direct',
   OSS_PUBLIC_BASE_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com',
-  CANVASKIT_WASM_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/canvaskit-0.41.1.wasm'
+  CANVASKIT_WASM_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com/pencil/canvaskit-0.41.1.wasm',
+  MAKE_SANDBOX_SERVER_URL: ''
 }
 
 export default config

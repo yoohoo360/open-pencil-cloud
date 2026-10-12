@@ -3,7 +3,7 @@ import { atom, type ReadableAtom } from 'nanostores'
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
 /** Chat tools that keep their own skill selection in localStorage. */
-export type SkillChatScope = 'design' | 'codegen'
+export type SkillChatScope = 'design' | 'codegen' | 'make'
 
 export type SkillCodegenPreferences = {
   version: 2
@@ -98,10 +98,11 @@ function writePreferences(scope: SkillChatScope, value: SkillCodegenPreferences)
 
 const preferenceAtoms: Record<SkillChatScope, ReturnType<typeof atom<SkillCodegenPreferences>>> = {
   design: atom(readPreferences('design')),
-  codegen: atom(readPreferences('codegen'))
+  codegen: atom(readPreferences('codegen')),
+  make: atom(readPreferences('make'))
 }
 
-for (const scope of ['design', 'codegen'] as const) {
+for (const scope of ['design', 'codegen', 'make'] as const) {
   preferenceAtoms[scope].subscribe((value) => writePreferences(scope, value))
 }
 
