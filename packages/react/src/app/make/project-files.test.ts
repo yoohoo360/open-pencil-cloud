@@ -5,6 +5,7 @@ import {
   MAKE_LOCK_FILE,
   MAKE_PACKAGE_FILE,
   extractMakeProjectPayload,
+  mergeMakeProjectPayloads,
   parseMakeProjectFiles,
   serializeMakeProjectFiles,
   upsertMakeFiles
@@ -57,6 +58,19 @@ export function Button() { return <button /> }
         code: 'export default function App() {\n  return ('
       }
     ])
+  })
+})
+
+describe('mergeMakeProjectPayloads', () => {
+  test('merges parallel task fences by path', () => {
+    const merged = mergeMakeProjectPayloads([
+      '```/package.json\n{"name":"a"}\n```',
+      '```/src/App.tsx\nexport default function App() { return null }\n```',
+      '```/src/App.tsx\nexport default function App() { return <main /> }\n```'
+    ])
+    const files = parseMakeProjectFiles(merged)
+    expect(files.find((file) => file.filename === MAKE_PACKAGE_FILE)?.code).toContain('"name"')
+    expect(files.find((file) => file.filename === MAKE_APP_FILE)?.code).toContain('<main')
   })
 })
 

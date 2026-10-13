@@ -2,6 +2,7 @@ import { throwChatHttpError } from '#react/app/ai/chat/provider-error'
 import {
   chatProviderSettings,
   isChatConfigured,
+  resolveChatModel,
   type ChatProviderSettings
 } from '#react/app/ai/chat/settings'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
@@ -66,6 +67,8 @@ export async function generateCodeWithSkill(options: {
   if (!isChatConfigured(settings)) {
     throw new Error('Configure an AI provider in the AI panel first.')
   }
+  const resolved = resolveChatModel(settings, 'high')
+  if (!resolved) throw new Error('Configure at least one enabled AI model.')
 
   const packageText = (await loadSkillPackageText(options.skill)).trim()
   if (!packageText && options.skill.id !== 'inline-ai') {
@@ -81,14 +84,14 @@ export async function generateCodeWithSkill(options: {
     .filter(Boolean)
     .join('\n\n')
 
-  const response = await fetch(chatCompletionsURL(settings.baseURL), {
+  const response = await fetch(chatCompletionsURL(resolved.baseURL), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${resolved.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: settings.model,
+      model: resolved.model,
       stream: true,
       temperature: 0.2,
       messages: [

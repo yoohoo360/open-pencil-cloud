@@ -1,11 +1,35 @@
 import { computeAllLayouts } from '@open-pencil/core/layout'
 import { CORE_TOOLS, toolChangesDocument, type ToolDef } from '@open-pencil/core/tools'
+import { pruneUnmountedNodes } from '@open-pencil/scene-graph'
 import { toStandardJsonSchema as toStandardJSONSchema } from '@valibot/to-json-schema'
 
 import type { EditorStore } from '#react/app/editor/store'
 import { makeFigmaFromStore } from '#react/app/ai/chat/figma'
+import {
+  DISCOVER_TOOLS,
+  ENABLE_TOOLS,
+  META_TOOL_NAMES,
+  READ_TOOL_OUTPUT,
+  STATIC_DESIGN_TOOL_NAMES,
+  type DesignToolSession,
+  visibleDesignToolNames
+} from '#react/app/ai/chat/tools-catalog'
+
+export {
+  DISCOVER_TOOLS,
+  ENABLE_TOOLS,
+  READ_TOOL_OUTPUT,
+  STATIC_DESIGN_TOOL_NAMES,
+  createDesignToolSession,
+  type DesignToolSession
+} from '#react/app/ai/chat/tools-catalog'
 
 export const MAX_AGENT_STEPS = 50
+
+/** Stash large tool JSON so the model can page it instead of filling context. */
+const TOOL_OUTPUT_STASH_CHARS = 6_000
+const toolOutputStore = new Map<string, string>()
+let toolOutputSeq = 0
 
 export type OpenAIFunctionTool = {
   type: 'function'
@@ -33,15 +57,85 @@ function inputToOpenAIParameters(def: ToolDef): OpenAIFunctionTool['function']['
   }
 }
 
-export function designToolsAsOpenAI(): OpenAIFunctionTool[] {
-  return CORE_TOOLS.map((def) => ({
-    type: 'function' as const,
-    function: {
-      name: def.name,
-      description: def.description,
-      parameters: inputToOpenAIParameters(def)
+function metaToolsAsOpenAI(): OpenAIFunctionTool[] {
+  return [
+    {
+      type: 'function',
+      function: {
+        name: DISCOVER_TOOLS,
+        description:
+          'List canvas tools not yet loaded (name + short description). Call before enable_tools when you need a capability outside the default set.',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: ENABLE_TOOLS,
+        description:
+          'Load additional canvas tools by name for the rest of this turn. Names come from discover_tools.',
+        parameters: {
+          type: 'object',
+          properties: {
+            names: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Tool names to enable'
+            }
+          },
+          required: ['names']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: READ_TOOL_OUTPUT,
+        description:
+          'Read a previously stashed large tool output by id. Prefer offset near the end for errors.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Stash id from a prior tool result' },
+            offset: {
+              type: 'number',
+              description: 'Byte/char offset (default 0). Negative counts from end.'
+            },
+            limit: {
+              type: 'number',
+              description: 'Max characters to return (default 4000)'
+            }
+          },
+          required: ['id']
+        }
+      }
     }
-  }))
+  ]
+}
+
+export function designToolsAsOpenAI(session?: DesignToolSession): OpenAIFunctionTool[] {
+  const visible = new Set(
+    visibleDesignToolNames(
+      CORE_TOOLS.map((def) => def.name),
+      session
+    )
+  )
+  const defs = CORE_TOOLS.filter((def) => visible.has(def.name))
+  return [
+    ...defs.map((def) => ({
+      type: 'function' as const,
+      function: {
+        name: def.name,
+        description: def.description,
+        parameters: inputToOpenAIParameters(def)
+      }
+    })),
+    ...metaToolsAsOpenAI()
+  ]
 }
 
 function extractNodeIds(result: unknown): string[] {
@@ -70,13 +164,121 @@ function toolByName(name: string): ToolDef | undefined {
   return CORE_TOOLS.find((tool) => tool.name === name)
 }
 
+function stashIfLarge(payload: unknown): unknown {
+  const text = JSON.stringify(payload ?? null)
+  if (text.length <= TOOL_OUTPUT_STASH_CHARS) return payload
+  toolOutputSeq += 1
+  const id = `tool-out-${toolOutputSeq}`
+  toolOutputStore.set(id, text)
+  return {
+    stashed: true,
+    id,
+    chars: text.length,
+    preview: text.slice(0, 800),
+    hint: 'Call read_tool_output with id; use negative offset to read the end.'
+  }
+}
+
+function readStashedOutput(args: Record<string, unknown>): unknown {
+  const id = typeof args.id === 'string' ? args.id : ''
+  const stored = toolOutputStore.get(id)
+  if (!stored) return { error: `Unknown stash id: ${id}` }
+  const limit =
+    typeof args.limit === 'number' && Number.isFinite(args.limit)
+      ? Math.min(Math.max(1, Math.floor(args.limit)), 20_000)
+      : 4_000
+  let offset =
+    typeof args.offset === 'number' && Number.isFinite(args.offset)
+      ? Math.floor(args.offset)
+      : 0
+  if (offset < 0) offset = Math.max(0, stored.length + offset)
+  const slice = stored.slice(offset, offset + limit)
+  return {
+    id,
+    offset,
+    limit,
+    total: stored.length,
+    content: slice,
+    done: offset + slice.length >= stored.length
+  }
+}
+
+function runMetaTool(
+  session: DesignToolSession,
+  name: string,
+  args: Record<string, unknown>
+): { ok: true; result: unknown } | { ok: false; error: string } {
+  if (name === DISCOVER_TOOLS) {
+    const catalog = CORE_TOOLS.filter(
+      (def) => !STATIC_DESIGN_TOOL_NAMES.has(def.name) && !session.enabled.has(def.name)
+    ).map((def) => ({ name: def.name, description: def.description }))
+    return {
+      ok: true,
+      result: {
+        available: catalog,
+        alreadyLoaded: [...STATIC_DESIGN_TOOL_NAMES, ...session.enabled]
+      }
+    }
+  }
+  if (name === ENABLE_TOOLS) {
+    const names = Array.isArray(args.names)
+      ? args.names.filter((item): item is string => typeof item === 'string')
+      : []
+    const known = new Set(CORE_TOOLS.map((def) => def.name))
+    const enabled: string[] = []
+    const unknown: string[] = []
+    for (const toolName of names) {
+      if (!known.has(toolName) || META_TOOL_NAMES.has(toolName)) {
+        unknown.push(toolName)
+        continue
+      }
+      session.enabled.add(toolName)
+      enabled.push(toolName)
+    }
+    return { ok: true, result: { enabled, unknown } }
+  }
+  if (name === READ_TOOL_OUTPUT) {
+    return { ok: true, result: readStashedOutput(args) }
+  }
+  return { ok: false, error: `Unknown meta tool: ${name}` }
+}
+
+/**
+ * After an AI prototype turn, drop nodes that are not reachable from the
+ * document root so detached leftovers do not accumulate.
+ */
+export function pruneUnmountedAfterAiTurn(store: EditorStore): string[] {
+  const deleted = pruneUnmountedNodes(store.graph)
+  if (deleted.length === 0) return deleted
+  computeAllLayouts(store.graph, store.state.currentPageId)
+  store.requestRender()
+  store.notify()
+  return deleted
+}
+
 export async function executeDesignTool(
   store: EditorStore,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  session?: DesignToolSession
 ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+  if (META_TOOL_NAMES.has(name)) {
+    if (!session) return { ok: false, error: `Tool session required for ${name}` }
+    return runMetaTool(session, name, args)
+  }
+
   const def = toolByName(name)
   if (!def) return { ok: false, error: `Unknown tool: ${name}` }
+  if (
+    session &&
+    !STATIC_DESIGN_TOOL_NAMES.has(name) &&
+    !session.enabled.has(name)
+  ) {
+    return {
+      ok: false,
+      error: `Tool "${name}" is not loaded. Call discover_tools then enable_tools with that name.`
+    }
+  }
 
   const mutates = toolChangesDocument(def)
   const beforeSnapshot = mutates ? store.snapshotPage() : null
@@ -105,7 +307,7 @@ export async function executeDesignTool(
       store.select(selected)
       store.notify()
     }
-    return { ok: true, result }
+    return { ok: true, result: stashIfLarge(result) }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }

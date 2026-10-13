@@ -1,3 +1,5 @@
+import type { AgentTaskState } from '#react/app/ai/agent/parallel'
+
 export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'error'
 
 export type ChatFailureReason =
@@ -48,6 +50,8 @@ export type ChatMessage = {
   parts: ChatMessagePart[]
   /** Parsed route-phase plan; kept while tools / codegen run. */
   planArtifacts?: DesignPlanArtifacts
+  /** Planned agent tasks with live status during execute/generate. */
+  agentTasks?: AgentTaskState[]
   phase?: ChatPlanPhase
   selectedSkillKeys?: string[]
   reasoning?: string

@@ -23,10 +23,10 @@ export function sanitizeCodePayload(value: string): string {
   let text = value.trim()
   // Drop whole tagged sections if the model stuffed them into a fence.
   text = text.replace(
-    /<(thinking|plan|steps|skills|code)>[\s\S]*?<\/\1>/gi,
+    /<(think|thinking|plan|steps|skills|code)>[\s\S]*?<\/\1>/gi,
     ''
   )
-  text = text.replace(/<\/?(?:thinking|plan|steps|skills|code)>/gi, '')
+  text = text.replace(/<\/?(?:think|thinking|plan|steps|skills|code)>/gi, '')
   text = text.replace(/^```[\w-]*\s*\n?/, '').replace(/\n?```\s*$/, '')
   return text.trim()
 }
@@ -65,14 +65,14 @@ function extractTaggedSection(text: string, name: string): string {
   const end = text.toLowerCase().indexOf(close.toLowerCase(), contentStart)
   if (end >= 0) return text.slice(contentStart, end).trim()
   const rest = text.slice(contentStart)
-  const nextTag = rest.search(/<(?:thinking|plan|steps|skills|code)(?:\s|>)/i)
+  const nextTag = rest.search(/<(?:think|thinking|plan|steps|skills|code)(?:\s|>)/i)
   return (nextTag >= 0 ? rest.slice(0, nextTag) : rest).trim()
 }
 
 function stripTaggedSections(text: string): string {
   return text
     .replace(
-      /<(thinking|plan|steps|skills|code)>[\s\S]*?(?:<\/\1>|(?=<(?:thinking|plan|steps|skills|code)(?:\s|>))|$)/gi,
+      /<(think|thinking|plan|steps|skills|code)>[\s\S]*?(?:<\/\1>|(?=<(?:think|thinking|plan|steps|skills|code)(?:\s|>))|$)/gi,
       ''
     )
     .trim()
@@ -103,8 +103,14 @@ export function extractSkillKeys(text: string, catalog: readonly SkillRef[]): st
   const section = extractTaggedSection(text, 'skills')
   for (const token of section.split(/[\n,]+/)) add(token)
 
-  // Also accept keys/names mentioned in steps/plan when the model skips <skills>.
-  const scan = `${extractTaggedSection(text, 'steps')}\n${extractTaggedSection(text, 'plan')}\n${section}`
+  // Also accept keys/names mentioned in think/plan/steps when the model skips <skills>.
+  const scan = [
+    extractTaggedSection(text, 'think'),
+    extractTaggedSection(text, 'thinking'),
+    extractTaggedSection(text, 'plan'),
+    extractTaggedSection(text, 'steps'),
+    section
+  ].join('\n')
   for (const skill of catalog) {
     const keyPattern = new RegExp(`(?:^|[^\\w-])${escapeRegExp(skill.key)}(?:$|[^\\w-])`, 'i')
     if (keyPattern.test(scan)) add(skill.key)
@@ -147,24 +153,31 @@ export function extractLookups(text: string): string[] {
 }
 
 /**
- * Split an assistant reply into thinking, plan, steps, and code.
+ * Merge provider reasoning / leftover prose into the plan body.
+ * UI shows one plan section (no separate thinking), then steps/code execute.
+ */
+export function mergePlanBody(plan: string, ...extras: string[]): string {
+  const parts = [...extras, plan].map((part) => part.trim()).filter(Boolean)
+  return parts.join('\n\n')
+}
+
+/**
+ * Split an assistant reply into plan, steps, and code.
+ * Reasoning and legacy `<thinking>` fold into `plan`; `thinking` stays empty.
  * Code comes only from fences / `<code>`; never the whole reply.
  */
 export function parseCodegenReply(text: string, reasoning = ''): CodegenArtifacts {
   const thinkingTagged = extractTaggedSection(text, 'thinking')
-  const plan = extractTaggedSection(text, 'plan')
+  let plan = extractTaggedSection(text, 'plan')
   const steps = extractTaggedSection(text, 'steps')
   const code = extractGeneratedCode(text)
-  let thinking = thinkingTagged
-  if (!thinking && !plan && !steps) {
+  let preamble = thinkingTagged
+  if (!preamble && !plan && !steps) {
     const leftover = stripTaggedSections(text)
       .replace(/```(?:[\w-]*)?\n[\s\S]*?```/g, '')
       .trim()
-    thinking = leftover
+    preamble = leftover
   }
-  const reasoningText = reasoning.trim()
-  if (reasoningText) {
-    thinking = thinking ? `${reasoningText}\n\n${thinking}` : reasoningText
-  }
-  return { thinking, plan, steps, code }
+  plan = mergePlanBody(plan, reasoning, preamble)
+  return { thinking: '', plan, steps, code }
 }

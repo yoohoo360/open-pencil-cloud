@@ -1,6 +1,9 @@
 import { IS_TAURI } from '@open-pencil/core/constants'
 
-import type { ChatProviderSettings } from '#react/app/ai/chat/settings'
+import {
+  resolveChatModel,
+  type ChatProviderSettings
+} from '#react/app/ai/chat/settings'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 
 export type ProviderConnectionTestResult =
@@ -42,7 +45,7 @@ function isInsufficientCredit(status: number | null, text: string): boolean {
   return CREDIT_PHRASES.some((phrase) => text.includes(phrase))
 }
 
-function validateSettings(
+function validateCredentials(
   settings: ChatProviderSettings
 ): ProviderConnectionTestFailureReason | null {
   if (!settings.apiKey.trim()) return 'missing-api-key'
@@ -53,7 +56,6 @@ function validateSettings(
   } catch {
     return 'invalid-base-url'
   }
-  if (!settings.model.trim()) return 'missing-model'
   return null
 }
 
@@ -104,10 +106,18 @@ function classifyFailure(
 }
 
 export async function testProviderConnection(
-  settings: ChatProviderSettings
+  settings: ChatProviderSettings,
+  options?: { modelEntryId?: string }
 ): Promise<ProviderConnectionTestResult> {
-  const invalidReason = validateSettings(settings)
+  const invalidReason = validateCredentials(settings)
   if (invalidReason) return { ok: false, reason: invalidReason }
+
+  const entry = options?.modelEntryId
+    ? settings.models.find((model) => model.id === options.modelEntryId)
+    : null
+  if (options?.modelEntryId && !entry) return { ok: false, reason: 'missing-model' }
+  const modelId = entry?.modelId.trim() || resolveChatModel(settings, 'medium')?.model.trim() || ''
+  if (!modelId) return { ok: false, reason: 'missing-model' }
 
   const url = chatCompletionsURL(settings.baseURL)
 
@@ -119,7 +129,7 @@ export async function testProviderConnection(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: settings.model,
+        model: modelId,
         stream: false,
         max_tokens: 1,
         messages: [{ role: 'user', content: 'Reply with OK.' }]

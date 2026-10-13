@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
-import { Bot, ImagePlus, Send, Settings, Square, X } from 'lucide-react'
+import { ImagePlus, Send, Settings, Square, X } from 'lucide-react'
 
-import { chatProviderSettings } from '#react/app/ai/chat/settings'
 import type { ChatStatus } from '#react/app/ai/chat/types'
 import {
   createImagePreviewURL,
@@ -10,31 +9,36 @@ import {
 } from '#react/app/ai/attachment/image/prepare'
 import { MAX_IMAGE_ATTACHMENTS, type ImageAttachmentDraft } from '#react/app/ai/attachment/image/types'
 import { openSettingsDialog } from '#react/app/settings/dialog'
+import { ChatModelPicker } from '#react/components/chat/ChatModelPicker'
 import { IconButton } from '#react/components/ui/IconButton'
 import { InputGroup } from '#react/components/ui/InputGroup'
 import { useI18n } from '#react/i18n'
-import { useStore } from '@nanostores/react'
 
 export function ChatInput({
   status,
   disabled = false,
   onSubmit,
   onStop,
-  onError
+  onError,
+  seedText,
+  seedKey
 }: {
   status: ChatStatus
   disabled?: boolean
   onSubmit: (text: string, images: ImageAttachmentDraft[]) => void
   onStop: () => void
   onError: (message: string) => void
+  /** When `seedKey` changes, replace the composer text (stop / edit). */
+  seedText?: string
+  seedKey?: number
 }) {
   const { dialogs } = useI18n()
-  const settings = useStore(chatProviderSettings)
   const [input, setInput] = useState('')
   const [images, setImages] = useState<ImageAttachmentDraft[]>([])
   const imagesRef = useRef(images)
   imagesRef.current = images
   const fileRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isStreaming = disabled || status === 'streaming' || status === 'submitted'
 
   useEffect(() => {
@@ -42,6 +46,18 @@ export function ChatInput({
       for (const image of imagesRef.current) revokeImagePreviewURL(image.previewURL)
     }
   }, [])
+
+  useEffect(() => {
+    if (seedKey == null || seedText == null) return
+    setInput(seedText)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      const end = seedText.length
+      el.setSelectionRange(end, end)
+    })
+  }, [seedKey, seedText])
 
   function addImageFiles(files: File[]) {
     const available = MAX_IMAGE_ATTACHMENTS - images.length
@@ -142,12 +158,7 @@ export function ChatInput({
               <ImagePlus className="size-4" />
             </IconButton>
           }
-          model={
-            <div className="flex min-w-0 items-center gap-1 px-1.5 text-[10px] text-muted">
-              <Bot className="size-3 shrink-0" />
-              <span className="truncate">{settings.model}</span>
-            </div>
-          }
+          model={<ChatModelPicker />}
           actions={
             <>
               <IconButton
@@ -184,6 +195,7 @@ export function ChatInput({
           }
         >
           <textarea
+            ref={textareaRef}
             value={input}
             data-test-id="chat-input"
             placeholder={dialogs.describeChange}

@@ -2,12 +2,19 @@ import SYSTEM_PROMPT from '#react/app/ai/chat/system-prompt.md?raw'
 import type { EditorStore } from '#react/app/editor/store'
 import type { ChatMessage, ChatMessagePart, ChatToolPart } from '#react/app/ai/chat/types'
 import { throwChatHttpError } from '#react/app/ai/chat/provider-error'
-import type { ChatProviderSettings } from '#react/app/ai/chat/settings'
 import {
+  resolveChatModel,
+  type ChatProviderSettings,
+  type ModelTier
+} from '#react/app/ai/chat/settings'
+import {
+  createDesignToolSession,
   designToolsAsOpenAI,
   executeDesignTool,
-  MAX_AGENT_STEPS
+  MAX_AGENT_STEPS,
+  pruneUnmountedAfterAiTurn
 } from '#react/app/ai/chat/tools'
+import { planDesignToolWaves, runDesignToolWaves } from '#react/app/ai/chat/tool-waves'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 
 type OpenAIToolCall = {
@@ -29,74 +36,105 @@ type ToolCallDelta = {
   function?: { name?: string; arguments?: string }
 }
 
-const TOOLS = designToolsAsOpenAI()
-
 export async function streamChatCompletion(options: {
   store: EditorStore
   settings: ChatProviderSettings
   messages: ChatMessage[]
   /** Appended after the base design system prompt (plan, skills, scene notes). */
   systemExtra?: string
+  /** Auto mode uses this tier to pick a model (default high for tool-using agent). */
+  tier?: ModelTier
   signal?: AbortSignal
   onAssistantParts: (parts: ChatMessagePart[]) => void
 }): Promise<void> {
+  const resolved = resolveChatModel(options.settings, options.tier ?? 'high')
+  if (!resolved) throw new Error('Configure at least one enabled AI model.')
   const openaiMessages = toOpenAIMessages(options.messages, options.systemExtra)
   const completed: ChatMessagePart[] = []
+  const toolSession = createDesignToolSession()
+  let ranTools = false
 
-  for (let step = 0; step < MAX_AGENT_STEPS; step++) {
-    const streamed = await streamOnce({
-      settings: options.settings,
-      messages: openaiMessages,
-      signal: options.signal,
-      onPartial(text, pendingTools) {
-        options.onAssistantParts([...completed, ...liveParts(text, pendingTools)])
+  try {
+    for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+      const streamed = await streamOnce({
+        apiKey: resolved.apiKey,
+        baseURL: resolved.baseURL,
+        model: resolved.model,
+        messages: openaiMessages,
+        tools: designToolsAsOpenAI(toolSession),
+        signal: options.signal,
+        onPartial(text, pendingTools) {
+          options.onAssistantParts([...completed, ...liveParts(text, pendingTools)])
+        }
+      })
+
+      if (streamed.toolCalls.length === 0) {
+        options.onAssistantParts([...completed, ...liveParts(streamed.text, [])])
+        return
       }
-    })
 
-    if (streamed.toolCalls.length === 0) {
-      options.onAssistantParts([...completed, ...liveParts(streamed.text, [])])
-      return
-    }
+      openaiMessages.push({
+        role: 'assistant',
+        content: streamed.text || null,
+        tool_calls: streamed.toolCalls
+      })
 
-    openaiMessages.push({
-      role: 'assistant',
-      content: streamed.text || null,
-      tool_calls: streamed.toolCalls
-    })
-
-    const toolParts: ChatToolPart[] = streamed.toolCalls.map((call) => ({
-      type: 'tool',
-      toolCallId: call.id,
-      toolName: call.function.name,
-      state: 'input-available',
-      input: parseToolArguments(call.function.arguments)
-    }))
-    if (streamed.text) completed.push({ type: 'text', text: streamed.text })
-    completed.push(...toolParts)
-    options.onAssistantParts([...completed])
-
-    for (const [index, call] of streamed.toolCalls.entries()) {
-      const args = parseToolArguments(call.function.arguments)
-      const executed = await executeDesignTool(options.store, call.function.name, args)
-      const part = toolParts[index]
-      if (executed.ok) {
-        part.state = 'output-available'
-        part.output = executed.result
-        openaiMessages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(executed.result ?? null)
-        })
-      } else {
-        part.state = 'output-error'
-        part.errorText = executed.error
-        openaiMessages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify({ error: executed.error })
-        })
-      }
+      const toolParts: ChatToolPart[] = streamed.toolCalls.map((call) => ({
+        type: 'tool',
+        toolCallId: call.id,
+        toolName: call.function.name,
+        state: 'input-available',
+        input: parseToolArguments(call.function.arguments)
+      }))
+      if (streamed.text) completed.push({ type: 'text', text: streamed.text })
+      completed.push(...toolParts)
       options.onAssistantParts([...completed])
+
+      // Serial execution only — CanvasKit/WASM cannot overlap tool work safely.
+      // Many tool_calls in one model turn still save LLM round-trips.
+      const indexed = streamed.toolCalls.map((call, index) => ({
+        index,
+        call,
+        name: call.function.name
+      }))
+      const waves = planDesignToolWaves(indexed)
+      const toolReplies = new Map<string, string>()
+
+      await runDesignToolWaves(waves, async ({ index, call }) => {
+        const args = parseToolArguments(call.function.arguments)
+        const executed = await executeDesignTool(
+          options.store,
+          call.function.name,
+          args,
+          toolSession
+        )
+        ranTools = true
+        const part = toolParts[index]
+        if (executed.ok) {
+          part.state = 'output-available'
+          part.output = executed.result
+          toolReplies.set(call.id, JSON.stringify(executed.result ?? null))
+        } else {
+          part.state = 'output-error'
+          part.errorText = executed.error
+          toolReplies.set(call.id, JSON.stringify({ error: executed.error }))
+        }
+        options.onAssistantParts([...completed])
+      })
+
+      // Preserve OpenAI tool-message order matching tool_calls.
+      for (const call of streamed.toolCalls) {
+        openaiMessages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: toolReplies.get(call.id) ?? JSON.stringify({ error: 'Tool produced no reply' })
+        })
+      }
+    }
+  } finally {
+    // Drop graph nodes never attached under the document root after a tool turn.
+    if (ranTools && !options.signal?.aborted) {
+      pruneUnmountedAfterAiTurn(options.store)
     }
   }
 }
@@ -130,21 +168,24 @@ function parseToolArguments(raw: string): Record<string, unknown> {
 }
 
 async function streamOnce(options: {
-  settings: ChatProviderSettings
+  apiKey: string
+  baseURL: string
+  model: string
   messages: OpenAIChatMessage[]
+  tools: ReturnType<typeof designToolsAsOpenAI>
   signal?: AbortSignal
   onPartial: (text: string, toolCalls: OpenAIToolCall[]) => void
 }): Promise<{ text: string; toolCalls: OpenAIToolCall[] }> {
-  const response = await fetch(chatCompletionsURL(options.settings.baseURL), {
+  const response = await fetch(chatCompletionsURL(options.baseURL), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${options.settings.apiKey}`,
+      Authorization: `Bearer ${options.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: options.settings.model,
+      model: options.model,
       stream: true,
-      tools: TOOLS,
+      tools: options.tools,
       tool_choice: 'auto',
       messages: options.messages
     }),

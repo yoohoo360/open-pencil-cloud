@@ -104,6 +104,17 @@ export function parseMakeProjectFiles(text: string): MakeSandboxFile[] {
   return [...found.entries()].map(([filename, code]) => ({ filename, code }))
 }
 
+/** Merge several Make fenced payloads (later paths overwrite earlier). */
+export function mergeMakeProjectPayloads(payloads: readonly string[]): string {
+  let files: MakeSandboxFile[] = []
+  for (const payload of payloads) {
+    const trimmed = payload.trim()
+    if (!trimmed) continue
+    files = upsertMakeFiles(files, parseMakeProjectFiles(trimmed))
+  }
+  return serializeMakeProjectFiles(sortMakeFiles(files))
+}
+
 /** Serialize the editable project for the Make chat baseline (excludes lock). */
 export function serializeMakeProjectFiles(files: readonly MakeSandboxFile[]): string {
   const editable = files.filter((file) => !isMakeLockFile(file.filename))

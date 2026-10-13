@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- SceneGraph exposes a stable facade over domain modules */
 export * from './mutation-impact'
+export * from './prune.override'
 export * from './variables/bindings'
 export type { VariableModeFallback } from './variables'
 export { modesDefaultFirst } from './variables'

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { freeAutomationBind } from '../../../src/app/automation/bridge/free-bind.override'
 import {
   parseDevMCPConfiguration,
   type DevMCPConfiguration
@@ -70,11 +71,12 @@ export function createAutomationController(
     }
   }
 
-  async function startChild(): Promise<void> {
+  async function startChild(attempt = 0): Promise<void> {
     const runtimeDir = join(tmpdir(), 'open-pencil-mcp', safeRuntimeId(options.runtimeId))
     await mkdir(runtimeDir, { recursive: true, mode: 0o700 })
     const socketPath = platformHasUnixSockets() ? join(runtimeDir, 'mcp.sock') : null
     const discoveryPath = join(runtimeDir, 'mcp.json')
+    await freeAutomationBind({ httpPort: options.httpPort, socketPath })
     const command = ['bun', 'run', 'packages/mcp/src/index.ts']
     const spawnCommand = options.portlessServiceName ? 'portless' : command[0]
     const spawnArgs = options.portlessServiceName
@@ -94,6 +96,7 @@ export function createAutomationController(
       })
     })
     child = spawned
+    let reclaimScheduled = false
 
     spawned.on('error', (err) => {
       console.error(`[MCP] Failed to spawn automation server: ${err.message}`)
@@ -103,18 +106,26 @@ export function createAutomationController(
     spawned.stderr.on('data', (data: Buffer) => {
       const text = data.toString()
       if (text.includes('EADDRINUSE')) {
-        console.error(
-          `\x1b[31m[MCP] MCP bind failed (${options.browserURL}${socketPath ? ` or socket ${socketPath}` : ''}). Is another OpenPencil instance running?\x1b[0m`
-        )
-        spawned.kill()
-        if (child === spawned) child = null
+        if (!reclaimScheduled && attempt < 1) {
+          reclaimScheduled = true
+          void enqueue(async () => {
+            await freeAutomationBind({ httpPort: options.httpPort, socketPath })
+            if (child === spawned) {
+              spawned.kill()
+              child = null
+            }
+            await startChild(attempt + 1)
+          })
+        }
         return
       }
       process.stderr.write(data)
     })
 
     spawned.on('exit', (code) => {
-      if (code && code !== 0) console.error(`[MCP] Server exited with code ${code}`)
+      if (code && code !== 0 && !reclaimScheduled) {
+        console.error(`[MCP] Server exited with code ${code}`)
+      }
       if (child === spawned) child = null
     })
   }

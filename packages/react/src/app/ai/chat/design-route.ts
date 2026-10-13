@@ -1,29 +1,22 @@
+import { DESIGN_AGENT_TASKS_PROMPT } from '#react/app/ai/agent/parallel'
 import { withSkillsInPlan } from '#react/app/skills/package-load'
 
 export function buildDesignRoutePrompt(options: {
   catalog: string
   sceneContext: string
 }): string {
-  return `You are planning an OpenPencil canvas prototype (Edit / design mode).
+  return `Plan an OpenPencil canvas prototype (Edit / design mode).
 
-Do NOT call tools in this phase. Do NOT emit fenced code as the deliverable.
-Reply with a short plan the editor will execute next using canvas tools (render, etc.).
+This phase is planning only: no tools, no fenced deliverable code.
+Keep <thinking> to 2–4 short lines. Prefer one <task>.
 
-Output ONLY these XML sections (no markdown fences around the whole reply):
+Reply with these XML sections (no markdown fences around the whole reply):
 
 <thinking>
-Brief reasoning about the request, canvas copy, and which skills fit which steps.
+Short approach: what to inspect/build, which skills (by key), and which reads can run in parallel in one tool turn (get_selection + find_nodes + describe + calc together). Do not split into a separate plan and steps list.
 </thinking>
 
-<plan>
-Numbered high-level steps for building/updating the canvas prototype.
-When you pick skills, name them by key.
-</plan>
-
-<steps>
-Concrete tool-oriented steps (what to create/change on the canvas).
-Include skill keys next to steps that need them.
-</steps>
+${DESIGN_AGENT_TASKS_PROMPT}
 
 <skills>
 exact-skill-key
@@ -33,9 +26,7 @@ exact-skill-key
 optional-name-or-id
 </lookup>
 
-In <skills>, list exact keys from the catalog (one per line). Empty if none.
-Leave <lookup> empty when the canvas context is enough.
-Do not output tool calls or source code in this phase.
+In <skills>, exact catalog keys (one per line), or empty. Leave <lookup> empty when scene context is enough.
 
 Enabled skill catalog:
 ${options.catalog}
@@ -51,6 +42,9 @@ export function buildDesignExecuteExtra(options: {
   skillPackages: Array<{ key: string; name: string; body: string }>
   lookupNotes: string
   sceneContext: string
+  /** When set, only perform this task (deps already finished). */
+  task?: { id: string; title: string; tier: string }
+  priorTaskNotes?: string
 }): string {
   const planWithSkills = withSkillsInPlan(options.plan, options.skillKeys)
   const packages =
@@ -60,17 +54,28 @@ export function buildDesignExecuteExtra(options: {
           .map((pkg) => `## Skill ${pkg.name} (${pkg.key})\n${pkg.body || '(empty package)'}`)
           .join('\n\n')
 
-  return `## Execution plan (follow this; use canvas tools)
-${planWithSkills || '(no plan)'}
+  const focus = options.task
+    ? `## Current task (do only this now)
+[${options.task.id}] (${options.task.tier}) ${options.task.title}
 
-## Steps
-${options.steps || '(none)'}
+Prior finished task notes:
+${options.priorTaskNotes || '(none)'}
+`
+    : ''
 
-## Canvas context
+  return `## Thinking (follow this; use canvas tools)
+${planWithSkills || options.steps || '(none)'}
+
+${focus}## Canvas context
 ${options.sceneContext || '(none)'}
 
 ## Resolved lookups
 ${options.lookupNotes || '(none)'}
+
+## Tool throughput
+In each assistant turn emit as many tool_calls as possible (one model round-trip).
+Inspect the canvas in ONE turn: get_selection + find_nodes + describe (+ calc/eval) as multiple tool_calls — never one read per turn.
+Prefer batch_update / calc arrays / stock_photo batches. eval is already loaded — do not discover_tools/enable_tools for it.
 
 ## Loaded skill packages
 Apply guidance from these skills while editing the canvas with tools.

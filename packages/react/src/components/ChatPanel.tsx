@@ -1,21 +1,88 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useStore } from '@nanostores/react'
 import { Check, ClipboardCopy, MessageCircle, Trash2 } from 'lucide-react'
 
 import { useAIChat } from '#react/app/ai/chat/use'
+import { useChatStickScroll } from '#react/app/ai/chat/use-stick-scroll'
+import {
+  chatRuntimeState,
+  startChatRuntimeProbing,
+  stopChatRuntimeProbing
+} from '#react/app/ai/runtime/mode'
+import { useActionToast } from '#react/app/shell/toast/action'
 import { ChatInput } from '#react/components/chat/ChatInput'
 import { ChatMessageView } from '#react/components/chat/ChatMessage'
 import { ChatSkillPicker } from '#react/components/chat/ChatSkillPicker'
 import { ProviderSetup } from '#react/components/chat/ProviderSetup'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppPlaceholder } from '#react/components/ui/AppPlaceholder'
-import { useActionToast } from '#react/app/shell/toast/action'
 import { useI18n } from '#react/i18n'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
+import type { ChatFailure, ChatMessage, ChatStatus } from '#react/app/ai/chat/types'
+import type { PencilSkill } from '#react/lib/client'
 
 const IS_DEV = import.meta.env.DEV
-const STICK_BOTTOM_PX = 48
+
+type ChatController = {
+  isConfigured: boolean
+  messages: ChatMessage[]
+  status: ChatStatus
+  chatFailure: ChatFailure | null
+  clearChatFailure: () => void
+  enabledSkills: PencilSkill[]
+  skillsReady: boolean
+  sendMessage: (text: string, images?: unknown[]) => Promise<void>
+  stop: () => void
+  stopAndEdit: (messageId?: string) => void
+  composerSeed: { key: number; text: string } | null
+  resetChat: () => void
+  runtimeMode: 'agent-server' | 'fetch'
+}
 
 export function ChatPanel() {
+  const runtime = useStore(chatRuntimeState)
+
+  useEffect(() => {
+    startChatRuntimeProbing()
+    return () => stopChatRuntimeProbing()
+  }, [])
+
+  if (runtime.mode === 'agent-server') {
+    return <AgentServerDesignChat />
+  }
+  return <FetchDesignChat />
+}
+
+/**
+ * Agent Server probe only gates the runtime badge. Design intelligence
+ * (streaming UI, task waves, per-tier models, canvas tools) always runs
+ * through the client harness — same as fetch mode.
+ */
+function AgentServerDesignChat() {
+  const chat = useAIChat()
+  return (
+    <ChatPanelView
+      chat={{
+        ...chat,
+        runtimeMode: 'agent-server'
+      }}
+    />
+  )
+}
+
+function FetchDesignChat() {
+  const chat = useAIChat()
+  return (
+    <ChatPanelView
+      chat={{
+        ...chat,
+        runtimeMode: 'fetch'
+      }}
+    />
+  )
+}
+
+function ChatPanelView({ chat }: { chat: ChatController }) {
   const {
     isConfigured,
     messages,
@@ -25,15 +92,15 @@ export function ChatPanel() {
     enabledSkills,
     skillsReady,
     sendMessage,
-    stop,
-    resetChat
-  } = useAIChat()
+    stopAndEdit,
+    composerSeed,
+    resetChat,
+    runtimeMode
+  } = chat
   const { dialogs } = useI18n()
   const { showActionToast } = useActionToast()
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const messagesEnd = useRef<HTMLDivElement>(null)
-  const stickToBottom = useRef(true)
   const [debugCopied, setDebugCopied] = useState(false)
+  const idle = status === 'ready' || status === 'error'
 
   const failureMessage =
     chatFailure?.reason === 'insufficient-credit'
@@ -70,29 +137,20 @@ export function ChatPanel() {
     const parts = last.parts
     const hasVisibleText = parts.some((part) => part.type === 'text' && part.text.length > 0)
     const hasTools = parts.some((part) => part.type === 'tool')
-    // Plan UI already shows progress — skip the typing dots.
     if (hasPlan || hasVisibleText || hasTools) {
       if (parts.length === 0) return false
       const lastPart = parts[parts.length - 1] as JSONObject
       if (lastPart?.type === 'step-start') return true
       if ('toolCallId' in lastPart && lastPart.state === 'output-available') return true
       if ('toolCallId' in lastPart && lastPart.state === 'output-error') return true
-      return false
     }
     return true
   })()
 
-  const updateStick = useCallback(() => {
-    const el = scrollerRef.current
-    if (!el) return
-    stickToBottom.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_BOTTOM_PX
-  }, [])
-
-  useEffect(() => {
-    if (!stickToBottom.current) return
-    messagesEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, isThinking])
+  const { scrollerRef, messagesEndRef, onScroll, resumeStick } = useChatStickScroll([
+    messages,
+    isThinking
+  ])
 
   useEffect(() => {
     if (!chatFailure?.reason) return
@@ -101,7 +159,7 @@ export function ChatPanel() {
 
   async function handleSubmit(text: string, images: Parameters<typeof sendMessage>[1] = []) {
     if (status === 'streaming' || status === 'submitted') return
-    stickToBottom.current = true
+    resumeStick()
     clearChatFailure()
     try {
       await sendMessage(text, images)
@@ -117,6 +175,9 @@ export function ChatPanel() {
     setTimeout(() => setDebugCopied(false), 1500)
   }
 
+  const modeLabel =
+    runtimeMode === 'agent-server' ? dialogs.chatRuntimeAgentServer : dialogs.chatRuntimeFetch
+
   return (
     <div data-test-id="chat-panel" className="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
       {!isConfigured ? (
@@ -124,7 +185,15 @@ export function ChatPanel() {
       ) : (
         <>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-            <span className="truncate text-[11px] text-muted">{dialogs.chatPrototypeTitle}</span>
+            <div className="min-w-0">
+              <span className="truncate text-[11px] text-muted">{dialogs.chatPrototypeTitle}</span>
+              <span
+                data-test-id="chat-runtime-mode"
+                className="ml-2 truncate text-[10px] text-muted/80"
+              >
+                {modeLabel}
+              </span>
+            </div>
             <ChatSkillPicker
               scope="design"
               enabledCount={enabledSkills.length}
@@ -134,7 +203,7 @@ export function ChatPanel() {
           <div
             ref={scrollerRef}
             className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
-            onScroll={updateStick}
+            onScroll={onScroll}
           >
             {messages.length === 0 ? (
               <AppPlaceholder
@@ -150,6 +219,8 @@ export function ChatPanel() {
                     key={message.id}
                     message={message}
                     streaming={isStreamingMessage(index)}
+                    canEdit={idle && message.role === 'user'}
+                    onEdit={(messageId) => stopAndEdit(messageId)}
                   />
                 ))}
                 {isThinking ? (
@@ -164,7 +235,7 @@ export function ChatPanel() {
                     </div>
                   </div>
                 ) : null}
-                <div ref={messagesEnd} />
+                <div ref={messagesEndRef} />
               </div>
             )}
           </div>
@@ -187,8 +258,10 @@ export function ChatPanel() {
           <ChatInput
             status={status}
             onSubmit={(text, images) => void handleSubmit(text, images)}
-            onStop={stop}
+            onStop={() => stopAndEdit()}
             onError={showActionToast}
+            seedKey={composerSeed?.key}
+            seedText={composerSeed?.text}
           />
         </>
       )}

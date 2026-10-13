@@ -9,7 +9,7 @@ import {
 } from './codegen-reply'
 
 describe('parseCodegenReply', () => {
-  test('splits thinking, plan, steps, and fenced code', () => {
+  test('folds thinking into plan with steps and fenced code', () => {
     const text = `<thinking>
 Notice the button uses fill width.
 </thinking>
@@ -24,22 +24,24 @@ Keep the frame; rewrite the label.
 <Frame name="Button" />
 \`\`\``
     expect(parseCodegenReply(text)).toEqual({
-      thinking: 'Notice the button uses fill width.',
-      plan: 'Keep the frame; rewrite the label.',
+      thinking: '',
+      plan: 'Notice the button uses fill width.\n\nKeep the frame; rewrite the label.',
       steps: '1. Update text\n2. Keep fills',
       code: '<Frame name="Button" />'
     })
   })
 
-  test('keeps streamed provider reasoning ahead of tagged thinking', () => {
+  test('folds streamed provider reasoning into plan', () => {
     const parsed = parseCodegenReply('<thinking>Tagged</thinking>\n```\nx\n```', 'Streamed chain')
-    expect(parsed.thinking).toBe('Streamed chain\n\nTagged')
+    expect(parsed.thinking).toBe('')
+    expect(parsed.plan).toBe('Streamed chain\n\nTagged')
     expect(parsed.code).toBe('x')
   })
 
-  test('falls back to prose thinking without treating it as code', () => {
+  test('falls back to prose as plan without treating it as code', () => {
     const parsed = parseCodegenReply('Short note\n\n```js\nconst a = 1\n```')
-    expect(parsed.thinking).toBe('Short note')
+    expect(parsed.thinking).toBe('')
+    expect(parsed.plan).toBe('Short note')
     expect(parsed.code).toBe('const a = 1')
   })
 

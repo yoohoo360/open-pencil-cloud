@@ -15,6 +15,7 @@ import { streamTextCompletion } from '#react/app/ai/chat/text-stream'
 import {
   chatProviderSettings,
   isChatConfigured,
+  resolveChatModel,
   type ChatProviderSettings
 } from '#react/app/ai/chat/settings'
 import type { EditorStore } from '#react/app/editor/store'
@@ -132,10 +133,15 @@ export async function runAiReview(options: {
     .filter((part): part is string => Boolean(part))
     .join('\n\n')
 
+  const resolved = resolveChatModel(settings, 'high')
+  if (!resolved) {
+    throw new Error('Configure at least one enabled AI model.')
+  }
+
   const { text } = await streamTextCompletion({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    model: settings.model,
+    apiKey: resolved.apiKey,
+    baseURL: resolved.baseURL,
+    model: resolved.model,
     signal: options.signal,
     messages: [
       { role: 'system', content: buildSystemPrompt(reviewLocale) },
@@ -162,7 +168,7 @@ export async function runAiReview(options: {
       { ...options.payload, skills: selection },
       findings,
       {
-        model: settings.model,
+        model: resolved.model,
         resolveMarker: (nodeId) => markerFromNodeId(options.store, nodeId)
       }
     )

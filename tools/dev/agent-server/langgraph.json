@@ -1,0 +1,8 @@
+{
+  "node_version": "20",
+  "graphs": {
+    "design": "./src/graphs/design.ts:graph",
+    "codegen": "./src/graphs/codegen.ts:graph"
+  },
+  "env": ".env"
+}

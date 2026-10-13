@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Copy, LoaderCircle, MessageCircle, Trash2 } from 'lucide-react'
+import { useStore } from '@nanostores/react'
+import { ChevronDown, LoaderCircle, MessageCircle, Trash2 } from 'lucide-react'
 
-import { isTextPart } from '#react/app/ai/chat/types'
+import { isTextPart, type ChatStatus } from '#react/app/ai/chat/types'
+import { useChatStickScroll } from '#react/app/ai/chat/use-stick-scroll'
 import type { EditorStore } from '#react/app/editor/store'
+import {
+  chatRuntimeState,
+  startChatRuntimeProbing,
+  stopChatRuntimeProbing
+} from '#react/app/ai/runtime/mode'
 import {
   lastNonEmptyLine,
   parseCodegenReply,
@@ -13,6 +20,7 @@ import {
   type CodegenChatMessage,
   type CodegenPhase
 } from '#react/app/skills/use-codegen-chat'
+import { AgentTaskList } from '#react/components/chat/AgentTaskList'
 import { ChatInput } from '#react/components/chat/ChatInput'
 import { ChatSkillPicker } from '#react/components/chat/ChatSkillPicker'
 import { ProviderSetup } from '#react/components/chat/ProviderSetup'
@@ -20,15 +28,38 @@ import { AppButton } from '#react/components/ui/AppButton'
 import { AppPlaceholder } from '#react/components/ui/AppPlaceholder'
 import { useI18n } from '#react/i18n'
 
-async function copyText(text: string) {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return
-  await navigator.clipboard.writeText(text)
-}
-
 const STICK_BOTTOM_PX = 48
 
-/** Full AI tab: structured artifacts; code box is code-only; think/plan animate with …. */
-export function CodegenChat({
+/** Full AI tab: plan + task graph; code applies via onArtifacts / optional Apply (no in-chat generate box). */
+export function CodegenChat(props: {
+  active: boolean
+  store: EditorStore
+  sourceLabel: string
+  getBaselineCode: () => string | Promise<string>
+  onArtifacts: (artifacts: CodegenArtifacts, phase: CodegenPhase) => void
+  /** Apply finished code to the editor (no in-chat code preview / generate loading). */
+  onApplyCode?: (code: string) => void
+  skillScope?: 'design' | 'codegen' | 'make'
+  /** Sent once when the chat becomes active and configured. */
+  initialPrompt?: string
+  title?: string
+}) {
+  const runtime = useStore(chatRuntimeState)
+
+  useEffect(() => {
+    startChatRuntimeProbing()
+    return () => stopChatRuntimeProbing()
+  }, [])
+
+  return (
+    <ClientCodegenChat
+      {...props}
+      preferAgentServerLabel={runtime.mode === 'agent-server'}
+    />
+  )
+}
+
+function ClientCodegenChat({
   active,
   store,
   sourceLabel,
@@ -37,7 +68,8 @@ export function CodegenChat({
   onApplyCode,
   skillScope = 'codegen',
   initialPrompt,
-  title
+  title,
+  preferAgentServerLabel
 }: {
   active: boolean
   store: EditorStore
@@ -46,11 +78,11 @@ export function CodegenChat({
   onArtifacts: (artifacts: CodegenArtifacts, phase: CodegenPhase) => void
   onApplyCode?: (code: string) => void
   skillScope?: 'design' | 'codegen' | 'make'
-  /** Sent once when the chat becomes active and configured. */
   initialPrompt?: string
   title?: string
+  preferAgentServerLabel?: boolean
 }) {
-  const { panels } = useI18n()
+  const { panels, dialogs } = useI18n()
   const {
     isConfigured,
     messages,
@@ -68,29 +100,75 @@ export function CodegenChat({
     onArtifacts,
     skillScope
   })
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const messagesEnd = useRef<HTMLDivElement>(null)
-  const stickToBottom = useRef(true)
+
+  return (
+    <CodegenChatShell
+      active={active}
+      title={title}
+      skillScope={skillScope}
+      isConfigured={isConfigured}
+      messages={messages}
+      status={status}
+      enabledSkills={enabledSkills}
+      skillsReady={skillsReady}
+      sendMessage={sendMessage}
+      stop={stop}
+      resetChat={resetChat}
+      initialPrompt={initialPrompt}
+      onApplyCode={onApplyCode}
+      runtimeLabel={
+        preferAgentServerLabel ? dialogs.chatRuntimeAgentServer : dialogs.chatRuntimeFetch
+      }
+      panels={panels}
+    />
+  )
+}
+
+function CodegenChatShell({
+  active,
+  title,
+  skillScope,
+  isConfigured,
+  messages,
+  status,
+  enabledSkills,
+  skillsReady,
+  sendMessage,
+  stop,
+  resetChat,
+  initialPrompt,
+  onApplyCode,
+  runtimeLabel,
+  panels
+}: {
+  active: boolean
+  title?: string
+  skillScope: 'design' | 'codegen' | 'make'
+  isConfigured: boolean
+  messages: CodegenChatMessage[]
+  status: ChatStatus
+  enabledSkills: { length: number }
+  skillsReady: boolean
+  sendMessage: (text: string) => void | Promise<void>
+  stop: () => void
+  resetChat: () => void
+  initialPrompt?: string
+  onApplyCode?: (code: string) => void
+  runtimeLabel: string
+  panels: ReturnType<typeof useI18n>['panels']
+}) {
   const initialPromptSent = useRef(false)
-
-  const updateStick = useCallback(() => {
-    const el = scrollerRef.current
-    if (!el) return
-    stickToBottom.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_BOTTOM_PX
-  }, [])
-
-  useEffect(() => {
-    if (!stickToBottom.current) return
-    messagesEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, status])
+  const { scrollerRef, messagesEndRef, onScroll, resumeStick } = useChatStickScroll([
+    messages,
+    status
+  ])
 
   const handleSubmit = useCallback(
     (text: string) => {
-      stickToBottom.current = true
+      resumeStick()
       void sendMessage(text)
     },
-    [sendMessage]
+    [resumeStick, sendMessage]
   )
 
   useEffect(() => {
@@ -98,9 +176,9 @@ export function CodegenChat({
     if (initialPromptSent.current || messages.length > 0) return
     if (status === 'streaming' || status === 'submitted') return
     initialPromptSent.current = true
-    stickToBottom.current = true
+    resumeStick()
     void sendMessage(initialPrompt.trim())
-  }, [active, initialPrompt, isConfigured, messages.length, sendMessage, status])
+  }, [active, initialPrompt, isConfigured, messages.length, resumeStick, sendMessage, status])
 
   if (!isConfigured) {
     return (
@@ -115,6 +193,7 @@ export function CodegenChat({
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border px-2">
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted">
           {title ?? panels.codegenChatTitle}
+          <span className="ml-2 text-[10px] font-normal text-muted/80">{runtimeLabel}</span>
         </span>
         <ChatSkillPicker
           scope={skillScope}
@@ -131,7 +210,7 @@ export function CodegenChat({
       <div
         ref={scrollerRef}
         className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
-        onScroll={updateStick}
+        onScroll={onScroll}
       >
         {messages.length === 0 ? (
           <AppPlaceholder
@@ -159,7 +238,7 @@ export function CodegenChat({
                 />
               )
             })}
-            <div ref={messagesEnd} />
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
@@ -213,20 +292,15 @@ function CodegenAssistantBubble({
   const phase: CodegenPhase = message.phase ?? (streaming ? 'route' : 'done')
   const text = message.parts
     .filter(isTextPart)
-    .map((part) => part.text)
-    .join('\n')
-  const hasStructure =
-    Boolean(artifacts.thinking.trim()) ||
-    Boolean(artifacts.plan.trim()) ||
-    Boolean(artifacts.steps.trim()) ||
-    Boolean(artifacts.code.trim())
-  const [copied, setCopied] = useState(false)
+  const thinkingText = [artifacts.thinking, artifacts.plan, artifacts.steps]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n\n')
+  const agentTasks = message.agentTasks ?? []
+  const hasStructure = Boolean(thinkingText) || agentTasks.length > 0
+  const finishedCode = !streaming && phase === 'done' ? artifacts.code.trim() : ''
 
-  const thinkingActive = streaming && (phase === 'route' || !artifacts.plan.trim())
-  const planActive =
-    streaming && (phase === 'route' || phase === 'loading-skills' || phase === 'generate')
-  const stepsActive = streaming && phase === 'route'
-  const codeActive = streaming && phase === 'generate'
+  const thinkingActive = streaming && (phase === 'route' || phase === 'loading-skills')
 
   if (!hasStructure && streaming) {
     return (
@@ -254,94 +328,37 @@ function CodegenAssistantBubble({
 
   return (
     <div data-test-id="chat-message-assistant" className="space-y-1.5">
-      {artifacts.thinking.trim() || thinkingActive ? (
+      {thinkingText || thinkingActive ? (
         <CollapsedSection
-          title={thinkingActive ? panels.codegenThinking : panels.codegenThought}
-          text={artifacts.thinking}
-          active={thinkingActive}
-          emptyActiveLabel={panels.codegenThinking}
-        />
-      ) : null}
-      {artifacts.plan.trim() || planActive ? (
-        <CollapsedSection
-          title={panels.codeTabPlan}
-          text={artifacts.plan}
-          active={planActive && phase !== 'done'}
+          title={panels.codegenThinking}
+          text={thinkingText}
+          active={thinkingActive && agentTasks.length === 0}
           emptyActiveLabel={
             phase === 'loading-skills'
               ? panels.codegenLoadingSkills
-              : panels.codeTabPlan
+              : panels.codegenThinking
           }
-        />
-      ) : null}
-      {artifacts.steps.trim() || stepsActive ? (
-        <CollapsedSection
-          title={panels.codeTabSteps}
-          text={artifacts.steps}
           active={stepsActive}
           emptyActiveLabel={panels.codeTabSteps}
         />
       ) : null}
+      {agentTasks.length > 0 ? <AgentTaskList tasks={agentTasks} /> : null}
       {message.selectedSkillKeys && message.selectedSkillKeys.length > 0 ? (
         <div className="px-1 text-[10px] text-muted">
           {panels.codegenSkillsUsed({ keys: message.selectedSkillKeys.join(', ') })}
         </div>
       ) : null}
-      {artifacts.code.trim() || codeActive ? (
-        <div className="overflow-hidden rounded-lg border border-border bg-canvas">
-          <div className="flex h-7 items-center gap-1 border-b border-border px-2">
-            <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-muted">
-              {panels.codeTabGenerated}
-              {codeActive ? (
-                <span className="ml-1 font-normal">
-                  <AnimatedEllipsis />
-                </span>
-              ) : null}
-            </span>
-            {artifacts.code.trim() ? (
-              <>
-                <AppButton
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  shape="square"
-                  onClick={() => {
-                    void copyText(artifacts.code).then(() => {
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
-                    })
-                  }}
-                >
-                  {copied ? (
-                    <Check className="size-3 text-[var(--color-success)]" />
-                  ) : (
-                    <Copy className="size-3" />
-                  )}
-                </AppButton>
-                {onApplyCode ? (
-                  <AppButton
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    data-test-id="codegen-apply-code"
-                    onClick={() => onApplyCode(artifacts.code)}
-                  >
-                    {panels.codeApplyGenerated}
-                  </AppButton>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-          <pre className="m-0 max-h-64 overflow-auto px-2 py-2 font-mono text-[10px] leading-relaxed whitespace-pre text-surface">
-            {artifacts.code.trim() ? (
-              artifacts.code
-            ) : (
-              <span className="text-muted">
-                {panels.generatingCode}
-                <AnimatedEllipsis />
-              </span>
-            )}
-          </pre>
+      {finishedCode && onApplyCode ? (
+        <div className="flex justify-end px-1">
+          <AppButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            data-test-id="codegen-apply-code"
+            onClick={() => onApplyCode(finishedCode)}
+          >
+            {panels.codeApplyGenerated}
+          </AppButton>
         </div>
       ) : null}
     </div>

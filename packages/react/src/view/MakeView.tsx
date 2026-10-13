@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
+import { useStore } from '@nanostores/react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
+import { settingsDialogOpen } from '#react/app/settings/dialog'
+import { SettingsDialog } from '#react/components/settings/SettingsDialog'
 import { OpenPencilProvider } from '#react/editor/context'
 import { MakePage } from '#react/view/MakePage'
 
@@ -13,6 +16,7 @@ export default function MakeView() {
   const { fileKey } = useParams<{ fileKey: string }>()
   const navigate = useNavigate()
   const store = useMemo(() => createEditorStore(), [])
+  const settingsOpen = useStore(settingsDialogOpen)
 
   return (
     <EditorStoreProvider store={store}>
@@ -24,6 +28,7 @@ export default function MakeView() {
               else navigate('/dashboard', { replace: true })
             }}
           />
+          {settingsOpen ? <SettingsDialog /> : null}
         </main>
       </OpenPencilProvider>
     </EditorStoreProvider>

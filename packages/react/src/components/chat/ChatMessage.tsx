@@ -1,5 +1,5 @@
 import { useCallback, useState, useSyncExternalStore } from 'react'
-import { Check, ChevronDown, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { ChevronDown, LoaderCircle } from 'lucide-react'
 
 import {
   imageAttachmentsForMessage,
@@ -8,22 +8,37 @@ import {
 } from '#react/app/ai/attachment/image/presentation'
 import {
   isTextPart,
-  isToolPart,
   type ChatMessage,
   type ChatPlanPhase,
   type DesignPlanArtifacts
 } from '#react/app/ai/chat/types'
 import { lastNonEmptyLine } from '#react/app/skills/codegen-reply'
+import { AgentTaskList } from '#react/components/chat/AgentTaskList'
 import { ImageAttachment } from '#react/components/chat/attachment/image/ImageAttachment'
-import { classifyToolState } from '#react/components/chat/tool-state'
+import {
+  groupAssistantParts,
+  ToolCallGroup
+} from '#react/components/chat/tool-call-group'
 import { useI18n } from '#react/i18n'
+
+function mergeThinkingText(artifacts: DesignPlanArtifacts): string {
+  return [artifacts.thinking, artifacts.plan, artifacts.steps]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 export function ChatMessageView({
   message,
-  streaming = false
+  streaming = false,
+  canEdit = false,
+  onEdit
 }: {
   message: ChatMessage
   streaming?: boolean
+  /** Idle last user turn (or any prior turn) may be pulled back into the composer. */
+  canEdit?: boolean
+  onEdit?: (messageId: string) => void
 }) {
   const { dialogs, panels } = useI18n()
   const getAttachments = useCallback(() => imageAttachmentsForMessage(message.id), [message.id])
@@ -47,9 +62,6 @@ export function ChatMessageView({
             streaming={streaming}
             labels={{
               thinking: panels.codegenThinking,
-              thought: panels.codegenThought,
-              plan: panels.codeTabPlan,
-              steps: panels.codeTabSteps,
               loadingSkills: panels.codegenLoadingSkills,
               skillsUsed: panels.codegenSkillsUsed,
               toolRunning: dialogs.toolRunning,
@@ -77,6 +89,18 @@ export function ChatMessageView({
                 message.parts.filter(isTextPart).map((part) => part.text).join('')
               )}
             </div>
+            {canEdit && onEdit ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  data-test-id="chat-edit-message"
+                  className="text-[10px] text-muted hover:text-surface"
+                  onClick={() => onEdit(message.id)}
+                >
+                  {dialogs.editMessage}
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -93,9 +117,6 @@ function DesignAssistantBody({
   streaming: boolean
   labels: {
     thinking: string
-    thought: string
-    plan: string
-    steps: string
     loadingSkills: string
     skillsUsed: (params: { keys: string }) => string
     toolRunning: string
@@ -109,45 +130,27 @@ function DesignAssistantBody({
     steps: ''
   }
   const phase: ChatPlanPhase = message.phase ?? (streaming ? 'route' : 'done')
-  const hasPlan =
-    Boolean(artifacts.thinking.trim()) ||
-    Boolean(artifacts.plan.trim()) ||
-    Boolean(artifacts.steps.trim())
-  const thinkingActive = streaming && (phase === 'route' || !artifacts.plan.trim())
-  const planActive =
-    streaming && (phase === 'route' || phase === 'loading-skills' || phase === 'execute')
-  const stepsActive = streaming && phase === 'route'
+  const thinkingText = mergeThinkingText(artifacts)
+  const hasThinking = Boolean(thinkingText)
+  const thinkingActive = streaming && (phase === 'route' || phase === 'loading-skills')
+  const agentTasks = message.agentTasks ?? []
+  const partGroups = groupAssistantParts(message.parts)
 
   return (
     <div className="space-y-1.5">
-      {hasPlan || (streaming && phase === 'route') ? (
+      {hasThinking || agentTasks.length > 0 || thinkingActive ? (
         <>
-          {artifacts.thinking.trim() || thinkingActive ? (
+          {thinkingText || thinkingActive ? (
             <CollapsedSection
-              title={thinkingActive ? labels.thinking : labels.thought}
-              text={artifacts.thinking}
-              active={thinkingActive}
-              emptyActiveLabel={labels.thinking}
-            />
-          ) : null}
-          {artifacts.plan.trim() || planActive ? (
-            <CollapsedSection
-              title={labels.plan}
-              text={artifacts.plan}
-              active={planActive}
+              title={labels.thinking}
+              text={thinkingText}
+              active={thinkingActive && agentTasks.length === 0}
               emptyActiveLabel={
-                phase === 'loading-skills' ? labels.loadingSkills : labels.plan
+                phase === 'loading-skills' ? labels.loadingSkills : labels.thinking
               }
             />
           ) : null}
-          {artifacts.steps.trim() || stepsActive ? (
-            <CollapsedSection
-              title={labels.steps}
-              text={artifacts.steps}
-              active={stepsActive}
-              emptyActiveLabel={labels.steps}
-            />
-          ) : null}
+          {agentTasks.length > 0 ? <AgentTaskList tasks={agentTasks} /> : null}
           {message.selectedSkillKeys && message.selectedSkillKeys.length > 0 ? (
             <div className="px-1 text-[10px] text-muted">
               {labels.skillsUsed({ keys: message.selectedSkillKeys.join(', ') })}
@@ -156,42 +159,28 @@ function DesignAssistantBody({
         </>
       ) : null}
 
-      {message.parts.map((part, index) => {
-        if (isToolPart(part)) {
-          const state = classifyToolState({
-            toolName: part.toolName,
-            state: part.state,
-            output: part.output
-          })
+      {partGroups.map((group) => {
+        if (group.kind === 'tools') {
           return (
-            <ToolCallCard
-              key={part.toolCallId}
-              name={toolDisplayName(part.toolName)}
-              state={state}
+            <ToolCallGroup
+              key={group.key}
+              tools={group.tools}
               runningLabel={labels.toolRunning}
               doneLabel={labels.toolFinished}
               errorLabel={labels.toolError}
-              output={
-                part.state === 'output-error' && part.errorText
-                  ? part.errorText
-                  : JSON.stringify(part.output, null, 2)
-              }
             />
           )
         }
-        if (isTextPart(part) && part.text) {
-          return (
-            <div
-              key={`part-${index}`}
-              data-test-id="chat-text-bubble"
-              data-chat-markdown-mode={streaming ? 'streaming' : 'static'}
-              className="rounded-xl rounded-tl-md bg-hover px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-surface"
-            >
-              {part.text}
-            </div>
-          )
-        }
-        return null
+        return (
+          <div
+            key={group.key}
+            data-test-id="chat-text-bubble"
+            data-chat-markdown-mode={streaming ? 'streaming' : 'static'}
+            className="rounded-xl rounded-tl-md bg-hover px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-surface"
+          >
+            {group.text}
+          </div>
+        )
       })}
     </div>
   )
@@ -272,71 +261,5 @@ function AnimatedEllipsis() {
       <span className="animate-bounce [animation-delay:150ms]">.</span>
       <span className="animate-bounce [animation-delay:300ms]">.</span>
     </span>
-  )
-}
-
-function toolDisplayName(name: string) {
-  return name
-    .replace(/^mcp__[^_]+__/, '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-function ToolCallCard({
-  name,
-  state,
-  runningLabel,
-  doneLabel,
-  errorLabel,
-  output
-}: {
-  name: string
-  state: 'pending' | 'done' | 'error'
-  runningLabel: string
-  doneLabel: string
-  errorLabel: string
-  output: string
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="rounded-lg border border-border bg-canvas p-2">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 rounded px-1 py-0.5 hover:bg-hover"
-        onClick={() => state !== 'pending' && setOpen((value) => !value)}
-      >
-        <div
-          className={`flex size-4 items-center justify-center rounded-full ${
-            state === 'pending'
-              ? 'bg-accent/20 text-accent'
-              : state === 'done'
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-red-500/20 text-red-400'
-          }`}
-        >
-          {state === 'pending' ? (
-            <LoaderCircle className="size-3 animate-spin" />
-          ) : state === 'done' ? (
-            <Check className="size-3" />
-          ) : (
-            <TriangleAlert className="size-3" />
-          )}
-        </div>
-        <span className="text-[11px] text-surface">{name}</span>
-        <span className="text-[10px] text-muted">
-          {state === 'pending' ? runningLabel : state === 'done' ? doneLabel : errorLabel}
-        </span>
-        {state !== 'pending' ? (
-          <ChevronDown
-            className={`ml-auto size-3 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
-          />
-        ) : null}
-      </button>
-      {open && state !== 'pending' ? (
-        <pre className="mt-1 overflow-x-auto rounded bg-input p-2 text-[10px] text-muted">
-          {output}
-        </pre>
-      ) : null}
-    </div>
   )
 }

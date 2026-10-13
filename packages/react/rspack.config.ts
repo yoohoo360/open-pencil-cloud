@@ -12,6 +12,7 @@ import Components from 'unplugin-vue-components/rspack'
 import { webpackOverrideAliases } from '../../vite/override-alias'
 import { devAutomationRoute } from '../../src/app/automation/bridge/portless-route'
 import { AUTOMATION_HTTP_PORT } from '../core/src/constants'
+import { openPencilAgentServerRspackPlugin } from './rspack/agent-server'
 import { localAutomationToken, openPencilAutomationRspackPlugin } from './rspack/automation'
 import { openPencilPwaRspackPlugin } from './rspack/pwa'
 import { tailwindcss, tailwindcssRule } from './rspack/tailwind'
@@ -29,6 +30,7 @@ const packageJson = JSON.parse(
 }
 const automationRoute = devAutomationRoute(process.env.PORTLESS_URL, AUTOMATION_HTTP_PORT)
 const automationPlugin = openPencilAutomationRspackPlugin(command, host)
+const agentServerPlugin = openPencilAgentServerRspackPlugin(command)
 const repoRoot = path.resolve(__dirname, '../..')
 const reactSrc = path.resolve(__dirname, 'src')
 
@@ -314,6 +316,7 @@ export default defineConfig({
     Icons({ compiler: 'jsx', jsx: 'react' }),
     Components({ dts: false, resolvers: [IconsResolver({ prefix: 'icon' })] }),
     automationPlugin,
+    agentServerPlugin,
     openPencilPwaRspackPlugin()
   ].filter(Boolean),
 
@@ -347,7 +350,8 @@ export default defineConfig({
     static: {
       directory: path.resolve(__dirname, 'public')
     },
-    setupMiddlewares: (middlewares) => automationPlugin.setupMiddlewares(middlewares),
+    setupMiddlewares: (middlewares) =>
+      automationPlugin.setupMiddlewares(agentServerPlugin.setupMiddlewares(middlewares)),
     proxy: [
       {
         context: ['/__openpencil-mcp'],

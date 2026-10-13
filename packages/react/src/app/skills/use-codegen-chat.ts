@@ -3,13 +3,26 @@ import { useStore } from '@nanostores/react'
 
 import { throwChatHttpError } from '#react/app/ai/chat/provider-error'
 import {
+  AGENT_TASKS_PROMPT,
+  formatAgentTasksSteps,
+  resolveAgentTasks,
+  runAgentSubtasks,
+  toPendingAgentTasks,
+  type AgentTaskState,
+  type ParsedAgentTask
+} from '#react/app/ai/agent/parallel'
+import {
   chatProviderSettings,
-  isChatConfigured
+  isChatConfigured,
+  resolveChatModel
 } from '#react/app/ai/chat/settings'
 import type { ChatMessage, ChatStatus } from '#react/app/ai/chat/types'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 import { readActiveOrgId } from '#react/app/org/active'
-import { extractMakeProjectPayload } from '#react/app/make/project-files'
+import {
+  extractMakeProjectPayload,
+  mergeMakeProjectPayloads
+} from '#react/app/make/project-files'
 import {
   createDefaultMakeSkill,
   resolveMakeSkillKeys,
@@ -53,6 +66,7 @@ export type CodegenChatMessage = ChatMessage & {
   artifacts?: CodegenArtifacts
   phase?: CodegenPhase
   selectedSkillKeys?: string[]
+  agentTasks?: AgentTaskState[]
 }
 
 type ApiChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
@@ -80,16 +94,16 @@ outside the selection (parent/siblings) and nearby text/copy. Use that copy when
 labels, placeholders, and helper text. If you still need another layer by name or id, list it in
 <lookup> (one query per line); the app will describe those nodes before code generation.
 
-Reply with ONLY these XML sections (no fenced code in this phase):
-<thinking>
-Brief reasoning about the request, canvas copy, and which skills fit which steps.
-</thinking>
+Reply with ONLY these XML sections (no fenced code in this phase).
+Do not output <thinking> or free-form reasoning — only the sections below.
 <plan>
 Short plan. When you pick skills, name them by key. Reference real copy from the canvas when relevant.
+Call out which work can run in parallel vs must wait.
 </plan>
 <steps>
 Numbered steps; include skill keys next to steps that need them.
 </steps>
+${AGENT_TASKS_PROMPT}
 <skills>
 exact-skill-key
 </skills>
@@ -123,6 +137,8 @@ function buildGeneratePrompt(options: {
   sceneContext: string
   lookupContext: string
   skillScope: SkillChatScope
+  task?: ParsedAgentTask
+  priorOutputs?: string
 }): string {
   const skillsBlock =
     options.skillPackages.length === 0
@@ -148,8 +164,16 @@ Add more /src files as needed. Do NOT invent package-lock.json — the build ser
 Do not output <thinking>, <plan>, <steps>, or any prose outside the fences.`
       : `Output ONLY one fenced code block with the full updated source.
 Do not output <thinking>, <plan>, <steps>, or any prose outside the fence.`
+  const taskFocus = options.task
+    ? `Current task (do ONLY this task's deliverable now):
+[${options.task.id}] (${options.task.tier}) ${options.task.title}
+
+Outputs from finished dependency tasks (reuse; do not redo):
+${options.priorOutputs?.trim() || '(none)'}
+`
+    : ''
   return `You are a code assistant in OpenPencil Dev mode.
-Produce the final ${options.sourceLabel} for the selection.
+Produce ${options.sourceLabel} for the selection.
 Follow the plan/steps and ONLY the skill packages below as binding instructions.
 Match real copy/text from the canvas context and any looked-up layers.
 
@@ -159,7 +183,7 @@ ${options.plan || '(none)'}
 Steps:
 ${options.steps || '(none)'}
 
-Canvas context:
+${taskFocus}Canvas context:
 ${options.sceneContext || '(none)'}
 
 ${options.lookupContext ? `Additional looked-up layers:\n${options.lookupContext}\n` : ''}
@@ -172,6 +196,16 @@ ${options.baselineCode || '(empty)'}
 \`\`\`
 
 ${makeOutput}`
+}
+
+function mergeCodegenOutputs(
+  skillScope: SkillChatScope,
+  payloads: readonly string[]
+): string {
+  const nonEmpty = payloads.map((part) => part.trim()).filter(Boolean)
+  if (nonEmpty.length === 0) return ''
+  if (skillScope === 'make') return mergeMakeProjectPayloads(nonEmpty)
+  return nonEmpty[nonEmpty.length - 1] ?? ''
 }
 
 function deltaReasoning(delta: {
@@ -344,6 +378,7 @@ export function useCodegenChat(options: {
         artifacts: CodegenArtifacts
         phase: CodegenPhase
         selectedSkillKeys?: string[]
+        agentTasks?: AgentTaskState[]
       }) => {
         setMessages((current) =>
           current.map((message) => {
@@ -358,12 +393,20 @@ export function useCodegenChat(options: {
               reasoning: patch.reasoning ?? message.reasoning,
               artifacts: patch.artifacts,
               phase: patch.phase,
-              selectedSkillKeys: patch.selectedSkillKeys ?? message.selectedSkillKeys
+              selectedSkillKeys: patch.selectedSkillKeys ?? message.selectedSkillKeys,
+              agentTasks: patch.agentTasks ?? message.agentTasks
             }
           })
         )
         onArtifacts(patch.artifacts, patch.phase)
       }
+
+      const patchAgentTask = (
+        tasks: AgentTaskState[],
+        id: string,
+        patch: Partial<AgentTaskState>
+      ): AgentTaskState[] =>
+        tasks.map((task) => (task.id === id ? { ...task, ...patch } : task))
 
       try {
         if (operation !== operationRef.current) return
@@ -381,8 +424,10 @@ export function useCodegenChat(options: {
         const sceneContext = await gatherPlanningSceneContext(store)
         if (operation !== operationRef.current) return
 
+        const routeModel = resolveChatModel(settings, 'medium')
+        if (!routeModel) throw new Error('Configure at least one enabled AI model.')
         const route = await streamChatCompletion({
-          settings,
+          settings: routeModel,
           signal: controller.signal,
           messages: [
             {
@@ -419,14 +464,29 @@ export function useCodegenChat(options: {
             ? resolveMakeSkillKeys(enabledSkills, routeKeys)
             : routeKeys
         const routeArtifacts = parseCodegenReply(route.text, route.reasoning)
+        const plannedTasks = resolveAgentTasks(route.text, {
+          plan: routeArtifacts.plan,
+          steps: routeArtifacts.steps
+        })
+        const taskSteps = formatAgentTasksSteps(plannedTasks)
+        const stepsWithTasks = [routeArtifacts.steps.trim(), taskSteps]
+          .filter(Boolean)
+          .join('\n\n')
         let planWithSkills = withSkillsInPlan(routeArtifacts.plan, selectedKeys)
+        let agentTasks = toPendingAgentTasks(plannedTasks)
 
         publish({
           text: route.text,
           reasoning: route.reasoning,
-          artifacts: { ...routeArtifacts, plan: planWithSkills, code: '' },
+          artifacts: {
+            ...routeArtifacts,
+            plan: planWithSkills,
+            steps: stepsWithTasks,
+            code: ''
+          },
           phase: 'loading-skills',
-          selectedSkillKeys: selectedKeys
+          selectedSkillKeys: selectedKeys,
+          agentTasks
         })
 
         // Optional <lookup> from the plan → describe nodes outside the first context.
@@ -437,9 +497,15 @@ export function useCodegenChat(options: {
           if (lookupContext) {
             planWithSkills = `${planWithSkills.trim()}\n\nLooked-up layers:\n${lookupContext}`.trim()
             publish({
-              artifacts: { ...routeArtifacts, plan: planWithSkills, code: '' },
+              artifacts: {
+                ...routeArtifacts,
+                plan: planWithSkills,
+                steps: stepsWithTasks,
+                code: ''
+              },
               phase: 'loading-skills',
-              selectedSkillKeys: selectedKeys
+              selectedSkillKeys: selectedKeys,
+              agentTasks
             })
           }
         }
@@ -448,82 +514,192 @@ export function useCodegenChat(options: {
           skillScope === 'make'
             ? resolveMakeSkillsToLoad(enabledSkills, routeKeys)
             : enabledSkills.filter((skill) => selectedKeys.includes(skill.skill_key))
-        const packages = await Promise.all(
-          selectedSkills.map(async (skill) => ({
-            name: skill.name,
-            key: skill.skill_key,
-            body: await loadSkillPackageText(skill)
+        const packageResults = await runAgentSubtasks(
+          selectedSkills.map((skill) => ({
+            id: skill.skill_key,
+            title: skill.name,
+            run: async () => ({
+              name: skill.name,
+              key: skill.skill_key,
+              body: await loadSkillPackageText(skill)
+            })
           }))
         )
+        const packages = packageResults
+          .filter((result) => result.ok && result.value)
+          .map((result) => result.value!)
         if (operation !== operationRef.current) return
 
         publish({
-          artifacts: { ...routeArtifacts, plan: planWithSkills, code: '' },
+          artifacts: {
+            ...routeArtifacts,
+            plan: planWithSkills,
+            steps: stepsWithTasks,
+            code: ''
+          },
           phase: 'generate',
-          selectedSkillKeys: selectedKeys
+          selectedSkillKeys: selectedKeys,
+          agentTasks
         })
 
-        const generate = await streamChatCompletion({
-          settings,
-          signal: controller.signal,
-          messages: [
-            {
-              role: 'system',
-              content: buildGeneratePrompt({
-                sourceLabel,
-                baselineCode,
-                skillPackages: packages,
-                plan: planWithSkills,
-                steps: routeArtifacts.steps,
-                sceneContext,
-                lookupContext,
-                skillScope
-              })
+        const taskOutputs = new Map<string, string>()
+        const generateTexts = new Map<string, string>()
+
+        const publishMergedCode = () => {
+          const code = mergeCodegenOutputs(
+            skillScope,
+            plannedTasks.map((task) => taskOutputs.get(task.id) ?? '')
+          )
+          const extraText = plannedTasks
+            .map((task) => generateTexts.get(task.id)?.trim())
+            .filter(Boolean)
+            .join('\n\n')
+          publish({
+            text: `${route.text}\n\n${extraText}`.trim(),
+            reasoning: route.reasoning,
+            artifacts: {
+              thinking: routeArtifacts.thinking,
+              plan: planWithSkills,
+              steps: stepsWithTasks,
+              code
             },
-            ...historyApi,
-            {
-              role: 'user',
-              content:
-                'Output only the final fenced source code now. No thinking, plan, or steps tags.'
+            phase: 'generate',
+            selectedSkillKeys: selectedKeys,
+            agentTasks
+          })
+        }
+
+        await runAgentSubtasks(
+          plannedTasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            dependsOn: task.dependsOn,
+            run: async () => {
+              if (operation !== operationRef.current) {
+                throw new Error('Cancelled')
+              }
+              agentTasks = patchAgentTask(agentTasks, task.id, {
+                status: 'running',
+                error: undefined
+              })
+              publishMergedCode()
+
+              const model = resolveChatModel(settings, task.tier)
+              if (!model) throw new Error('Configure at least one enabled AI model.')
+
+              const priorOutputs = task.dependsOn
+                .map((id) => {
+                  const body = taskOutputs.get(id)?.trim()
+                  return body ? `### ${id}\n${body}` : ''
+                })
+                .filter(Boolean)
+                .join('\n\n')
+
+              const generate = await streamChatCompletion({
+                settings: model,
+                signal: controller.signal,
+                messages: [
+                  {
+                    role: 'system',
+                    content: buildGeneratePrompt({
+                      sourceLabel,
+                      baselineCode,
+                      skillPackages: packages,
+                      plan: planWithSkills,
+                      steps: stepsWithTasks,
+                      sceneContext,
+                      lookupContext,
+                      skillScope,
+                      task,
+                      priorOutputs
+                    })
+                  },
+                  ...historyApi,
+                  {
+                    role: 'user',
+                    content: `Execute task [${task.id}] only. Output only the fenced source for this task. No thinking, plan, or steps tags.`
+                  }
+                ],
+                onDelta: (textOut) => {
+                  if (operation !== operationRef.current) return
+                  const code =
+                    skillScope === 'make'
+                      ? extractMakeProjectPayload(textOut)
+                      : extractGeneratedCode(textOut)
+                  taskOutputs.set(task.id, code)
+                  generateTexts.set(task.id, textOut)
+                  publishMergedCode()
+                }
+              })
+
+              if (operation !== operationRef.current) throw new Error('Cancelled')
+
+              const finalCode =
+                skillScope === 'make'
+                  ? extractMakeProjectPayload(generate.text)
+                  : extractGeneratedCode(generate.text)
+              taskOutputs.set(task.id, finalCode)
+              generateTexts.set(task.id, generate.text)
+              agentTasks = patchAgentTask(agentTasks, task.id, { status: 'done' })
+              publishMergedCode()
+              return finalCode
             }
-          ],
-          onDelta: (textOut) => {
-            if (operation !== operationRef.current) return
-            const code =
-              skillScope === 'make'
-                ? extractMakeProjectPayload(textOut)
-                : extractGeneratedCode(textOut)
-            publish({
-              text: `${route.text}\n\n${textOut}`,
-              reasoning: route.reasoning,
-              artifacts: {
-                thinking: routeArtifacts.thinking,
-                plan: planWithSkills,
-                steps: routeArtifacts.steps,
-                code
-              },
-              phase: 'generate',
-              selectedSkillKeys: selectedKeys
+          }))
+        ).then((results) => {
+          for (const result of results) {
+            if (result.ok) continue
+            agentTasks = patchAgentTask(agentTasks, result.id, {
+              status: 'error',
+              error: result.error
             })
           }
+          return results
         })
+
         if (operation !== operationRef.current) return
 
-        const finalCode =
-          skillScope === 'make'
-            ? extractMakeProjectPayload(generate.text)
-            : extractGeneratedCode(generate.text)
+        const failed = agentTasks.filter((task) => task.status === 'error')
+        const finalCode = mergeCodegenOutputs(
+          skillScope,
+          plannedTasks.map((task) => taskOutputs.get(task.id) ?? '')
+        )
+        const finalText = plannedTasks
+          .map((task) => generateTexts.get(task.id)?.trim())
+          .filter(Boolean)
+          .join('\n\n')
+        if (failed.length > 0) {
+          const message = failed
+            .map((task) => `[${task.id}] ${task.error || 'failed'}`)
+            .join('\n')
+          publish({
+            text: `${route.text}\n\n${finalText}\n\n${message}`.trim(),
+            reasoning: route.reasoning,
+            artifacts: {
+              thinking: routeArtifacts.thinking,
+              plan: planWithSkills,
+              steps: stepsWithTasks,
+              code: finalCode
+            },
+            phase: 'done',
+            selectedSkillKeys: selectedKeys,
+            agentTasks
+          })
+          setStatus('error')
+          return
+        }
+
         publish({
-          text: `${route.text}\n\n${generate.text}`,
+          text: `${route.text}\n\n${finalText}`.trim(),
           reasoning: route.reasoning,
           artifacts: {
             thinking: routeArtifacts.thinking,
             plan: planWithSkills,
-            steps: routeArtifacts.steps,
+            steps: stepsWithTasks,
             code: finalCode
           },
           phase: 'done',
-          selectedSkillKeys: selectedKeys
+          selectedSkillKeys: selectedKeys,
+          agentTasks
         })
         if (operation === operationRef.current) setStatus('ready')
       } catch (error) {

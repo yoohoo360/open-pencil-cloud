@@ -1,6 +1,9 @@
 import { blobToDataURL } from '#react/app/ai/attachment/image/prepare'
 import type { PreparedImageAttachment } from '#react/app/ai/attachment/image/types'
-import type { ChatProviderSettings } from '#react/app/ai/chat/settings'
+import {
+  resolveChatModel,
+  type ChatProviderSettings
+} from '#react/app/ai/chat/settings'
 import { throwChatHttpError } from '#react/app/ai/chat/provider-error'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 
@@ -17,8 +20,10 @@ function isDeepSeekHost(baseURL: string): boolean {
 }
 
 export function visionModelId(settings: ChatProviderSettings): string {
-  const model = settings.model.trim()
-  if (isDeepSeekHost(settings.baseURL) && !/vision/i.test(model)) return DEEPSEEK_VISION_MODEL
+  const resolved = resolveChatModel(settings, 'low')
+  const model = resolved?.model.trim() ?? ''
+  const baseURL = resolved?.baseURL ?? settings.baseURL
+  if (isDeepSeekHost(baseURL) && !/vision/i.test(model)) return DEEPSEEK_VISION_MODEL
   return model
 }
 
@@ -28,6 +33,8 @@ export async function analyzeAttachedImages(
   images: PreparedImageAttachment[],
   signal?: AbortSignal
 ): Promise<string> {
+  const resolved = resolveChatModel(settings, 'low')
+  if (!resolved) throw new Error('Configure at least one enabled AI model.')
   const content: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> =
     [
       {
@@ -42,10 +49,10 @@ export async function analyzeAttachedImages(
     })
   }
 
-  const response = await fetch(chatCompletionsURL(settings.baseURL), {
+  const response = await fetch(chatCompletionsURL(resolved.baseURL), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${resolved.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({

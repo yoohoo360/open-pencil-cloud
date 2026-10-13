@@ -44,12 +44,14 @@ export function ProviderConnectionTestButton({
   status,
   reason = null,
   disabled = false,
-  onTest
+  onTest,
+  'data-test-id': dataTestId = 'provider-test-connection'
 }: {
   status: ProviderConnectionTestStatus
   reason?: ProviderConnectionTestFailureReason | null
   disabled?: boolean
   onTest: () => void
+  'data-test-id'?: string
 }) {
   const { dialogs } = useI18n()
   const isTesting = status === 'testing'
@@ -61,24 +63,22 @@ export function ProviderConnectionTestButton({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        data-test-id="provider-test-connection"
-        className="rounded border border-panel bg-panel px-2 py-1 text-[11px] font-medium text-surface hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+        data-test-id={dataTestId}
+        className="inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-input px-2 text-xs font-medium text-surface hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isTesting || disabled}
         onClick={onTest}
       >
-        <span className="inline-flex items-center justify-center gap-1.5">
-          {isTesting ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <PlugZap className="size-3" />
-          )}
-          {isTesting ? dialogs.testingConnection : dialogs.testConnection}
-        </span>
+        {isTesting ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <PlugZap className="size-3" />
+        )}
+        {isTesting ? dialogs.testingConnection : dialogs.testConnection}
       </button>
       {message ? (
         <p
           data-tone={resultTone}
-          data-test-id="provider-test-connection-result"
+          data-test-id={`${dataTestId}-result`}
           className={statusStyles.text()}
         >
           {message}
