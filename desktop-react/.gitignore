@@ -1,0 +1,8 @@
+# Local binaries (optional)
+/binaries/
+
+# Cargo build output
+/target/
+
+# Tauri-generated capability schema files
+/gen/

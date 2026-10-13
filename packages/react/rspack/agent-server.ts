@@ -1,92 +1,50 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import {
-  type AgentServerHandle,
   agentServerBaseUrl,
   agentServerDisabled,
-  startAgentServer,
+  DEFAULT_AGENT_SERVER_PORT,
   waitForAgentServer
-} from '../../../tools/dev/agent-server/src/spawn.ts'
+} from '@open-pencil/agent-server-tools/spawn'
 
-/** Dev-only path: page chat hits this on first probe to lazy-start LangGraph. */
+/** Dev-only path: page chat hits this on first probe to detect a running LangGraph. */
 export const AGENT_SERVER_ENSURE_PATH = '/__openpencil-agent-server/ensure'
 
+function configuredAgentServerPort(): number {
+  const raw = process.env.OPENPENCIL_AGENT_SERVER_PORT
+  if (!raw) return DEFAULT_AGENT_SERVER_PORT
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    return DEFAULT_AGENT_SERVER_PORT
+  }
+  return port
+}
+
 /**
- * Rspack plugin: does not start the Agent Server at boot.
- * Exposes {@link AGENT_SERVER_ENSURE_PATH}; the page calls it on first chat probe.
+ * Rspack plugin: does not start the Agent Server.
+ * Start it with `bun run start:agent-server`. The ensure path only probes an
+ * already-running server so chat can detect it without spawning one.
  */
 export function openPencilAgentServerRspackPlugin(command: string) {
-  let handle: AgentServerHandle | null = null
-  let ensureInFlight: Promise<{ ok: boolean; url: string }> | null = null
-  let announcedUrl: string | null = null
-
-  const stop = () => {
-    handle?.stop()
-    handle = null
-    ensureInFlight = null
-    announcedUrl = null
-  }
-
-  async function ensure(): Promise<{ ok: boolean; url: string }> {
+  async function probe(): Promise<{ ok: boolean; url: string }> {
     if (agentServerDisabled()) {
       return { ok: false, url: agentServerBaseUrl() }
     }
-
-    if (handle) {
-      const ready = await waitForAgentServer(handle.port, { timeoutMs: 2_000 })
-      if (ready) {
-        const url = agentServerBaseUrl(handle.port)
-        if (announcedUrl !== url) {
-          announcedUrl = url
-          console.info(`[agent-server] ${url}`)
-        }
-        return { ok: true, url }
-      }
-      handle.stop()
-      handle = null
-      announcedUrl = null
-    }
-
-    if (ensureInFlight) return ensureInFlight
-
-    ensureInFlight = (async () => {
-      handle = startAgentServer({
-        onWarn: (line) => {
-          console.warn(`[agent-server] ${line}`)
-        }
-      })
-      if (!handle) {
-        return { ok: false, url: agentServerBaseUrl() }
-      }
-      const url = agentServerBaseUrl(handle.port)
-      const ready = await waitForAgentServer(handle.port)
-      if (!ready) {
-        console.warn('[agent-server] timed out waiting for GET /ok; chat falls back to local fetch')
-        return { ok: false, url }
-      }
-      announcedUrl = url
-      console.info(`[agent-server] ${url}`)
-      return { ok: true, url }
-    })().finally(() => {
-      ensureInFlight = null
-    })
-
-    return ensureInFlight
+    const port = configuredAgentServerPort()
+    const url = agentServerBaseUrl(port)
+    const ready = await waitForAgentServer(port, { timeoutMs: 800 })
+    return { ok: ready, url }
   }
 
   return {
-    apply(compiler: {
+    apply(_compiler: {
       options: { mode?: string }
       hooks: {
         watchClose: { tap: (name: string, fn: () => void) => void }
         shutdown?: { tapPromise: (name: string, fn: () => Promise<void>) => void }
       }
     }) {
-      if (command !== 'serve') return
-      compiler.hooks.watchClose.tap('open-pencil-agent-server', stop)
-      compiler.hooks.shutdown?.tapPromise('open-pencil-agent-server', async () => {
-        stop()
-      })
+      // Agent Server is started with `bun run start:agent-server`, not rspack.
     },
     setupMiddlewares<T>(middlewares: T[]): T[] {
       if (command !== 'serve') return middlewares
@@ -99,7 +57,7 @@ export function openPencilAgentServerRspackPlugin(command: string) {
             next()
             return
           }
-          void ensure()
+          void probe()
             .then((result) => {
               response.statusCode = result.ok ? 200 : 503
               response.setHeader('Content-Type', 'application/json')

@@ -1,10 +1,23 @@
 import { compact } from 'es-toolkit/array'
 
-import { editorCommandMetadata } from '@open-pencil/vue'
+import { editorCommandMetadata } from '#vue/editor/commands/registry'
 
 import { APP_MENU_APP_ITEMS, APP_MENU_SCHEMA } from '@/app/shell/menu/schema'
 import type { AppMenuActionItem, AppMenuEntry, AppMenuGroupSchema } from '@/app/shell/menu/schema'
-import { shortcutTokenToAccelerator } from '@/app/shell/menu/shortcut'
+
+/**
+ * Avoid importing `@/app/shell/menu/shortcut` or `@open-pencil/vue` barrels here:
+ * Bun has no Vite override aliases, and those graphs re-export override-only
+ * symbols such as `renderCoverThumbnail` from base modules that do not define them.
+ */
+function shortcutTokenToAccelerator(shortcut: string | undefined): string | undefined {
+  if (!shortcut) return undefined
+  const normalized = shortcut === '⌫' ? 'Backspace' : shortcut.replaceAll('↩', 'Enter')
+  return normalized
+    .replaceAll('MOD', 'CmdOrCtrl')
+    .replaceAll('SHIFT', 'Shift')
+    .replaceAll('ALT', 'Alt')
+}
 
 export const MENU_PATH = 'desktop/generated/menu.json'
 export const APP_MENU_PATH = 'desktop/generated/app-menu.json'
@@ -45,7 +58,6 @@ export function renderMenu(): string {
 }
 
 function renderAppMenu(): string {
-  // Keyed by id so the native builder cannot silently drop a label.
   const items = Object.fromEntries(
     APP_MENU_APP_ITEMS.map((entry) => [
       entry.id,
@@ -55,7 +67,6 @@ function renderAppMenu(): string {
   return `${JSON.stringify(items, null, 2)}\n`
 }
 
-/** Committed artifacts, keyed by workspace-relative path. */
 export const MENU_ARTIFACTS: Record<string, () => string> = {
   [MENU_PATH]: renderMenu,
   [APP_MENU_PATH]: renderAppMenu

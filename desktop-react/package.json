@@ -1,0 +1,13 @@
+{
+  "name": "@open-pencil/desktop-react",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:menu": "bun ../packages/react/scripts/generate-desktop-menu.ts",
+    "dev": "bunx tauri dev",
+    "build": "bunx tauri build",
+    "start:frontend": "bun --cwd ../packages/react run start",
+    "start:mcp": "bun ../packages/mcp/src/index.ts",
+    "start:agent-server": "bun ../packages/react/scripts/start-agent-server.ts"
+  }
+}

@@ -355,3 +355,10 @@ export const APP_MENU_SCHEMA = [
     ]
   }
 ] satisfies AppMenuGroupSchema[]
+
+/** macOS / Windows app menu items owned by the native shell, not the File menu. */
+export const APP_MENU_APP_ITEMS = [
+  { id: 'about', label: 'About OpenPencil' },
+  { id: 'check-updates', label: 'Check for Updates…' },
+  { id: 'quit', label: 'Quit OpenPencil', shortcut: 'MOD+Q' }
+] satisfies AppMenuActionItem[]

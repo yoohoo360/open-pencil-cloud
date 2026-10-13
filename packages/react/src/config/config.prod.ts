@@ -2,6 +2,7 @@ import type { AppConfig } from './types'
 
 const config: AppConfig = {
   API_BASE_URL: 'https://pencil.api.yoohoo.cn',
+  FRONTEND_BASE_URL: 'https://pencil.yoohoo.cn',
   OSS_UPLOAD_MODE: 'direct',
   OSS_READ_MODE: 'direct',
   OSS_PUBLIC_BASE_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com',

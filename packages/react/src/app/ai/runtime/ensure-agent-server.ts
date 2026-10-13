@@ -13,7 +13,8 @@ function isLocalAgentServerUrl(apiUrl: string): boolean {
 }
 
 /**
- * Ask the rspack dev server to start the Agent Server if needed.
+ * Probe whether a local Agent Server is already running (started with
+ * `bun run start:agent-server`). Does not spawn one.
  * No-op outside DEV / browser, or when the configured URL is not local.
  */
 export async function ensureDevAgentServer(

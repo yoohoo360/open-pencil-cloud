@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OpenPencil",
+  "version": "0.15.1",
+  "identifier": "net.dannote.open-pencil",
+  "build": {
+    "beforeDevCommand": "bun run generate:menu && bun run start:frontend",
+    "devUrl": "http://localhost:8000",
+    "beforeBuildCommand": "bun run generate:menu",
+    "frontendDist": "https://pencil.yoohoo.cn"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "OpenPencil",
+        "width": 1280,
+        "height": 800,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["pen"],
+        "name": "Pencil Design File",
+        "description": "Pencil design file",
+        "role": "Editor",
+        "mimeType": "application/x-pencil-pen",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["fig"],
+        "name": "Figma Design File",
+        "description": "Figma design file",
+        "role": "Editor",
+        "mimeType": "application/x-figma",
+        "rank": "Alternate"
+      }
+    ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/main.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/main.desktop"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "fs": { "requireLiteralLeadingDot": true },
+    "deep-link": {
+      "desktop": { "schemes": ["openpencil"] }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU4QzBCRjBFNzhFNEVEMDEKUldRQjdlUjREci9BV0hLaEJPeG5tRXdsWkhQWFdEa0VxcEtNR1o1S2VJeGlKU1VDTldQTi9wYncK",
+      "requireSignedVersion": true,
+      "endpoints": ["https://github.com/open-pencil/open-pencil/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

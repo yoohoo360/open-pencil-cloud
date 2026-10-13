@@ -7,6 +7,7 @@ import type { AppConfig } from './types'
  */
 const config: AppConfig = {
   API_BASE_URL: 'http://localhost:8080',
+  FRONTEND_BASE_URL: 'http://localhost:8000',
   OSS_UPLOAD_MODE: 'direct',
   OSS_READ_MODE: 'direct',
   OSS_PUBLIC_BASE_URL: 'https://yoohoo-oss.oss-cn-shanghai.aliyuncs.com',

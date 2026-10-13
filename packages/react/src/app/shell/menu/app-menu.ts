@@ -1,3 +1,8 @@
+import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+import { IS_TAURI } from '@open-pencil/core/constants'
+
 import {
   hasDocumentCapability,
   openDocumentShareDialog,
@@ -16,6 +21,7 @@ import {
   saveFigFile,
   saveFigFileAs
 } from '#react/app/shell/menu/files'
+import { useNativeMenuEvents } from '#react/app/shell/menu/native-events'
 import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
 import type {
   AppMenuActionItem,
@@ -27,11 +33,11 @@ import { createSelectionMenuActions } from '#react/app/shell/menu/selection-acti
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { useAppTheme } from '#react/app/shell/theme'
 import { closeTab, getActiveTab } from '#react/app/tabs'
+import type { EditorCommandId } from '#react/editor/commands/types'
 import { useEditorCommands } from '#react/editor/commands/use'
 import type { MenuEntry } from '#react/editor/menu-model/types'
 import { useI18n } from '#react/i18n'
 import { menuMessageDefaults } from '#react/i18n/messages/menu'
-import { useNavigate } from 'react-router-dom'
 
 export interface AppMenuGroup {
   label: string
@@ -91,6 +97,20 @@ const TRANSLATED_MENU_ITEM_LABELS: Partial<Record<string, keyof typeof menuMessa
   'arrange.align-bottom': 'arrangeAlignBottom'
 }
 
+function commandMenuIds(entries: readonly AppMenuEntry[]): EditorCommandId[] {
+  return entries.flatMap((entry) => {
+    if (entry.type === 'separator') return []
+    return [
+      ...(entry.command ? [entry.command] : []),
+      ...commandMenuIds(entry.sub ?? [])
+    ]
+  })
+}
+
+const COMMAND_MENU_IDS = new Set<EditorCommandId>(
+  APP_MENU_SCHEMA.flatMap((group) => commandMenuIds(group.items))
+)
+
 export function useAppMenu() {
   const store = useEditorStore()
   const navigate = useNavigate()
@@ -98,7 +118,8 @@ export function useAppMenu() {
     commands,
     menuItem: commandMenuItem,
     otherPages,
-    moveSelectionToPage
+    moveSelectionToPage,
+    runCommand
   } = useEditorCommands()
   const { menu, locale, availableLocales, localeLabels, setLocale } = useI18n()
   const { theme, setTheme } = useAppTheme()
@@ -147,8 +168,27 @@ export function useAppMenu() {
     'export-pptx': () => exportCurrentSelection('pptx'),
     'export-fig': () => exportCurrentSelection('fig'),
     ...createSharedEditorMenuActions(store, setTheme),
-    profiler: toggleProfiler
+    profiler: toggleProfiler,
+    autosave: () => {
+      store.state.autosaveEnabled = !store.state.autosaveEnabled
+      store.notify()
+    }
   }
+
+  const onNativeMenuEvent = useCallback(
+    (id: string) => {
+      if (!IS_TAURI) return
+      if (COMMAND_MENU_IDS.has(id as EditorCommandId)) {
+        runCommand(id as EditorCommandId)
+        return
+      }
+      actions[id]?.()
+    },
+    // actions closes over store/navigate each render; listen once per identity of runCommand/store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- native handler rebinds when store/theme/nav change
+    [runCommand, store, navigate, theme, setTheme, canExportDoc]
+  )
+  useNativeMenuEvents(onNativeMenuEvent)
 
   function itemAction(item: AppMenuActionItem): (() => void) | undefined {
     return actions[item.id]

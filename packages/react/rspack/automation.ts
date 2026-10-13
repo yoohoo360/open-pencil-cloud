@@ -37,10 +37,8 @@ export function openPencilAutomationRspackPlugin(command: string, host: string |
         shutdown?: { tapPromise: (name: string, fn: () => Promise<void>) => void }
       }
     }) {
-      compiler.hooks.afterEnvironment.tap('open-pencil-automation', () => {
-        if (compiler.options.mode !== 'development') return
-        void controller.start()
-      })
+      // MCP is not started with `bun start` — run `bun run start:mcp` separately.
+      // Restart middleware still attaches to a manually started server.
       compiler.hooks.watchClose.tap('open-pencil-automation', () => {
         void controller.stop()
       })
