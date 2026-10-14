@@ -17,7 +17,14 @@ export function prepareClipboardImport(
   offsetX = 0,
   offsetY = 0
 ) {
-  const fragment = materializeFigFragment(changes, blobs, { missingComponent: 'detach-empty' })
+  // Same soft policy as opening a .fig: Figma clipboard payloads keep stale override
+  // guidPaths; skipping them matches paste in Figma instead of aborting the whole paste.
+  const fragment = materializeFigFragment(changes, blobs, {
+    missingComponent: 'detach-empty',
+    onUnresolvedProperty: () => undefined,
+    onUnresolvedAssignment: () => undefined,
+    onMissingSlotContent: () => undefined
+  })
   const plan = prepareGraphTransfer({
     source: fragment.graph,
     rootIds: fragment.rootIds,

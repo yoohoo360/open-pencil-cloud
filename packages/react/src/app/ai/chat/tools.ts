@@ -1,3 +1,4 @@
+import { parseFigmaClipboard, parseOpenPencilClipboard } from '@open-pencil/core/clipboard'
 import { computeAllLayouts } from '@open-pencil/core/layout'
 import { CORE_TOOLS, toolChangesDocument, type ToolDef } from '@open-pencil/core/tools'
 import { pruneUnmountedNodes } from '@open-pencil/scene-graph'
@@ -8,6 +9,8 @@ import { makeFigmaFromStore } from '#react/app/ai/chat/figma'
 import {
   DISCOVER_TOOLS,
   ENABLE_TOOLS,
+  INSERT_SKILL_TEMPLATE,
+  LIST_SKILL_TEMPLATES,
   META_TOOL_NAMES,
   READ_TOOL_OUTPUT,
   STATIC_DESIGN_TOOL_NAMES,
@@ -18,6 +21,8 @@ import {
 export {
   DISCOVER_TOOLS,
   ENABLE_TOOLS,
+  INSERT_SKILL_TEMPLATE,
+  LIST_SKILL_TEMPLATES,
   READ_TOOL_OUTPUT,
   STATIC_DESIGN_TOOL_NAMES,
   createDesignToolSession,
@@ -113,6 +118,42 @@ function metaToolsAsOpenAI(): OpenAIFunctionTool[] {
           required: ['id']
         }
       }
+    },
+    {
+      type: 'function',
+      function: {
+        name: LIST_SKILL_TEMPLATES,
+        description:
+          'List design clipboard templates from loaded skills (id + summary). Use before insert_skill_template.',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: INSERT_SKILL_TEMPLATE,
+        description:
+          'REQUIRED first when loaded skills include Figma/OpenPencil clipboard templates: paste that template onto the canvas as real nodes. Returns created root ids — then modify those ids with batch_update / set_* / describe. Never rebuild the same UI with render while templates remain unused.',
+        parameters: {
+          type: 'object',
+          properties: {
+            template_id: {
+              type: 'string',
+              description:
+                'Exact template id from the Skill design templates list (e.g. my-skill/0). Required.'
+            },
+            parent_id: {
+              type: 'string',
+              description: 'Optional parent frame/page id to paste into (default: current paste target)'
+            }
+          },
+          required: ['template_id']
+        }
+      }
     }
   ]
 }
@@ -125,17 +166,28 @@ export function designToolsAsOpenAI(session?: DesignToolSession): OpenAIFunction
     )
   )
   const defs = CORE_TOOLS.filter((def) => visible.has(def.name))
-  return [
-    ...defs.map((def) => ({
-      type: 'function' as const,
-      function: {
-        name: def.name,
-        description: def.description,
-        parameters: inputToOpenAIParameters(def)
-      }
-    })),
-    ...metaToolsAsOpenAI()
-  ]
+  const core = defs.map((def) => ({
+    type: 'function' as const,
+    function: {
+      name: def.name,
+      description: def.description,
+      parameters: inputToOpenAIParameters(def)
+    }
+  }))
+  const meta = metaToolsAsOpenAI()
+  // When skill clipboard templates exist, surface insert/list first so the model picks them.
+  if (session && session.templates.size > 0) {
+    const templateTools = meta.filter(
+      (tool) =>
+        tool.function.name === INSERT_SKILL_TEMPLATE || tool.function.name === LIST_SKILL_TEMPLATES
+    )
+    const otherMeta = meta.filter(
+      (tool) =>
+        tool.function.name !== INSERT_SKILL_TEMPLATE && tool.function.name !== LIST_SKILL_TEMPLATES
+    )
+    return [...templateTools, ...core, ...otherMeta]
+  }
+  return [...core, ...meta]
 }
 
 function extractNodeIds(result: unknown): string[] {
@@ -240,7 +292,117 @@ function runMetaTool(
   if (name === READ_TOOL_OUTPUT) {
     return { ok: true, result: readStashedOutput(args) }
   }
+  if (name === LIST_SKILL_TEMPLATES) {
+    return {
+      ok: true,
+      result: {
+        templates: [...session.templates.values()].map((template) => ({
+          id: template.id,
+          skillKey: template.skillKey,
+          label: template.label,
+          summary: template.summary
+        }))
+      }
+    }
+  }
   return { ok: false, error: `Unknown meta tool: ${name}` }
+}
+
+async function decodeSkillTemplateXML(
+  xml: string
+): Promise<{ kind: 'openpencil' | 'figma' } | { error: string }> {
+  const openPencil = parseOpenPencilClipboard(xml)
+  if (openPencil) {
+    if (openPencil.nodes.length === 0) {
+      return { error: 'OpenPencil clipboard decoded but contains no nodes.' }
+    }
+    return { kind: 'openpencil' }
+  }
+  try {
+    const figma = await parseFigmaClipboard(xml)
+    if (figma && figma.nodes.length > 0) return { kind: 'figma' }
+  } catch (error) {
+    return {
+      error: `Figma clipboard decode failed: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+  return {
+    error:
+      'Could not decode template XML as OpenPencil or Figma clipboard. Re-paste the design clipboard into the skill as a figma-xml / openpencil-xml fence.'
+  }
+}
+
+async function insertSkillTemplate(
+  store: EditorStore,
+  session: DesignToolSession,
+  args: Record<string, unknown>
+): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+  const templateId = typeof args.template_id === 'string' ? args.template_id.trim() : ''
+  if (!templateId) return { ok: false, error: 'template_id is required' }
+  const template = session.templates.get(templateId)
+  if (!template) {
+    const known = [...session.templates.keys()]
+    return {
+      ok: false,
+      error:
+        known.length === 0
+          ? `Unknown template_id "${templateId}". No skill design templates are loaded.`
+          : `Unknown template_id "${templateId}". Known: ${known.join(', ')}`
+    }
+  }
+
+  const decoded = await decodeSkillTemplateXML(template.xml)
+  if ('error' in decoded) return { ok: false, error: decoded.error }
+
+  const parentId = typeof args.parent_id === 'string' ? args.parent_id.trim() : ''
+  const previousEntered = store.state.enteredContainerId
+  if (parentId && store.graph.getNode(parentId)) {
+    store.state.enteredContainerId = parentId
+  }
+
+  const beforeSnapshot = store.snapshotPage()
+  const beforeSelection = [...store.state.selectedIds].sort().join('\0')
+  try {
+    await store.pasteFromHTML(template.xml)
+    computeAllLayouts(store.graph, store.state.currentPageId)
+    store.requestRender()
+    const created = [...store.state.selectedIds]
+    const afterSelection = [...created].sort().join('\0')
+    if (
+      created.length === 0 ||
+      (afterSelection === beforeSelection && beforeSelection.length > 0)
+    ) {
+      return {
+        ok: false,
+        error: `Paste of ${decoded.kind} template "${template.id}" produced no new nodes. Check the clipboard XML in the skill.`
+      }
+    }
+    const after = store.snapshotPage()
+    store.pushUndoEntry({
+      label: `AI: ${INSERT_SKILL_TEMPLATE}`,
+      forward: () => store.restorePageFromSnapshot(after),
+      inverse: () => store.restorePageFromSnapshot(beforeSnapshot)
+    })
+    store.renderer?.aiClearActive()
+    store.renderer?.aiFlashDone(created)
+    store.notify()
+    session.insertedTemplateIds.add(template.id)
+    return {
+      ok: true,
+      result: {
+        template_id: template.id,
+        kind: decoded.kind,
+        label: template.label,
+        summary: template.summary,
+        created,
+        hint: 'Modify these ids with batch_update / set_text / set_fill / describe. Do not recreate the template with render.'
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  } finally {
+    store.state.enteredContainerId = previousEntered
+  }
 }
 
 /**
@@ -262,6 +424,10 @@ export async function executeDesignTool(
   args: Record<string, unknown>,
   session?: DesignToolSession
 ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+  if (name === INSERT_SKILL_TEMPLATE) {
+    if (!session) return { ok: false, error: `Tool session required for ${name}` }
+    return insertSkillTemplate(store, session, args)
+  }
   if (META_TOOL_NAMES.has(name)) {
     if (!session) return { ok: false, error: `Tool session required for ${name}` }
     return runMetaTool(session, name, args)

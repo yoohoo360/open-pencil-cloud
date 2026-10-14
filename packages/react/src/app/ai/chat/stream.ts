@@ -11,9 +11,12 @@ import {
   createDesignToolSession,
   designToolsAsOpenAI,
   executeDesignTool,
+  INSERT_SKILL_TEMPLATE,
   MAX_AGENT_STEPS,
-  pruneUnmountedAfterAiTurn
+  pruneUnmountedAfterAiTurn,
+  type DesignToolSession
 } from '#react/app/ai/chat/tools'
+import type { SkillTemplateEntry } from '#react/app/ai/chat/tools-catalog'
 import { planDesignToolWaves, runDesignToolWaves } from '#react/app/ai/chat/tool-waves'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
 
@@ -26,8 +29,17 @@ type OpenAIToolCall = {
 type OpenAIChatMessage =
   | { role: 'system'; content: string }
   | { role: 'user'; content: string }
-  | { role: 'assistant'; content: string | null; tool_calls?: OpenAIToolCall[] }
+  | {
+      role: 'assistant'
+      content: string | null
+      /** Required by thinking-mode providers when the request includes `tools`. */
+      reasoning_content?: string
+      tool_calls?: OpenAIToolCall[]
+    }
   | { role: 'tool'; tool_call_id: string; content: string }
+
+/** DeepSeek thinking mode rejects empty reasoning on tool turns; a space satisfies the check. */
+const REASONING_PLACEHOLDER = ' '
 
 type ToolCallDelta = {
   index?: number
@@ -42,6 +54,13 @@ export async function streamChatCompletion(options: {
   messages: ChatMessage[]
   /** Appended after the base design system prompt (plan, skills, scene notes). */
   systemExtra?: string
+  /** Design clipboard templates from loaded skills (insert_skill_template). */
+  skillTemplates?: SkillTemplateEntry[]
+  /**
+   * When true, paste skill clipboard templates onto the canvas before the agent runs.
+   * Used instead of forced tool_choice (unsupported in thinking mode). Skip on follow-ups.
+   */
+  preinsertTemplates?: boolean
   /** Auto mode uses this tier to pick a model (default high for tool-using agent). */
   tier?: ModelTier
   signal?: AbortSignal
@@ -51,10 +70,53 @@ export async function streamChatCompletion(options: {
   if (!resolved) throw new Error('Configure at least one enabled AI model.')
   const openaiMessages = toOpenAIMessages(options.messages, options.systemExtra)
   const completed: ChatMessagePart[] = []
-  const toolSession = createDesignToolSession()
+  const toolSession: DesignToolSession = createDesignToolSession(options.skillTemplates ?? [])
   let ranTools = false
 
   try {
+    // Thinking-mode providers reject forced tool_choice — paste templates host-side instead.
+    const preinserted =
+      options.preinsertTemplates === true
+        ? await preinsertSkillTemplates(options.store, toolSession)
+        : []
+    if (preinserted.length > 0) {
+      ranTools = true
+      // UI-only tool parts — do not inject synthetic assistant/tool_calls into the API
+      // transcript (thinking mode requires real reasoning_content on those turns).
+      const toolParts: ChatToolPart[] = preinserted.map((item) => ({
+        type: 'tool',
+        toolCallId: item.toolCallId,
+        toolName: INSERT_SKILL_TEMPLATE,
+        state: item.ok ? 'output-available' : 'output-error',
+        input: { template_id: item.templateId },
+        output: item.ok ? item.result : undefined,
+        errorText: item.ok ? undefined : item.error
+      }))
+      completed.push(...toolParts)
+      options.onAssistantParts([...completed])
+
+      const createdSummary = preinserted
+        .filter((item) => item.ok)
+        .map((item) => JSON.stringify(item.result))
+        .join('\n')
+      const failedSummary = preinserted
+        .filter((item) => !item.ok)
+        .map((item) => `${item.templateId}: ${item.error}`)
+        .join('\n')
+      const note =
+        `\n\n## Already pasted skill templates\n` +
+        (createdSummary
+          ? `Templates were pasted onto the canvas by the host. Modify these created node ids with batch_update / set_* / describe. Do not rebuild with render.\n${createdSummary}\n`
+          : '') +
+        (failedSummary ? `Template paste failures:\n${failedSummary}\n` : '')
+      const systemMessage = openaiMessages[0]
+      if (systemMessage?.role === 'system') {
+        systemMessage.content += note
+      } else {
+        openaiMessages.unshift({ role: 'system', content: note.trim() })
+      }
+    }
+
     for (let step = 0; step < MAX_AGENT_STEPS; step++) {
       const streamed = await streamOnce({
         apiKey: resolved.apiKey,
@@ -76,6 +138,7 @@ export async function streamChatCompletion(options: {
       openaiMessages.push({
         role: 'assistant',
         content: streamed.text || null,
+        reasoning_content: streamed.reasoning || REASONING_PLACEHOLDER,
         tool_calls: streamed.toolCalls
       })
 
@@ -167,6 +230,55 @@ function parseToolArguments(raw: string): Record<string, unknown> {
   }
 }
 
+type PreinsertResult =
+  | {
+      ok: true
+      toolCallId: string
+      templateId: string
+      result: unknown
+    }
+  | {
+      ok: false
+      toolCallId: string
+      templateId: string
+      error: string
+    }
+
+async function preinsertSkillTemplates(
+  store: EditorStore,
+  session: DesignToolSession
+): Promise<PreinsertResult[]> {
+  if (session.templates.size === 0) return []
+  const results: PreinsertResult[] = []
+  let index = 0
+  for (const template of session.templates.values()) {
+    const toolCallId = `host_insert_skill_template_${index}`
+    index += 1
+    const executed = await executeDesignTool(
+      store,
+      INSERT_SKILL_TEMPLATE,
+      { template_id: template.id },
+      session
+    )
+    if (executed.ok) {
+      results.push({
+        ok: true,
+        toolCallId,
+        templateId: template.id,
+        result: executed.result
+      })
+    } else {
+      results.push({
+        ok: false,
+        toolCallId,
+        templateId: template.id,
+        error: executed.error
+      })
+    }
+  }
+  return results
+}
+
 async function streamOnce(options: {
   apiKey: string
   baseURL: string
@@ -175,7 +287,7 @@ async function streamOnce(options: {
   tools: ReturnType<typeof designToolsAsOpenAI>
   signal?: AbortSignal
   onPartial: (text: string, toolCalls: OpenAIToolCall[]) => void
-}): Promise<{ text: string; toolCalls: OpenAIToolCall[] }> {
+}): Promise<{ text: string; reasoning: string; toolCalls: OpenAIToolCall[] }> {
   const response = await fetch(chatCompletionsURL(options.baseURL), {
     method: 'POST',
     headers: {
@@ -198,6 +310,7 @@ async function streamOnce(options: {
   const decoder = new TextDecoder()
   let buffer = ''
   let text = ''
+  let reasoning = ''
   const toolCalls: OpenAIToolCall[] = []
 
   while (true) {
@@ -212,13 +325,15 @@ async function streamOnce(options: {
       const data = trimmed.slice(5).trim()
       if (data === '[DONE]') {
         options.onPartial(text, toolCalls)
-        return { text, toolCalls: completedToolCalls(toolCalls) }
+        return { text, reasoning, toolCalls: completedToolCalls(toolCalls) }
       }
       try {
         const parsed = JSON.parse(data) as {
           choices?: Array<{
             delta?: {
               content?: string | null
+              reasoning_content?: string | null
+              reasoning?: string | null
               tool_calls?: ToolCallDelta[]
             }
             finish_reason?: string | null
@@ -227,6 +342,8 @@ async function streamOnce(options: {
         const delta = parsed.choices?.[0]?.delta
         if (!delta) continue
         if (typeof delta.content === 'string' && delta.content) text += delta.content
+        const reasoningPiece = delta.reasoning_content ?? delta.reasoning ?? ''
+        if (reasoningPiece) reasoning += reasoningPiece
         mergeToolCallDeltas(toolCalls, delta.tool_calls)
         options.onPartial(text, toolCalls)
       } catch {
@@ -234,7 +351,7 @@ async function streamOnce(options: {
       }
     }
   }
-  return { text, toolCalls: completedToolCalls(toolCalls) }
+  return { text, reasoning, toolCalls: completedToolCalls(toolCalls) }
 }
 
 function mergeToolCallDeltas(toolCalls: OpenAIToolCall[], deltas?: ToolCallDelta[]) {
@@ -284,14 +401,24 @@ function toOpenAIMessages(messages: ChatMessage[], systemExtra?: string): OpenAI
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
       .join('\n')
-    const tools = message.parts.filter((part): part is ChatToolPart => part.type === 'tool')
+    // Host-only template inserts are not real model turns — skip them in the API transcript.
+    const tools = message.parts.filter(
+      (part): part is ChatToolPart =>
+        part.type === 'tool' && !part.toolCallId.startsWith('host_insert_skill_template')
+    )
+    const reasoning =
+      message.reasoning && message.reasoning.trim().length > 0
+        ? message.reasoning
+        : REASONING_PLACEHOLDER
     if (tools.length === 0) {
-      converted.push({ role: 'assistant', content: text })
+      // Requests always send `tools`, so thinking-mode providers still want reasoning echoed.
+      converted.push({ role: 'assistant', content: text, reasoning_content: reasoning })
       continue
     }
     converted.push({
       role: 'assistant',
       content: text || null,
+      reasoning_content: reasoning,
       tool_calls: tools.map((part) => ({
         id: part.toolCallId,
         type: 'function' as const,

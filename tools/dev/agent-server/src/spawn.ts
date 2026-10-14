@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
@@ -26,6 +26,23 @@ function agentServerPort(): number {
 export function agentServerDisabled(): boolean {
   const raw = process.env.OPENPENCIL_DISABLE_AGENT_SERVER?.trim().toLowerCase()
   return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
+/**
+ * LangGraph CLI must run under Node. Spawning with Bun's `process.execPath`
+ * fails while loading nested CJS (`Cannot find module './cjs/index.cjs'`).
+ */
+function resolveNodeExecutable(): string {
+  if (process.versions.node && !('bun' in process.versions)) {
+    return process.execPath
+  }
+  const fromPath = execFileSync('node', ['-p', 'process.execPath'], {
+    encoding: 'utf8'
+  }).trim()
+  if (!fromPath) {
+    throw new Error('Node.js executable not found (required for @langchain/langgraph-cli)')
+  }
+  return fromPath
 }
 
 function resolveLangGraphCli(): string {
@@ -77,10 +94,18 @@ export function startAgentServer(options?: {
     return null
   }
 
+  let node: string
+  try {
+    node = resolveNodeExecutable()
+  } catch (error) {
+    options?.onWarn?.(error instanceof Error ? error.message : String(error))
+    return null
+  }
+
   const port = agentServerPort()
   const configPath = resolve(packageRoot, 'langgraph.json')
   let child: ChildProcess | null = spawn(
-    process.execPath,
+    node,
     [cli, 'dev', '--port', String(port), '--host', '127.0.0.1', '--no-browser', '-c', configPath],
     {
       cwd: packageRoot,

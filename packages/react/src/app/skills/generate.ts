@@ -6,40 +6,15 @@ import {
   type ChatProviderSettings
 } from '#react/app/ai/chat/settings'
 import { chatCompletionsURL } from '#react/app/ai/chat/url'
-import { skillAPI, type PencilSkill, type SkillEntry } from '#react/lib/client'
+import { loadSkillPackageText } from '#react/app/skills/package-load'
+import type { PencilSkill } from '#react/lib/client'
 
 const CODEGEN_SYSTEM = `You are a code generator for OpenPencil Dev mode.
 Return ONLY the requested source code. No markdown fences, no commentary, no explanation.
 Match the requested format exactly (Design JSX, Tailwind JSX, or HTML/CSS).
 Treat the skill package (SKILL.md and references) as binding instructions for style, structure, naming, and output shape.
+Design clipboard XML in the package is pre-decoded to JSON — use that structure, not raw clipboard markup.
 When current code is provided, rewrite or improve it to satisfy the skill; when empty, generate from the selection context and skill.`
-
-function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
-  const out: SkillEntry[] = []
-  for (const node of nodes) {
-    if (node.kind === 'file') out.push(node)
-    if (node.children?.length) out.push(...flattenFiles(node.children))
-  }
-  return out
-}
-
-async function loadSkillPackageText(skill: PencilSkill): Promise<string> {
-  if (!skill.id || skill.id === 'inline-ai' || skill.id.startsWith('builtin:')) {
-    return skill.content ?? ''
-  }
-  try {
-    const response = await skillAPI.tree(skill.id)
-    const files = flattenFiles(response.data ?? []).sort((a, b) => {
-      if (a.path === 'SKILL.md') return -1
-      if (b.path === 'SKILL.md') return 1
-      return a.path.localeCompare(b.path)
-    })
-    if (files.length === 0) return skill.content ?? ''
-    return files.map((file) => `### ${file.path}\n${file.content ?? ''}`).join('\n\n')
-  } catch {
-    return skill.content ?? ''
-  }
-}
 
 /** Personal working copies usable for Dev codegen (excludes team remotes). */
 export function skillsForCodegen(skills: PencilSkill[]): PencilSkill[] {

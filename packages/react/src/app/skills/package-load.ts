@@ -1,4 +1,5 @@
 import { isBuiltinMakeSkillId } from '#react/app/make/skills/default-make-skill'
+import { skillFileTextForPrompt } from '#react/app/skills/clipboard-xml-to-json'
 import { skillAPI, type PencilSkill, type SkillCatalogCategory, type SkillEntry } from '#react/lib/client'
 
 function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
@@ -12,7 +13,7 @@ function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
 
 export async function loadSkillPackageText(skill: PencilSkill): Promise<string> {
   if (isBuiltinMakeSkillId(skill.id) || skill.id === 'inline-ai') {
-    return skill.content ?? ''
+    return skillFileTextForPrompt('SKILL.md', skill.content ?? '')
   }
   try {
     const response = await skillAPI.tree(skill.id)
@@ -21,10 +22,15 @@ export async function loadSkillPackageText(skill: PencilSkill): Promise<string> 
       if (b.path === 'SKILL.md') return 1
       return a.path.localeCompare(b.path)
     })
-    if (files.length === 0) return skill.content ?? ''
-    return files.map((file) => `### ${file.path}\n${file.content ?? ''}`).join('\n\n')
+    if (files.length === 0) {
+      return skillFileTextForPrompt('SKILL.md', skill.content ?? '')
+    }
+    const parts = await Promise.all(
+      files.map((file) => skillFileTextForPrompt(file.path, file.content ?? ''))
+    )
+    return parts.join('\n\n')
   } catch {
-    return skill.content ?? ''
+    return skillFileTextForPrompt('SKILL.md', skill.content ?? '')
   }
 }
 

@@ -4,7 +4,7 @@ import {
 } from '#react/app/editor/clipboard'
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAccessStore, hasDocumentCapability } from '#react/app/document/access'
-import { isEditing } from '#react/app/shell/keyboard/focus'
+import { hasDocumentTextSelection, isEditing } from '#react/app/shell/keyboard/focus'
 import { hydrateHostedInstances } from '#react/hosted-components'
 import { resolveSelectedInsertionParent } from '#react/controls/component-props/slot-insert'
 
@@ -58,7 +58,8 @@ function pasteIntoInsertionParent(
 export function bindEditorClipboard(store: EditorStore) {
   function onCopy(e: ClipboardEvent) {
     if (store.state.pageLoading.visible || store.state.loading) return
-    if (isEditing(e)) return
+    // Let the browser copy highlighted UI / panel text outside the canvas.
+    if (isEditing(e) || hasDocumentTextSelection()) return
     if (!hasDocumentCapability(documentAccessStore.get(), 'copy')) return
     e.preventDefault()
     if (e.clipboardData) void writePreparedCopy(store, e.clipboardData)

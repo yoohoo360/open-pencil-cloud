@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type ClipboardEvent } from 'react'
 
 import { highlightCode } from '#react/components/code-editor/highlight'
 import type { CodeEditorLanguage } from '#react/components/code-editor/types'
@@ -10,13 +10,16 @@ export function CodeEditor({
   language = 'design-jsx',
   readOnly = false,
   label = 'Code',
-  onChange
+  onChange,
+  resolvePaste
 }: {
   value: string
   language?: CodeEditorLanguage
   readOnly?: boolean
   label?: string
   onChange: (value: string) => void
+  /** When set, returning a string inserts that text and skips the default paste. */
+  resolvePaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => string | null
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const preRef = useRef<HTMLPreElement>(null)
@@ -70,6 +73,17 @@ export function CodeEditor({
         data-testid="code-editor-input"
         className="op-hljs-layer absolute inset-0 z-[1] m-0 resize-none overflow-auto border-0 bg-transparent font-mono text-transparent caret-[var(--color-accent)] outline-none"
         onChange={(event) => onChange(event.target.value)}
+        onPaste={(event) => {
+          if (readOnly || !resolvePaste) return
+          const pasted = resolvePaste(event)
+          if (pasted == null) return
+          event.preventDefault()
+          const target = event.currentTarget
+          const start = target.selectionStart
+          const end = target.selectionEnd
+          pendingCaret.current = start + pasted.length
+          onChange(`${value.slice(0, start)}${pasted}${value.slice(end)}`)
+        }}
         onKeyDown={(event) => {
           if (event.key !== 'Tab' || readOnly) return
           event.preventDefault()

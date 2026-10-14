@@ -175,6 +175,7 @@ ${options.priorOutputs?.trim() || '(none)'}
   return `You are a code assistant in OpenPencil Dev mode.
 Produce ${options.sourceLabel} for the selection.
 Follow the plan/steps and ONLY the skill packages below as binding instructions.
+Design clipboard XML in those packages is already decoded to JSON — use the JSON structure.
 Match real copy/text from the canvas context and any looked-up layers.
 
 Plan:

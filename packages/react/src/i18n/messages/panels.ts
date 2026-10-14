@@ -101,6 +101,8 @@ export const panelMessageDefaults = {
   skillKey: 'Key',
   skillDescription: 'Description',
   skillContent: 'Skill Markdown',
+  skillClipboardXmlHint:
+    'Paste Figma or OpenPencil clipboard XML — it is stored in a markdown code fence as-is, and decoded to nodes only when AI uses the skill.',
   skillPackage: 'Files',
   skillContentPlaceholder:
     'Markdown instructions for codegen, e.g. preferred stack, naming, and file layout…',

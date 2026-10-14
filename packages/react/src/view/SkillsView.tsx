@@ -5,6 +5,7 @@ import {
   parseSkillFrontmatter,
   upsertSkillFrontmatter
 } from '#react/app/skills/frontmatter'
+import { pasteDesignClipboardAsMarkdown } from '#react/app/skills/clipboard-xml'
 import { zipSkillFolder } from '#react/app/skills/package-zip'
 import { CodeEditor } from '#react/components/code-editor/CodeEditor'
 import { AppButton } from '#react/components/ui/AppButton'
@@ -146,6 +147,11 @@ function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
     if (node.children?.length) out.push(...flattenFiles(node.children))
   }
   return out
+}
+
+function isXmlSkillPath(path: string): boolean {
+  const lower = path.toLowerCase()
+  return lower.endsWith('.xml') || lower.endsWith('.html')
 }
 
 function isTeamRemote(skill: PencilSkill): boolean {
@@ -1221,13 +1227,29 @@ export default function SkillsView() {
                     ? (findEntry(tree, selectedEntryId)?.path ?? panels.skillContent)
                     : 'SKILL.md'}
                 </span>
-                <span className="text-[10px] text-muted">Markdown</span>
+                <span className="text-[10px] text-muted">
+                  {isXmlSkillPath(
+                    draft.id ? (findEntry(tree, selectedEntryId)?.path ?? 'SKILL.md') : 'SKILL.md'
+                  )
+                    ? 'XML'
+                    : 'Markdown'}
+                </span>
               </div>
               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                <p className="shrink-0 border-b border-border/40 px-5 py-1.5 text-[10px] text-muted">
+                  {panels.skillClipboardXmlHint}
+                </p>
                 <CodeEditor
                   value={fileDraft}
-                  language="markdown"
+                  language={
+                    isXmlSkillPath(
+                      draft.id ? (findEntry(tree, selectedEntryId)?.path ?? 'SKILL.md') : 'SKILL.md'
+                    )
+                      ? 'xml'
+                      : 'markdown'
+                  }
                   label={panels.skillContent}
+                  resolvePaste={(event) => pasteDesignClipboardAsMarkdown(event.clipboardData)}
                   onChange={(content) => {
                     const editingSkillMd =
                       !draft.id || findEntry(tree, selectedEntryId)?.path === 'SKILL.md'

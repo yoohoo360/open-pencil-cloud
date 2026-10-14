@@ -10,7 +10,7 @@ hljs.registerLanguage('markdown', markdown)
 hljs.registerLanguage('xml', xml)
 
 export function highlightLanguage(language: CodeEditorLanguage): string {
-  if (language === 'html-css') return 'xml'
+  if (language === 'html-css' || language === 'xml') return 'xml'
   if (language === 'markdown') return 'markdown'
   return 'javascript'
 }

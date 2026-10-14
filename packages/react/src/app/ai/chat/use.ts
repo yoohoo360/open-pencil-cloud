@@ -53,10 +53,14 @@ import {
 } from '#react/app/skills/codegen-reply'
 import {
   collectPersonalSkills,
-  loadSkillPackageText,
   skillCatalogBlock,
   withSkillsInPlan
 } from '#react/app/skills/package-load'
+import {
+  formatSkillTemplatesCatalog,
+  loadSkillPackageForDesign,
+  type SkillDesignTemplate
+} from '#react/app/skills/templates'
 import {
   isSkillEnabledForCodegen,
   skillChatPreferences
@@ -264,6 +268,7 @@ export function useAIChat() {
         let selectedKeys: string[] = []
         let lookupNotes = ''
         let packages: Array<{ name: string; key: string; body: string }> = []
+        let skillTemplates: SkillDesignTemplate[] = []
         let agentTasks: AgentTaskState[] = toPendingAgentTasks([
           { id: 'build', title: 'Build', tier: 'high', dependsOn: [] }
         ])
@@ -354,17 +359,68 @@ export function useAIChat() {
             selectedSkills.map((skill) => ({
               id: skill.skill_key,
               title: skill.name,
-              run: async () => ({
-                name: skill.name,
-                key: skill.skill_key,
-                body: await loadSkillPackageText(skill)
-              })
+              run: async () => {
+                const loaded = await loadSkillPackageForDesign(skill)
+                return {
+                  name: skill.name,
+                  key: skill.skill_key,
+                  body: loaded.body,
+                  templates: loaded.templates
+                }
+              }
             }))
           )
           packages = packageResults
             .filter((result) => result.ok && result.value)
-            .map((result) => result.value!)
+            .map((result) => ({
+              name: result.value!.name,
+              key: result.value!.key,
+              body: result.value!.body
+            }))
+          skillTemplates = packageResults
+            .filter((result) => result.ok && result.value)
+            .flatMap((result) => result.value!.templates)
           if (operation !== operationRef.current) return
+        } else {
+          // Follow-ups skip re-routing but must still load clipboard templates for insert_skill_template.
+          const priorKeys =
+            [...messages]
+              .reverse()
+              .find((message) => message.selectedSkillKeys && message.selectedSkillKeys.length > 0)
+              ?.selectedSkillKeys ?? []
+          selectedKeys = priorKeys
+          const skillsToLoad =
+            priorKeys.length > 0
+              ? enabledSkills.filter((skill) => priorKeys.includes(skill.skill_key))
+              : enabledSkills
+          if (skillsToLoad.length > 0) {
+            const packageResults = await runAgentSubtasks(
+              skillsToLoad.map((skill) => ({
+                id: skill.skill_key,
+                title: skill.name,
+                run: async () => {
+                  const loaded = await loadSkillPackageForDesign(skill)
+                  return {
+                    name: skill.name,
+                    key: skill.skill_key,
+                    body: loaded.body,
+                    templates: loaded.templates
+                  }
+                }
+              }))
+            )
+            packages = packageResults
+              .filter((result) => result.ok && result.value)
+              .map((result) => ({
+                name: result.value!.name,
+                key: result.value!.key,
+                body: result.value!.body
+              }))
+            skillTemplates = packageResults
+              .filter((result) => result.ok && result.value)
+              .flatMap((result) => result.value!.templates)
+            if (operation !== operationRef.current) return
+          }
         }
 
         agentTasks = agentTasks.map((task) => ({ ...task, status: 'running' as const }))
@@ -387,9 +443,13 @@ export function useAIChat() {
             steps: stepsWithTasks,
             skillKeys: selectedKeys,
             skillPackages: packages,
+            skillTemplatesCatalog: formatSkillTemplatesCatalog(skillTemplates),
             lookupNotes,
             sceneContext
           }),
+          skillTemplates,
+          // Host-paste once per new plan; follow-ups keep nodes and only modify.
+          preinsertTemplates: !isFollowUp && skillTemplates.length > 0,
           tier: executeTierHigh ? 'high' : (executeTier[0] ?? 'high'),
           signal: controller.signal,
           onAssistantParts(parts) {

@@ -1,3 +1,3 @@
 import type { CodeSource } from '#react/app/code/templates'
 
-export type CodeEditorLanguage = CodeSource | 'markdown'
+export type CodeEditorLanguage = CodeSource | 'markdown' | 'xml'

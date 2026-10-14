@@ -40,6 +40,7 @@ export function buildDesignExecuteExtra(options: {
   steps: string
   skillKeys: string[]
   skillPackages: Array<{ key: string; name: string; body: string }>
+  skillTemplatesCatalog: string
   lookupNotes: string
   sceneContext: string
   /** When set, only perform this task (deps already finished). */
@@ -63,7 +64,20 @@ ${options.priorTaskNotes || '(none)'}
 `
     : ''
 
-  return `## Thinking (follow this; use canvas tools)
+  const hasTemplates =
+    options.skillTemplatesCatalog.trim().length > 0 &&
+    !options.skillTemplatesCatalog.includes('No design clipboard templates')
+
+  const templateRules = hasTemplates
+    ? `## Skill design templates (Figma / OpenPencil XML)
+Loaded skills include clipboard templates (ids below). On a new plan the host pastes them first (\`insert_skill_template\` results in the transcript) — modify those \`created\` ids. On follow-ups, keep editing existing nodes; call \`insert_skill_template\` only if the user asks for another paste. Never rebuild the same UI with \`render\`.
+${options.skillTemplatesCatalog}
+`
+    : `## Skill design templates
+${options.skillTemplatesCatalog}
+`
+
+  return `${hasTemplates ? templateRules : ''}## Thinking (follow this; use canvas tools)
 ${planWithSkills || options.steps || '(none)'}
 
 ${focus}## Canvas context
@@ -76,7 +90,7 @@ ${options.lookupNotes || '(none)'}
 In each assistant turn emit as many tool_calls as possible (one model round-trip).
 Inspect the canvas in ONE turn: get_selection + find_nodes + describe (+ calc/eval) as multiple tool_calls — never one read per turn.
 Prefer batch_update / calc arrays / stock_photo batches. eval is already loaded — do not discover_tools/enable_tools for it.
-
+${hasTemplates ? '' : templateRules}
 ## Loaded skill packages
 Apply guidance from these skills while editing the canvas with tools.
 ${packages}`

@@ -99,6 +99,52 @@ test('fragment interpretation does not silently accept missing override dependen
   )
 })
 
+test('clipboard fragments skip stale property override paths when a soft handler is supplied', () => {
+  const source: NodeChange[] = [
+    { guid: guid(0), type: 'DOCUMENT' },
+    { guid: guid(1), type: 'CANVAS', parentIndex: { guid: guid(0), position: '!' } },
+    {
+      guid: guid(2),
+      type: 'CANVAS',
+      internalOnly: true,
+      parentIndex: { guid: guid(0), position: '"' }
+    },
+    {
+      guid: guid(3),
+      type: 'SYMBOL',
+      name: 'Definition',
+      parentIndex: { guid: guid(2), position: '!' }
+    },
+    {
+      guid: guid(4),
+      type: 'RECTANGLE',
+      name: 'Child',
+      parentIndex: { guid: guid(3), position: '!' },
+      size: { x: 20, y: 10 }
+    },
+    {
+      guid: guid(5),
+      type: 'INSTANCE',
+      name: 'Pasted',
+      parentIndex: { guid: guid(1), position: '!' },
+      symbolData: {
+        symbolID: guid(3),
+        // Stale path — layer 100 is not in the component (matches Figma clipboard leftovers).
+        symbolOverrides: [{ guidPath: { guids: [guid(100)] }, visible: false }]
+      }
+    } as NodeChange
+  ]
+  const diagnostics: unknown[] = []
+  expect(() => materializeFigFragment(source)).toThrow('Expected one instance-path target')
+  const { graph, rootIds } = materializeFigFragment(source, [], {
+    onUnresolvedProperty: (diagnostic) => diagnostics.push(diagnostic)
+  })
+  expect(rootIds).toHaveLength(1)
+  expect(graph.getNode(rootIds[0])?.type).toBe('INSTANCE')
+  expect(graph.getChildren(rootIds[0]).map((node) => node.name)).toEqual(['Child'])
+  expect(diagnostics).toHaveLength(1)
+})
+
 test('synthetic containers never satisfy a missing component reference', () => {
   const source: NodeChange[] = [
     { guid: guid(2), type: 'INSTANCE', symbolData: { symbolID: guid(0) } }

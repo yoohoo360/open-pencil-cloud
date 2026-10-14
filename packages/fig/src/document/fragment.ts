@@ -11,6 +11,14 @@ export interface FragmentOptions {
 
 export interface FragmentMaterializationOptions extends FragmentOptions {
   images?: DocumentAssemblyOptions['images']
+  /**
+   * Soft handlers match document open: stale override/assignment paths skip instead of
+   * aborting the paste. Clipboard fragments often retain Figma's outdated guidPaths.
+   */
+  onUnresolvedProperty?: DocumentAssemblyOptions['onUnresolvedProperty']
+  onUnresolvedAssignment?: DocumentAssemblyOptions['onUnresolvedAssignment']
+  onMissingComponent?: DocumentAssemblyOptions['onMissingComponent']
+  onMissingSlotContent?: DocumentAssemblyOptions['onMissingSlotContent']
 }
 
 /** Interpret a partial document in isolation; retain internal resources separately from pasted roots. */
@@ -22,7 +30,11 @@ export function materializeFigFragment(
   const changes = normalizeFigFragment(source, options)
   const result = materializeDocument(changes, blobs, {
     derivedBounds: true,
-    images: options.images
+    images: options.images,
+    onUnresolvedProperty: options.onUnresolvedProperty,
+    onUnresolvedAssignment: options.onUnresolvedAssignment,
+    onMissingComponent: options.onMissingComponent,
+    onMissingSlotContent: options.onMissingSlotContent
   })
   const rootIds: string[] = []
   const dependencyPageIds: string[] = []
