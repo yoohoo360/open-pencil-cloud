@@ -458,6 +458,7 @@
         "yjs": "^13.6.32",
       },
       "devDependencies": {
+        "@open-pencil/agent-server-tools": "workspace:*",
         "@svgr/webpack": "^8.1.0",
         "@tailwindcss/postcss": "^4.3.3",
         "@tailwindcss/vite": "^4.3.3",
@@ -619,6 +620,7 @@
         "@langchain/langgraph": "^1.2.0",
         "@langchain/langgraph-cli": "^1.5.2",
         "@langchain/openai": "^1.2.0",
+        "fflate": "^0.8.3",
         "langchain": "^1.2.3",
         "zod": "^4.3.6",
       },
