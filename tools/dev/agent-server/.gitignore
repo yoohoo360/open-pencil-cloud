@@ -1,3 +1,6 @@
 
 # LangGraph API
 .langgraph_api
+
+# Local skill workdirs (zip packages)
+.data

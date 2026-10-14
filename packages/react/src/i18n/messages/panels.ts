@@ -91,6 +91,39 @@ export const panelMessageDefaults = {
   manageSkills: 'Skills',
   manageSkillsHelp:
     'Personal skill packages in the current organization: upload or download folders, share to a team with merge admission, or fetch a team remote.',
+  workdirNavSection: 'Workspace',
+  workdirTitle: 'Skill workspace',
+  workdirHelp:
+    'Workspaces are stored in this browser (IndexedDB). Check a platform skill to write it into the selected agent folders; uncheck to remove those files. Changing agent folders rewrites enabled skills.',
+  workdirRefresh: 'Refresh',
+  workdirChecking: 'Loading workspaces…',
+  workdirNeedsIndexedDb: 'IndexedDB is required for Skill workspace in this browser.',
+  workdirPathPlaceholder: '/absolute/path/to/project',
+  workdirPathHelp:
+    'Choose a project folder (browser folder access) or enter an absolute path on desktop.',
+  workdirCreate: 'Add workspace',
+  workdirAgentEnvs: 'Agent environments',
+  workdirAgentEnvsHelp:
+    'Multi-select project skill folders such as .claude, .agents, .github. Changing selection updates enabled skill files on disk.',
+  workdirEmpty: 'No skill workspaces yet. Use + above to choose a project folder.',
+  workdirActive: 'active',
+  workdirActivate: 'Set as active',
+  workdirDelete: 'Remove workspace',
+  workdirDeleteConfirm:
+    'Remove this skill workspace from IndexedDB? Files on disk are not deleted.',
+  workdirSelectPrompt: 'Select a skill workspace to manage its skills.',
+  workdirSkillsHelp:
+    'Platform skills first (check writes local files, uncheck removes them). Local-only skills are grayed and read-only.',
+  workdirFolderInaccessible:
+    'Cannot read this folder here. Re-add the workspace and grant folder access in the browser.',
+  workdirNoSkills: 'No platform or local skills yet.',
+  workdirInUse: 'In use',
+  workdirNotInUse: 'Not in use',
+  workdirSkillLocal: 'Local',
+  workdirSkillPlatform: 'Platform',
+  workdirSkillDelete: 'Remove local skill',
+  workdirSkillDeleteConfirm:
+    'Delete this skill from the selected agent environment folders? Cloud skills are not affected.',
   skillsScope: 'Scope',
   skillsFilterAll: 'All',
   skillsFilterPersonal: 'Personal',

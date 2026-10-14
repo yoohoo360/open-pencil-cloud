@@ -26,10 +26,31 @@ interface FilePickerOptions {
   suggestedName?: string
 }
 
+type FileSystemPermissionMode = 'read' | 'readwrite'
+
+interface FileSystemHandlePermissionDescriptor {
+  mode?: FileSystemPermissionMode
+}
+
+interface FileSystemDirectoryHandle {
+  entries(): AsyncIterableIterator<[string, FileSystemHandle]>
+  values(): AsyncIterableIterator<FileSystemHandle>
+  keys(): AsyncIterableIterator<string>
+  queryPermission?(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>
+  requestPermission?(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>
+}
+
+interface DirectoryPickerOptions {
+  id?: string
+  mode?: FileSystemPermissionMode
+  startIn?: FileSystemHandle | string
+}
+
 interface Window {
   queryLocalFonts?(): Promise<FontData[]>
   showOpenFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle[]>
   showSaveFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle>
+  showDirectoryPicker?(options?: DirectoryPickerOptions): Promise<FileSystemDirectoryHandle>
   __openPencilImportFigFromUrl?: (
     url: string
   ) => Promise<

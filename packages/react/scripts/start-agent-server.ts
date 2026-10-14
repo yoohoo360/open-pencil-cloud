@@ -31,6 +31,7 @@ if (!ready) {
 }
 
 console.info(`[agent-server] ${url}`)
+console.info(`[agent-server] workdir API ${handle.workdirBaseUrl}`)
 console.info('[agent-server] running — Ctrl+C to stop')
 
 await new Promise<void>((resolve) => {

@@ -4,12 +4,17 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { workdirApiBaseUrl, workdirApiPort } from './workdir/http.ts'
+
 export const DEFAULT_AGENT_SERVER_PORT = 2024
+export { workdirApiBaseUrl, workdirApiPort }
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 export type AgentServerHandle = {
   port: number
+  workdirPort: number
+  workdirBaseUrl: string
   stop: () => void
 }
 
@@ -103,6 +108,10 @@ export function startAgentServer(options?: {
   }
 
   const port = agentServerPort()
+  // Skill workspaces use IndexedDB + local folder access in the React app
+  // (no legacy :2025 workdir HTTP API).
+  const workdirPort = workdirApiPort(port)
+
   const configPath = resolve(packageRoot, 'langgraph.json')
   let child: ChildProcess | null = spawn(
     node,
@@ -137,7 +146,12 @@ export function startAgentServer(options?: {
   process.once('SIGINT', stop)
   process.once('SIGTERM', stop)
 
-  return { port, stop }
+  return {
+    port,
+    workdirPort,
+    workdirBaseUrl: workdirApiBaseUrl(workdirPort),
+    stop
+  }
 }
 
 /** Wait until `GET /ok` succeeds or timeout. */

@@ -33,6 +33,7 @@ import {
   FilePlus,
   FileText,
   Folder,
+  FolderOpen,
   FolderPlus,
   GitPullRequest,
   Plus,
@@ -47,7 +48,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 
+import WorkdirView from './WorkdirView'
+
 type ViewMode = 'list' | 'edit'
+
+const SKILL_WORKSPACE_ID = '__skill_workspace__'
 
 type Draft = {
   id?: string
@@ -793,10 +798,16 @@ export default function SkillsView() {
               ? draft?.id
                 ? panels.updateSkill
                 : panels.createSkill
-              : panels.manageSkills}
+              : selectedGroupId === SKILL_WORKSPACE_ID
+                ? panels.workdirTitle
+                : panels.manageSkills}
           </h1>
           <p className="truncate text-[11px] text-muted">
-            {mode === 'edit' ? panels.skillContent : panels.manageSkillsHelp}
+            {mode === 'edit'
+              ? panels.skillContent
+              : selectedGroupId === SKILL_WORKSPACE_ID
+                ? panels.workdirHelp
+                : panels.manageSkillsHelp}
           </p>
         </div>
       </header>
@@ -805,6 +816,29 @@ export default function SkillsView() {
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-64 shrink-0 flex-col border-r border-border/60">
             <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+              <div className="mb-4">
+                <div className="mb-1 flex items-center gap-1.5 px-2.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                  <FolderOpen className="size-3 opacity-70" />
+                  {panels.workdirNavSection}
+                </div>
+                <button
+                  type="button"
+                  data-test-id="skill-workspace-nav"
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
+                    selectedGroupId === SKILL_WORKSPACE_ID
+                      ? 'bg-hover font-medium text-surface'
+                      : 'text-muted hover:bg-hover hover:text-surface'
+                  }`}
+                  onClick={() => {
+                    setSelectedGroupId(SKILL_WORKSPACE_ID)
+                    setMode('list')
+                    setDraft(null)
+                    setShareOpen(false)
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{panels.workdirTitle}</span>
+                </button>
+              </div>
               {loading ? (
                 <p className="px-2 py-3 text-[11px] text-muted">{panels.loading}</p>
               ) : (
@@ -908,6 +942,10 @@ export default function SkillsView() {
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {selectedGroupId === SKILL_WORKSPACE_ID ? (
+              <WorkdirView />
+            ) : (
+              <>
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 px-5">
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold">
                 {showingPersonalAll
@@ -1155,6 +1193,8 @@ export default function SkillsView() {
                 </ul>
               )}
             </div>
+              </>
+            )}
           </section>
         </div>
       ) : draft ? (
