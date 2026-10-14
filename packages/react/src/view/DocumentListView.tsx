@@ -552,7 +552,10 @@ export default function DocumentListView() {
     }`
 
   return (
-    <main className="flex h-full min-h-0 flex-col bg-canvas text-surface" data-test-id="file-workspace">
+    <main
+      className="flex h-full min-h-0 flex-col bg-canvas text-surface select-text"
+      data-test-id="file-workspace"
+    >
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
         <div className="relative">
           <button

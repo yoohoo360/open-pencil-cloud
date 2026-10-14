@@ -15,6 +15,7 @@ import {
   type Workdir,
   type WorkdirSkill
 } from '#react/app/skills/workdir-api'
+import { FloatingMenu } from '#react/components/properties/variables/FloatingMenu'
 import { AppButton } from '#react/components/ui/AppButton'
 import { useI18n } from '#react/i18n'
 import { getAPIErrorMessage, skillAPI, type PencilSkill } from '#react/lib/client'
@@ -28,6 +29,12 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+const MENU_CLASS =
+  'z-[100] max-h-72 w-[220px] overflow-y-auto rounded border border-border bg-panel p-1.5 shadow-lg'
+
+const DETAIL_MENU_CLASS =
+  'z-[100] w-[min(360px,calc(100vw-48px))] rounded border border-border bg-panel p-3 shadow-lg'
+
 function toPlatformRefs(skills: readonly PencilSkill[]): PlatformSkillRef[] {
   return skills.map((skill) => ({
     id: skill.id,
@@ -35,6 +42,36 @@ function toPlatformRefs(skills: readonly PencilSkill[]): PlatformSkillRef[] {
     name: skill.name,
     description: skill.description
   }))
+}
+
+function EnvOption({
+  label,
+  checked,
+  disabled,
+  onToggle
+}: {
+  label: string
+  checked: boolean
+  disabled?: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={checked}
+      disabled={disabled}
+      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-hover disabled:opacity-50 ${
+        checked ? 'bg-hover/80' : ''
+      }`}
+      onClick={onToggle}
+    >
+      <span className="size-3 shrink-0">
+        {checked ? <Check className="size-3 text-accent" /> : null}
+      </span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-surface">{label}</span>
+    </button>
+  )
 }
 
 /** Skill workspace: local disk skills + platform skills from skill API. */
@@ -49,10 +86,11 @@ export default function WorkdirView() {
   const [skillDetailKey, setSkillDetailKey] = useState<string | null>(null)
   const [cloudSkills, setCloudSkills] = useState<PencilSkill[]>([])
   const [busy, setBusy] = useState(false)
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const settingsRef = useRef<HTMLDivElement>(null)
-  const skillSettingsRef = useRef<HTMLDivElement>(null)
-  const skillDetailRef = useRef<HTMLDivElement>(null)
+  const workdirSettingsTriggerRef = useRef<HTMLButtonElement>(null)
+  const skillSettingsTriggerRef = useRef<HTMLButtonElement>(null)
+  const skillDetailTriggerRef = useRef<HTMLButtonElement>(null)
 
   const platformSkills = useMemo(() => toPlatformRefs(cloudSkills), [cloudSkills])
 
@@ -80,7 +118,11 @@ export default function WorkdirView() {
     ? selected.agentEnvironments
     : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
 
-  /** Every enter / refresh: catalog + full disk scan (not only on add). */
+  function patchWorkdir(next: Workdir) {
+    setWorkdirs((prev) => prev.map((item) => (item.id === next.id ? next : item)))
+  }
+
+  /** Full reload (catalog + scan). Used on enter / refresh button / structure changes. */
   const refresh = useCallback(async () => {
     setError(null)
     const available = await probeAgentServerWorkdirReady()
@@ -117,39 +159,6 @@ export default function WorkdirView() {
     void refresh().catch((reason) => setError(getAPIErrorMessage(reason)))
   }, [refresh])
 
-  useEffect(() => {
-    if (!settingsId) return
-    function onPointerDown(event: PointerEvent) {
-      if (!settingsRef.current?.contains(event.target as Node)) {
-        setSettingsId(null)
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [settingsId])
-
-  useEffect(() => {
-    if (!skillSettingsKey) return
-    function onPointerDown(event: PointerEvent) {
-      if (!skillSettingsRef.current?.contains(event.target as Node)) {
-        setSkillSettingsKey(null)
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [skillSettingsKey])
-
-  useEffect(() => {
-    if (!skillDetailKey) return
-    function onPointerDown(event: PointerEvent) {
-      if (!skillDetailRef.current?.contains(event.target as Node)) {
-        setSkillDetailKey(null)
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [skillDetailKey])
-
   async function addWorkdir() {
     if (busy) return
     setBusy(true)
@@ -171,6 +180,9 @@ export default function WorkdirView() {
       await workdirAPI.activate(created.id)
       await refresh()
       setSelectedId(created.id)
+      setSettingsId(null)
+      setSkillSettingsKey(null)
+      setSkillDetailKey(null)
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
     } finally {
@@ -179,15 +191,12 @@ export default function WorkdirView() {
   }
 
   async function activate(id: string) {
-    setBusy(true)
     setError(null)
     try {
       await workdirAPI.activate(id)
-      await refresh()
+      setActiveId(id)
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -197,6 +206,7 @@ export default function WorkdirView() {
     setError(null)
     try {
       await workdirAPI.remove(id)
+      if (settingsId === id) setSettingsId(null)
       await refresh()
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
@@ -207,61 +217,113 @@ export default function WorkdirView() {
 
   async function saveWorkdirEnvs(id: string, next: SkillAgentEnvironmentId[]) {
     if (next.length === 0) return
-    setBusy(true)
     setError(null)
+    setPendingKey(`workdir:${id}`)
+    // Optimistic default targets so the menu does not flash closed/empty.
+    setWorkdirs((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, agentEnvironments: next } : item))
+    )
     try {
-      await workdirAPI.update(
+      const updated = await workdirAPI.update(
         id,
         { agentEnvironments: next },
         { platformSkills, syncEnabledSkills: true }
       )
-      await refresh()
+      patchWorkdir(updated)
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
+      try {
+        const listed = await workdirAPI.list({ platformSkills })
+        setWorkdirs(listed.workdirs)
+      } catch {
+        // keep optimistic state
+      }
     } finally {
-      setBusy(false)
+      setPendingKey(null)
     }
   }
 
   async function toggleSkill(skill: WorkdirSkill, enabled: boolean) {
     if (!selected) return
-    setBusy(true)
     setError(null)
+    setPendingKey(`skill:${skill.key}`)
+    const workdirId = selected.id
+    setWorkdirs((prev) =>
+      prev.map((item) => {
+        if (item.id !== workdirId) return item
+        return {
+          ...item,
+          skills: item.skills.map((row) =>
+            row.key === skill.key ? { ...row, enabled } : row
+          )
+        }
+      })
+    )
     try {
-      await workdirAPI.setSkillEnabled(selected.id, skill.key, enabled, {
+      const updated = await workdirAPI.setSkillEnabled(workdirId, skill.key, enabled, {
         source: skill.source,
         platformId: skill.platformId,
         platformSkills
       })
-      await refresh()
+      patchWorkdir(updated)
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
+      try {
+        const listed = await workdirAPI.list({ platformSkills })
+        setWorkdirs(listed.workdirs)
+      } catch {
+        // keep optimistic state
+      }
     } finally {
-      setBusy(false)
+      setPendingKey(null)
     }
   }
 
   async function saveSkillEnvs(skill: WorkdirSkill, next: SkillAgentEnvironmentId[]) {
     if (!selected) return
-    setBusy(true)
     setError(null)
+    setPendingKey(`skill-env:${skill.key}`)
+    const workdirId = selected.id
+    setWorkdirs((prev) =>
+      prev.map((item) => {
+        if (item.id !== workdirId) return item
+        return {
+          ...item,
+          skills: item.skills.map((row) =>
+            row.key === skill.key
+              ? {
+                  ...row,
+                  agentEnvironments: next,
+                  enabled: next.length > 0
+                }
+              : row
+          )
+        }
+      })
+    )
     try {
-      await workdirAPI.setSkillAgentEnvironments(selected.id, skill.key, next, {
+      const updated = await workdirAPI.setSkillAgentEnvironments(workdirId, skill.key, next, {
         source: skill.source,
         platformId: skill.platformId,
         platformSkills
       })
-      await refresh()
+      patchWorkdir(updated)
     } catch (reason) {
       setError(getAPIErrorMessage(reason))
+      try {
+        const listed = await workdirAPI.list({ platformSkills })
+        setWorkdirs(listed.workdirs)
+      } catch {
+        // keep optimistic state
+      }
     } finally {
-      setBusy(false)
+      setPendingKey(null)
     }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-test-id="skill-workspace">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-5 py-3">
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas text-surface" data-test-id="skill-workspace">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-[14px] font-semibold">{panels.workdirTitle}</h2>
           <p className="text-[11px] text-muted">{panels.workdirHelp}</p>
@@ -289,8 +351,8 @@ export default function WorkdirView() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          <aside className="flex w-[280px] shrink-0 flex-col border-r border-border/60">
-            <div className="flex items-center justify-end border-b border-border/60 px-2 py-1.5">
+          <aside className="flex w-[280px] shrink-0 flex-col border-r border-border">
+            <div className="flex items-center justify-end border-b border-border px-2 py-1.5">
               <button
                 type="button"
                 className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-surface disabled:opacity-50"
@@ -302,7 +364,7 @@ export default function WorkdirView() {
                 <FolderPlus className="size-4" />
               </button>
             </div>
-            <div className="relative min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
               {workdirs.length === 0 ? (
                 <p className="px-2 py-4 text-[11px] text-muted">{panels.workdirEmpty}</p>
               ) : (
@@ -343,73 +405,27 @@ export default function WorkdirView() {
                           {envs.map(agentEnvLabel).join(' ')}
                         </p>
                       </button>
-                      <div className="relative shrink-0">
-                        <button
-                          type="button"
-                          className="rounded p-1 text-muted hover:bg-surface hover:text-surface"
-                          title={panels.workdirAgentEnvs}
-                          disabled={busy}
-                          aria-expanded={settingsOpen}
-                          aria-haspopup="listbox"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setSkillSettingsKey(null)
-                            setSettingsId(settingsOpen ? null : workdir.id)
-                          }}
-                        >
-                          <Settings2 className="size-3.5" />
-                        </button>
-                        {settingsOpen && settingsWorkdir?.id === workdir.id ? (
-                          <div
-                            ref={settingsRef}
-                            role="listbox"
-                            aria-label={panels.workdirAgentEnvs}
-                            className="absolute right-0 top-full z-20 mt-1 w-[220px] rounded-lg border border-border/60 bg-surface p-3 shadow-lg"
-                            onPointerDown={(event) => event.stopPropagation()}
-                          >
-                            <p className="text-[11px] font-medium">{panels.workdirAgentEnvs}</p>
-                            <p className="mt-1 text-[10px] text-muted">
-                              {panels.workdirAgentEnvsHelp}
-                            </p>
-                            <div className="mt-2 flex max-h-56 flex-col gap-1 overflow-y-auto">
-                              {SKILL_AGENT_ENVIRONMENTS.map((env) => {
-                                const checked = (
-                                  settingsWorkdir.agentEnvironments.length > 0
-                                    ? settingsWorkdir.agentEnvironments
-                                    : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
-                                ).includes(env.id)
-                                return (
-                                  <label
-                                    key={env.id}
-                                    className="flex items-center gap-2 text-[11px]"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      disabled={busy}
-                                      onChange={() => {
-                                        const current =
-                                          settingsWorkdir.agentEnvironments.length > 0
-                                            ? settingsWorkdir.agentEnvironments
-                                            : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
-                                        void saveWorkdirEnvs(
-                                          settingsWorkdir.id,
-                                          toggleAgentEnvironment(current, env.id)
-                                        )
-                                      }}
-                                    />
-                                    <span className="font-mono">{env.label}</span>
-                                  </label>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
+                      <button
+                        type="button"
+                        className="rounded p-1 text-muted hover:bg-hover hover:text-surface"
+                        title={panels.workdirAgentEnvs}
+                        disabled={busy}
+                        aria-expanded={settingsOpen}
+                        aria-haspopup="listbox"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          workdirSettingsTriggerRef.current = event.currentTarget
+                          setSkillSettingsKey(null)
+                          setSkillDetailKey(null)
+                          setSettingsId(settingsOpen ? null : workdir.id)
+                        }}
+                      >
+                        <Settings2 className="size-3.5" />
+                      </button>
                       {!isActive ? (
                         <button
                           type="button"
-                          className="rounded p-1 text-muted hover:bg-surface hover:text-surface"
+                          className="rounded p-1 text-muted hover:bg-hover hover:text-surface"
                           title={panels.workdirActivate}
                           disabled={busy}
                           onClick={() => void activate(workdir.id)}
@@ -419,7 +435,7 @@ export default function WorkdirView() {
                       ) : null}
                       <button
                         type="button"
-                        className="rounded p-1 text-muted hover:bg-surface hover:text-danger"
+                        className="rounded p-1 text-muted hover:bg-hover hover:text-danger"
                         title={panels.workdirDelete}
                         disabled={busy}
                         onClick={() => void removeWorkdir(workdir.id)}
@@ -433,6 +449,47 @@ export default function WorkdirView() {
             </div>
           </aside>
 
+          <FloatingMenu
+            open={Boolean(settingsWorkdir)}
+            onClose={() => setSettingsId(null)}
+            triggerRef={workdirSettingsTriggerRef}
+            side="bottom"
+            align="end"
+            className={MENU_CLASS}
+          >
+            {settingsWorkdir ? (
+              <div role="listbox" aria-label={panels.workdirAgentEnvs}>
+                <div className="px-2 py-1.5">
+                  <p className="text-[11px] font-medium text-surface">{panels.workdirAgentEnvs}</p>
+                  <p className="mt-0.5 text-[10px] text-muted">{panels.workdirAgentEnvsHelp}</p>
+                </div>
+                <div className="flex flex-col gap-0.5 border-t border-border/60 pt-1">
+                  {SKILL_AGENT_ENVIRONMENTS.map((env) => {
+                    const current =
+                      settingsWorkdir.agentEnvironments.length > 0
+                        ? settingsWorkdir.agentEnvironments
+                        : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
+                    const checked = current.includes(env.id)
+                    return (
+                      <EnvOption
+                        key={env.id}
+                        label={env.label}
+                        checked={checked}
+                        disabled={pendingKey === `workdir:${settingsWorkdir.id}`}
+                        onToggle={() =>
+                          void saveWorkdirEnvs(
+                            settingsWorkdir.id,
+                            toggleAgentEnvironment(current, env.id)
+                          )
+                        }
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </FloatingMenu>
+
           <main className="flex min-w-0 flex-1 flex-col">
             {error ? (
               <div className="border-b border-danger/30 bg-danger/10 px-4 py-2 text-xs text-danger">
@@ -443,7 +500,7 @@ export default function WorkdirView() {
               <p className="p-6 text-sm text-muted">{panels.workdirSelectPrompt}</p>
             ) : (
               <>
-                <div className="space-y-2 border-b border-border/60 px-4 py-3">
+                <div className="space-y-2 border-b border-border px-4 py-3">
                   <div>
                     <h3 className="truncate text-sm font-semibold" title={selected.path}>
                       {selected.name}
@@ -469,26 +526,41 @@ export default function WorkdirView() {
                         const isPlatform = skill.source === 'platform'
                         const skillOpen = skillSettingsKey === skill.key
                         const detailOpen = skillDetailKey === skill.key
+                        const skillPending =
+                          pendingKey === `skill:${skill.key}` ||
+                          pendingKey === `skill-env:${skill.key}`
                         return (
                           <li
                             key={`${skill.source}:${skill.key}`}
-                            className="relative flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2"
+                            className="flex items-center gap-3 rounded-lg border border-border bg-panel/40 px-3 py-2"
                           >
                             <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
                               <input
                                 type="checkbox"
                                 checked={skill.enabled}
-                                disabled={busy}
+                                disabled={skillPending}
                                 onChange={(event) =>
                                   void toggleSkill(skill, event.target.checked)
                                 }
                               />
-                              <div className="relative min-w-0 flex-1">
+                              <span
+                                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                                  isPlatform
+                                    ? 'bg-accent/15 text-accent'
+                                    : 'bg-muted/20 text-muted'
+                                }`}
+                              >
+                                {isPlatform
+                                  ? panels.workdirSkillPlatform
+                                  : panels.workdirSkillLocal}
+                              </span>
+                              <div className="min-w-0 flex-1">
                                 <button
                                   type="button"
-                                  className="block max-w-full truncate text-left font-medium hover:text-accent"
+                                  className="block max-w-full truncate text-left font-medium text-surface hover:text-accent"
                                   onClick={(event) => {
                                     event.stopPropagation()
+                                    skillDetailTriggerRef.current = event.currentTarget
                                     setSettingsId(null)
                                     setSkillSettingsKey(null)
                                     setSkillDetailKey(detailOpen ? null : skill.key)
@@ -497,101 +569,28 @@ export default function WorkdirView() {
                                   {skill.name}
                                 </button>
                                 <span className="block truncate text-muted">{skill.key}</span>
-                                {detailOpen && skillDetail?.key === skill.key ? (
-                                  <div
-                                    ref={skillDetailRef}
-                                    className="absolute left-0 top-full z-20 mt-1 w-[min(360px,calc(100vw-48px))] rounded-lg border border-border/60 bg-surface p-3 shadow-lg"
-                                    onPointerDown={(event) => event.stopPropagation()}
-                                  >
-                                    <p className="text-[11px] font-medium">{skillDetail.name}</p>
-                                    <p className="mt-0.5 font-mono text-[10px] text-muted">
-                                      {skillDetail.key}
-                                    </p>
-                                    <p className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted">
-                                      {skillDetail.description.trim() ||
-                                        panels.workdirSkillNoDescription}
-                                    </p>
-                                  </div>
-                                ) : null}
                               </div>
                             </div>
-                            <span
-                              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
-                                isPlatform
-                                  ? 'bg-accent/15 text-accent'
-                                  : 'bg-muted/20 text-muted'
-                              }`}
-                            >
-                              {isPlatform
-                                ? panels.workdirSkillPlatform
-                                : panels.workdirSkillLocal}
-                            </span>
                             <span className="max-w-[120px] shrink-0 truncate font-mono text-[10px] text-muted">
                               {skill.agentEnvironments.map(agentEnvLabel).join(' ') || '—'}
                             </span>
-                            <div className="relative shrink-0">
-                              <button
-                                type="button"
-                                className="rounded p-1 text-muted hover:bg-hover hover:text-surface"
-                                title={panels.workdirSkillAgentEnvs}
-                                disabled={busy}
-                                aria-expanded={skillOpen}
-                                aria-haspopup="listbox"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  setSettingsId(null)
-                                  setSkillDetailKey(null)
-                                  setSkillSettingsKey(skillOpen ? null : skill.key)
-                                }}
-                              >
-                                <Settings2 className="size-3.5" />
-                              </button>
-                              {skillOpen && skillSettings?.key === skill.key ? (
-                                <div
-                                  ref={skillSettingsRef}
-                                  role="listbox"
-                                  aria-label={panels.workdirSkillAgentEnvs}
-                                  className="absolute right-0 top-full z-20 mt-1 w-[220px] rounded-lg border border-border/60 bg-surface p-3 shadow-lg"
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                >
-                                  <p className="text-[11px] font-medium">
-                                    {panels.workdirSkillAgentEnvs}
-                                  </p>
-                                  <p className="mt-1 text-[10px] text-muted">
-                                    {panels.workdirSkillAgentEnvsHelp}
-                                  </p>
-                                  <div className="mt-2 flex max-h-56 flex-col gap-1 overflow-y-auto">
-                                    {SKILL_AGENT_ENVIRONMENTS.map((env) => {
-                                      const checked =
-                                        skillSettings.agentEnvironments.includes(env.id) &&
-                                        skillSettings.enabled
-                                      return (
-                                        <label
-                                          key={env.id}
-                                          className="flex items-center gap-2 text-[11px]"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={checked}
-                                            disabled={busy}
-                                            onChange={() => {
-                                              const current = skillSettings.enabled
-                                                ? skillSettings.agentEnvironments
-                                                : []
-                                              const next = current.includes(env.id)
-                                                ? current.filter((item) => item !== env.id)
-                                                : [...current, env.id]
-                                              void saveSkillEnvs(skillSettings, next)
-                                            }}
-                                          />
-                                          <span className="font-mono">{env.label}</span>
-                                        </label>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded p-1 text-muted hover:bg-hover hover:text-surface"
+                              title={panels.workdirSkillAgentEnvs}
+                              disabled={skillPending}
+                              aria-expanded={skillOpen}
+                              aria-haspopup="listbox"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                skillSettingsTriggerRef.current = event.currentTarget
+                                setSettingsId(null)
+                                setSkillDetailKey(null)
+                                setSkillSettingsKey(skillOpen ? null : skill.key)
+                              }}
+                            >
+                              <Settings2 className="size-3.5" />
+                            </button>
                           </li>
                         )
                       })}
@@ -601,6 +600,69 @@ export default function WorkdirView() {
               </>
             )}
           </main>
+
+          <FloatingMenu
+            open={Boolean(skillSettings)}
+            onClose={() => setSkillSettingsKey(null)}
+            triggerRef={skillSettingsTriggerRef}
+            side="bottom"
+            align="end"
+            className={MENU_CLASS}
+          >
+            {skillSettings ? (
+              <div role="listbox" aria-label={panels.workdirSkillAgentEnvs}>
+                <div className="px-2 py-1.5">
+                  <p className="text-[11px] font-medium text-surface">
+                    {panels.workdirSkillAgentEnvs}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted">
+                    {panels.workdirSkillAgentEnvsHelp}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-0.5 border-t border-border/60 pt-1">
+                  {SKILL_AGENT_ENVIRONMENTS.map((env) => {
+                    const current = skillSettings.enabled
+                      ? skillSettings.agentEnvironments
+                      : []
+                    const checked = current.includes(env.id)
+                    return (
+                      <EnvOption
+                        key={env.id}
+                        label={env.label}
+                        checked={checked}
+                        disabled={pendingKey === `skill-env:${skillSettings.key}`}
+                        onToggle={() => {
+                          const next = current.includes(env.id)
+                            ? current.filter((item) => item !== env.id)
+                            : [...current, env.id]
+                          void saveSkillEnvs(skillSettings, next)
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </FloatingMenu>
+
+          <FloatingMenu
+            open={Boolean(skillDetail)}
+            onClose={() => setSkillDetailKey(null)}
+            triggerRef={skillDetailTriggerRef}
+            side="bottom"
+            align="start"
+            className={DETAIL_MENU_CLASS}
+          >
+            {skillDetail ? (
+              <div>
+                <p className="text-[11px] font-medium text-surface">{skillDetail.name}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-muted">{skillDetail.key}</p>
+                <p className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted">
+                  {skillDetail.description.trim() || panels.workdirSkillNoDescription}
+                </p>
+              </div>
+            ) : null}
+          </FloatingMenu>
         </div>
       )}
     </div>

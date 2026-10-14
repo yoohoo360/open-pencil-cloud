@@ -46,13 +46,23 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+
+import {
+  groupIdFromSkillsTab,
+  readSkillsTab,
+  skillsTabFromGroupId,
+  skillsTabSearchEquals,
+  SKILLS_TAB_IDS,
+  writeSkillsTab
+} from '#react/app/skills/skills-url'
 
 import WorkdirView from './WorkdirView'
 
 type ViewMode = 'list' | 'edit'
 
-const SKILL_WORKSPACE_ID = '__skill_workspace__'
+const SKILL_WORKSPACE_ID = SKILLS_TAB_IDS.workspace
+const ALL_PERSONAL_ID = SKILLS_TAB_IDS.allPersonal
 
 type Draft = {
   id?: string
@@ -178,6 +188,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function SkillsView() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { panels, dialogs } = useI18n()
   const newGroupDialog = useDialogUI(
     {
@@ -188,7 +199,9 @@ export default function SkillsView() {
   )
   const [categories, setCategories] = useState<SkillCatalogCategory[]>([])
   const [teams, setTeams] = useState<TeamSummary[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState('__all_personal__')
+  const [selectedGroupId, setSelectedGroupId] = useState(() =>
+    groupIdFromSkillsTab(readSkillsTab(searchParams))
+  )
   const [mode, setMode] = useState<ViewMode>('list')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -266,7 +279,6 @@ export default function SkillsView() {
     }
     return [...unique.values()]
   }, [personalGroups])
-  const ALL_PERSONAL_ID = '__all_personal__'
   const editingRemote = useMemo(() => {
     if (!draft?.id) return false
     for (const category of categories) {
@@ -299,6 +311,7 @@ export default function SkillsView() {
     const preferred = preferGroupId || selectedGroupId
     const exists =
       preferred === ALL_PERSONAL_ID ||
+      preferred === SKILL_WORKSPACE_ID ||
       next.some((category) => category.groups.some((group) => group.id === preferred))
     const fallback =
       ALL_PERSONAL_ID ||
@@ -324,6 +337,17 @@ export default function SkillsView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load
   }, [panels.skillsLoadFailed])
+
+  // One-shot: drop legacy group/skill/entry/workdir keys; keep only `tab`.
+  useEffect(() => {
+    setSearchParams(
+      (current) => {
+        const next = writeSkillsTab(current, readSkillsTab(current))
+        return skillsTabSearchEquals(current, next) ? current : next
+      },
+      { replace: true }
+    )
+  }, [setSearchParams])
 
   async function loadTree(skillId: string, preferEntryId?: string) {
     const response = await skillAPI.tree(skillId)
@@ -397,6 +421,30 @@ export default function SkillsView() {
       }
       return next
     })
+  }
+
+  /** Only `tab` in the URL: workspace vs all skills. Avoid rewrite when unchanged. */
+  function syncSkillsTab(groupId: string) {
+    const tab = skillsTabFromGroupId(groupId)
+    setSearchParams(
+      (current) => {
+        const next = writeSkillsTab(current, tab)
+        return skillsTabSearchEquals(current, next) ? current : next
+      },
+      { replace: true }
+    )
+  }
+
+  function selectGroup(groupId: string) {
+    setSelectedGroupId(groupId)
+    setMode('list')
+    setDraft(null)
+    setTree([])
+    setSelectedEntryId('')
+    setFileDraft('')
+    setShareOpen(false)
+    setError('')
+    syncSkillsTab(groupId)
   }
 
   function openEditSkill(skill: PencilSkill) {
@@ -779,7 +827,10 @@ export default function SkillsView() {
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col bg-canvas text-surface" data-test-id="skills-page">
+    <main
+      className="flex h-full min-h-0 flex-col bg-canvas text-surface select-text"
+      data-test-id="skills-page"
+    >
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-6">
         <button
           type="button"
@@ -829,12 +880,7 @@ export default function SkillsView() {
                       ? 'bg-hover font-medium text-surface'
                       : 'text-muted hover:bg-hover hover:text-surface'
                   }`}
-                  onClick={() => {
-                    setSelectedGroupId(SKILL_WORKSPACE_ID)
-                    setMode('list')
-                    setDraft(null)
-                    setShareOpen(false)
-                  }}
+                  onClick={() => selectGroup(SKILL_WORKSPACE_ID)}
                 >
                   <span className="min-w-0 flex-1 truncate">{panels.workdirTitle}</span>
                 </button>
@@ -862,12 +908,7 @@ export default function SkillsView() {
                               ? 'bg-hover font-medium text-surface'
                               : 'text-muted hover:bg-hover hover:text-surface'
                           }`}
-                          onClick={() => {
-                            setSelectedGroupId(ALL_PERSONAL_ID)
-                            setMode('list')
-                            setDraft(null)
-                            setShareOpen(false)
-                          }}
+                          onClick={() => selectGroup(ALL_PERSONAL_ID)}
                         >
                           <span className="min-w-0 flex-1 truncate">{panels.allMySkills}</span>
                           <span className="shrink-0 text-[10px] text-muted">
@@ -896,12 +937,7 @@ export default function SkillsView() {
                                   ? 'bg-hover font-medium text-surface'
                                   : 'text-muted hover:bg-hover hover:text-surface'
                               }`}
-                              onClick={() => {
-                                setSelectedGroupId(group.id)
-                                setMode('list')
-                                setDraft(null)
-                                setShareOpen(false)
-                              }}
+                              onClick={() => selectGroup(group.id)}
                             >
                               <span className="min-w-0 flex-1 truncate">{group.name}</span>
                               <span className="shrink-0 text-[10px] text-muted">

@@ -160,14 +160,41 @@ export async function getWorkdirRecord(id: string): Promise<WorkdirRecord | null
   return normalizeRecord(row)
 }
 
+/** Canonical path for uniqueness / URL (trim, drop trailing separators). */
+export function normalizeWorkdirPath(path: string): string {
+  const trimmed = path.trim()
+  if (!trimmed) return ''
+  const withoutTrailing = trimmed.replace(/[/\\]+$/, '')
+  return withoutTrailing || trimmed
+}
+
+export async function findWorkdirRecordByPath(path: string): Promise<WorkdirRecord | null> {
+  const target = normalizeWorkdirPath(path)
+  if (!target) return null
+  const { workdirs } = await listWorkdirRecords()
+  return (
+    workdirs.find((row) => normalizeWorkdirPath(row.path) === target) ?? null
+  )
+}
+
 export async function createWorkdirRecord(input: {
   path: string
   name?: string
   agentEnvironments?: SkillAgentEnvironmentId[]
   directoryHandle?: FileSystemDirectoryHandle
 }): Promise<WorkdirRecord> {
-  const path = input.path.trim()
+  const path = normalizeWorkdirPath(input.path)
   if (!path) throw new Error('Workspace path is required')
+  const existing = await findWorkdirRecordByPath(path)
+  if (existing) {
+    // Same address → reuse; refresh handle / optional name when provided.
+    return updateWorkdirRecord(existing.id, {
+      path,
+      name: input.name?.trim() || existing.name,
+      directoryHandle: input.directoryHandle ?? existing.directoryHandle,
+      agentEnvironments: input.agentEnvironments ?? existing.agentEnvironments
+    })
+  }
   const name = (input.name?.trim() || path.split(/[/\\]/).filter(Boolean).at(-1) || 'workspace').trim()
   const record: WorkdirRecord = {
     id: newId(),
