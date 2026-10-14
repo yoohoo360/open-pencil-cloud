@@ -5,6 +5,7 @@ export {
   cssNameCodeSyntax,
   deriveCSSName,
   explicitCSSName,
+  isUtilitySafeTokenName,
   parseCSSName,
   tokenSlug,
   variableCSSNames,

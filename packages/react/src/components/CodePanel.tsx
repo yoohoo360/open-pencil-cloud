@@ -4,6 +4,7 @@ import { useStore } from '@nanostores/react'
 import { tv } from 'tailwind-variants'
 
 import { JSX_REFERENCE, selectionToJSX } from '@open-pencil/design-jsx'
+import { sceneNodesToTailwindJSX } from '@open-pencil/dom-css/export'
 
 import {
   commitDesignJSXSession,
@@ -116,13 +117,13 @@ export function CodePanel({
     void defaultFontFamily
     const ids = [...store.state.selectedIds]
     if (ids.length === 0) return starterSourceFor(source)
+    // Tailwind JSX comes from dom-css projection — not Design JSX with a flavor arg.
     if (source === 'tailwind-jsx') {
-      return selectionToJSX(ids, store.graph, 'tailwind', {
-        configs: getTailwindConfigsInPriorityOrder(),
-        defaultFontFamily
+      return sceneNodesToTailwindJSX(store.graph, ids, {
+        configs: getTailwindConfigsInPriorityOrder()
       })
     }
-    return selectionToJSX(ids, store.graph, 'openpencil', { defaultFontFamily })
+    return selectionToJSX(ids, store.graph)
   })
 
   const sourceOptions = useMemo(
@@ -262,12 +263,11 @@ export function CodePanel({
     const ids = [...store.state.selectedIds]
     if (ids.length === 0) return starterSourceFor(next)
     if (next === 'tailwind-jsx') {
-      return selectionToJSX(ids, store.graph, 'tailwind', {
-        configs: getTailwindConfigsInPriorityOrder(),
-        defaultFontFamily
+      return sceneNodesToTailwindJSX(store.graph, ids, {
+        configs: getTailwindConfigsInPriorityOrder()
       })
     }
-    return selectionToJSX(ids, store.graph, 'openpencil', { defaultFontFamily })
+    return selectionToJSX(ids, store.graph)
   }
 
   useEffect(() => {

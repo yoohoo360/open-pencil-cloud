@@ -1,4 +1,4 @@
-import type { TailwindConfigLike } from '#core/io/formats/jsx'
+import type { TailwindConfigLike } from '@open-pencil/dom-css/export'
 
 const DB_NAME = 'open-pencil-tailwind-config'
 const DB_VERSION = 2

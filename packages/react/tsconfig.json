@@ -72,7 +72,10 @@
         "../../packages/core/src/*"
       ],
       "@open-pencil/dom-css": [
-        "../../packages/dom-css/src/index.ts"
+        "../../packages/dom-css/src/index.override.ts"
+      ],
+      "@open-pencil/dom-css/export": [
+        "../../packages/dom-css/src/export/index.override.ts"
       ],
       "#scene-graph/*": [
         "../../packages/scene-graph/src/*"
@@ -97,6 +100,9 @@
       ],
       "@open-pencil/fig": [
         "../../packages/fig/src/index.ts"
+      ],
+      "@open-pencil/fig/clipboard": [
+        "../../packages/fig/src/clipboard/index.override.ts"
       ],
       "@open-pencil/fig/instance-overrides": [
         "../../packages/fig/src/instance-overrides/index.override.ts"

@@ -5,7 +5,12 @@ import {
   type Variable
 } from '@open-pencil/scene-graph'
 
-import { collectionVariables, variableCSSNames, variableNamespace } from './names'
+import {
+  collectionVariables,
+  isUtilitySafeTokenName,
+  variableCSSNames,
+  variableNamespace
+} from './names'
 import { modeAttribute } from './stylesheet'
 import { variableUnit } from './values'
 
@@ -132,6 +137,8 @@ export class DesignTokens {
     const variable = variableId ? this.#graph.variables.get(variableId) : undefined
     const name = variable && this.names.get(variable.id)
     if (!variable || !name) return undefined
+    // Non-ASCII token names stay as literals so Tailwind/CSS codegen stays portable.
+    if (!isUtilitySafeTokenName(name)) return undefined
     const chain = this.#chain(node, variable, modes)
     if (!chain || !this.#drawsResolved(node, field, chain)) return undefined
     for (const id of chain.ids) this.used.add(id)

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 
-import type { TailwindConfigLike } from '#core/io/formats/jsx'
+import type { TailwindConfigLike } from '@open-pencil/dom-css/export'
 
 import {
   hydrateTailwindConfig,

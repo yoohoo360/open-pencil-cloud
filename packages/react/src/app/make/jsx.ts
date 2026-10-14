@@ -2,6 +2,7 @@ import { computeAllLayouts } from '@open-pencil/core/layout'
 import { sceneNodesToTailwindJSX } from '@open-pencil/dom-css/export'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
+import { getTailwindConfigsInPriorityOrder } from '#react/app/code/tailwind-config/store'
 import { resolveMakeNodeIds } from '#react/app/make/selection'
 
 /** Default user prompt when opening Make with AI. */
@@ -38,7 +39,9 @@ export function buildMakeJsxBaseline(
 
   for (const id of nodeIds) computeAllLayouts(graph, id)
 
-  const markup = sceneNodesToTailwindJSX(graph, nodeIds).trim()
+  const markup = sceneNodesToTailwindJSX(graph, nodeIds, {
+    configs: getTailwindConfigsInPriorityOrder()
+  }).trim()
   if (!markup) throw new Error('Nothing to export as JSX')
 
   const names = nodeIds.map((id) => graph.getNode(id)?.name?.trim() || id)

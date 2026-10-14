@@ -1,6 +1,6 @@
 import { atom } from 'nanostores'
 
-import type { TailwindConfigLike } from '#core/io/formats/jsx'
+import type { TailwindConfigLike } from '@open-pencil/dom-css/export'
 
 import {
   clearTailwindConfigList,

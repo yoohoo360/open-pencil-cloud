@@ -4,7 +4,7 @@ import { getAxisAlignedBoundsInParent } from '@open-pencil/scene-graph/coordinat
 import type { Rect, Vector } from '@open-pencil/scene-graph/primitives'
 
 import { parseFigmaClipboard, parseOpenPencilClipboard } from '#core/clipboard'
-import { prepareClipboardImport } from '#core/clipboard/fig-import'
+import { prepareClipboardImport } from '#core/clipboard/fig-import.override'
 import { computeAllLayouts } from '#core/layout'
 
 import { createClipboardAssetActions } from './clipboard/assets.override'

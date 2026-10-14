@@ -33,6 +33,18 @@ const NAMESPACE_WORDS: Record<string, ThemeNamespace> = {
   colors: 'color',
   colour: 'color',
   colours: 'color',
+  /** Common Chinese collection roots from Figma kits. */
+  颜色: 'color',
+  色彩: 'color',
+  间距: 'spacing',
+  间隔: 'spacing',
+  圆角: 'radius',
+  字号: 'text',
+  行高: 'leading',
+  字距: 'tracking',
+  字体: 'font',
+  字重: 'font-weight',
+  阴影: 'shadow',
   space: 'spacing',
   radii: 'radius',
   rounded: 'radius',
@@ -45,6 +57,14 @@ const NAMESPACE_WORDS: Record<string, ThemeNamespace> = {
   'font-family': 'font',
   weight: 'font-weight',
   shadows: 'shadow'
+}
+
+/**
+ * Whether a custom property name can become a Tailwind theme utility (`bg-ink`, `gap-gutter`).
+ * Non-ASCII names are valid CSS variables but produce unusable classes like `bg-(--color-颜色-…)`.
+ */
+export function isUtilitySafeTokenName(name: string): boolean {
+  return /^[a-z][a-z0-9-]*$/i.test(name)
 }
 
 /**

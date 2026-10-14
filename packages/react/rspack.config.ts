@@ -87,7 +87,8 @@ function workspaceSourceAliases() {
     '@open-pencil/core/io$': path.join(pkgSrc('core'), 'io/index.override.ts'),
     '@open-pencil/core': pkgSrc('core'),
     '@open-pencil/dom-css/browser$': path.join(pkgSrc('dom-css'), 'browser.ts'),
-    '@open-pencil/dom-css$': path.join(pkgSrc('dom-css'), 'index.ts'),
+    '@open-pencil/dom-css/export$': path.join(pkgSrc('dom-css'), 'export/index.override.ts'),
+    '@open-pencil/dom-css$': path.join(pkgSrc('dom-css'), 'index.override.ts'),
     '@open-pencil/dom-css': pkgSrc('dom-css'),
     '@open-pencil/design-jsx$': path.join(pkgSrc('design-jsx'), 'index.ts'),
     '@open-pencil/design-jsx': pkgSrc('design-jsx'),
@@ -174,6 +175,7 @@ export default defineConfig({
         path.resolve(repoRoot, 'packages/core/src'),
         path.resolve(repoRoot, 'packages/fig/src'),
         path.resolve(repoRoot, 'packages/scene-graph/src'),
+        path.resolve(repoRoot, 'packages/dom-css/src'),
         path.resolve(repoRoot, 'packages/react/src')
       ])
     }
