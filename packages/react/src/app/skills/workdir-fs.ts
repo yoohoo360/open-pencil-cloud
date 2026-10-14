@@ -5,15 +5,23 @@ import {
   SKILL_AGENT_ENVIRONMENTS,
   type SkillAgentEnvironmentId
 } from '#react/app/skills/agent-environments'
+import { parseSkillFrontmatter } from '#react/app/skills/frontmatter'
 import { normalizeSkillPackageEntries } from '#react/app/skills/platform-package'
 import type { WorkdirRecord } from '#react/app/skills/workdir-idb'
 
 export type ScannedSkill = {
   key: string
   name: string
-  /** Folder with SKILL.md is enabled; `{key}.zip` archive is disabled. */
+  description: string
+  /**
+   * Checked only when a skill directory with SKILL.md exists.
+   * Zip archives are listed for local skills but never count as checked.
+   */
   enabled: boolean
-  agentEnvironments: SkillAgentEnvironmentId[]
+  /** Agent roots that currently have a SKILL.md folder. */
+  folderEnvironments: SkillAgentEnvironmentId[]
+  /** Agent roots that have `{key}.zip` (local off state). */
+  archiveEnvironments: SkillAgentEnvironmentId[]
 }
 
 function skillArchiveName(key: string): string {
@@ -39,10 +47,28 @@ function zipToEntries(bytes: Uint8Array): Record<string, Uint8Array> {
   return normalizeSkillPackageEntries(unzipSync(bytes))
 }
 
-function skillNameFromEntries(entries: Record<string, Uint8Array>, fallback: string): string {
+function metaFromEntries(
+  entries: Record<string, Uint8Array>,
+  fallbackKey: string
+): { name: string; description: string } {
   const raw = entries['SKILL.md'] ?? entries['skill.md']
-  if (!raw) return fallback
-  return parseSkillName(new TextDecoder().decode(raw), fallback)
+  if (!raw) return { name: fallbackKey, description: '' }
+  return metaFromSkillMd(new TextDecoder().decode(raw), fallbackKey)
+}
+
+function metaFromSkillMd(
+  skillMd: string,
+  fallbackKey: string
+): { name: string; description: string } {
+  const parsed = parseSkillFrontmatter(skillMd)
+  return {
+    name: parsed.name.trim() || fallbackKey,
+    description: parsed.description.trim()
+  }
+}
+
+function allAgentEnvIds(): SkillAgentEnvironmentId[] {
+  return SKILL_AGENT_ENVIRONMENTS.map((item) => item.id)
 }
 
 function envRelativeDir(id: SkillAgentEnvironmentId): string {
@@ -50,15 +76,6 @@ function envRelativeDir(id: SkillAgentEnvironmentId): string {
     SKILL_AGENT_ENVIRONMENTS.find((item) => item.id === id)?.relativeSkillsDir ??
     `.${id}/skills`
   )
-}
-
-function parseSkillName(skillMd: string, fallback: string): string {
-  const match = skillMd.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!match) return fallback
-  const nameLine = match[1]?.match(/^name:\s*(.+)$/m)
-  const raw = nameLine?.[1]?.trim()
-  if (!raw) return fallback
-  return raw.replace(/^['"]|['"]$/g, '') || fallback
 }
 
 async function ensurePermission(
@@ -99,22 +116,49 @@ async function getNestedDirectory(
   return current
 }
 
-function mergeScanned(
+function ensureScanned(
   byKey: Map<string, ScannedSkill>,
-  skill: ScannedSkill
+  key: string,
+  meta: { name: string; description: string }
+): ScannedSkill {
+  const existing = byKey.get(key)
+  if (existing) {
+    if (meta.name && existing.name === key) existing.name = meta.name
+    if (meta.description && !existing.description) existing.description = meta.description
+    return existing
+  }
+  const created: ScannedSkill = {
+    key,
+    name: meta.name || key,
+    description: meta.description,
+    enabled: false,
+    folderEnvironments: [],
+    archiveEnvironments: []
+  }
+  byKey.set(key, created)
+  return created
+}
+
+function addFolderEnv(
+  skill: ScannedSkill,
+  env: SkillAgentEnvironmentId,
+  meta: { name: string; description: string }
 ): void {
-  const existing = byKey.get(skill.key)
-  if (!existing) {
-    byKey.set(skill.key, skill)
-    return
-  }
-  if (!existing.agentEnvironments.includes(skill.agentEnvironments[0]!)) {
-    existing.agentEnvironments = [...existing.agentEnvironments, ...skill.agentEnvironments]
-  }
-  // Folder (enabled) wins over a zip archive when both appear.
-  if (skill.enabled && !existing.enabled) {
-    existing.enabled = true
-    existing.name = skill.name
+  skill.enabled = true
+  skill.name = meta.name || skill.name
+  if (meta.description) skill.description = meta.description
+  if (!skill.folderEnvironments.includes(env)) skill.folderEnvironments.push(env)
+}
+
+function addArchiveEnv(
+  skill: ScannedSkill,
+  env: SkillAgentEnvironmentId,
+  meta: { name: string; description: string }
+): void {
+  if (!skill.archiveEnvironments.includes(env)) skill.archiveEnvironments.push(env)
+  if (!skill.enabled) {
+    if (meta.name) skill.name = meta.name
+    if (meta.description && !skill.description) skill.description = meta.description
   }
 }
 
@@ -137,29 +181,22 @@ async function scanBrowserHandle(
             skillDir.getFileHandle('skill.md')
           )
           const text = await (await file.getFile()).text()
-          mergeScanned(byKey, {
-            key: name,
-            name: parseSkillName(text, name),
-            enabled: true,
-            agentEnvironments: [env]
-          })
+          const meta = metaFromSkillMd(text, name)
+          addFolderEnv(ensureScanned(byKey, name, meta), env, meta)
         } catch {
           // skip folders without SKILL.md
         }
         continue
       }
+      // Zips are listed for local off state but never mark enabled/checked.
       const key = skillKeyFromArchiveName(name)
       if (!key) continue
       try {
         const file = await (await skillsDir.getFileHandle(name)).getFile()
         const bytes = new Uint8Array(await file.arrayBuffer())
         const entries = zipToEntries(bytes)
-        mergeScanned(byKey, {
-          key,
-          name: skillNameFromEntries(entries, key),
-          enabled: false,
-          agentEnvironments: [env]
-        })
+        const meta = metaFromEntries(entries, key)
+        addArchiveEnv(ensureScanned(byKey, key, meta), env, meta)
       } catch {
         // skip bad zips
       }
@@ -198,28 +235,20 @@ async function scanTauriPath(
       if (entry.isDirectory) {
         const key = entry.name
         const skillMd = await tauriReadText(`${skillsPath}/${key}/SKILL.md`)
-        const text =
-          skillMd ?? (await tauriReadText(`${skillsPath}/${key}/skill.md`))
+        const text = skillMd ?? (await tauriReadText(`${skillsPath}/${key}/skill.md`))
         if (text === null) continue
-        mergeScanned(byKey, {
-          key,
-          name: parseSkillName(text, key),
-          enabled: true,
-          agentEnvironments: [env]
-        })
+        const meta = metaFromSkillMd(text, key)
+        addFolderEnv(ensureScanned(byKey, key, meta), env, meta)
         continue
       }
+      // Zips are listed for local off state but never mark enabled/checked.
       const key = skillKeyFromArchiveName(entry.name)
       if (!key) continue
       try {
         const bytes = await readFile(`${skillsPath}/${entry.name}`)
         const entries = zipToEntries(bytes)
-        mergeScanned(byKey, {
-          key,
-          name: skillNameFromEntries(entries, key),
-          enabled: false,
-          agentEnvironments: [env]
-        })
+        const meta = metaFromEntries(entries, key)
+        addArchiveEnv(ensureScanned(byKey, key, meta), env, meta)
       } catch {
         // skip bad zips
       }
@@ -325,21 +354,63 @@ async function readTauriSkillEntries(
   return null
 }
 
+async function readBrowserArchive(
+  root: FileSystemDirectoryHandle,
+  envs: SkillAgentEnvironmentId[],
+  key: string
+): Promise<Uint8Array | null> {
+  if (!(await ensurePermission(root, 'read'))) return null
+  for (const env of envs) {
+    const skillsDir = await getNestedDirectory(root, envRelativeDir(env), false)
+    if (!skillsDir) continue
+    try {
+      const file = await (await skillsDir.getFileHandle(skillArchiveName(key))).getFile()
+      return new Uint8Array(await file.arrayBuffer())
+    } catch {
+      // try next env
+    }
+  }
+  return null
+}
+
+async function readTauriArchive(
+  projectPath: string,
+  envs: SkillAgentEnvironmentId[],
+  key: string
+): Promise<Uint8Array | null> {
+  const { readFile } = await import('@tauri-apps/plugin-fs')
+  const root = projectPath.replace(/[/\\]+$/, '')
+  for (const env of envs) {
+    const archive = `${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`
+    try {
+      return await readFile(archive)
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
 /**
- * Read an on-disk skill package from the first agent folder that has it.
- * Searches every known agent root so sync still works when the skill only
- * exists outside the current install-target selection.
+ * Read skill package bytes: prefer SKILL.md folder, then `{key}.zip`.
+ * Searches every known agent root.
  */
 export async function readSkillEntriesFromWorkdir(
   record: WorkdirRecord,
   key: string
 ): Promise<Record<string, Uint8Array> | null> {
-  const envs = SKILL_AGENT_ENVIRONMENTS.map((item) => item.id)
+  const envs = allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    return readTauriSkillEntries(record.path, envs, key)
+    const fromFolder = await readTauriSkillEntries(record.path, envs, key)
+    if (fromFolder) return fromFolder
+    const archive = await readTauriArchive(record.path, envs, key)
+    return archive ? zipToEntries(archive) : null
   }
   if (record.directoryHandle) {
-    return readBrowserSkillEntries(record.directoryHandle, envs, key)
+    const fromFolder = await readBrowserSkillEntries(record.directoryHandle, envs, key)
+    if (fromFolder) return fromFolder
+    const archive = await readBrowserArchive(record.directoryHandle, envs, key)
+    return archive ? zipToEntries(archive) : null
   }
   return null
 }
@@ -489,19 +560,60 @@ async function removeTauriSkill(
   }
 }
 
-/** Remove a skill folder (and its archive) from the given agent environment roots. */
+/** Remove a skill folder and any `{key}.zip` from the given agent roots (platform off). */
 export async function removeSkillFromWorkdir(
   record: WorkdirRecord,
   key: string,
   envs: SkillAgentEnvironmentId[]
 ): Promise<void> {
-  const targets = envs.length > 0 ? envs : record.agentEnvironments
+  const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
     await removeTauriSkill(record.path, targets, key)
     return
   }
   if (record.directoryHandle) {
     await removeBrowserSkill(record.directoryHandle, targets, key)
+    return
+  }
+  throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
+}
+
+/** Remove only `{key}.zip` archives (keeps skill folders). */
+export async function removeSkillArchivesFromWorkdir(
+  record: WorkdirRecord,
+  key: string,
+  envs: SkillAgentEnvironmentId[]
+): Promise<void> {
+  const targets = envs.length > 0 ? envs : allAgentEnvIds()
+  if (IS_TAURI && record.path.trim()) {
+    const { remove } = await import('@tauri-apps/plugin-fs')
+    const root = record.path.replace(/[/\\]+$/, '')
+    for (const env of targets) {
+      try {
+        await remove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
+      } catch {
+        // ignore
+      }
+    }
+    return
+  }
+  if (record.directoryHandle) {
+    if (!(await ensurePermission(record.directoryHandle, 'readwrite'))) {
+      throw new Error('Folder write permission denied')
+    }
+    for (const env of targets) {
+      const skillsDir = await getNestedDirectory(
+        record.directoryHandle,
+        envRelativeDir(env),
+        false
+      )
+      if (!skillsDir) continue
+      try {
+        await skillsDir.removeEntry(skillArchiveName(key))
+      } catch {
+        // ignore
+      }
+    }
     return
   }
   throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
@@ -547,25 +659,21 @@ async function archiveTauriSkill(
     const skillsPath = `${root}/${envRelativeDir(env)}`
     await mkdir(skillsPath, { recursive: true })
     await writeFile(`${skillsPath}/${skillArchiveName(key)}`, zipBytes)
-    const skillDir = `${skillsPath}/${key}`
     try {
-      await remove(skillDir, { recursive: true })
+      await remove(`${skillsPath}/${key}`, { recursive: true })
     } catch {
       // ignore
     }
   }
 }
 
-/**
- * Disable a skill: zip its folder to `{key}.zip` in each agent skills dir, then remove the folder.
- * Browser uses File System Access; desktop uses Tauri fs.
- */
+/** Local off: zip the skill folder to `{key}.zip`, then remove the folder. */
 export async function archiveSkillInWorkdir(
   record: WorkdirRecord,
   key: string,
   envs: SkillAgentEnvironmentId[]
 ): Promise<void> {
-  const targets = envs.length > 0 ? envs : record.agentEnvironments
+  const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
     await archiveTauriSkill(record.path, targets, key)
     return
@@ -577,54 +685,17 @@ export async function archiveSkillInWorkdir(
   throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
 }
 
-async function readBrowserArchive(
-  root: FileSystemDirectoryHandle,
-  envs: SkillAgentEnvironmentId[],
-  key: string
-): Promise<Uint8Array | null> {
-  if (!(await ensurePermission(root, 'read'))) return null
-  for (const env of envs) {
-    const skillsDir = await getNestedDirectory(root, envRelativeDir(env), false)
-    if (!skillsDir) continue
-    try {
-      const file = await (await skillsDir.getFileHandle(skillArchiveName(key))).getFile()
-      return new Uint8Array(await file.arrayBuffer())
-    } catch {
-      // try next env
-    }
-  }
-  return null
-}
-
-async function readTauriArchive(
-  projectPath: string,
-  envs: SkillAgentEnvironmentId[],
-  key: string
-): Promise<Uint8Array | null> {
-  const { readFile } = await import('@tauri-apps/plugin-fs')
-  const root = projectPath.replace(/[/\\]+$/, '')
-  for (const env of envs) {
-    const archive = `${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`
-    try {
-      return await readFile(archive)
-    } catch {
-      continue
-    }
-  }
-  return null
-}
-
 async function expandBrowserSkill(
   root: FileSystemDirectoryHandle,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<void> {
-  const zipBytes = await readBrowserArchive(root, envs, key)
+  const zipBytes = await readBrowserArchive(root, allAgentEnvIds(), key)
   if (!zipBytes) throw new Error('Skill archive not found')
   const entries = zipToEntries(zipBytes)
   await writeBrowserSkill(root, envs, key, entries)
   if (!(await ensurePermission(root, 'readwrite'))) return
-  for (const env of envs) {
+  for (const env of allAgentEnvIds()) {
     const skillsDir = await getNestedDirectory(root, envRelativeDir(env), false)
     if (!skillsDir) continue
     try {
@@ -641,101 +712,33 @@ async function expandTauriSkill(
   key: string
 ): Promise<void> {
   const { remove } = await import('@tauri-apps/plugin-fs')
-  const zipBytes = await readTauriArchive(projectPath, envs, key)
+  const zipBytes = await readTauriArchive(projectPath, allAgentEnvIds(), key)
   if (!zipBytes) throw new Error('Skill archive not found')
   const entries = zipToEntries(zipBytes)
   await writeTauriSkill(projectPath, envs, key, entries)
   const root = projectPath.replace(/[/\\]+$/, '')
-  for (const env of envs) {
-    const archive = `${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`
+  for (const env of allAgentEnvIds()) {
     try {
-      await remove(archive)
+      await remove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
     } catch {
       // ignore
     }
   }
 }
 
-/**
- * Enable a skill: unzip `{key}.zip` into the skill folder in each agent skills dir, then remove the zip.
- */
+/** Local on: expand `{key}.zip` into skill folders, then remove the archives. */
 export async function expandArchivedSkillInWorkdir(
   record: WorkdirRecord,
   key: string,
   envs: SkillAgentEnvironmentId[]
 ): Promise<void> {
-  const targets = envs.length > 0 ? envs : record.agentEnvironments
+  const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
     await expandTauriSkill(record.path, targets, key)
     return
   }
   if (record.directoryHandle) {
     await expandBrowserSkill(record.directoryHandle, targets, key)
-    return
-  }
-  throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
-}
-
-/** Read `{key}.zip` bytes from the first agent skills dir that has it. */
-export async function readSkillArchiveFromWorkdir(
-  record: WorkdirRecord,
-  key: string
-): Promise<Uint8Array | null> {
-  const envs = SKILL_AGENT_ENVIRONMENTS.map((item) => item.id)
-  if (IS_TAURI && record.path.trim()) {
-    return readTauriArchive(record.path, envs, key)
-  }
-  if (record.directoryHandle) {
-    return readBrowserArchive(record.directoryHandle, envs, key)
-  }
-  return null
-}
-
-/** Write a skill archive into each agent skills dir (keeps the skill disabled). */
-export async function writeSkillArchiveToWorkdir(
-  record: WorkdirRecord,
-  key: string,
-  zipBytes: Uint8Array,
-  envs: SkillAgentEnvironmentId[]
-): Promise<void> {
-  const targets = envs.length > 0 ? envs : record.agentEnvironments
-  if (IS_TAURI && record.path.trim()) {
-    const { mkdir, writeFile, remove } = await import('@tauri-apps/plugin-fs')
-    const root = record.path.replace(/[/\\]+$/, '')
-    for (const env of targets) {
-      const skillsPath = `${root}/${envRelativeDir(env)}`
-      await mkdir(skillsPath, { recursive: true })
-      await writeFile(`${skillsPath}/${skillArchiveName(key)}`, zipBytes)
-      const skillDir = `${skillsPath}/${key}`
-      try {
-        await remove(skillDir, { recursive: true })
-      } catch {
-        // ignore
-      }
-    }
-    return
-  }
-  if (record.directoryHandle) {
-    if (!(await ensurePermission(record.directoryHandle, 'readwrite'))) {
-      throw new Error('Folder write permission denied')
-    }
-    for (const env of targets) {
-      const skillsDir = await getNestedDirectory(
-        record.directoryHandle,
-        envRelativeDir(env),
-        true
-      )
-      if (!skillsDir) throw new Error(`Cannot create ${envRelativeDir(env)}`)
-      const file = await skillsDir.getFileHandle(skillArchiveName(key), { create: true })
-      const writable = await file.createWritable()
-      await writable.write(zipBytes)
-      await writable.close()
-      try {
-        await skillsDir.removeEntry(key, { recursive: true })
-      } catch {
-        // ignore
-      }
-    }
     return
   }
   throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')

@@ -12,7 +12,8 @@ import {
   probeAgentServerWorkdirReady,
   workdirAPI,
   type PlatformSkillRef,
-  type Workdir
+  type Workdir,
+  type WorkdirSkill
 } from '#react/app/skills/workdir-api'
 import { AppButton } from '#react/components/ui/AppButton'
 import { useI18n } from '#react/i18n'
@@ -31,7 +32,8 @@ function toPlatformRefs(skills: readonly PencilSkill[]): PlatformSkillRef[] {
   return skills.map((skill) => ({
     id: skill.id,
     skill_key: skill.skill_key,
-    name: skill.name
+    name: skill.name,
+    description: skill.description
   }))
 }
 
@@ -43,10 +45,14 @@ export default function WorkdirView() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [settingsId, setSettingsId] = useState<string | null>(null)
+  const [skillSettingsKey, setSkillSettingsKey] = useState<string | null>(null)
+  const [skillDetailKey, setSkillDetailKey] = useState<string | null>(null)
   const [cloudSkills, setCloudSkills] = useState<PencilSkill[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const settingsRef = useRef<HTMLDivElement>(null)
+  const skillSettingsRef = useRef<HTMLDivElement>(null)
+  const skillDetailRef = useRef<HTMLDivElement>(null)
 
   const platformSkills = useMemo(() => toPlatformRefs(cloudSkills), [cloudSkills])
 
@@ -58,6 +64,16 @@ export default function WorkdirView() {
   const settingsWorkdir = useMemo(
     () => workdirs.find((item) => item.id === settingsId) ?? null,
     [workdirs, settingsId]
+  )
+
+  const skillSettings = useMemo(
+    () => selected?.skills.find((skill) => skill.key === skillSettingsKey) ?? null,
+    [selected, skillSettingsKey]
+  )
+
+  const skillDetail = useMemo(
+    () => selected?.skills.find((skill) => skill.key === skillDetailKey) ?? null,
+    [selected, skillDetailKey]
   )
 
   const pullEnvs = selected?.agentEnvironments.length
@@ -111,6 +127,28 @@ export default function WorkdirView() {
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [settingsId])
+
+  useEffect(() => {
+    if (!skillSettingsKey) return
+    function onPointerDown(event: PointerEvent) {
+      if (!skillSettingsRef.current?.contains(event.target as Node)) {
+        setSkillSettingsKey(null)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [skillSettingsKey])
+
+  useEffect(() => {
+    if (!skillDetailKey) return
+    function onPointerDown(event: PointerEvent) {
+      if (!skillDetailRef.current?.contains(event.target as Node)) {
+        setSkillDetailKey(null)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [skillDetailKey])
 
   async function addWorkdir() {
     if (busy) return
@@ -185,19 +223,32 @@ export default function WorkdirView() {
     }
   }
 
-  async function toggleSkill(
-    key: string,
-    enabled: boolean,
-    source: 'platform' | 'local',
-    platformId?: string
-  ) {
+  async function toggleSkill(skill: WorkdirSkill, enabled: boolean) {
     if (!selected) return
     setBusy(true)
     setError(null)
     try {
-      await workdirAPI.setSkillEnabled(selected.id, key, enabled, {
-        source,
-        platformId,
+      await workdirAPI.setSkillEnabled(selected.id, skill.key, enabled, {
+        source: skill.source,
+        platformId: skill.platformId,
+        platformSkills
+      })
+      await refresh()
+    } catch (reason) {
+      setError(getAPIErrorMessage(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveSkillEnvs(skill: WorkdirSkill, next: SkillAgentEnvironmentId[]) {
+    if (!selected) return
+    setBusy(true)
+    setError(null)
+    try {
+      await workdirAPI.setSkillAgentEnvironments(selected.id, skill.key, next, {
+        source: skill.source,
+        platformId: skill.platformId,
         platformSkills
       })
       await refresh()
@@ -276,6 +327,8 @@ export default function WorkdirView() {
                         onClick={() => {
                           setSelectedId(workdir.id)
                           setSettingsId(null)
+                          setSkillSettingsKey(null)
+                          setSkillDetailKey(null)
                         }}
                       >
                         <div className="flex items-center gap-1.5">
@@ -300,6 +353,7 @@ export default function WorkdirView() {
                           aria-haspopup="listbox"
                           onClick={(event) => {
                             event.stopPropagation()
+                            setSkillSettingsKey(null)
                             setSettingsId(settingsOpen ? null : workdir.id)
                           }}
                         >
@@ -413,28 +467,54 @@ export default function WorkdirView() {
                     <ul className="space-y-2">
                       {selected.skills.map((skill) => {
                         const isPlatform = skill.source === 'platform'
+                        const skillOpen = skillSettingsKey === skill.key
+                        const detailOpen = skillDetailKey === skill.key
                         return (
                           <li
                             key={`${skill.source}:${skill.key}`}
-                            className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2"
+                            className="relative flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2"
                           >
-                            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+                            <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
                               <input
                                 type="checkbox"
                                 checked={skill.enabled}
                                 disabled={busy}
                                 onChange={(event) =>
-                                  void toggleSkill(
-                                    skill.key,
-                                    event.target.checked,
-                                    skill.source,
-                                    skill.platformId
-                                  )
+                                  void toggleSkill(skill, event.target.checked)
                                 }
                               />
-                              <span className="truncate font-medium">{skill.name}</span>
-                              <span className="truncate text-muted">{skill.key}</span>
-                            </label>
+                              <div className="relative min-w-0 flex-1">
+                                <button
+                                  type="button"
+                                  className="block max-w-full truncate text-left font-medium hover:text-accent"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setSettingsId(null)
+                                    setSkillSettingsKey(null)
+                                    setSkillDetailKey(detailOpen ? null : skill.key)
+                                  }}
+                                >
+                                  {skill.name}
+                                </button>
+                                <span className="block truncate text-muted">{skill.key}</span>
+                                {detailOpen && skillDetail?.key === skill.key ? (
+                                  <div
+                                    ref={skillDetailRef}
+                                    className="absolute left-0 top-full z-20 mt-1 w-[min(360px,calc(100vw-48px))] rounded-lg border border-border/60 bg-surface p-3 shadow-lg"
+                                    onPointerDown={(event) => event.stopPropagation()}
+                                  >
+                                    <p className="text-[11px] font-medium">{skillDetail.name}</p>
+                                    <p className="mt-0.5 font-mono text-[10px] text-muted">
+                                      {skillDetail.key}
+                                    </p>
+                                    <p className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted">
+                                      {skillDetail.description.trim() ||
+                                        panels.workdirSkillNoDescription}
+                                    </p>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
                             <span
                               className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
                                 isPlatform
@@ -446,12 +526,72 @@ export default function WorkdirView() {
                                 ? panels.workdirSkillPlatform
                                 : panels.workdirSkillLocal}
                             </span>
-                            <span className="max-w-[140px] shrink-0 truncate font-mono text-[10px] text-muted">
-                              {skill.agentEnvironments.map(agentEnvLabel).join(' ')}
+                            <span className="max-w-[120px] shrink-0 truncate font-mono text-[10px] text-muted">
+                              {skill.agentEnvironments.map(agentEnvLabel).join(' ') || '—'}
                             </span>
-                            <span className="shrink-0 text-[10px] text-muted">
-                              {skill.enabled ? panels.workdirInUse : panels.workdirNotInUse}
-                            </span>
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted hover:bg-hover hover:text-surface"
+                                title={panels.workdirSkillAgentEnvs}
+                                disabled={busy}
+                                aria-expanded={skillOpen}
+                                aria-haspopup="listbox"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setSettingsId(null)
+                                  setSkillDetailKey(null)
+                                  setSkillSettingsKey(skillOpen ? null : skill.key)
+                                }}
+                              >
+                                <Settings2 className="size-3.5" />
+                              </button>
+                              {skillOpen && skillSettings?.key === skill.key ? (
+                                <div
+                                  ref={skillSettingsRef}
+                                  role="listbox"
+                                  aria-label={panels.workdirSkillAgentEnvs}
+                                  className="absolute right-0 top-full z-20 mt-1 w-[220px] rounded-lg border border-border/60 bg-surface p-3 shadow-lg"
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                >
+                                  <p className="text-[11px] font-medium">
+                                    {panels.workdirSkillAgentEnvs}
+                                  </p>
+                                  <p className="mt-1 text-[10px] text-muted">
+                                    {panels.workdirSkillAgentEnvsHelp}
+                                  </p>
+                                  <div className="mt-2 flex max-h-56 flex-col gap-1 overflow-y-auto">
+                                    {SKILL_AGENT_ENVIRONMENTS.map((env) => {
+                                      const checked =
+                                        skillSettings.agentEnvironments.includes(env.id) &&
+                                        skillSettings.enabled
+                                      return (
+                                        <label
+                                          key={env.id}
+                                          className="flex items-center gap-2 text-[11px]"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            disabled={busy}
+                                            onChange={() => {
+                                              const current = skillSettings.enabled
+                                                ? skillSettings.agentEnvironments
+                                                : []
+                                              const next = current.includes(env.id)
+                                                ? current.filter((item) => item !== env.id)
+                                                : [...current, env.id]
+                                              void saveSkillEnvs(skillSettings, next)
+                                            }}
+                                          />
+                                          <span className="font-mono">{env.label}</span>
+                                        </label>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
                           </li>
                         )
                       })}

@@ -10,18 +10,19 @@ const WORKDIRS = 'workdirs'
 const META = 'meta'
 const META_KEY = 'index'
 
+/**
+ * Workspace bookmark only (path / handle / install targets).
+ * Skill on/off and platform vs local are never stored here — only disk
+ * directories with SKILL.md plus the platform skill API list.
+ */
 export type WorkdirRecord = {
   id: string
   name: string
   /** Display path (absolute on desktop; folder name / entered path in browser). */
   path: string
+  /** Install targets when enabling a skill. */
   agentEnvironments: SkillAgentEnvironmentId[]
   createdAt: string
-  /**
-   * Skill keys tagged as platform (vs local). Enabled/disabled is folder vs `.zip` on disk.
-   * Legacy `enabledPlatformKeys` is migrated into this set on read.
-   */
-  platformSkillKeys: string[]
   /** Browser File System Access handle when available. */
   directoryHandle?: FileSystemDirectoryHandle
 }
@@ -95,11 +96,6 @@ function normalizeEnvs(values: unknown): SkillAgentEnvironmentId[] {
   return next.length > 0 ? [...new Set(next)] : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
 }
 
-function normalizeStringKeys(values: unknown): string[] {
-  if (!Array.isArray(values)) return []
-  return [...new Set(values.filter((item): item is string => typeof item === 'string'))].sort()
-}
-
 function normalizeRecord(raw: unknown): WorkdirRecord | null {
   if (!raw || typeof raw !== 'object') return null
   const row = raw as Record<string, unknown>
@@ -108,11 +104,6 @@ function normalizeRecord(raw: unknown): WorkdirRecord | null {
   const path = typeof row.path === 'string' ? row.path : ''
   const createdAt = typeof row.createdAt === 'string' ? row.createdAt : new Date(0).toISOString()
   if (!id || !name || !path) return null
-  const platformSkillKeys = normalizeStringKeys([
-    ...normalizeStringKeys(row.platformSkillKeys),
-    // Older builds stored platform keys as enabledPlatformKeys.
-    ...normalizeStringKeys(row.enabledPlatformKeys)
-  ])
   const directoryHandle =
     row.directoryHandle && typeof row.directoryHandle === 'object'
       ? (row.directoryHandle as FileSystemDirectoryHandle)
@@ -123,7 +114,6 @@ function normalizeRecord(raw: unknown): WorkdirRecord | null {
     path,
     createdAt,
     agentEnvironments: normalizeEnvs(row.agentEnvironments),
-    platformSkillKeys,
     directoryHandle
   }
 }
@@ -185,12 +175,12 @@ export async function createWorkdirRecord(input: {
     path,
     createdAt: new Date().toISOString(),
     agentEnvironments: normalizeEnvs(input.agentEnvironments),
-    platformSkillKeys: [],
     directoryHandle: input.directoryHandle
   }
   const database = await getDatabase()
   const index = await readIndex()
   const transaction = database.transaction([WORKDIRS, META], 'readwrite')
+  // Drop legacy skill-state fields (platformSkillKeys / enabledPlatformKeys) on write.
   transaction.objectStore(WORKDIRS).put(record)
   if (!index.activeWorkdirId) {
     transaction.objectStore(META).put({ activeWorkdirId: record.id }, META_KEY)
@@ -202,10 +192,7 @@ export async function createWorkdirRecord(input: {
 export async function updateWorkdirRecord(
   id: string,
   patch: Partial<
-    Pick<
-      WorkdirRecord,
-      'name' | 'agentEnvironments' | 'platformSkillKeys' | 'directoryHandle' | 'path'
-    >
+    Pick<WorkdirRecord, 'name' | 'agentEnvironments' | 'directoryHandle' | 'path'>
   >
 ): Promise<WorkdirRecord> {
   const existing = await getWorkdirRecord(id)
@@ -215,10 +202,7 @@ export async function updateWorkdirRecord(
     ...patch,
     agentEnvironments: patch.agentEnvironments
       ? normalizeEnvs(patch.agentEnvironments)
-      : existing.agentEnvironments,
-    platformSkillKeys: patch.platformSkillKeys
-      ? normalizeStringKeys(patch.platformSkillKeys)
-      : existing.platformSkillKeys
+      : existing.agentEnvironments
   }
   const database = await getDatabase()
   const transaction = database.transaction(WORKDIRS, 'readwrite')
@@ -245,18 +229,4 @@ export async function activateWorkdirRecord(id: string): Promise<WorkdirIndex> {
   const index = { activeWorkdirId: id }
   await writeIndex(index)
   return index
-}
-
-/** Tag a skill key as platform (or clear the tag when `platform` is false). */
-export async function setSkillPlatformTag(
-  workdirId: string,
-  key: string,
-  platform: boolean
-): Promise<WorkdirRecord> {
-  const existing = await getWorkdirRecord(workdirId)
-  if (!existing) throw new Error('Workdir not found')
-  const keys = new Set(existing.platformSkillKeys)
-  if (platform) keys.add(key)
-  else keys.delete(key)
-  return updateWorkdirRecord(workdirId, { platformSkillKeys: [...keys].sort() })
 }

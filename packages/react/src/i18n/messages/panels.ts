@@ -94,7 +94,7 @@ export const panelMessageDefaults = {
   workdirNavSection: 'Workspace',
   workdirTitle: 'Skill workspace',
   workdirHelp:
-    'Lists platform skills from the skill API plus local skills found in agent folders. Uncheck archives a skill as a zip; check installs or expands it. Browser and desktop use different folder APIs.',
+    'Lists platform skills from the skill API plus local skills (folders or zips). Checked = folder with SKILL.md; zips do not count. Platform uncheck deletes; local uncheck zips.',
   workdirRefresh: 'Refresh',
   workdirChecking: 'Loading workspaces…',
   workdirNeedsIndexedDb: 'IndexedDB is required for Skill workspace in this browser.',
@@ -102,9 +102,12 @@ export const panelMessageDefaults = {
   workdirPathHelp:
     'Choose a project folder (browser folder access) or enter an absolute path on desktop.',
   workdirCreate: 'Add workspace',
-  workdirAgentEnvs: 'Agent environments',
+  workdirAgentEnvs: 'Default agent environments',
   workdirAgentEnvsHelp:
-    'Install targets when enabling skills (.claude, .agents, .github, …). Listing always rescans every agent folder on enter.',
+    'Default install targets when enabling a skill. Each skill also has its own agent settings.',
+  workdirSkillAgentEnvs: 'Skill agent environments',
+  workdirSkillAgentEnvsHelp:
+    'Choose which agent folders this skill uses. Checked locations must have a folder with SKILL.md.',
   workdirEmpty: 'No skill workspaces yet. Use + above to choose a project folder.',
   workdirActive: 'active',
   workdirActivate: 'Set as active',
@@ -113,12 +116,11 @@ export const panelMessageDefaults = {
     'Remove this skill workspace from IndexedDB? Files on disk are not deleted.',
   workdirSelectPrompt: 'Select a skill workspace to manage its skills.',
   workdirSkillsHelp:
-    'Each visit rescans disk. Platform (skill API) first, then local skills not in the catalog, then by name. Uncheck zips; check downloads or expands.',
+    'Each visit rescans disk. On = folder with SKILL.md (zips ignored for checked). Platform uncheck deletes; local uncheck zips the folder. Use the gear on each skill for agent folders.',
   workdirFolderInaccessible:
     'Cannot read this folder. Re-add the workspace and grant folder access (browser picker or desktop path).',
   workdirNoSkills: 'No platform or local skills yet.',
-  workdirInUse: 'On',
-  workdirNotInUse: 'Off (zipped)',
+  workdirSkillNoDescription: 'No description.',
   workdirSkillLocal: 'Local',
   workdirSkillPlatform: 'Platform',
   workdirSkillDelete: 'Remove local skill',
