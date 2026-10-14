@@ -17,8 +17,11 @@ export type WorkdirRecord = {
   path: string
   agentEnvironments: SkillAgentEnvironmentId[]
   createdAt: string
-  /** Platform skill keys currently enabled (and kept on disk under agent folders). */
-  enabledPlatformKeys: string[]
+  /**
+   * Skill keys tagged as platform (vs local). Enabled/disabled is folder vs `.zip` on disk.
+   * Legacy `enabledPlatformKeys` is migrated into this set on read.
+   */
+  platformSkillKeys: string[]
   /** Browser File System Access handle when available. */
   directoryHandle?: FileSystemDirectoryHandle
 }
@@ -92,6 +95,11 @@ function normalizeEnvs(values: unknown): SkillAgentEnvironmentId[] {
   return next.length > 0 ? [...new Set(next)] : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS]
 }
 
+function normalizeStringKeys(values: unknown): string[] {
+  if (!Array.isArray(values)) return []
+  return [...new Set(values.filter((item): item is string => typeof item === 'string'))].sort()
+}
+
 function normalizeRecord(raw: unknown): WorkdirRecord | null {
   if (!raw || typeof raw !== 'object') return null
   const row = raw as Record<string, unknown>
@@ -100,9 +108,11 @@ function normalizeRecord(raw: unknown): WorkdirRecord | null {
   const path = typeof row.path === 'string' ? row.path : ''
   const createdAt = typeof row.createdAt === 'string' ? row.createdAt : new Date(0).toISOString()
   if (!id || !name || !path) return null
-  const enabledPlatformKeys = Array.isArray(row.enabledPlatformKeys)
-    ? row.enabledPlatformKeys.filter((item): item is string => typeof item === 'string')
-    : []
+  const platformSkillKeys = normalizeStringKeys([
+    ...normalizeStringKeys(row.platformSkillKeys),
+    // Older builds stored platform keys as enabledPlatformKeys.
+    ...normalizeStringKeys(row.enabledPlatformKeys)
+  ])
   const directoryHandle =
     row.directoryHandle && typeof row.directoryHandle === 'object'
       ? (row.directoryHandle as FileSystemDirectoryHandle)
@@ -113,7 +123,7 @@ function normalizeRecord(raw: unknown): WorkdirRecord | null {
     path,
     createdAt,
     agentEnvironments: normalizeEnvs(row.agentEnvironments),
-    enabledPlatformKeys: [...new Set(enabledPlatformKeys)].sort(),
+    platformSkillKeys,
     directoryHandle
   }
 }
@@ -175,7 +185,7 @@ export async function createWorkdirRecord(input: {
     path,
     createdAt: new Date().toISOString(),
     agentEnvironments: normalizeEnvs(input.agentEnvironments),
-    enabledPlatformKeys: [],
+    platformSkillKeys: [],
     directoryHandle: input.directoryHandle
   }
   const database = await getDatabase()
@@ -194,7 +204,7 @@ export async function updateWorkdirRecord(
   patch: Partial<
     Pick<
       WorkdirRecord,
-      'name' | 'agentEnvironments' | 'enabledPlatformKeys' | 'directoryHandle' | 'path'
+      'name' | 'agentEnvironments' | 'platformSkillKeys' | 'directoryHandle' | 'path'
     >
   >
 ): Promise<WorkdirRecord> {
@@ -206,9 +216,9 @@ export async function updateWorkdirRecord(
     agentEnvironments: patch.agentEnvironments
       ? normalizeEnvs(patch.agentEnvironments)
       : existing.agentEnvironments,
-    enabledPlatformKeys: patch.enabledPlatformKeys
-      ? [...new Set(patch.enabledPlatformKeys)].sort()
-      : existing.enabledPlatformKeys
+    platformSkillKeys: patch.platformSkillKeys
+      ? normalizeStringKeys(patch.platformSkillKeys)
+      : existing.platformSkillKeys
   }
   const database = await getDatabase()
   const transaction = database.transaction(WORKDIRS, 'readwrite')
@@ -237,15 +247,16 @@ export async function activateWorkdirRecord(id: string): Promise<WorkdirIndex> {
   return index
 }
 
-export async function setPlatformSkillEnabled(
+/** Tag a skill key as platform (or clear the tag when `platform` is false). */
+export async function setSkillPlatformTag(
   workdirId: string,
   key: string,
-  enabled: boolean
+  platform: boolean
 ): Promise<WorkdirRecord> {
   const existing = await getWorkdirRecord(workdirId)
   if (!existing) throw new Error('Workdir not found')
-  const enabledKeys = new Set(existing.enabledPlatformKeys)
-  if (enabled) enabledKeys.add(key)
-  else enabledKeys.delete(key)
-  return updateWorkdirRecord(workdirId, { enabledPlatformKeys: [...enabledKeys].sort() })
+  const keys = new Set(existing.platformSkillKeys)
+  if (platform) keys.add(key)
+  else keys.delete(key)
+  return updateWorkdirRecord(workdirId, { platformSkillKeys: [...keys].sort() })
 }

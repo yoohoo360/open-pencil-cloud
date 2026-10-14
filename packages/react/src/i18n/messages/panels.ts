@@ -94,7 +94,7 @@ export const panelMessageDefaults = {
   workdirNavSection: 'Workspace',
   workdirTitle: 'Skill workspace',
   workdirHelp:
-    'Workspaces are stored in this browser (IndexedDB). Check a platform skill to write it into the selected agent folders; uncheck to remove those files. Changing agent folders rewrites enabled skills.',
+    'Lists platform skills from the skill API plus local skills found in agent folders. Uncheck archives a skill as a zip; check installs or expands it. Browser and desktop use different folder APIs.',
   workdirRefresh: 'Refresh',
   workdirChecking: 'Loading workspaces…',
   workdirNeedsIndexedDb: 'IndexedDB is required for Skill workspace in this browser.',
@@ -104,7 +104,7 @@ export const panelMessageDefaults = {
   workdirCreate: 'Add workspace',
   workdirAgentEnvs: 'Agent environments',
   workdirAgentEnvsHelp:
-    'Multi-select project skill folders such as .claude, .agents, .github. Changing selection updates enabled skill files on disk.',
+    'Install targets when enabling skills (.claude, .agents, .github, …). Listing always rescans every agent folder on enter.',
   workdirEmpty: 'No skill workspaces yet. Use + above to choose a project folder.',
   workdirActive: 'active',
   workdirActivate: 'Set as active',
@@ -113,12 +113,12 @@ export const panelMessageDefaults = {
     'Remove this skill workspace from IndexedDB? Files on disk are not deleted.',
   workdirSelectPrompt: 'Select a skill workspace to manage its skills.',
   workdirSkillsHelp:
-    'Platform skills first (check writes local files, uncheck removes them). Local-only skills are grayed and read-only.',
+    'Each visit rescans disk. Platform (skill API) first, then local skills not in the catalog, then by name. Uncheck zips; check downloads or expands.',
   workdirFolderInaccessible:
-    'Cannot read this folder here. Re-add the workspace and grant folder access in the browser.',
+    'Cannot read this folder. Re-add the workspace and grant folder access (browser picker or desktop path).',
   workdirNoSkills: 'No platform or local skills yet.',
-  workdirInUse: 'In use',
-  workdirNotInUse: 'Not in use',
+  workdirInUse: 'On',
+  workdirNotInUse: 'Off (zipped)',
   workdirSkillLocal: 'Local',
   workdirSkillPlatform: 'Platform',
   workdirSkillDelete: 'Remove local skill',

@@ -21,4 +21,5 @@ bun run build              # tauri build
 - MCP is **not** bundled as a Tauri sidecar here. Start it with `bun run start:mcp` (or a globally installed `openpencil-mcp-http`) when agents/automation need it.
 - Icons: copy or run brand generation into `icons/` as needed; this tree already ships icons.
 - ACP / harness / fs scope / updater rules match `desktop/AGENTS.md`; change `desktop-react/capabilities/**` for this shell.
+- Skill workspace needs `fs:allow-read-dir` / `exists` plus literal leading-dot paths for agent skill roots (`.claude/skills/**`, …). Regenerate those allows with `bun tools/patch-desktop-react-skill-fs.mjs` when `SKILL_AGENT_ENVIRONMENTS` changes.
 - macOS `signingIdentity` is `"-"` (ad-hoc) so local `bun run build` works without the release Developer ID in the keychain. For a signed release, pass your identity, e.g. `bunx tauri build --config '{"bundle":{"macOS":{"signingIdentity":"Developer ID Application: …"}}}'`.

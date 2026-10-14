@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "remote": {
     "urls": [
       "http://localhost:8000/*",
@@ -31,114 +33,1894 @@
     {
       "identifier": "fs:scope",
       "deny": [
-        { "path": "$HOME/Library/LaunchAgents" },
-        { "path": "$HOME/Library/LaunchAgents/**" },
-        { "path": "$DATA/Microsoft/Windows/Start Menu/Programs/Startup" },
-        { "path": "$DATA/Microsoft/Windows/Start Menu/Programs/Startup/**" },
-        { "path": "$DOCUMENT/PowerShell" },
-        { "path": "$DOCUMENT/PowerShell/**" },
-        { "path": "$DOCUMENT/WindowsPowerShell" },
-        { "path": "$DOCUMENT/WindowsPowerShell/**" },
-        { "path": "/usr/local" },
-        { "path": "/usr/local/**" },
-        { "path": "/opt/homebrew" },
-        { "path": "/opt/homebrew/**" },
-        { "path": "$HOME/bin" },
-        { "path": "$HOME/bin/**" },
-        { "path": "$HOME/n" },
-        { "path": "$HOME/n/**" },
-        { "path": "$DATA/npm" },
-        { "path": "$DATA/npm/**" },
-        { "path": "$DATA/nvm" },
-        { "path": "$DATA/nvm/**" },
-        { "path": "$DATA/fnm" },
-        { "path": "$DATA/fnm/**" },
-        { "path": "$LOCALDATA/Volta" },
-        { "path": "$LOCALDATA/Volta/**" },
-        { "path": "$LOCALDATA/Programs" },
-        { "path": "$LOCALDATA/Programs/**" },
-        { "path": "$LOCALDATA/Microsoft/WindowsApps" },
-        { "path": "$LOCALDATA/Microsoft/WindowsApps/**" },
-        { "path": "$HOME/scoop" },
-        { "path": "$HOME/scoop/**" }
+        {
+          "path": "$HOME/Library/LaunchAgents"
+        },
+        {
+          "path": "$HOME/Library/LaunchAgents/**"
+        },
+        {
+          "path": "$DATA/Microsoft/Windows/Start Menu/Programs/Startup"
+        },
+        {
+          "path": "$DATA/Microsoft/Windows/Start Menu/Programs/Startup/**"
+        },
+        {
+          "path": "$DOCUMENT/PowerShell"
+        },
+        {
+          "path": "$DOCUMENT/PowerShell/**"
+        },
+        {
+          "path": "$DOCUMENT/WindowsPowerShell"
+        },
+        {
+          "path": "$DOCUMENT/WindowsPowerShell/**"
+        },
+        {
+          "path": "/usr/local"
+        },
+        {
+          "path": "/usr/local/**"
+        },
+        {
+          "path": "/opt/homebrew"
+        },
+        {
+          "path": "/opt/homebrew/**"
+        },
+        {
+          "path": "$HOME/bin"
+        },
+        {
+          "path": "$HOME/bin/**"
+        },
+        {
+          "path": "$HOME/n"
+        },
+        {
+          "path": "$HOME/n/**"
+        },
+        {
+          "path": "$DATA/npm"
+        },
+        {
+          "path": "$DATA/npm/**"
+        },
+        {
+          "path": "$DATA/nvm"
+        },
+        {
+          "path": "$DATA/nvm/**"
+        },
+        {
+          "path": "$DATA/fnm"
+        },
+        {
+          "path": "$DATA/fnm/**"
+        },
+        {
+          "path": "$LOCALDATA/Volta"
+        },
+        {
+          "path": "$LOCALDATA/Volta/**"
+        },
+        {
+          "path": "$LOCALDATA/Programs"
+        },
+        {
+          "path": "$LOCALDATA/Programs/**"
+        },
+        {
+          "path": "$LOCALDATA/Microsoft/WindowsApps"
+        },
+        {
+          "path": "$LOCALDATA/Microsoft/WindowsApps/**"
+        },
+        {
+          "path": "$HOME/scoop"
+        },
+        {
+          "path": "$HOME/scoop/**"
+        }
       ]
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-stat",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-open",
-      "allow": [{ "path": "**" }],
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ],
       "deny": [
-        { "path": "$HOME/Library/Application Support/OpenPencil/mcp.json" },
-        { "path": "$LOCALDATA/OpenPencil/mcp.json" },
-        { "path": "$RUNTIME/openpencil/mcp.json" },
-        { "path": "$HOME/.openpencil/mcp.json" }
+        {
+          "path": "$HOME/Library/Application Support/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$LOCALDATA/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$RUNTIME/openpencil/mcp.json"
+        },
+        {
+          "path": "$HOME/.openpencil/mcp.json"
+        }
       ]
     },
     "fs:allow-fstat",
     "fs:allow-seek",
     "fs:allow-read",
     {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        { "path": "$HOME/.pi/agent/settings.json" },
-        { "path": "$HOME/Library/Application Support/OpenPencil/mcp.json" },
-        { "path": "$LOCALDATA/OpenPencil/mcp.json" },
-        { "path": "$RUNTIME/openpencil/mcp.json" },
-        { "path": "$HOME/.openpencil/mcp.json" }
+        {
+          "path": "$HOME/.pi/agent/settings.json"
+        },
+        {
+          "path": "$HOME/Library/Application Support/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$LOCALDATA/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$RUNTIME/openpencil/mcp.json"
+        },
+        {
+          "path": "$HOME/.openpencil/mcp.json"
+        },
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
       ]
     },
     {
       "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "**" }],
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ],
       "deny": [
-        { "path": "$HOME/Library/Application Support/OpenPencil/mcp.json" },
-        { "path": "$LOCALDATA/OpenPencil/mcp.json" },
-        { "path": "$RUNTIME/openpencil/mcp.json" },
-        { "path": "$HOME/.openpencil/mcp.json" }
+        {
+          "path": "$HOME/Library/Application Support/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$LOCALDATA/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$RUNTIME/openpencil/mcp.json"
+        },
+        {
+          "path": "$HOME/.openpencil/mcp.json"
+        }
       ]
     },
     {
       "identifier": "fs:allow-exists",
       "allow": [
-        { "path": "$HOME/.pi/agent/auth.json" },
-        { "path": "$HOME/Library/Application Support/OpenPencil/mcp.json" },
-        { "path": "$LOCALDATA/OpenPencil/mcp.json" },
-        { "path": "$RUNTIME/openpencil/mcp.json" },
-        { "path": "$HOME/.openpencil/mcp.json" }
+        {
+          "path": "$HOME/.pi/agent/auth.json"
+        },
+        {
+          "path": "$HOME/Library/Application Support/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$LOCALDATA/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$RUNTIME/openpencil/mcp.json"
+        },
+        {
+          "path": "$HOME/.openpencil/mcp.json"
+        },
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
       ]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-remove",
-      "allow": [{ "path": "**" }],
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/skills"
+        },
+        {
+          "path": "**/.claude/skills/**"
+        },
+        {
+          "path": "**/.github"
+        },
+        {
+          "path": "**/.github/skills"
+        },
+        {
+          "path": "**/.github/skills/**"
+        },
+        {
+          "path": "**/.agents"
+        },
+        {
+          "path": "**/.agents/skills"
+        },
+        {
+          "path": "**/.agents/skills/**"
+        },
+        {
+          "path": "**/.cursor"
+        },
+        {
+          "path": "**/.cursor/skills"
+        },
+        {
+          "path": "**/.cursor/skills/**"
+        },
+        {
+          "path": "**/.codex"
+        },
+        {
+          "path": "**/.codex/skills"
+        },
+        {
+          "path": "**/.codex/skills/**"
+        },
+        {
+          "path": "**/.gemini"
+        },
+        {
+          "path": "**/.gemini/skills"
+        },
+        {
+          "path": "**/.gemini/skills/**"
+        },
+        {
+          "path": "**/.windsurf"
+        },
+        {
+          "path": "**/.windsurf/skills"
+        },
+        {
+          "path": "**/.windsurf/skills/**"
+        },
+        {
+          "path": "**/.agent"
+        },
+        {
+          "path": "**/.agent/skills"
+        },
+        {
+          "path": "**/.agent/skills/**"
+        },
+        {
+          "path": "**/.goose"
+        },
+        {
+          "path": "**/.goose/skills"
+        },
+        {
+          "path": "**/.goose/skills/**"
+        },
+        {
+          "path": "**/.continue"
+        },
+        {
+          "path": "**/.continue/skills"
+        },
+        {
+          "path": "**/.continue/skills/**"
+        },
+        {
+          "path": "**/.roo"
+        },
+        {
+          "path": "**/.roo/skills"
+        },
+        {
+          "path": "**/.roo/skills/**"
+        },
+        {
+          "path": "**/.openhands"
+        },
+        {
+          "path": "**/.openhands/skills"
+        },
+        {
+          "path": "**/.openhands/skills/**"
+        },
+        {
+          "path": "**/.trae"
+        },
+        {
+          "path": "**/.trae/skills"
+        },
+        {
+          "path": "**/.trae/skills/**"
+        },
+        {
+          "path": "**/.kilocode"
+        },
+        {
+          "path": "**/.kilocode/skills"
+        },
+        {
+          "path": "**/.kilocode/skills/**"
+        },
+        {
+          "path": "**/.kiro"
+        },
+        {
+          "path": "**/.kiro/skills"
+        },
+        {
+          "path": "**/.kiro/skills/**"
+        },
+        {
+          "path": "**/.augment"
+        },
+        {
+          "path": "**/.augment/skills"
+        },
+        {
+          "path": "**/.augment/skills/**"
+        },
+        {
+          "path": "**/.factory"
+        },
+        {
+          "path": "**/.factory/skills"
+        },
+        {
+          "path": "**/.factory/skills/**"
+        },
+        {
+          "path": "**/.aider-desk"
+        },
+        {
+          "path": "**/.aider-desk/skills"
+        },
+        {
+          "path": "**/.aider-desk/skills/**"
+        },
+        {
+          "path": "**/.qwen"
+        },
+        {
+          "path": "**/.qwen/skills"
+        },
+        {
+          "path": "**/.qwen/skills/**"
+        },
+        {
+          "path": "**/.qoder"
+        },
+        {
+          "path": "**/.qoder/skills"
+        },
+        {
+          "path": "**/.qoder/skills/**"
+        }
+      ],
       "deny": [
-        { "path": "$HOME/Library/Application Support/OpenPencil/mcp.json" },
-        { "path": "$LOCALDATA/OpenPencil/mcp.json" },
-        { "path": "$RUNTIME/openpencil/mcp.json" },
-        { "path": "$HOME/.openpencil/mcp.json" }
+        {
+          "path": "$HOME/Library/Application Support/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$LOCALDATA/OpenPencil/mcp.json"
+        },
+        {
+          "path": "$RUNTIME/openpencil/mcp.json"
+        },
+        {
+          "path": "$HOME/.openpencil/mcp.json"
+        }
       ]
     },
     {
       "identifier": "fs:allow-watch",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
     },
     "fs:allow-unwatch",
     {
       "identifier": "shell:allow-spawn",
       "allow": [
-        { "name": "claude-agent-acp", "cmd": "claude-agent-acp", "args": false },
-        { "name": "codex-acp", "cmd": "codex-acp", "args": false },
-        { "name": "gemini", "cmd": "gemini", "args": ["--acp"] },
+        {
+          "name": "claude-agent-acp",
+          "cmd": "claude-agent-acp",
+          "args": false
+        },
+        {
+          "name": "codex-acp",
+          "cmd": "codex-acp",
+          "args": false
+        },
+        {
+          "name": "gemini",
+          "cmd": "gemini",
+          "args": [
+            "--acp"
+          ]
+        },
         {
           "name": "npm",
           "cmd": "npm",
@@ -151,11 +1933,41 @@
             "--registry=https://registry.npmjs.org"
           ]
         },
-        { "name": "openpencil-mcp-http", "cmd": "openpencil-mcp-http", "args": false },
-        { "name": "openpencil-harness", "cmd": "openpencil-harness", "args": false },
-        { "name": "cmd-claude-agent-acp", "cmd": "cmd", "args": ["/c", "claude-agent-acp"] },
-        { "name": "cmd-codex-acp", "cmd": "cmd", "args": ["/c", "codex-acp"] },
-        { "name": "cmd-gemini", "cmd": "cmd", "args": ["/c", "gemini", "--acp"] },
+        {
+          "name": "openpencil-mcp-http",
+          "cmd": "openpencil-mcp-http",
+          "args": false
+        },
+        {
+          "name": "openpencil-harness",
+          "cmd": "openpencil-harness",
+          "args": false
+        },
+        {
+          "name": "cmd-claude-agent-acp",
+          "cmd": "cmd",
+          "args": [
+            "/c",
+            "claude-agent-acp"
+          ]
+        },
+        {
+          "name": "cmd-codex-acp",
+          "cmd": "cmd",
+          "args": [
+            "/c",
+            "codex-acp"
+          ]
+        },
+        {
+          "name": "cmd-gemini",
+          "cmd": "cmd",
+          "args": [
+            "/c",
+            "gemini",
+            "--acp"
+          ]
+        },
         {
           "name": "cmd-npm",
           "cmd": "cmd",
@@ -170,8 +1982,22 @@
             "--registry=https://registry.npmjs.org"
           ]
         },
-        { "name": "cmd-openpencil-mcp-http", "cmd": "cmd", "args": ["/c", "openpencil-mcp-http"] },
-        { "name": "cmd-openpencil-harness", "cmd": "cmd", "args": ["/c", "openpencil-harness"] }
+        {
+          "name": "cmd-openpencil-mcp-http",
+          "cmd": "cmd",
+          "args": [
+            "/c",
+            "openpencil-mcp-http"
+          ]
+        },
+        {
+          "name": "cmd-openpencil-harness",
+          "cmd": "cmd",
+          "args": [
+            "/c",
+            "openpencil-harness"
+          ]
+        }
       ]
     },
     "shell:allow-stdin-write",
