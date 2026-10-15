@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-mcp-lookup"
+description = "Enables looking up the openpencil-mcp-http binary or workspace MCP entry."
+commands.allow = ["mcp_lookup"]
+
+[[permission]]
+identifier = "allow-mcp-health"
+description = "Enables probing the local MCP HTTP /health endpoint from native code (avoids mixed-content blocks)."
+commands.allow = ["mcp_health"]
+
+[[permission]]
+identifier = "allow-mcp-start"
+description = "Enables starting the local MCP HTTP server from the desktop shell."
+commands.allow = ["mcp_start"]

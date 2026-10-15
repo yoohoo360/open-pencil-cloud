@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "bun run generate:menu && bun run start:frontend",
     "devUrl": "http://localhost:8000",
-    "beforeBuildCommand": "bun run generate:menu",
+    "beforeBuildCommand": "bun run generate:menu && bun run ensure:mcp-binary",
     "frontendDist": "https://pencil.yoohoo.cn"
   },
   "app": {
@@ -26,6 +26,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "externalBin": ["binaries/openpencil-mcp-http"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

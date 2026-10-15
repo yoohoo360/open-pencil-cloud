@@ -2000,6 +2000,9 @@
         }
       ]
     },
+    "allow-mcp-lookup",
+    "allow-mcp-health",
+    "allow-mcp-start",
     "shell:allow-stdin-write",
     "shell:allow-kill"
   ]

@@ -168,6 +168,18 @@
         "ws": "^8.21.3",
       },
     },
+    "desktop-react": {
+      "name": "@open-pencil/desktop-react",
+      "dependencies": {
+        "@langchain/core": "^1.2.17",
+        "@langchain/langgraph": "^1.2.0",
+        "@langchain/langgraph-cli": "^1.5.2",
+        "@langchain/openai": "^1.2.0",
+        "fflate": "^0.8.3",
+        "langchain": "^1.2.3",
+        "zod": "^4.3.6",
+      },
+    },
     "packages/cli": {
       "name": "@open-pencil/cli",
       "version": "0.15.1",
@@ -458,7 +470,7 @@
         "yjs": "^13.6.32",
       },
       "devDependencies": {
-        "@open-pencil/agent-server-tools": "workspace:*",
+        "@open-pencil/desktop-react": "workspace:*",
         "@svgr/webpack": "^8.1.0",
         "@tailwindcss/postcss": "^4.3.3",
         "@tailwindcss/vite": "^4.3.3",
@@ -611,18 +623,6 @@
       "name": "@open-pencil/pr-review-guidance-tools",
       "dependencies": {
         "valibot": "^1.5.0",
-      },
-    },
-    "tools/dev/agent-server": {
-      "name": "@open-pencil/agent-server-tools",
-      "dependencies": {
-        "@langchain/core": "^1.2.17",
-        "@langchain/langgraph": "^1.2.0",
-        "@langchain/langgraph-cli": "^1.5.2",
-        "@langchain/openai": "^1.2.0",
-        "fflate": "^0.8.3",
-        "langchain": "^1.2.3",
-        "zod": "^4.3.6",
       },
     },
     "tools/dev/dev-server": {
@@ -1648,8 +1648,6 @@
 
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "https://registry.npmmirror.com/@nodelib/fs.walk/-/fs.walk-1.2.8.tgz", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
-    "@open-pencil/agent-server-tools": ["@open-pencil/agent-server-tools@workspace:tools/dev/agent-server"],
-
     "@open-pencil/architecture-tools": ["@open-pencil/architecture-tools@workspace:tools/checks/architecture"],
 
     "@open-pencil/authoring-reference-tools": ["@open-pencil/authoring-reference-tools@workspace:tools/generate/authoring-reference"],
@@ -1669,6 +1667,8 @@
     "@open-pencil/demo-tools": ["@open-pencil/demo-tools@workspace:tools/generate/demo"],
 
     "@open-pencil/design-jsx": ["@open-pencil/design-jsx@workspace:packages/design-jsx"],
+
+    "@open-pencil/desktop-react": ["@open-pencil/desktop-react@workspace:desktop-react"],
 
     "@open-pencil/dev-server-tools": ["@open-pencil/dev-server-tools@workspace:tools/dev/dev-server"],
 

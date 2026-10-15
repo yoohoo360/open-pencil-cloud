@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http'
 import type { DevMCPConfiguration } from '../../../src/app/automation/mcp/dev-control'
 
 interface AutomationEnvironmentOptions {
+  /** Bearer for the MCP child (Settings token, or Vite control token fallback). */
   authToken: string | null
   baseEnv: NodeJS.ProcessEnv
   configuration: DevMCPConfiguration
@@ -27,7 +28,8 @@ export function createAutomationEnvironment(
     OPENPENCIL_MCP_AUTH_TOKEN: configuration.authenticationEnabled ? (authToken ?? '') : '',
     OPENPENCIL_MCP_CORS_ORIGIN: corsOrigin,
     OPENPENCIL_MCP_ROOT: configuration.rootDirectory.trim() || process.cwd(),
-    OPENPENCIL_MCP_DISABLED_TOOLS: configuration.disabledTools.join(',')
+    OPENPENCIL_MCP_DISABLED_TOOLS: configuration.disabledTools.join(','),
+    OPENPENCIL_MCP_SCOPE: configuration.scope
   }
   if (socketPath) environment.OPENPENCIL_MCP_SOCKET = socketPath
   if (discoveryPath) environment.OPENPENCIL_MCP_DISCOVERY_PATH = discoveryPath
@@ -35,6 +37,7 @@ export function createAutomationEnvironment(
 }
 
 const MAX_CONFIGURATION_BYTES = 70_000
+const MAX_AUTH_TOKEN_LENGTH = 256
 
 type DevMCPConfigurationErrorStatus = 400 | 413
 
@@ -81,4 +84,15 @@ export async function readDevMCPConfiguration(request: IncomingMessage): Promise
   } catch (error) {
     throw new DevMCPConfigurationSyntaxError(error)
   }
+}
+
+/** React-only: optional `authToken` on the restart body (not part of shared DevMCPConfiguration). */
+export function readRestartAuthToken(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const value = Reflect.get(raw, 'authToken')
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'string') return null
+  const token = value.trim()
+  if (!token || token.length > MAX_AUTH_TOKEN_LENGTH) return null
+  return token
 }

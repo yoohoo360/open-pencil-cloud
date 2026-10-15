@@ -1,7 +1,7 @@
 /**
  * Project-level skill roots for common coding agents.
  * Labels are the project folder name (e.g. `.claude`).
- * Keep in sync with `tools/dev/agent-server/src/workdir/agent-environments.ts`.
+ * Keep in sync with `desktop-react/agent-server/src/workdir/agent-environments.ts`.
  */
 export const SKILL_AGENT_ENVIRONMENTS = [
   { id: 'claude', label: '.claude', relativeSkillsDir: '.claude/skills' },

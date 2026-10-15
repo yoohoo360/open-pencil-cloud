@@ -5,7 +5,7 @@ import {
   agentServerDisabled,
   DEFAULT_AGENT_SERVER_PORT,
   waitForAgentServer
-} from '@open-pencil/agent-server-tools/spawn'
+} from '@open-pencil/desktop-react/agent-server/spawn'
 
 /** Dev-only path: page chat hits this on first probe to detect a running LangGraph. */
 export const AGENT_SERVER_ENSURE_PATH = '/__openpencil-agent-server/ensure'

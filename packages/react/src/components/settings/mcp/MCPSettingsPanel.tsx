@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '@nanostores/react'
 
 import {
+  dismissRevealedLocalMCPAuthToken,
+  generateLocalMCPAuthToken,
+  localMCPAuthTokenConfigured,
+  revealedLocalMCPAuthToken
+} from '#react/app/automation/mcp/auth-token'
+import {
   disabledMCPTools,
   enableAllMCPTools,
   mcpAuthenticationEnabled,
@@ -9,7 +15,11 @@ import {
   setMCPToolCategoryEnabled,
   setMCPToolEnabled
 } from '#react/app/automation/mcp/preferences'
-import { mcpRuntime, refreshMCPRuntime, restartMCPRuntime } from '#react/app/automation/mcp/runtime'
+import {
+  ensureMCPRuntime,
+  mcpRuntime,
+  restartMCPRuntime
+} from '#react/app/automation/mcp/runtime'
 import { configurableMCPTools, type MCPToolEffect } from '#react/app/automation/mcp/tools'
 import { AppInput } from '#react/components/ui/AppInput'
 import { AppSwitch } from '#react/components/ui/AppSwitch'
@@ -30,7 +40,11 @@ export function MCPSettingsPanel() {
   const disabledTools = useStore(disabledMCPTools)
   const authenticationEnabled = useStore(mcpAuthenticationEnabled)
   const rootDirectory = useStore(mcpRootDirectory)
+  const revealedToken = useStore(revealedLocalMCPAuthToken)
   const [toolSearch, setToolSearch] = useState('')
+  const [tokenConfigured, setTokenConfigured] = useState(() => localMCPAuthTokenConfigured())
+  const [generatingToken, setGeneratingToken] = useState(false)
+  const [copiedToken, setCopiedToken] = useState(false)
   const tools = useMemo(() => configurableMCPTools(), [])
   const disabledToolNames = useMemo(() => new Set(disabledTools), [disabledTools])
   const inspectionToolsStatus = categoryStatus('read', disabledToolNames)
@@ -55,8 +69,31 @@ export function MCPSettingsPanel() {
             : dialogs.mcpStatus_stopped
 
   useEffect(() => {
-    void refreshMCPRuntime()
+    void ensureMCPRuntime()
   }, [])
+
+  async function handleGenerateToken() {
+    if (generatingToken || !authenticationEnabled) return
+    setGeneratingToken(true)
+    setCopiedToken(false)
+    try {
+      generateLocalMCPAuthToken()
+      setTokenConfigured(true)
+      await restartMCPRuntime()
+    } finally {
+      setGeneratingToken(false)
+    }
+  }
+
+  async function handleCopyToken() {
+    if (!revealedToken) return
+    try {
+      await navigator.clipboard.writeText(revealedToken)
+      setCopiedToken(true)
+    } catch {
+      setCopiedToken(false)
+    }
+  }
 
   return (
     <section className="flex flex-col gap-4" data-test-id="settings-mcp-automation-panel">
@@ -104,9 +141,79 @@ export function MCPSettingsPanel() {
               checked={authenticationEnabled}
               label={dialogs.mcpAuthentication}
               data-test-id="settings-mcp-authentication"
-              onCheckedChange={(enabled) => mcpAuthenticationEnabled.set(enabled)}
+              onCheckedChange={(enabled) => {
+                mcpAuthenticationEnabled.set(enabled)
+                if (!enabled) dismissRevealedLocalMCPAuthToken()
+                void restartMCPRuntime()
+              }}
             />
           </div>
+          {authenticationEnabled ? (
+            <div className="mt-3 flex flex-col gap-2" data-test-id="settings-mcp-auth-token">
+              <p className="text-[10px] font-medium text-surface">
+                {dialogs.mcpAuthenticationToken}
+              </p>
+              <p className="text-[10px] leading-relaxed text-muted">
+                {dialogs.mcpAuthenticationTokenDescription}
+              </p>
+              {revealedToken ? (
+                <>
+                  <p className="text-[10px] leading-relaxed text-muted">
+                    {dialogs.mcpAuthenticationTokenRevealHint}
+                  </p>
+                  <div className="flex items-center gap-2 rounded border border-border bg-input px-2 py-1.5">
+                    <code
+                      className="min-w-0 flex-1 select-all truncate font-mono text-[10px] text-surface"
+                      data-test-id="settings-mcp-auth-token-value"
+                    >
+                      {revealedToken}
+                    </code>
+                    <button
+                      type="button"
+                      className="shrink-0 text-[10px] text-accent hover:underline"
+                      onClick={() => void handleCopyToken()}
+                    >
+                      {copiedToken ? dialogs.copied : dialogs.copy}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="self-start rounded border border-border px-2.5 py-1 text-[10px] text-surface hover:bg-hover"
+                    data-test-id="settings-mcp-auth-token-dismiss"
+                    onClick={() => {
+                      dismissRevealedLocalMCPAuthToken()
+                      setCopiedToken(false)
+                    }}
+                  >
+                    {dialogs.mcpDismissAuthenticationToken}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] text-surface">
+                    {tokenConfigured
+                      ? dialogs.mcpAuthenticationTokenConfigured
+                      : dialogs.mcpAuthenticationTokenMissing}
+                  </p>
+                  <button
+                    type="button"
+                    className="self-start rounded bg-accent px-2.5 py-1 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                    disabled={generatingToken}
+                    data-test-id={
+                      tokenConfigured
+                        ? 'settings-mcp-auth-token-regenerate'
+                        : 'settings-mcp-auth-token-generate'
+                    }
+                    onClick={() => void handleGenerateToken()}
+                  >
+                    {tokenConfigured
+                      ? dialogs.mcpRegenerateAuthenticationToken
+                      : dialogs.mcpGenerateAuthenticationToken}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-3 border-t border-border pt-3">

@@ -2,12 +2,28 @@
   "name": "@open-pencil/desktop-react",
   "private": true,
   "type": "module",
+  "exports": {
+    "./agent-server/spawn": "./agent-server/src/spawn.ts",
+    "./agent-server/workdir": "./agent-server/src/workdir/http.ts"
+  },
   "scripts": {
     "generate:menu": "bun ../packages/react/scripts/generate-desktop-menu.ts",
+    "ensure:mcp-binary": "bun ./scripts/ensure-mcp-binary.ts",
     "dev": "bunx tauri dev",
-    "build": "bunx tauri build",
+    "build": "bun run ensure:mcp-binary && bunx tauri build",
     "start:frontend": "bun --cwd ../packages/react run start",
-    "start:mcp": "bun ../packages/mcp/src/index.ts",
-    "start:agent-server": "bun ../packages/react/scripts/start-agent-server.ts"
+    "start:mcp": "bun ./scripts/start-mcp.ts",
+    "start:agent-server": "bun ./scripts/start-agent-server.ts",
+    "start:services": "bun ./scripts/start-services.ts",
+    "test:agent-server": "bun test ./agent-server/tests"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.17",
+    "@langchain/langgraph": "^1.2.0",
+    "@langchain/langgraph-cli": "^1.5.2",
+    "@langchain/openai": "^1.2.0",
+    "fflate": "^0.8.3",
+    "langchain": "^1.2.3",
+    "zod": "^4.3.6"
   }
 }

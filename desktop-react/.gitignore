@@ -6,3 +6,8 @@
 
 # Tauri-generated capability schema files
 /gen/
+
+# Agent Server (LangGraph)
+/agent-server/.langgraph_api
+/agent-server/.data
+/agent-server/.env

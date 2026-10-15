@@ -374,7 +374,18 @@ export const dialogMessageDefaults = {
   mcpVersion: 'Version',
   mcpAuthentication: 'Require authentication',
   mcpAuthenticationDescription:
-    'Protect the localhost MCP endpoint with a bearer token. Disable only on a trusted machine. Restart the server to apply changes.',
+    'Protect the localhost MCP endpoint with a bearer token. Disable only on a trusted machine.',
+  mcpAuthenticationToken: 'Bearer token',
+  mcpAuthenticationTokenDescription:
+    'Generate a token here, copy it when it appears, then dismiss it — it cannot be shown again. Regenerate to issue a new token and reconnect clients.',
+  mcpAuthenticationTokenMissing:
+    'No token yet. Generate one to require authentication on the local server.',
+  mcpAuthenticationTokenConfigured: 'A bearer token is configured',
+  mcpAuthenticationTokenRevealHint:
+    'Copy this token now. After you dismiss it, you can only regenerate a new one.',
+  mcpGenerateAuthenticationToken: 'Generate token',
+  mcpRegenerateAuthenticationToken: 'Regenerate token',
+  mcpDismissAuthenticationToken: 'Done',
   mcpRootDirectory: 'MCP root directory',
   mcpRootDirectoryDefault: 'User home directory (default)',
   mcpChooseRootDirectory: 'Choose folder',
