@@ -1,12 +1,14 @@
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { waitForChildReady } from '../../../src/app/automation/bridge/child-ready'
 import { freeAutomationBind } from '../../../src/app/automation/bridge/free-bind.override'
+import { waitForAutomationHealth } from '../../../src/app/automation/bridge/vite-plugin.override'
 import {
   parseDevMCPConfiguration,
   type DevMCPConfiguration
@@ -15,7 +17,8 @@ import { platformHasUnixSockets } from '../../mcp/src/transport/paths'
 import {
   createAutomationEnvironment,
   devMCPConfigurationErrorStatus,
-  readDevMCPConfiguration
+  readDevMCPConfiguration,
+  readRestartAuthToken
 } from './automation-env'
 
 const CHILD_EXIT_TIMEOUT_MS = 2_000
@@ -39,10 +42,13 @@ export function createAutomationController(
 ) {
   let child: ReturnType<typeof spawn> | null = null
   let lifecycle = Promise.resolve()
+  /** Settings-generated Bearer; falls back to the Vite control token when null. */
+  let serverAuthToken: string | null = null
   let configuration: DevMCPConfiguration = {
     authenticationEnabled: true,
     rootDirectory: '',
-    disabledTools: []
+    disabledTools: [],
+    scope: 'document'
   }
 
   function enqueue(operation: () => Promise<void>): Promise<void> {
@@ -82,19 +88,24 @@ export function createAutomationController(
     const spawnArgs = options.portlessServiceName
       ? ['run', '--name', options.portlessServiceName, ...command]
       : command.slice(1)
+    const readyMarker = `open-pencil-ready:${randomUUID()}`
     const spawned = spawn(spawnCommand, spawnArgs, {
       cwd: REPO_ROOT,
       stdio: ['ignore', 'inherit', 'pipe'],
-      env: createAutomationEnvironment({
-        authToken,
-        baseEnv: process.env,
-        configuration,
-        corsOrigin: options.corsOrigin,
-        discoveryPath,
-        httpPort: options.httpPort,
-        socketPath
-      })
+      env: {
+        ...createAutomationEnvironment({
+          authToken: serverAuthToken ?? authToken,
+          baseEnv: process.env,
+          configuration,
+          corsOrigin: options.corsOrigin,
+          discoveryPath,
+          httpPort: options.httpPort,
+          socketPath
+        }),
+        OPENPENCIL_MCP_READY_MARKER: readyMarker
+      }
     })
+    const ready = waitForChildReady(spawned, readyMarker)
     child = spawned
     let reclaimScheduled = false
 
@@ -128,6 +139,29 @@ export function createAutomationController(
       }
       if (child === spawned) child = null
     })
+
+    try {
+      await ready
+    } catch (error) {
+      if (reclaimScheduled) return
+      spawned.kill()
+      if (child === spawned) child = null
+      throw error
+    }
+    try {
+      await waitForAutomationHealth(options.browserURL, fetch, {
+        assertRunning() {
+          if (child !== spawned || spawned.exitCode !== null || spawned.signalCode !== null) {
+            throw new Error('MCP child exited before becoming ready')
+          }
+        }
+      })
+    } catch (error) {
+      if (reclaimScheduled) return
+      spawned.kill()
+      if (child === spawned) child = null
+      throw error
+    }
   }
 
   async function restartChild(nextConfiguration: DevMCPConfiguration): Promise<void> {
@@ -156,6 +190,12 @@ export function createAutomationController(
           response.statusCode = 400
           response.end('Invalid MCP configuration')
           return
+        }
+        if (nextConfiguration.authenticationEnabled) {
+          const nextToken = readRestartAuthToken(rawConfiguration)
+          if (nextToken) serverAuthToken = nextToken
+        } else {
+          serverAuthToken = null
         }
         await enqueue(() => restartChild(nextConfiguration))
         response.statusCode = 204

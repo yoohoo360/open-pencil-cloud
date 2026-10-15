@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom'
 
 import { IS_TAURI } from '@open-pencil/core/constants'
 
+import { ensureMCPRuntime } from '#react/app/automation/mcp/runtime'
+
 import { App } from './App'
 import './polyfills/text-encoding'
 
@@ -19,6 +21,11 @@ createRoot(rootElement).render(
     </BrowserRouter>
   </StrictMode>
 )
+
+// Desktop / local DEV: bring up the local MCP server without a separate terminal.
+void ensureMCPRuntime().catch((reason) => {
+  console.warn('[MCP] Failed to start:', reason)
+})
 
 if (!IS_TAURI && import.meta.env.PROD && 'serviceWorker' in navigator) {
   void navigator.serviceWorker.register('/sw.js')

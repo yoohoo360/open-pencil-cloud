@@ -27,6 +27,7 @@ export function openPencilAutomationRspackPlugin(command: string, host: string |
     corsOrigin: process.env.PORTLESS_URL ? route.corsOrigin : automationCORSOrigin(host),
     httpPort: AUTOMATION_HTTP_PORT
   })
+  let started = false
 
   return {
     apply(compiler: {
@@ -37,14 +38,22 @@ export function openPencilAutomationRspackPlugin(command: string, host: string |
         shutdown?: { tapPromise: (name: string, fn: () => Promise<void>) => void }
       }
     }) {
-      // MCP is not started with `bun start` — run `bun run start:mcp` separately.
-      // Restart middleware still attaches to a manually started server.
       compiler.hooks.watchClose.tap('open-pencil-automation', () => {
         void controller.stop()
       })
       compiler.hooks.shutdown?.tapPromise('open-pencil-automation', () => controller.stop())
     },
     setupMiddlewares<T>(middlewares: T[]): T[] {
+      // Start the local MCP child with the React dev server (same as Vue Vite).
+      if (command === 'serve' && !started) {
+        started = true
+        void controller.start().catch((error) => {
+          console.error(
+            '[MCP] Failed to start automation server:',
+            error instanceof Error ? error.message : error
+          )
+        })
+      }
       const middleware = {
         name: 'open-pencil-mcp-restart',
         path: DEV_MCP_RESTART_PATH,

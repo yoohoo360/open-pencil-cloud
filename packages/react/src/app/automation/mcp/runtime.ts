@@ -1,5 +1,14 @@
 import { atom } from 'nanostores'
-import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
+
+import { AUTOMATION_HTTP_PORT, IS_TAURI } from '@open-pencil/core/constants'
+
+import { resolveLocalMCPAuthToken } from '#react/app/automation/mcp/auth-token'
+import {
+  disabledMCPTools,
+  mcpAuthenticationEnabled,
+  mcpRootDirectory
+} from '#react/app/automation/mcp/preferences'
+import { spawnTauriMCP } from '#react/app/automation/mcp/spawn-tauri'
 
 export type MCPRuntimeStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'error'
 
@@ -12,9 +21,15 @@ export interface MCPRuntimeState {
   externallyManaged: boolean
 }
 
-const HEALTH_URL = import.meta.env.DEV
-  ? '/__openpencil-mcp/health'
-  : `http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`
+/** Prefer direct localhost in Tauri; use the rspack proxy only in browser DEV. */
+const HEALTH_URL =
+  IS_TAURI || !import.meta.env.DEV
+    ? `http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`
+    : '/__openpencil-mcp/health'
+
+const DEV_MCP_RESTART_PATH = '/__openpencil/mcp/restart'
+const HEALTH_POLL_ATTEMPTS = 20
+const HEALTH_POLL_DELAY_MS = 250
 
 export const mcpRuntime = atom<MCPRuntimeState>({
   status: 'idle',
@@ -31,6 +46,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseVersion(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
+}
+
+function controlToken(): string | null {
+  return typeof __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__ === 'string'
+    ? __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__
+    : null
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function isLocalDevFrontend(): boolean {
+  if (!import.meta.env.DEV) return false
+  try {
+    const { hostname, port } = window.location
+    return hostname === 'localhost' || hostname === '127.0.0.1' || port === '8000'
+  } catch {
+    return false
+  }
 }
 
 export async function refreshMCPRuntime(): Promise<void> {
@@ -55,7 +92,8 @@ export async function refreshMCPRuntime(): Promise<void> {
       version: isRecord(payload) ? parseVersion(payload.version) : null,
       error: null,
       checking: false,
-      externallyManaged: true
+      // Rspack-owned child in browser DEV; Tauri-spawned counts as managed by us.
+      externallyManaged: false
     })
   } catch {
     mcpRuntime.set({
@@ -68,7 +106,98 @@ export async function refreshMCPRuntime(): Promise<void> {
   }
 }
 
+async function waitUntilRunning(): Promise<boolean> {
+  for (let attempt = 0; attempt < HEALTH_POLL_ATTEMPTS; attempt++) {
+    await delay(HEALTH_POLL_DELAY_MS)
+    await refreshMCPRuntime()
+    if (mcpRuntime.get().status === 'running') return true
+  }
+  return false
+}
+
+async function restartViaRspackDev(): Promise<boolean> {
+  const control = controlToken()
+  if (!control) return false
+  const storedToken = resolveLocalMCPAuthToken()
+  const authenticationEnabled = mcpAuthenticationEnabled.get() && Boolean(storedToken)
+  const response = await fetch(DEV_MCP_RESTART_PATH, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${control}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      authenticationEnabled,
+      authToken: storedToken,
+      rootDirectory: mcpRootDirectory.get(),
+      disabledTools: disabledMCPTools.get(),
+      scope: 'document'
+    })
+  })
+  return response.ok
+}
+
+/**
+ * Start or restart the local MCP server.
+ * Desktop (Tauri): spawn `openpencil-mcp-http` when needed.
+ * Browser / local rspack DEV: ask the rspack automation plugin to (re)start the child.
+ */
 export async function restartMCPRuntime(): Promise<void> {
-  mcpRuntime.set({ ...mcpRuntime.get(), status: 'starting', error: null })
+  mcpRuntime.set({
+    ...mcpRuntime.get(),
+    status: 'starting',
+    error: null,
+    checking: true,
+    externallyManaged: false
+  })
+
+  try {
+    if (isLocalDevFrontend()) {
+      const restarted = await restartViaRspackDev()
+      if (restarted && (await waitUntilRunning())) return
+    }
+
+    if (IS_TAURI) {
+      const spawned = await spawnTauriMCP()
+      if (!spawned.ok) {
+        mcpRuntime.set({
+          ...mcpRuntime.get(),
+          status: 'error',
+          error: spawned.error,
+          checking: false
+        })
+        return
+      }
+      if (await waitUntilRunning()) return
+      mcpRuntime.set({
+        ...mcpRuntime.get(),
+        status: 'error',
+        error: 'MCP server did not become ready',
+        checking: false
+      })
+      return
+    }
+
+    if (await waitUntilRunning()) return
+    mcpRuntime.set({
+      ...mcpRuntime.get(),
+      status: 'error',
+      error: 'MCP server is not reachable. Start the React frontend (rspack) or openpencil-mcp-http.',
+      checking: false
+    })
+  } catch (reason) {
+    mcpRuntime.set({
+      ...mcpRuntime.get(),
+      status: 'error',
+      error: reason instanceof Error ? reason.message : String(reason),
+      checking: false
+    })
+  }
+}
+
+/** Boot-time ensure: refresh if already up, otherwise start. */
+export async function ensureMCPRuntime(): Promise<void> {
   await refreshMCPRuntime()
+  if (mcpRuntime.get().status === 'running') return
+  await restartMCPRuntime()
 }

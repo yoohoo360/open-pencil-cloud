@@ -22,7 +22,9 @@ use http::proxy_http_request;
 use menu::{install_app_menu, native_menu_checked, set_native_menu_checked};
 use menu_events::handle_menu_event;
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
+    process::{Command as ProcessCommand, Stdio},
     sync::Mutex,
 };
 use tauri::{Emitter, Manager};
@@ -165,23 +167,180 @@ struct McpLookup {
     searched: Vec<String>,
 }
 
-#[tauri::command]
-fn mcp_lookup() -> McpLookup {
-    let resolved = which::which(MCP_EXECUTABLE).ok();
-    let path = resolved.as_ref().map(|p| p.display().to_string());
+struct McpLaunch {
+    program: PathBuf,
+    args: Vec<String>,
+    cwd: Option<PathBuf>,
+    /// Path shown in diagnostics / settings.
+    display: PathBuf,
+}
+
+fn crate_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn repo_root() -> Option<PathBuf> {
+    crate_dir().parent().map(Path::to_path_buf)
+}
+
+fn host_target_triple() -> &'static str {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    {
+        "aarch64-apple-darwin"
+    }
+    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+    {
+        "x86_64-apple-darwin"
+    }
+    #[cfg(all(target_arch = "aarch64", target_os = "windows"))]
+    {
+        "aarch64-pc-windows-msvc"
+    }
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    {
+        "x86_64-pc-windows-msvc"
+    }
+    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+    {
+        "aarch64-unknown-linux-gnu"
+    }
+    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+    {
+        "x86_64-unknown-linux-gnu"
+    }
+    #[cfg(not(any(
+        all(target_os = "macos", any(target_arch = "aarch64", target_arch = "x86_64")),
+        all(target_os = "windows", any(target_arch = "aarch64", target_arch = "x86_64")),
+        all(target_os = "linux", any(target_arch = "aarch64", target_arch = "x86_64")),
+    )))]
+    {
+        "unknown"
+    }
+}
+
+fn cargo_profile_dir() -> &'static str {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
+}
+
+/// Resolve how to start the local MCP HTTP server without requiring a global install.
+///
+/// Order: PATH → `binaries/openpencil-mcp-http-<triple>` → `target/<profile>/…` →
+/// workspace `bun run packages/mcp/src/index.ts` (same entry rspack uses in DEV).
+fn resolve_mcp_launch() -> Option<McpLaunch> {
+    if let Ok(path) = which::which(MCP_EXECUTABLE) {
+        return Some(McpLaunch {
+            display: path.clone(),
+            program: path,
+            args: Vec::new(),
+            cwd: None,
+        });
+    }
+
+    let crate_root = crate_dir();
+    let bundled = crate_root.join("binaries").join(format!(
+        "{MCP_EXECUTABLE}-{}",
+        host_target_triple()
+    ));
+    if bundled.is_file() {
+        return Some(McpLaunch {
+            display: bundled.clone(),
+            program: bundled,
+            args: Vec::new(),
+            cwd: None,
+        });
+    }
+
+    let target_bin = crate_root
+        .join("target")
+        .join(cargo_profile_dir())
+        .join(MCP_EXECUTABLE);
+    #[cfg(windows)]
+    let target_bin = target_bin.with_extension("exe");
+    if target_bin.is_file() {
+        return Some(McpLaunch {
+            display: target_bin.clone(),
+            program: target_bin,
+            args: Vec::new(),
+            cwd: None,
+        });
+    }
+
+    let root = repo_root()?;
+    let script = root.join("packages/mcp/src/index.ts");
+    if !script.is_file() {
+        return None;
+    }
+    let bun = which::which("bun").ok()?;
+    Some(McpLaunch {
+        display: script.clone(),
+        program: bun,
+        args: vec!["run".into(), script.to_string_lossy().into_owned()],
+        cwd: Some(root),
+    })
+}
+
+fn mcp_searched_dirs(launch: Option<&McpLaunch>) -> Vec<String> {
     let mut searched: Vec<String> = Vec::new();
-    if let Some(dir) = resolved.as_ref().and_then(|p| p.parent()) {
+    if let Some(dir) = launch.and_then(|launch| launch.display.parent()) {
         push_unique_dir(&mut searched, dir.display().to_string());
     }
     for dir in mcp_search_dirs() {
         push_unique_dir(&mut searched, dir.display().to_string());
     }
+    let binaries = crate_dir().join("binaries");
+    if binaries.is_dir() {
+        push_unique_dir(&mut searched, binaries.display().to_string());
+    }
+    if let Some(root) = repo_root() {
+        let mcp_src = root.join("packages/mcp/src");
+        if mcp_src.is_dir() {
+            push_unique_dir(&mut searched, mcp_src.display().to_string());
+        }
+    }
     searched.truncate(MAX_REPORTED_SEARCH_DIRS);
+    searched
+}
+
+#[tauri::command]
+fn mcp_lookup() -> McpLookup {
+    let launch = resolve_mcp_launch();
+    let path = launch.as_ref().map(|launch| launch.display.display().to_string());
+    let searched = mcp_searched_dirs(launch.as_ref());
     McpLookup {
-        available: resolved.is_some(),
+        available: launch.is_some(),
         path,
         searched,
     }
+}
+
+#[tauri::command]
+fn mcp_start(env: HashMap<String, String>) -> Result<(), String> {
+    let launch = resolve_mcp_launch().ok_or_else(|| {
+        "openpencil-mcp-http was not found. From the repo run `bun run start:mcp` in desktop-react, or install @open-pencil/mcp globally."
+            .to_string()
+    })?;
+    let mut command = ProcessCommand::new(&launch.program);
+    command.args(&launch.args);
+    if let Some(cwd) = &launch.cwd {
+        command.current_dir(cwd);
+    }
+    for (key, value) in env {
+        command.env(key, value);
+    }
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Failed to start MCP: {error}"))?;
+    // Keep the MCP process running after this command returns.
+    std::mem::forget(child);
+    Ok(())
 }
 
 fn file_association_path(path: PathBuf) -> Option<PathBuf> {
@@ -351,6 +510,7 @@ pub fn run() {
             credential_store_availability,
             credential_write,
             mcp_lookup,
+            mcp_start,
             path_matches_suffix,
             list_system_fonts,
             load_system_font,
