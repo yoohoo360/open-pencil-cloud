@@ -132,9 +132,15 @@ export async function fetchRemoteImageViaApi(url: string): Promise<Uint8Array> {
 }
 
 /** Authenticated download through the API — used for private keys and filesystem OSS backends. */
-export async function downloadOSSObjectViaProxy(objectPath: string): Promise<Uint8Array> {
+export async function downloadOSSObjectViaProxy(
+  objectPath: string,
+  revision?: string | number
+): Promise<Uint8Array> {
   const res = await apiClient.get<ArrayBuffer>('/api/oss/download', {
-    params: { path: ossObjectPath(objectPath) },
+    params: {
+      path: ossObjectPath(objectPath),
+      ...(revision !== undefined && revision !== '' ? { t: String(revision) } : {})
+    },
     responseType: 'arraybuffer',
     timeout: 120_000
   })
@@ -148,22 +154,30 @@ async function downloadFromUrl(url: string): Promise<Uint8Array | number> {
   return response.status
 }
 
-export async function downloadOSSObject(path: string): Promise<Uint8Array> {
+function bustedReadUrl(url: string, revision?: string | number): string {
+  return revision === undefined || revision === '' ? url : withCacheBust(url, revision)
+}
+
+export async function downloadOSSObject(
+  path: string,
+  revision?: string | number
+): Promise<Uint8Array> {
   const objectPath = ossObjectPath(path)
   if (!objectPath) throw new Error('Empty OSS path')
   // Absolute URLs (library covers, signed links) skip the object-key pipeline.
   if (/^https?:\/\//i.test(objectPath)) {
-    const result = await downloadFromUrl(objectPath)
+    const result = await downloadFromUrl(bustedReadUrl(objectPath, revision))
     if (typeof result !== 'number') return result
     throw new Error(`OSS download failed (${result})`)
   }
   if (config.OSS_READ_MODE === 'direct') {
     const publicUrl = ossPublicUrl(objectPath)
     if (publicUrl) {
-      const result = await downloadFromUrl(publicUrl)
+      const result = await downloadFromUrl(bustedReadUrl(publicUrl, revision))
       if (typeof result !== 'number') return result
     }
     // Private objects (e.g. `libraries/*.fig`) need a signed URL; the public base 404s.
+    // Do not append cache-bust params to signed URLs — they invalidate the signature.
     try {
       const signed = await directReadUrl(objectPath, { public: false })
       const result = await downloadFromUrl(signed)
@@ -171,20 +185,23 @@ export async function downloadOSSObject(path: string): Promise<Uint8Array> {
     } catch {
       // Fall through to the authenticated download proxy.
     }
-    return downloadOSSObjectViaProxy(objectPath)
+    return downloadOSSObjectViaProxy(objectPath, revision)
   }
-  return downloadOSSObjectViaProxy(objectPath)
+  return downloadOSSObjectViaProxy(objectPath, revision)
 }
 
 /** Download a cloud document object, preferring `.fig` over legacy `.json`. */
-export async function downloadOSSFig(url: string): Promise<Uint8Array> {
+export async function downloadOSSFig(
+  url: string,
+  revision?: string | number
+): Promise<Uint8Array> {
   const figPath = asFigObjectPath(url)
   try {
-    return await downloadOSSObject(figPath)
+    return await downloadOSSObject(figPath, revision)
   } catch (error) {
     const legacy = legacyJsonObjectPath(figPath)
     if (!legacy || legacy === figPath) throw error
-    return downloadOSSObject(legacy)
+    return downloadOSSObject(legacy, revision)
   }
 }
 

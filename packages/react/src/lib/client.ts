@@ -475,6 +475,10 @@ export const documentAPI = {
   create(data: CreateDocumentRequest): Promise<APIResponse<PencilDocument>> {
     return apiClient.post<PencilDocument>('/api/document', data)
   },
+  /** Bump server `updated_at` after uploading a new live .fig. */
+  touch(key: string): Promise<APIResponse<PencilDocument>> {
+    return apiClient.post<PencilDocument>(`/api/document/${key}/touch`)
+  },
   delete(key: string): Promise<APIResponse<void>> {
     return apiClient.delete(`/api/document/${key}`)
   },

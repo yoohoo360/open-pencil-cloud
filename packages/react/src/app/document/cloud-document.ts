@@ -1,6 +1,7 @@
 import { uploadOSSFig } from '#react/app/document/oss'
 import { asFigObjectPath } from '#react/app/document/oss-path'
 import type { EditorStore } from '#react/app/editor/store'
+import { documentAPI } from '#react/lib/client'
 
 import { exportFigFile } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
@@ -36,9 +37,18 @@ export async function persistCloudSceneGraph(store: EditorStore): Promise<Uint8A
     store.state.documentFigURL = figURL
     store.notify()
   }
-  return persistSceneGraphToCloud(store.graph, figURL, {
+  const bytes = await persistSceneGraphToCloud(store.graph, figURL, {
     canvasKit: store.renderer?.ck,
     renderer: store.renderer ?? undefined,
     pageId: store.state.currentPageId
   })
+  const key = store.state.documentKey?.trim()
+  if (key) {
+    try {
+      await documentAPI.touch(key)
+    } catch (error) {
+      console.warn('[Document] Failed to bump updated_at after save', error)
+    }
+  }
+  return bytes
 }

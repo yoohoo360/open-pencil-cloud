@@ -12,6 +12,7 @@ import { pageLoadingLabels } from '#react/app/document/page-loading/labels'
 import { maybeRestoreLocalDraft } from '#react/app/document/local-draft/restore'
 import { downloadOSSFig } from '#react/app/document/oss'
 import { asFigObjectPath } from '#react/app/document/oss-path'
+import { resolveDocumentRevision } from '#react/app/document/revision'
 import type { EditorStore } from '#react/app/editor/store'
 import type { PencilDocument } from '#react/lib/client'
 
@@ -21,25 +22,38 @@ export async function applyImportedGraph(store: EditorStore, imported: SceneGrap
   await finishFigImport(store, imported)
 }
 
+/** Prefer the caller's exclusive ArrayBuffer; only copy when the view is a subarray. */
+function figBytesToBuffer(bytes: Uint8Array): ArrayBuffer {
+  if (
+    bytes.buffer instanceof ArrayBuffer &&
+    bytes.byteOffset === 0 &&
+    bytes.byteLength === bytes.buffer.byteLength
+  ) {
+    return bytes.buffer
+  }
+  return bytes.slice().buffer
+}
+
 async function applyFigBytes(
   store: EditorStore,
   bytes: Uint8Array | null | undefined,
-  _fileName: string
+  _fileName: string,
+  signal?: AbortSignal
 ): Promise<void> {
   if (!bytes || bytes.byteLength === 0) {
     throw new Error('Document bytes are missing or empty')
   }
-  // Exact copy — avoid File([arrayBuffer]) pitfalls with offset views.
-  const copy = bytes.slice()
-  await finishFigImport(store, await readFigDocument(copy.buffer, store))
+  signal?.throwIfAborted()
+  await finishFigImport(store, await readFigDocument(figBytesToBuffer(bytes), store, signal))
 }
 
 export async function applyDocumentBytes(
   store: EditorStore,
   bytes: Uint8Array,
-  fileName: string
+  fileName: string,
+  signal?: AbortSignal
 ): Promise<void> {
-  await applyFigBytes(store, bytes, fileName)
+  await applyFigBytes(store, bytes, fileName, signal)
 }
 
 function bindCloudDocumentState(
@@ -57,10 +71,14 @@ function bindCloudDocumentState(
 /**
  * Cloud `.fig` open with page-progress loading (`0/5 …`).
  * Overlay stays until the first two pages are warm, then idle-prefetches the rest.
+ *
+ * Asks about a newer local draft *before* downloading so we do not hold remote +
+ * draft archives in memory at the same time.
  */
 export async function openHttpDocument(
   store: EditorStore,
-  documentMeta: PencilDocument | undefined
+  documentMeta: PencilDocument | undefined,
+  signal?: AbortSignal
 ): Promise<void> {
   const name = documentMeta?.name || 'Untitled'
   const documentKey = documentMeta?.key?.trim() ?? ''
@@ -83,21 +101,40 @@ export async function openHttpDocument(
       return
     }
 
+    signal?.throwIfAborted()
+    // Prefer document.updated_at; fall back to version / versions API when missing.
+    const { revision, updatedAt } = await resolveDocumentRevision(
+      documentMeta,
+      documentKey,
+      signal
+    )
+    signal?.throwIfAborted()
+
+    if (documentKey) {
+      const draft = await maybeRestoreLocalDraft(documentKey, updatedAt)
+      signal?.throwIfAborted()
+      if (draft?.figBytes?.byteLength) {
+        setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
+        await applyFigBytes(store, draft.figBytes, `${name}.fig`, signal)
+        await waitForCanvasPaint(store)
+        bindCloudDocumentState(store, documentMeta, documentUrl)
+        const { acknowledgeDocumentSceneBaseline } = await import(
+          '#react/app/document/persist-baseline'
+        )
+        acknowledgeDocumentSceneBaseline(store)
+        store.notify()
+        return
+      }
+    }
+
     setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
-    const payload = await downloadOSSFig(documentUrl)
+    // Bust CDN/browser cache so opens get the latest .fig (not a stale public object).
+    const payload = await downloadOSSFig(documentUrl, revision)
+    signal?.throwIfAborted()
     setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
 
     if (payload.byteLength > 0) {
-      if (documentKey) {
-        const draft = await maybeRestoreLocalDraft(documentKey, documentMeta?.updated_at)
-        if (draft?.figBytes?.byteLength) {
-          await applyFigBytes(store, draft.figBytes, `${name}.fig`)
-        } else {
-          await applyDocumentBytes(store, payload, `${name}.fig`)
-        }
-      } else {
-        await applyDocumentBytes(store, payload, `${name}.fig`)
-      }
+      await applyDocumentBytes(store, payload, `${name}.fig`, signal)
       await waitForCanvasPaint(store)
     } else {
       setPageLoadingVisible(store, false)
