@@ -31,7 +31,7 @@ import {
   type ReactNode
 } from 'react'
 
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
 import {
   createEditor,
   createDefaultEditorState,
@@ -263,6 +263,17 @@ export function EditorStoreProvider({
   children?: ReactNode
 }) {
   useEffect(() => bindOpenPencilTestImport(store), [store])
+  useEffect(() => {
+    // Register this tab with the local MCP companion so Cursor/stdio tools can
+    // reach the live document (React only started the process before).
+    if (!IS_BROWSER) return
+    if (!import.meta.env.DEV && !IS_TAURI) return
+    let disconnect: (() => void) | undefined
+    void import('#react/app/automation/bridge/server').then(({ connectAutomation }) => {
+      disconnect = connectAutomation(() => store).disconnect
+    })
+    return () => disconnect?.()
+  }, [store])
   // Page IDB snapshots are not restored on switch yet; the idle writer
   // structuredClone'd whole pages into IndexedDB and contended with cold/warm
   // switches (main-thread stalls / OOM). Re-enable only with a read path.
