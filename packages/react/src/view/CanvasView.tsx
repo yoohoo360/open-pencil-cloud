@@ -1,10 +1,9 @@
 import { bindOpenPencilTestImport } from '#react/app/document/test-import'
+import { requestLocalFontAccess } from '#react/app/editor/fonts'
 import { createEditorStore, EditorStoreProvider, type EditorStore } from '#react/app/editor/store'
 import { OpenPencilProvider } from '#react/editor/context'
 import { EditorWorkspace } from '#react/editor/EditorWorkspace'
 import { useEffect, useMemo } from 'react'
-
-import { requestLocalFontAccess } from '#react/app/editor/fonts'
 
 function addDemoIcon(store: EditorStore, name: string, type: 'STAR' | 'ELLIPSE', x: number) {
   const pageId = store.state.currentPageId
@@ -187,6 +186,39 @@ function addDemoCard(store: EditorStore) {
   })
 }
 
+/**
+ * Extra page for PingFang / CJK memory stress.
+ * Uses `graph.addPage` (not `store.addPage`) so we do not switchPage during demo
+ * boot — switching into tens of thousands of texts mid-init freezes the first paint.
+ */
+async function addDemoTextStressPage(store: EditorStore, count = 20000): Promise<void> {
+  const pageId = store.graph.addPage('Text 30k').id
+  const chunk = 2_000
+  for (let start = 0; start < count; start += chunk) {
+    const end = Math.min(start + chunk, count)
+    for (let i = start; i < end; i++) {
+      const col = i % 100
+      const row = (i / 100) | 0
+      store.graph.createNode('TEXT', pageId, {
+        name: `T${i}`,
+        text: i % 5 === 0 ? `你好${i % 50}` : `Hi ${i}`,
+        x: col * 80,
+        y: row * 24,
+        width: 72,
+        height: 20,
+        fontSize: 12,
+        // fontFamily: 'PingFang SC',
+        fontWeight: 400
+      })
+    }
+    // Yield so the UI can paint while the stress page fills in.
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0)
+    })
+  }
+  store.requestRender()
+}
+
 function createDemoStore() {
   const store = createEditorStore()
   store.createShape('FRAME', 100, 100, 640, 400)
@@ -203,6 +235,14 @@ function createDemoStore() {
   addDemoButtonSet(store)
   addDemoCard(store)
   store.zoomToFit()
+  // Fill the stress page after first paint; never switch to it during boot.
+  if (typeof window !== 'undefined') {
+    window.setTimeout(() => {
+      void addDemoTextStressPage(store)
+    }, 0)
+  } else {
+    void addDemoTextStressPage(store)
+  }
   return store
 }
 
