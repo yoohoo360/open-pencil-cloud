@@ -23,7 +23,11 @@ import {
   createFigPopulationWorker,
   reviveFigPopulationWorker
 } from '#core/kiwi/fig/population/client'
-import { isReaderPagePending, recoverReaderPage } from '#core/kiwi/fig/session/document-state'
+import {
+  hasReaderSession,
+  isReaderPagePending,
+  recoverReaderPage
+} from '#core/kiwi/fig/session/document-state'
 import { computeAllLayouts } from '#core/layout'
 import { fontManager } from '#core/text/fonts'
 import { collectGraphFontRequirements } from '#core/text/requirements'
@@ -525,6 +529,35 @@ export function createPageActions(ctx: EditorContext) {
     return preparation
   }
 
+  /** Page layers are already in the graph — skip populate and defer layout to fonts. */
+  function isPageAlreadyPopulated(pageId: string): boolean {
+    if (isLazyFigImportRootPopulated(ctx.graph, pageId)) return true
+    // Worker first-page / session loads mark readiness on the reader checkpoint, not
+    // on a lazy-import context. Treat non-pending reader pages as warm.
+    return hasReaderSession(ctx.graph) && !isReaderPagePending(ctx.graph, pageId)
+  }
+
+  async function commitWarmPageSwitch(
+    pageId: string,
+    pageName: string,
+    options: SwitchPageOptions
+  ): Promise<void> {
+    const generation = ++pageSwitchGeneration
+    if (!commitPageSwitch({ pageId, generation, populated: true })) return
+    enableRegionalTiledPaint()
+    void resolvePageFonts(pageId, pageName, options)
+      .then(() => {
+        if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
+        computeLayoutsSilently(pageId)
+        ctx.requestRender()
+      })
+      .catch((error) => {
+        if (options.signal?.aborted) return
+        console.warn('[Editor] Page font resolution failed', error)
+      })
+    prefetchRemainingLazyFigPages()
+  }
+
   async function switchPage(pageId: string, options: SwitchPageOptions = {}): Promise<void> {
     const page = ctx.graph.getNode(pageId)
     if (page?.type !== 'CANVAS') return
@@ -537,26 +570,16 @@ export function createPageActions(ctx: EditorContext) {
     // Chunked main-thread warm requires live materialize hooks (not a worker stub).
     const canWarmOnMainThread = !!lazy?.materializePage
 
+    // First-page open / prefetch hit: layers are already in the graph. Falling
+    // through to preparePage would re-run Yoga sync on the whole page (and
+    // replaceGraph clears the population worker, so hasWorker is often false here).
+    if (isPageAlreadyPopulated(pageId)) {
+      await commitWarmPageSwitch(pageId, page.name, options)
+      return
+    }
+
     if (hasLazy && !hasWorker && canWarmOnMainThread) {
       const generation = ++pageSwitchGeneration
-
-      // Prefetch hit: page is already expanded — just commit the camera.
-      if (isLazyFigImportRootPopulated(ctx.graph, pageId)) {
-        if (!commitPageSwitch({ pageId, generation, populated: true })) return
-        enableRegionalTiledPaint()
-        void resolvePageFonts(pageId, page.name, options)
-          .then(() => {
-            if (generation !== pageSwitchGeneration || ctx.state.currentPageId !== pageId) return
-            computeLayoutsSilently(pageId)
-            ctx.requestRender()
-          })
-          .catch((error) => {
-            if (options.signal?.aborted) return
-            console.warn('[Editor] Page font resolution failed', error)
-          })
-        prefetchRemainingLazyFigPages()
-        return
-      }
 
       // Cold switch: React store owns the overlay. Yield first so it paints over
       // the previous page, then commit the empty target under that cover.

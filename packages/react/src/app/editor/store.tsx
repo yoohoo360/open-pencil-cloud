@@ -129,8 +129,13 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   ensureHostedLibraries(editor.graph)
   hydrateHostedInstances(editor)
   editor.onEditorEvent('graph:replaced', (graph) => {
-    ensureHostedLibraries(graph)
-    hydrateHostedInstances(editor)
+    // Hosted migrations may updateNode across the document; keep graph listeners
+    // quiet so FIG open does not pay per-node renderer/Yjs work on the swap.
+    const run = graph.runSilentMutations?.bind(graph) ?? ((action: () => void) => action())
+    run(() => {
+      ensureHostedLibraries(graph)
+      hydrateHostedInstances(editor)
+    })
   })
 
   const listeners = new Set<() => void>()
