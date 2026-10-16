@@ -15,20 +15,40 @@ export function layerChildren(graph: SceneGraph, id: string): SceneNode[] {
   return graph.getChildren(id).filter((child) => !child.internalOnly)
 }
 
+export interface VisibleLayerRow {
+  id: string
+  depth: number
+  hasChildren: boolean
+}
+
+/**
+ * Flatten only expanded branches — collapsed subtrees stay unloaded in the
+ * visible list (lazy expand).
+ */
+export function collectVisibleLayerRows(
+  graph: SceneGraph,
+  parentId: string,
+  expandedIds: ReadonlySet<string>
+): VisibleLayerRow[] {
+  const rows: VisibleLayerRow[] = []
+  function walk(nodes: ReturnType<typeof layerChildren>, depth: number) {
+    for (const child of nodes) {
+      const children = layerChildren(graph, child.id)
+      const hasChildren = children.length > 0
+      rows.push({ id: child.id, depth, hasChildren })
+      if (hasChildren && expandedIds.has(child.id)) walk(children, depth + 1)
+    }
+  }
+  walk(layerChildren(graph, parentId), 0)
+  return rows
+}
+
 export function collectVisibleLayerIds(
   graph: SceneGraph,
   parentId: string,
   expandedIds: ReadonlySet<string>
 ): string[] {
-  const ids: string[] = []
-  function walk(id: string) {
-    for (const child of layerChildren(graph, id)) {
-      ids.push(child.id)
-      if (layerChildren(graph, child.id).length > 0 && expandedIds.has(child.id)) walk(child.id)
-    }
-  }
-  walk(parentId)
-  return ids
+  return collectVisibleLayerRows(graph, parentId, expandedIds).map((row) => row.id)
 }
 
 export function ancestorIdsToExpand(

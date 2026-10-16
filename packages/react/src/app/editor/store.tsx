@@ -79,6 +79,8 @@ export type EditorStore = Editor & {
   setSplitSizes: CanvasPaneRegistry['setSplitSizes']
   subscribe: (onStoreChange: () => void) => () => void
   notify: () => void
+  /** Coalesce React updates to one microtask (page switch / graph bursts). */
+  scheduleNotify: () => void
   setShowUI: (value: boolean) => void
   setLoading: (value: boolean) => void
   prefetchRemainingLazyFigPages?: () => void
@@ -144,20 +146,22 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
     notifyQueued = false
     for (const listener of listeners) listener()
   }
-  /** Sync notify for flushSync / loading UI. Prefer scheduleNotify for graph bursts. */
+  /**
+   * Sync notify for flushSync / overlay show-hide. Cancels a pending coalesced
+   * flush so we do not double-render after scheduleNotify + notify().
+   */
   const notify = () => {
-    if (notifyQueued) {
-      // A coalesced render notify is pending — flush now so callers see fresh UI.
-      flushNotify()
-      return
-    }
+    notifyQueued = false
     for (const listener of listeners) listener()
   }
-  /** Coalesce many requestRender() calls in one mutation into a single React update. */
+  /** Coalesce selection/page/viewport/render into one React update per turn. */
   const scheduleNotify = () => {
     if (notifyQueued) return
     notifyQueued = true
-    queueMicrotask(flushNotify)
+    queueMicrotask(() => {
+      if (!notifyQueued) return
+      flushNotify()
+    })
   }
   let loadingDepth = 0
   const setLoading = (value: boolean) => {
@@ -168,15 +172,15 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
     state.loading = next
     notify()
   }
-  const panes = createCanvasPaneRegistry(state, notify)
+  const panes = createCanvasPaneRegistry(state, scheduleNotify)
 
   editor.onEditorEvent('render:requested', scheduleNotify)
-  // repaint-only frames drive the canvas loop; notifying React here re-rendered
-  // the whole shell on every pan/zoom/page-settle paint.
-  editor.onEditorEvent('selection:changed', notify)
-  editor.onEditorEvent('tool:changed', notify)
-  editor.onEditorEvent('page:changed', notify)
-  editor.onEditorEvent('viewport:changed', notify)
+  // Coalesce: commitPageSwitch clears selection, emits page:changed, may change
+  // viewport, then requestRender — one React pass instead of three shell rebuilds.
+  editor.onEditorEvent('selection:changed', scheduleNotify)
+  editor.onEditorEvent('tool:changed', scheduleNotify)
+  editor.onEditorEvent('page:changed', scheduleNotify)
+  editor.onEditorEvent('viewport:changed', scheduleNotify)
 
   const baseSwitchPage = editor.switchPage.bind(editor)
   const basePrefetchRemainingLazyFigPages = editor.prefetchRemainingLazyFigPages?.bind(editor)
@@ -210,9 +214,10 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
       return () => listeners.delete(onStoreChange)
     },
     notify,
+    scheduleNotify,
     setShowUI(value: boolean) {
       state.showUI = value
-      notify()
+      scheduleNotify()
     },
     setLoading,
     prefetchRemainingLazyFigPages: () => {
@@ -231,8 +236,8 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
       return
     }
 
-    // Cold and warm switches both show the canvas overlay (1–8s hold from
-    // destroy+create node estimate). Force it into the DOM before commit.
+    // Cold and warm switches both show the canvas overlay until switch + paint
+    // settle. Force it into the DOM before commit.
     flushSync(() => {
       setPageLoadingVisible(store, true, pageLoadingLabels.preparingNodes, {
         blockShell: false

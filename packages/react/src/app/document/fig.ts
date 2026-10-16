@@ -1,11 +1,12 @@
-import type { EditorStore } from '#react/app/editor/store'
 import { loadFont } from '#react/app/editor/fonts'
+import type { EditorStore } from '#react/app/editor/store'
 
 import { createEditor } from '@open-pencil/core/editor'
 import { parseFigFile, readFigFile } from '@open-pencil/core/io'
-import type { ParseFigFileOptions } from '#core/io/formats/fig/read.override'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 import { SceneGraph } from '@open-pencil/scene-graph'
+
+import type { ParseFigFileOptions } from '#core/io/formats/fig/read.override'
 
 export function yieldToUI(): Promise<void> {
   if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
@@ -72,7 +73,7 @@ function figReadOptions(
   extras?: Pick<ParseFigFileOptions, 'useWorker'>
 ): ParseFigFileOptions {
   return {
-    populate: 'first-page',
+    populate: 'all',
     signal,
     useWorker: extras?.useWorker
   }
@@ -86,7 +87,9 @@ export async function readFigDocument(
 ): Promise<SceneGraph> {
   const options = figReadOptions(signal, extras)
   const graph =
-    source instanceof File ? await readFigFile(source, options) : await parseFigFile(source, options)
+    source instanceof File
+      ? await readFigFile(source, options)
+      : await parseFigFile(source, options)
   return graph
 }
 

@@ -466,37 +466,14 @@ export const AUTOMATION_HTTP_PORT = 7600
  */
 export const MCP_AGENT_HEADER = 'x-openpencil-agent'
 
-export const GOOGLE_FONTS_API_KEY = 'AIzaSyD1tYDR_dUEiV-Tw1vksEhZbUytgKW5pc8'
+/** Disabled with text/fallbacks — no CJK fallback faces. */
+export const CJK_FALLBACK_FAMILIES_MACOS: string[] = []
 
-export const CJK_FALLBACK_FAMILIES_MACOS = [
-  'PingFang SC',
-  'PingFang TC',
-  'Hiragino Sans',
-  'Apple SD Gothic Neo',
-  'Heiti SC',
-  'Heiti TC'
-]
+export const CJK_FALLBACK_FAMILIES_WINDOWS: string[] = []
 
-export const CJK_FALLBACK_FAMILIES_WINDOWS = [
-  'Microsoft YaHei',
-  'Microsoft YaHei UI',
-  'Microsoft JhengHei',
-  'Yu Gothic',
-  'Malgun Gothic',
-  'SimHei',
-  'SimSun'
-]
+export const CJK_FALLBACK_FAMILIES_LINUX: string[] = []
 
-export const CJK_FALLBACK_FAMILIES_LINUX = [
-  'Noto Sans CJK SC',
-  'Noto Sans CJK TC',
-  'Noto Sans CJK JP',
-  'Noto Sans CJK KR',
-  'WenQuanYi Micro Hei',
-  'Droid Sans Fallback'
-]
-
-export const CJK_GOOGLE_FONTS = ['Noto Sans SC', 'Noto Sans TC', 'Noto Sans JP', 'Noto Sans KR']
+export const CJK_GOOGLE_FONTS: string[] = []
 
 /** Figma's #D9D9D9 for new shapes. */
 export const DEFAULT_SHAPE_FILL: Fill = {

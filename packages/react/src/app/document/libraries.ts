@@ -1,7 +1,3 @@
-import { exportFigFile, parseFigFile } from '@open-pencil/core/io'
-import type { ComponentLibraryRevision } from '@open-pencil/core/library'
-import type { SceneGraph } from '@open-pencil/scene-graph'
-
 import { downloadOSSObjectViaProxy, uploadOSSFig } from '#react/app/document/oss'
 import {
   asFigObjectPath,
@@ -11,6 +7,10 @@ import {
 import type { EditorStore } from '#react/app/editor/store'
 import { addLib, removeLib } from '#react/graph/remote-lib'
 import { documentAPI, libraryAPI, type RemoteLibraryCatalogItem } from '#react/lib/client'
+
+import { exportFigFile, parseFigFile } from '@open-pencil/core/io'
+import type { ComponentLibraryRevision } from '@open-pencil/core/library'
+import type { SceneGraph } from '@open-pencil/scene-graph'
 
 async function downloadLibraryObject(path: string): Promise<Uint8Array> {
   const figPath = asFigObjectPath(path)
@@ -31,7 +31,7 @@ export async function downloadRemoteLibraryFig(
   item: Pick<RemoteLibraryCatalogItem, 'key' | 'url'>
 ): Promise<SceneGraph> {
   const bytes = await downloadLibraryObject(item.url)
-  return parseFigFile(bytes.slice().buffer, { populate: 'first-page' })
+  return parseFigFile(bytes.slice().buffer, { populate: 'all' })
 }
 
 export async function addRemoteLibraryToGraph(

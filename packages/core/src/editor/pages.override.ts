@@ -126,14 +126,13 @@ export function createPageActions(ctx: EditorContext) {
     if (renderer) renderer.tiledSceneEnabled = true
   }
 
-  function refreshPageAfterSilentPopulation(pageId: string): void {
+  function refreshPageAfterSilentPopulation(_pageId: string): void {
     ctx.getRenderer()?.invalidateAllPictures()
     // After a large lazy page lands, paint visible world tiles first so the
     // canvas fills in by region instead of blocking on one full-scene raster.
     enableRegionalTiledPaint()
-    // Layer trees listen to page:changed / node events — silent import suppresses
-    // per-node emits, so force one rebuild after the batch.
-    ctx.emitEditorEvent('page:changed', pageId, pageId)
+    // Do not re-emit page:changed (same pageId) — every listener pays JS for a
+    // no-op page switch. requestRender bumps sceneVersion for UI that needs it.
     ctx.requestRender()
   }
 
@@ -161,20 +160,27 @@ export function createPageActions(ctx: EditorContext) {
     if (isLazyFigImportRootPopulated(ctx.graph, pageId)) return false
 
     // Loading overlay owns UX during cold switch — only push phase labels, do
-    // not emit page:changed / requestRender on every chunk (that floods React
-    // + layer trees). One refresh runs after the batch completes.
+    // not emit page:changed / requestRender on every chunk. Throttle progress
+    // callbacks too: each onProgress still runs JS on the React store.
+    let lastProgressStage = ''
+    let lastProgressAt = 0
     const reportChunk = (info?: {
       stage?: 'materialize' | 'instances' | 'overrides'
       completed?: number
       total?: number
     }) => {
+      if (!onProgress) return
       const stage =
         info?.stage === 'instances'
           ? 'instances'
           : info?.stage === 'overrides'
             ? 'overrides'
             : 'nodes'
-      onProgress?.({
+      const now = performance.now()
+      if (stage === lastProgressStage && now - lastProgressAt < 100) return
+      lastProgressStage = stage
+      lastProgressAt = now
+      onProgress({
         phase: 'populating-page',
         stage,
         completed: info?.completed,
@@ -469,9 +475,12 @@ export function createPageActions(ctx: EditorContext) {
     const previousPageId = ctx.state.currentPageId
     ctx.state.currentPageId = prepared.pageId
     ctx.state.enteredContainerId = null
+    // Clear selection only when needed — setSelectedIds short-circuits empty→empty.
     ctx.setSelectedIds(new Set())
     const restored = pageViewportStore.restorePageViewport(prepared.pageId)
     if (!restored && prepared.populated) fitPageContent(prepared.pageId)
+    // One page event + one render. Viewport is mutated in-place without
+    // viewport:changed (restore/fit are covered by the following paint).
     if (previousPageId !== prepared.pageId) {
       ctx.emitEditorEvent('page:changed', prepared.pageId, previousPageId)
     }
