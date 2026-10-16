@@ -172,7 +172,7 @@
   "openStorageWorkspace": "Открыть область",
   "newStoredDocument": "Новый документ",
   "emptyStorageWorkspace": "Сохранённых документов пока нет.",
-  "loadingDocuments": "Загрузка документов…",
+  "loadingDocuments": "Разбор документов…",
   "storageNotConfigured": "Настройте хранилище перед использованием этой области.",
   "recentFiles": "Недавние файлы",
   "recentFilesDescription": "Продолжите работу над дизайном или начните новый.",

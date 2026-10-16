@@ -207,7 +207,7 @@
   "openStorageWorkspace": "打开工作区",
   "newStoredDocument": "新建文档",
   "emptyStorageWorkspace": "暂无已存储的文档。",
-  "loadingDocuments": "正在加载文档…",
+  "loadingDocuments": "正在解析文档…",
   "storageNotConfigured": "请先配置存储，再使用此工作区。",
   "recentFiles": "最近使用的文件",
   "recentFilesDescription": "继续编辑设计或新建设计。",

@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "正在解析文档",
+  "preparingNodes": "正在解析节点",
+  "expandingComponents": "正在展开组件",
+  "resolvingFonts": "正在加载字体",
+  "computingLayout": "正在计算布局",
+  "preparingCanvas": "正在准备画布"
+}

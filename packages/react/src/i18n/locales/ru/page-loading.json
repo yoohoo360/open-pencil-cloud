@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Разбор документа",
+  "preparingNodes": "Разбор узлов",
+  "expandingComponents": "Раскрытие компонентов",
+  "resolvingFonts": "Загрузка шрифтов",
+  "computingLayout": "Расчёт макета",
+  "preparingCanvas": "Подготовка холста"
+}

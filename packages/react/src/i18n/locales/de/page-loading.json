@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Dokument wird geparst",
+  "preparingNodes": "Knoten werden geparst",
+  "expandingComponents": "Komponenten werden erweitert",
+  "resolvingFonts": "Schriftarten werden geladen",
+  "computingLayout": "Layout wird berechnet",
+  "preparingCanvas": "Leinwand wird vorbereitet"
+}

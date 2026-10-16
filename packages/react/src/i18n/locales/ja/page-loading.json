@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "ドキュメントを解析中",
+  "preparingNodes": "ノードを解析中",
+  "expandingComponents": "コンポーネントを展開中",
+  "resolvingFonts": "フォントを読み込み中",
+  "computingLayout": "レイアウトを計算中",
+  "preparingCanvas": "キャンバスを準備中"
+}

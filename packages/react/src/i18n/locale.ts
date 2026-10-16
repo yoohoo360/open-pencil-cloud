@@ -57,12 +57,17 @@ export function resolveBrowserLocale(languages: readonly string[]): Locale {
   return 'en'
 }
 
-const browserLocale = atom<Locale>('en')
-onStart(browserLocale, () => {
-  if (typeof navigator === 'undefined') return
+function readBrowserLocale(): Locale {
+  if (typeof navigator === 'undefined') return 'en'
   const browserLanguages = Array.isArray(navigator.languages) ? navigator.languages : []
   const languages = browserLanguages.length > 0 ? browserLanguages : [navigator.language || 'en']
-  browserLocale.set(resolveBrowserLocale(languages))
+  return resolveBrowserLocale(languages)
+}
+
+/** Eager — page-loading overlay must not wait for atom onStart / async i18n packs. */
+const browserLocale = atom<Locale>(readBrowserLocale())
+onStart(browserLocale, () => {
+  browserLocale.set(readBrowserLocale())
 })
 
 export const locale = localeFrom(localeSetting, browserLocale)

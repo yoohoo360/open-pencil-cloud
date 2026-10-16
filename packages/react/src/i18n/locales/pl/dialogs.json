@@ -172,7 +172,7 @@
   "openStorageWorkspace": "Otwórz obszar",
   "newStoredDocument": "Nowy dokument",
   "emptyStorageWorkspace": "Brak zapisanych dokumentów.",
-  "loadingDocuments": "Ładowanie dokumentów…",
+  "loadingDocuments": "Parsowanie dokumentów…",
   "storageNotConfigured": "Skonfiguruj przechowywanie przed użyciem tego obszaru.",
   "recentFiles": "Ostatnie pliki",
   "recentFilesDescription": "Kontynuuj pracę nad projektem lub rozpocznij nowy.",

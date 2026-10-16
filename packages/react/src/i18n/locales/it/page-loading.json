@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Analisi del documento",
+  "preparingNodes": "Analisi dei nodi",
+  "expandingComponents": "Espansione dei componenti",
+  "resolvingFonts": "Caricamento dei font",
+  "computingLayout": "Calcolo del layout",
+  "preparingCanvas": "Preparazione dell'area di disegno"
+}

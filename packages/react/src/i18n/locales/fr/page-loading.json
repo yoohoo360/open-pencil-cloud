@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Analyse du document",
+  "preparingNodes": "Analyse des nœuds",
+  "expandingComponents": "Développement des composants",
+  "resolvingFonts": "Chargement des polices",
+  "computingLayout": "Calcul de la mise en page",
+  "preparingCanvas": "Préparation du canevas"
+}

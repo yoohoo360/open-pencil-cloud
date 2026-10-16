@@ -176,7 +176,7 @@
   "openStorageWorkspace": "Arbeitsbereich öffnen",
   "newStoredDocument": "Neues Dokument",
   "emptyStorageWorkspace": "Noch keine gespeicherten Dokumente.",
-  "loadingDocuments": "Dokumente werden geladen…",
+  "loadingDocuments": "Dokumente werden geparst…",
   "storageNotConfigured": "Konfiguriere den Speicher, bevor du diesen Arbeitsbereich verwendest.",
   "recentFiles": "Zuletzt verwendete Dateien",
   "recentFilesDescription": "Arbeite an einem Entwurf weiter oder beginne einen neuen.",

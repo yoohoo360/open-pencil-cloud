@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Parsowanie dokumentu",
+  "preparingNodes": "Parsowanie węzłów",
+  "expandingComponents": "Rozwijanie komponentów",
+  "resolvingFonts": "Ładowanie czcionek",
+  "computingLayout": "Obliczanie układu",
+  "preparingCanvas": "Przygotowywanie płótna"
+}

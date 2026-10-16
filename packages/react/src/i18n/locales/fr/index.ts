@@ -3,6 +3,7 @@ import type { ComponentsJSON } from '@nanostores/i18n'
 import commands from './commands.json'
 import dialogs from './dialogs.json'
 import menu from './menu.json'
+import pageLoading from './page-loading.json'
 import pages from './pages.json'
 import panels from './panels.json'
 import tools from './tools.json'
@@ -15,5 +16,6 @@ export default {
   panels: panels,
   variableTypes: variableTypes,
   pages: pages,
+  'page-loading': pageLoading,
   dialogs: dialogs
 } satisfies ComponentsJSON

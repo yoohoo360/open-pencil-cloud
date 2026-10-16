@@ -6,8 +6,8 @@ import type { RenderOverlays, SkiaRenderer } from '#core/canvas/renderer'
 import { SECTION_TITLE_RADIUS } from '#core/constants'
 
 import { labelLayout, labelViewport } from './layout'
-import { frameTitleColor, sectionLabelColors } from './style'
-import { frameLabelPlacement, labelScreenMatrix, labelTransform } from './transform'
+import { sectionLabelColors } from './style'
+import { labelScreenMatrix, labelTransform } from './transform'
 
 export function drawSectionTitles(
   r: SkiaRenderer,
@@ -173,40 +173,11 @@ export function drawComponentLabels(
  * that a click on its body does not select, so its name is how it is picked.
  */
 export function drawFrameTitles(
-  r: SkiaRenderer,
-  canvas: Canvas,
-  graph: SceneGraph,
-  selectedIds: ReadonlySet<string>,
-  overlays?: RenderOverlays
+  _r: SkiaRenderer,
+  _canvas: Canvas,
+  _graph: SceneGraph,
+  _selectedIds: ReadonlySet<string>,
+  _overlays?: RenderOverlays
 ): void {
-  const provider = r.fontProvider
-  if (!r.labelFont || !provider) return
-
-  const frames = r.labelCache.getFrames(
-    graph,
-    labelViewport(r.worldViewport, r.zoom),
-    overlays?.rotationPreview
-  )
-  for (const { node } of frames) {
-    const transform = frameLabelPlacement(node, graph, overlays?.rotationPreview)
-    const layout = labelLayout('frame', transform.width * r.zoom)
-    if (!layout) continue
-    const highlighted = selectedIds.has(node.id) || overlays?.hoveredNodeId === node.id
-    canvas.save()
-    canvas.concat(labelScreenMatrix(transform, r))
-    r.labelParagraphCache.draw(
-      r.ck,
-      canvas,
-      provider,
-      node.name,
-      layout.fontSize,
-      layout.maxTextWidth,
-      frameTitleColor(r, highlighted),
-      r.fontGeneration,
-      layout.text.x,
-      layout.text.y,
-      layout.fontWeight
-    )
-    canvas.restore()
-  }
+  // Experiment: skip page/section frame name chrome (no label font / fallback work).
 }

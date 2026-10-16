@@ -419,7 +419,7 @@ export const dialogMessageDefaults = {
   openStorageWorkspace: 'Open workspace',
   newStoredDocument: 'New document',
   emptyStorageWorkspace: 'No stored documents yet.',
-  loadingDocuments: 'Loading documents…',
+  loadingDocuments: 'Parsing documents…',
   storageNotConfigured: 'Configure storage before using this workspace.',
   recentFiles: 'Recent files',
   recentFilesDescription: 'Continue working on a design or start a new one.',

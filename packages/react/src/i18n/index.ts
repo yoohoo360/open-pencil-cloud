@@ -28,6 +28,7 @@ export {
   panelMessages,
   variableTypeMessages,
   pageMessages,
+  pageLoadingMessages,
   dialogMessages,
   messageDefaults
 } from '#react/i18n/messages'

@@ -1,0 +1,8 @@
+{
+  "loadingDocument": "Analizando documento",
+  "preparingNodes": "Analizando nodos",
+  "expandingComponents": "Expandiendo componentes",
+  "resolvingFonts": "Cargando tipografías",
+  "computingLayout": "Calculando diseño",
+  "preparingCanvas": "Preparando lienzo"
+}
