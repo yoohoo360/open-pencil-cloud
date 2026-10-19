@@ -42,7 +42,7 @@ env:
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
   OSS_ENDPOINT: oss-cn-shanghai.aliyuncs.com
   OSS_BUCKET: yoohoo-oss
-  OSS_REGION: oss-cn-shanghai
+  OSS_REGION: cn-shanghai
 
 jobs:
   build:
