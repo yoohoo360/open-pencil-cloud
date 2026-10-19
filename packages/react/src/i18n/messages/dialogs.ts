@@ -228,6 +228,8 @@ export const dialogMessageDefaults = {
   tailwindConfigSaved: 'Saved to this browser.',
   tailwindConfigInvalid: 'Fix invalid JSON before saving.',
   tailwindConfigSaveFailed: 'Could not save Tailwind configs.',
+  settingsLanguage: 'Language',
+  settingsLanguageDescription: 'Choose the language used by the app interface.',
   settingsTypography: 'Typography',
   settingsDefaultFont: 'Default font',
   settingsDefaultFontDescription:

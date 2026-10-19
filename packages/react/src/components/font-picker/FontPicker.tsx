@@ -93,7 +93,7 @@ export function FontPicker({
                   key={option.family}
                   type="button"
                   data-test-id="font-picker-item"
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm leading-tight text-surface hover:bg-hover"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] leading-tight text-surface hover:bg-hover"
                   onClick={() => {
                     onSelect(option.family)
                     picker.closePicker()

@@ -9,6 +9,12 @@ import {
   type ContextMenuNodeKind,
   type ContextMenuOrders
 } from '#react/app/settings/context-menu'
+import {
+  defaultFontFamilyForLocale,
+  preferredFontFamiliesForLocale,
+  readStoredOrBrowserLocale,
+  type Locale
+} from '#react/i18n/locale'
 
 export interface AppPreferences {
   version: 1
@@ -30,7 +36,7 @@ export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
   recovery: { enabled: true },
   editing: {
     snapping: { ...DEFAULT_SNAPPING_PREFERENCES },
-    defaultFontFamily: DEFAULT_FONT_FAMILY
+    defaultFontFamily: defaultFontFamilyForLocale(readStoredOrBrowserLocale())
   },
   menus: {
     contextByNodeType: {}
@@ -63,6 +69,17 @@ function stringOrDefault(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback
 }
 
+function defaultFontFamilyFromStored(value: unknown): string {
+  const locale = readStoredOrBrowserLocale()
+  const localeDefault = defaultFontFamilyForLocale(locale)
+  const stored = stringOrDefault(value, localeDefault)
+  // Previous releases always wrote Inter; migrate that universal default to the locale font.
+  if (stored === DEFAULT_FONT_FAMILY && localeDefault !== DEFAULT_FONT_FAMILY) {
+    return localeDefault
+  }
+  return stored
+}
+
 export function normalizePreferences(value: unknown): AppPreferences {
   const stored = isStoredRecord(value) ? value : undefined
   const recovery = isStoredRecord(stored?.recovery) ? stored.recovery : undefined
@@ -74,10 +91,7 @@ export function normalizePreferences(value: unknown): AppPreferences {
     },
     editing: {
       snapping: snappingFromUnknown(editing?.snapping),
-      defaultFontFamily: stringOrDefault(
-        editing?.defaultFontFamily,
-        DEFAULT_APP_PREFERENCES.editing.defaultFontFamily
-      )
+      defaultFontFamily: defaultFontFamilyFromStored(editing?.defaultFontFamily)
     },
     menus: {
       contextByNodeType: normalizeContextMenuOrders(
@@ -135,6 +149,22 @@ export function updateDefaultFontFamily(family: string) {
       ...current.editing,
       defaultFontFamily: trimmed
     }
+  })
+}
+
+/** When the UI language changes, keep the default font matched unless the user overrode it. */
+export function syncDefaultFontFamilyForLocale(previous: Locale, next: Locale) {
+  if (previous === next) return
+  const current = appPreferences.get().editing.defaultFontFamily
+  const managedDefaults = new Set<string>([
+    DEFAULT_FONT_FAMILY,
+    defaultFontFamilyForLocale(previous),
+    ...preferredFontFamiliesForLocale(previous)
+  ])
+  if (!managedDefaults.has(current)) return
+  // Prefer an installed host family (e.g. real PingFang SC) over a phantom locale name.
+  void import('#react/app/editor/fonts').then(async ({ matchDefaultFontForLocale }) => {
+    updateDefaultFontFamily(await matchDefaultFontForLocale(next))
   })
 }
 

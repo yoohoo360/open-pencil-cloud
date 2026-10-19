@@ -104,6 +104,8 @@
   "settingsMenuNodeComponent": "Component",
   "settingsMenuNodeComponentSet": "Component set",
   "settingsMenuNodeInstance": "Instance",
+  "settingsLanguage": "Sprache",
+  "settingsLanguageDescription": "Wähle die Sprache der App-Oberfläche.",
   "settingsTypography": "Typografie",
   "settingsDefaultFont": "Standardschrift",
   "settingsDefaultFontDescription": "Wird auf neue Textebenen angewendet. Übereinstimmende Schriften werden in Tailwind- und Design-JSX-Ausgabe ausgelassen.",

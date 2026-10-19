@@ -256,7 +256,8 @@ export class FontManager {
 
     const hostBuffer = await this.loadHostFont(family, style)
     if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
-    const localBuffer = await this.findLocalFont(family, style)
+    // System faces are often variable (PingFang, SF Pro); CanvasKit uses named instances.
+    const localBuffer = await this.findLocalFont(family, style, { allowVariable: true })
     if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
 
     const bundledURL = BUNDLED_FONTS[cacheKey]

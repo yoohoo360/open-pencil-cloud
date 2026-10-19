@@ -100,6 +100,8 @@
   "settingsMenuNodeComponent": "Component",
   "settingsMenuNodeComponentSet": "Component set",
   "settingsMenuNodeInstance": "Instance",
+  "settingsLanguage": "Langue",
+  "settingsLanguageDescription": "Choisissez la langue de l’interface de l’application.",
   "settingsTypography": "Typographie",
   "settingsDefaultFont": "Police par défaut",
   "settingsDefaultFontDescription": "Appliquée aux nouveaux calques de texte. Les polices correspondantes sont omises dans la sortie Tailwind et Design JSX.",

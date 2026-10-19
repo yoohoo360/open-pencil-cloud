@@ -1,6 +1,8 @@
 import { localeFrom } from '@nanostores/i18n'
 import { atom, onStart } from 'nanostores'
 
+import { DEFAULT_FONT_FAMILY } from '@open-pencil/core/constants'
+
 export const AVAILABLE_LOCALES = ['en', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'ru', 'zh-CN'] as const
 export type Locale = (typeof AVAILABLE_LOCALES)[number]
 export type TranslatedLocale = Exclude<Locale, 'en'>
@@ -41,14 +43,37 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 
 const LOCALE_STORAGE_KEY = 'open-pencil-locale'
 
+/** Prefer these installed families for Simplified Chinese UI (first match wins). */
+export const ZH_CN_FONT_CANDIDATES = [
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'Heiti SC',
+  'Songti SC',
+  'STHeiti'
+] as const
+
 export const localeSetting = atom<Locale | undefined>(undefined)
+
+function matchSimplifiedChinese(normalized: string): Locale | null {
+  const [primary, ...rest] = normalized.split('-')
+  if (primary !== 'zh') return null
+  const subtags = new Set(rest)
+  if (subtags.has('hant') || subtags.has('tw') || subtags.has('hk') || subtags.has('mo')) {
+    return null
+  }
+  // Bare `zh`, `zh-Hans`, `zh-CN`, `zh-SG`, …
+  return 'zh-CN'
+}
 
 export function resolveBrowserLocale(languages: readonly string[]): Locale {
   const localesByCode = new Map(AVAILABLE_LOCALES.map((code) => [code.toLowerCase(), code]))
   for (const language of languages) {
-    const normalized = language.toLowerCase()
+    const normalized = language.toLowerCase().replaceAll('_', '-')
     const exact = localesByCode.get(normalized)
     if (exact) return exact
+
+    const simplifiedChinese = matchSimplifiedChinese(normalized)
+    if (simplifiedChinese) return simplifiedChinese
 
     const base = normalized.split('-')[0]
     const baseLocale = localesByCode.get(base)
@@ -57,11 +82,33 @@ export function resolveBrowserLocale(languages: readonly string[]): Locale {
   return 'en'
 }
 
-function readBrowserLocale(): Locale {
+export function preferredFontFamiliesForLocale(code: Locale): readonly string[] {
+  if (code === 'zh-CN') return ZH_CN_FONT_CANDIDATES
+  return []
+}
+
+export function defaultFontFamilyForLocale(code: Locale): string {
+  return preferredFontFamiliesForLocale(code)[0] ?? DEFAULT_FONT_FAMILY
+}
+
+function getLocalStorage(): Storage | null {
+  if (typeof localStorage === 'undefined') return null
+  if (typeof localStorage.getItem !== 'function') return null
+  if (typeof localStorage.setItem !== 'function') return null
+  return localStorage
+}
+
+export function readBrowserLocale(): Locale {
   if (typeof navigator === 'undefined') return 'en'
   const browserLanguages = Array.isArray(navigator.languages) ? navigator.languages : []
   const languages = browserLanguages.length > 0 ? browserLanguages : [navigator.language || 'en']
   return resolveBrowserLocale(languages)
+}
+
+export function readStoredOrBrowserLocale(): Locale {
+  const saved = getLocalStorage()?.getItem(LOCALE_STORAGE_KEY) as Locale | null | undefined
+  if (saved && AVAILABLE_LOCALES.includes(saved)) return saved
+  return readBrowserLocale()
 }
 
 /** Eager — page-loading overlay must not wait for atom onStart / async i18n packs. */
@@ -72,16 +119,14 @@ onStart(browserLocale, () => {
 
 export const locale = localeFrom(localeSetting, browserLocale)
 
-function getLocalStorage(): Storage | null {
-  if (typeof localStorage === 'undefined') return null
-  if (typeof localStorage.getItem !== 'function') return null
-  if (typeof localStorage.setItem !== 'function') return null
-  return localStorage
-}
-
 export function setLocale(code: Locale) {
+  const previous = locale.get()
   localeSetting.set(code)
   getLocalStorage()?.setItem(LOCALE_STORAGE_KEY, code)
+  if (previous === code) return
+  void import('#react/app/settings/preferences').then(({ syncDefaultFontFamilyForLocale }) => {
+    syncDefaultFontFamilyForLocale(previous, code)
+  })
 }
 
 const saved = getLocalStorage()?.getItem(LOCALE_STORAGE_KEY) as Locale | null | undefined

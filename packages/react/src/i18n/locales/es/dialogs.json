@@ -100,6 +100,8 @@
   "settingsMenuNodeComponent": "Component",
   "settingsMenuNodeComponentSet": "Component set",
   "settingsMenuNodeInstance": "Instance",
+  "settingsLanguage": "Idioma",
+  "settingsLanguageDescription": "Elige el idioma de la interfaz de la aplicación.",
   "settingsTypography": "Tipografía",
   "settingsDefaultFont": "Fuente predeterminada",
   "settingsDefaultFontDescription": "Se aplica a las nuevas capas de texto. Las fuentes coincidentes se omiten en la salida de Tailwind y Design JSX.",

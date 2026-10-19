@@ -43,12 +43,26 @@ const LOCALE_STORAGE_KEY = 'open-pencil-locale'
 
 export const localeSetting = atom<Locale | undefined>(undefined)
 
+function matchSimplifiedChinese(normalized: string): Locale | null {
+  const [primary, ...rest] = normalized.split('-')
+  if (primary !== 'zh') return null
+  const subtags = new Set(rest)
+  if (subtags.has('hant') || subtags.has('tw') || subtags.has('hk') || subtags.has('mo')) {
+    return null
+  }
+  // Bare `zh`, `zh-Hans`, `zh-CN`, `zh-SG`, …
+  return 'zh-CN'
+}
+
 export function resolveBrowserLocale(languages: readonly string[]): Locale {
   const localesByCode = new Map(AVAILABLE_LOCALES.map((code) => [code.toLowerCase(), code]))
   for (const language of languages) {
-    const normalized = language.toLowerCase()
+    const normalized = language.toLowerCase().replaceAll('_', '-')
     const exact = localesByCode.get(normalized)
     if (exact) return exact
+
+    const simplifiedChinese = matchSimplifiedChinese(normalized)
+    if (simplifiedChinese) return simplifiedChinese
 
     const base = normalized.split('-')[0]
     const baseLocale = localesByCode.get(base)
@@ -57,12 +71,17 @@ export function resolveBrowserLocale(languages: readonly string[]): Locale {
   return 'en'
 }
 
-const browserLocale = atom<Locale>('en')
-onStart(browserLocale, () => {
-  if (typeof navigator === 'undefined') return
+function readBrowserLocale(): Locale {
+  if (typeof navigator === 'undefined') return 'en'
   const browserLanguages = Array.isArray(navigator.languages) ? navigator.languages : []
   const languages = browserLanguages.length > 0 ? browserLanguages : [navigator.language || 'en']
-  browserLocale.set(resolveBrowserLocale(languages))
+  return resolveBrowserLocale(languages)
+}
+
+/** Eager — settings and first paint must match the system language without waiting for onStart. */
+const browserLocale = atom<Locale>(readBrowserLocale())
+onStart(browserLocale, () => {
+  browserLocale.set(readBrowserLocale())
 })
 
 export const locale = localeFrom(localeSetting, browserLocale)

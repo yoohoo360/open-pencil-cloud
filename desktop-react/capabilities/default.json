@@ -2003,6 +2003,8 @@
     "allow-mcp-lookup",
     "allow-mcp-health",
     "allow-mcp-start",
+    "allow-list-system-fonts",
+    "allow-load-system-font",
     "shell:allow-stdin-write",
     "shell:allow-kill"
   ]

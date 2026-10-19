@@ -100,6 +100,8 @@
   "settingsMenuNodeComponent": "Component",
   "settingsMenuNodeComponentSet": "Component set",
   "settingsMenuNodeInstance": "Instance",
+  "settingsLanguage": "Język",
+  "settingsLanguageDescription": "Wybierz język interfejsu aplikacji.",
   "settingsTypography": "Typografia",
   "settingsDefaultFont": "Domyślna czcionka",
   "settingsDefaultFontDescription": "Stosowana do nowych warstw tekstu. Pasujące czcionki są pomijane w wyjściu Tailwind i Design JSX.",

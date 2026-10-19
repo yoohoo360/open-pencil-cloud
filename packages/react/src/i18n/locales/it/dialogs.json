@@ -100,6 +100,8 @@
   "settingsMenuNodeComponent": "Component",
   "settingsMenuNodeComponentSet": "Component set",
   "settingsMenuNodeInstance": "Instance",
+  "settingsLanguage": "Lingua",
+  "settingsLanguageDescription": "Scegli la lingua dell’interfaccia dell’app.",
   "settingsTypography": "Tipografia",
   "settingsDefaultFont": "Font predefinito",
   "settingsDefaultFontDescription": "Applicato ai nuovi livelli di testo. I font corrispondenti vengono omessi dall’output Tailwind e Design JSX.",

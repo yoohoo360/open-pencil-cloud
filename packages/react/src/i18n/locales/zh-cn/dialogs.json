@@ -113,6 +113,8 @@
   "settingsMenuNodeComponent": "组件",
   "settingsMenuNodeComponentSet": "组件集",
   "settingsMenuNodeInstance": "实例",
+  "settingsLanguage": "语言",
+  "settingsLanguageDescription": "选择应用界面使用的语言。",
   "settingsTypography": "字体",
   "settingsDefaultFont": "默认字体",
   "settingsDefaultFontDescription": "用于新建文本图层。与默认字体相同的字体不会输出到 Tailwind 和 Design JSX。",

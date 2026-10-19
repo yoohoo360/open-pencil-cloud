@@ -1,5 +1,7 @@
 import { useStore } from '@nanostores/react'
+import { useEffect } from 'react'
 
+import { listLocalFamilies } from '#react/app/editor/fonts'
 import {
   appPreferences,
   updateDefaultFontFamily,
@@ -8,17 +10,48 @@ import {
 import { setSnappingPreference } from '#react/app/shell/menu/editor-actions'
 import { useEditorStore } from '#react/app/editor/store'
 import { FontPicker } from '#react/components/font-picker/FontPicker'
+import { AppSelect } from '#react/components/ui/AppSelect'
 import { AppSwitch } from '#react/components/ui/AppSwitch'
 import { useI18n } from '#react/i18n'
+import type { Locale } from '#react/i18n/locale'
 
 export function GeneralSettingsPanel() {
-  const { dialogs } = useI18n()
+  const { dialogs, locale, availableLocales, localeLabels, menu, setLocale } = useI18n()
   const store = useEditorStore()
   const preferences = useStore(appPreferences)
   const snapping = store.state.snappingPreferences
 
+  // Enumerate system fonts and migrate the locale default (e.g. Inter → PingFang SC).
+  useEffect(() => {
+    void listLocalFamilies()
+  }, [])
+
+  const languageOptions = availableLocales.map((value) => ({
+    value,
+    label: localeLabels[value]
+  }))
+
   return (
     <section className="flex flex-col gap-4" data-test-id="settings-general-panel">
+      <div>
+        <h3 className="text-xs font-semibold text-surface">{dialogs.settingsLanguage}</h3>
+        <p className="mt-1 text-[11px] text-muted">{dialogs.settingsLanguageDescription}</p>
+      </div>
+
+      <div className="rounded border border-border px-3 py-2.5">
+        <label className="flex items-center justify-between gap-4">
+          <span className="text-xs text-surface">{menu.language}</span>
+          <AppSelect
+            value={locale}
+            label={menu.language}
+            options={languageOptions}
+            className="w-52"
+            data-test-id="settings-language"
+            onChange={(value) => setLocale(value as Locale)}
+          />
+        </label>
+      </div>
+
       <div>
         <h3 className="text-xs font-semibold text-surface">{dialogs.settingsRecovery}</h3>
         <p className="mt-1 text-[11px] text-muted">{dialogs.settingsRecoveryDescription}</p>
@@ -47,12 +80,16 @@ export function GeneralSettingsPanel() {
       </div>
 
       <div className="rounded border border-border px-3 py-2.5" data-test-id="settings-default-font">
-        <span className="mb-1.5 block text-xs text-surface">{dialogs.settingsDefaultFont}</span>
-        <FontPicker
-          value={preferences.editing.defaultFontFamily}
-          label={dialogs.settingsDefaultFont}
-          onSelect={updateDefaultFontFamily}
-        />
+        <label className="flex items-center justify-between gap-4">
+          <span className="text-xs text-surface">{dialogs.settingsDefaultFont}</span>
+          <div className="w-52">
+            <FontPicker
+              value={preferences.editing.defaultFontFamily}
+              label={dialogs.settingsDefaultFont}
+              onSelect={updateDefaultFontFamily}
+            />
+          </div>
+        </label>
       </div>
 
       <div>

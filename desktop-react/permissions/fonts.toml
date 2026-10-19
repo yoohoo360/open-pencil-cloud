@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-list-system-fonts"
+description = "Enables listing installed system font families for the font picker."
+commands.allow = ["list_system_fonts"]
+
+[[permission]]
+identifier = "allow-load-system-font"
+description = "Enables loading system font file bytes for canvas text rendering."
+commands.allow = ["load_system_font"]
