@@ -202,9 +202,6 @@ jobs:
         env:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ vars.OSS_ENDPOINT }}
-          OSS_REGION: ${{ vars.OSS_REGION }}
-          OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           DIST_DIR: ${{ env.DIST_DIR }}
         run: |
           set -euo pipefail
@@ -213,7 +210,6 @@ jobs:
           unzip -o ossutil-2.4.0-linux-amd64.zip
           chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
       
-          # 先确认环境变量真的存在
           echo "OSS_ENDPOINT=$OSS_ENDPOINT"
           echo "OSS_REGION=$OSS_REGION"
           echo "OSS_BUCKET=$OSS_BUCKET"
