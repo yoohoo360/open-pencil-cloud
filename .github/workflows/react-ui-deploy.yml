@@ -216,8 +216,14 @@ jobs:
           echo "OSS_BUCKET=$OSS_BUCKET"
 
         
-          echo "hello" > test.txt
-          ./ossutil-2.4.0-linux-amd64/ossutil cp test.txt "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/test.txt"
+ 
+          ./ossutil-2.4.0-linux-amd64/ossutil cp -r \
+            --endpoint "oss-cn-shanghai.aliyuncs.com" \
+            --region "oss-cn-shanghai" \
+            --access-key-id "$OSS_ACCESS_KEY_ID" \
+            --access-key-secret "$OSS_ACCESS_KEY_SECRET" \
+            "$DIST_DIR" \
+            "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
