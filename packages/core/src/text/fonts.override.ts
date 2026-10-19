@@ -254,13 +254,20 @@ export class FontManager {
       return loaded
     }
 
+    // Bundled / public assets first (e.g. Inter), then host system faces, then browser local.
+    const bundled = await this.loadBundledFont(family, style)
+    if (bundled) return bundled
+
     const hostBuffer = await this.loadHostFont(family, style)
     if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
     // System faces are often variable (PingFang, SF Pro); CanvasKit uses named instances.
     const localBuffer = await this.findLocalFont(family, style, { allowVariable: true })
     if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    return null
+  }
 
-    const bundledURL = BUNDLED_FONTS[cacheKey]
+  private async loadBundledFont(family: string, style: string): Promise<ArrayBuffer | null> {
+    const bundledURL = BUNDLED_FONTS[`${family}|${style}`]
     if (!bundledURL) return null
     try {
       const buffer = await this.fetchBundledFont(bundledURL)

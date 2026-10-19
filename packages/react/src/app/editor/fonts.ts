@@ -37,12 +37,17 @@ function isTauriShell(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
+/**
+ * Wire native font loading so CanvasKit can resolve faces when text asks for them.
+ * Does not enumerate the system catalog or register any face bytes.
+ */
 function configureHostFontLoader(): void {
   if (hostFontLoaderConfigured || !isTauriShell()) return
   hostFontLoaderConfigured = true
   fontManager.setHostFontLoader(loadSystemFont)
 }
 
+/** Full family catalog — only for the font picker / settings list, never at boot. */
 async function getTauriFonts(): Promise<TauriFontFamily[]> {
   if (tauriFontsCache) return tauriFontsCache
   if (!tauriFontsPromise) {
@@ -53,8 +58,7 @@ async function getTauriFonts(): Promise<TauriFontFamily[]> {
         return fonts
       })
       .catch((error: unknown) => {
-        // Do not sticky-cache failures: preload can race shell inject / ACL, and a
-        // later open of the picker should retry once permissions are available.
+        // Do not sticky-cache failures: ACL / shell inject can race the first open.
         tauriFontsPromise = null
         console.warn('[fonts] list_system_fonts failed; system fonts unavailable', error)
         return [] as TauriFontFamily[]
@@ -88,6 +92,20 @@ async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayB
   }
 }
 
+/** Probe a few locale candidates via host load — not a full catalog walk. */
+async function findInstalledPreferredFamily(locale: Locale): Promise<string | null> {
+  configureHostFontLoader()
+  for (const family of preferredFontFamiliesForLocale(locale)) {
+    try {
+      const data = await loadSystemFont(family, 'Regular')
+      if (data) return family
+    } catch {
+      // unsupported-format / missing — try the next preferred face
+    }
+  }
+  return null
+}
+
 function ensurePreferredFamilies(
   byFamily: Map<string, FontFamilyOption>,
   availableNames: ReadonlySet<string>
@@ -100,40 +118,35 @@ function ensurePreferredFamilies(
   }
 }
 
-function syncDefaultFontWithLocale(availableNames: readonly string[]): void {
+/**
+ * Migrate Inter → locale default using only preferred-family probes.
+ * Does not call `list_system_fonts`.
+ */
+export function ensureLocaleDefaultFont(): void {
   if (defaultFontSynced) return
   defaultFontSynced = true
   const locale = readStoredOrBrowserLocale()
-  const preferred = preferredFontFamiliesForLocale(locale)
-  if (preferred.length === 0) return
+  if (preferredFontFamiliesForLocale(locale).length === 0) return
 
-  const matchedPreferred = preferred.find((family) => availableNames.includes(family))
-  if (!matchedPreferred) return
+  void findInstalledPreferredFamily(locale).then((matchedPreferred) => {
+    if (!matchedPreferred) return
+    void import('#react/app/settings/preferences').then(
+      ({ appPreferences, updateDefaultFontFamily }) => {
+        const current = appPreferences.get().editing.defaultFontFamily
+        const localeDefault = defaultFontFamilyForLocale(locale)
 
-  void import('#react/app/settings/preferences').then(({ appPreferences, updateDefaultFontFamily }) => {
-    const current = appPreferences.get().editing.defaultFontFamily
-    const localeDefault = defaultFontFamilyForLocale(locale)
+        // Fresh installs and previous universal Inter default → an installed locale font.
+        if (current === DEFAULT_FONT_FAMILY && matchedPreferred !== current) {
+          updateDefaultFontFamily(matchedPreferred)
+          return
+        }
 
-    // Fresh installs and previous universal Inter default → an installed locale font.
-    if (current === DEFAULT_FONT_FAMILY && matchedPreferred !== current) {
-      updateDefaultFontFamily(matchedPreferred)
-      return
-    }
-
-    // Settings still hold a preferred name that is not installed; swap to an available one.
-    if (
-      preferred.includes(current) &&
-      !availableNames.includes(current) &&
-      matchedPreferred !== current
-    ) {
-      updateDefaultFontFamily(matchedPreferred)
-      return
-    }
-
-    // Locale default name that is not installed (legacy phantom) → installed match.
-    if (current === localeDefault && matchedPreferred !== current) {
-      updateDefaultFontFamily(matchedPreferred)
-    }
+        // Locale default name that is not installed (legacy phantom) → installed match.
+        if (current === localeDefault && matchedPreferred !== current) {
+          updateDefaultFontFamily(matchedPreferred)
+        }
+      }
+    )
   })
 }
 
@@ -154,12 +167,12 @@ export function registerLocalFontPreview(family: string): void {
   // Installed families already resolve via font-family on the preview element.
 }
 
+/** Boot: host loader only. Catalog + locale sync wait for the font picker / language change. */
 export function preloadFonts(): void {
   configureHostFontLoader()
-  if (!isTauriShell()) return
-  void listLocalFamilies()
 }
 
+/** Enumerate installed families for the picker UI. Safe to call repeatedly (cached). */
 export async function listLocalFamilies(): Promise<FontFamilyOption[]> {
   configureHostFontLoader()
   fontManager.setOnlineFontProviders({})
@@ -179,7 +192,7 @@ export async function listLocalFamilies(): Promise<FontFamilyOption[]> {
     if (!byFamily.has(DEFAULT_FONT_FAMILY)) {
       byFamily.set(DEFAULT_FONT_FAMILY, { family: DEFAULT_FONT_FAMILY, source: 'bundled' })
     }
-    syncDefaultFontWithLocale([...availableNames])
+    ensureLocaleDefaultFont()
     return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
   }
 
@@ -191,7 +204,7 @@ export async function listLocalFamilies(): Promise<FontFamilyOption[]> {
   if (!byFamily.has(DEFAULT_FONT_FAMILY)) {
     byFamily.set(DEFAULT_FONT_FAMILY, { family: DEFAULT_FONT_FAMILY, source: 'bundled' })
   }
-  syncDefaultFontWithLocale([...availableNames])
+  ensureLocaleDefaultFont()
   return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
 }
 
@@ -201,20 +214,15 @@ export async function requestLocalFontAccess(): Promise<FontFamilyOption[]> {
   return listLocalFamilies()
 }
 
+/** Load one face into the font manager / CanvasKit — called when text or the UI needs it. */
 export async function loadFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
   configureHostFontLoader()
   return fontManager.loadLocalFont(family, style)
 }
 
-/** Resolve an installed locale default; never invent a family the host did not enumerate. */
+/** Resolve an installed locale default without enumerating the full system catalog. */
 export async function matchDefaultFontForLocale(locale: Locale): Promise<string> {
-  configureHostFontLoader()
-  const preferred = preferredFontFamiliesForLocale(locale)
-  if (preferred.length === 0) return DEFAULT_FONT_FAMILY
-  const availableNames = isTauriShell()
-    ? new Set((await getTauriFonts()).map((font) => font.family))
-    : new Set(localFamilyOptions(await fontManager.listFamilyOptions()).map((font) => font.family))
-  return preferred.find((family) => availableNames.has(family)) ?? DEFAULT_FONT_FAMILY
+  return (await findInstalledPreferredFamily(locale)) ?? DEFAULT_FONT_FAMILY
 }
 
 export function localFontAccessLabel(
