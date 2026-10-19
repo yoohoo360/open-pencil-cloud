@@ -213,13 +213,12 @@ jobs:
           unzip -o ossutil-2.4.0-linux-amd64.zip
           chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
       
-          ./ossutil-2.4.0-linux-amd64/ossutil cp -r \
-            --endpoint "$OSS_ENDPOINT" \
-            --region "$OSS_REGION" \
-            --access-key-id "$OSS_ACCESS_KEY_ID" \
-            --access-key-secret "$OSS_ACCESS_KEY_SECRET" \
-            "$DIST_DIR" \
-            "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
+          export OSS_ACCESS_KEY_ID="$OSS_ACCESS_KEY_ID"
+          export OSS_ACCESS_KEY_SECRET="$OSS_ACCESS_KEY_SECRET"
+          export OSS_ENDPOINT="$OSS_ENDPOINT"
+          export OSS_REGION="$OSS_REGION"
+      
+          ./ossutil-2.4.0-linux-amd64/ossutil cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
