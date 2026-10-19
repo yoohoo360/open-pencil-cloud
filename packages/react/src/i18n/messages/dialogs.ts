@@ -170,9 +170,7 @@ export const dialogMessageDefaults = {
   chatRuntimeAgentServer: 'Agent Server',
   chatRuntimeFetch: 'Local fetch',
   agentServerUrl: 'Agent Server URL',
-  agentServerUrlPlaceholder: 'http://127.0.0.1:2024',
-  agentServerUrlHint:
-    'With rspack bun start, starts on the first chat probe. When reachable (GET /ok), the runtime badge shows Agent Server; turns still use your API key in the browser.',
+  agentServerUrlPlaceholder: 'http://127.0.0.1:7600',
   agentServerProbe: 'Check Agent Server',
   agentServerOnline: 'Agent Server online',
   agentServerOffline: 'Agent Server offline — using local fetch',

@@ -5,11 +5,7 @@ import { ChevronDown, LoaderCircle, MessageCircle, Trash2 } from 'lucide-react'
 import { isTextPart, type ChatStatus } from '#react/app/ai/chat/types'
 import { useChatStickScroll } from '#react/app/ai/chat/use-stick-scroll'
 import type { EditorStore } from '#react/app/editor/store'
-import {
-  chatRuntimeState,
-  startChatRuntimeProbing,
-  stopChatRuntimeProbing
-} from '#react/app/ai/runtime/mode'
+import { chatRuntimeState } from '#react/app/ai/runtime/mode'
 import {
   lastNonEmptyLine,
   parseCodegenReply,
@@ -45,11 +41,6 @@ export function CodegenChat(props: {
   title?: string
 }) {
   const runtime = useStore(chatRuntimeState)
-
-  useEffect(() => {
-    startChatRuntimeProbing()
-    return () => stopChatRuntimeProbing()
-  }, [])
 
   return (
     <ClientCodegenChat

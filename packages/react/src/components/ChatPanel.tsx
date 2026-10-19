@@ -4,11 +4,7 @@ import { Check, ClipboardCopy, MessageCircle, Trash2 } from 'lucide-react'
 
 import { useAIChat } from '#react/app/ai/chat/use'
 import { useChatStickScroll } from '#react/app/ai/chat/use-stick-scroll'
-import {
-  chatRuntimeState,
-  startChatRuntimeProbing,
-  stopChatRuntimeProbing
-} from '#react/app/ai/runtime/mode'
+import { chatRuntimeState } from '#react/app/ai/runtime/mode'
 import { useActionToast } from '#react/app/shell/toast/action'
 import { ChatInput } from '#react/components/chat/ChatInput'
 import { ChatMessageView } from '#react/components/chat/ChatMessage'
@@ -18,71 +14,15 @@ import { AppButton } from '#react/components/ui/AppButton'
 import { AppPlaceholder } from '#react/components/ui/AppPlaceholder'
 import { useI18n } from '#react/i18n'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
-import type { ChatFailure, ChatMessage, ChatStatus } from '#react/app/ai/chat/types'
-import type { PencilSkill } from '#react/lib/client'
 
 const IS_DEV = import.meta.env.DEV
 
-type ChatController = {
-  isConfigured: boolean
-  messages: ChatMessage[]
-  status: ChatStatus
-  chatFailure: ChatFailure | null
-  clearChatFailure: () => void
-  enabledSkills: PencilSkill[]
-  skillsReady: boolean
-  sendMessage: (text: string, images?: unknown[]) => Promise<void>
-  stop: () => void
-  stopAndEdit: (messageId?: string) => void
-  composerSeed: { key: number; text: string } | null
-  resetChat: () => void
-  runtimeMode: 'agent-server' | 'fetch'
-}
-
+/**
+ * Agent Server probe only gates the runtime badge (checked when sending).
+ * Design intelligence always runs through the client harness.
+ */
 export function ChatPanel() {
   const runtime = useStore(chatRuntimeState)
-
-  useEffect(() => {
-    startChatRuntimeProbing()
-    return () => stopChatRuntimeProbing()
-  }, [])
-
-  if (runtime.mode === 'agent-server') {
-    return <AgentServerDesignChat />
-  }
-  return <FetchDesignChat />
-}
-
-/**
- * Agent Server probe only gates the runtime badge. Design intelligence
- * (streaming UI, task waves, per-tier models, canvas tools) always runs
- * through the client harness — same as fetch mode.
- */
-function AgentServerDesignChat() {
-  const chat = useAIChat()
-  return (
-    <ChatPanelView
-      chat={{
-        ...chat,
-        runtimeMode: 'agent-server'
-      }}
-    />
-  )
-}
-
-function FetchDesignChat() {
-  const chat = useAIChat()
-  return (
-    <ChatPanelView
-      chat={{
-        ...chat,
-        runtimeMode: 'fetch'
-      }}
-    />
-  )
-}
-
-function ChatPanelView({ chat }: { chat: ChatController }) {
   const {
     isConfigured,
     messages,
@@ -94,9 +34,9 @@ function ChatPanelView({ chat }: { chat: ChatController }) {
     sendMessage,
     stopAndEdit,
     composerSeed,
-    resetChat,
-    runtimeMode
-  } = chat
+    resetChat
+  } = useAIChat()
+  const runtimeMode = runtime.mode
   const { dialogs } = useI18n()
   const { showActionToast } = useActionToast()
   const [debugCopied, setDebugCopied] = useState(false)

@@ -1,6 +1,6 @@
 import { atom } from 'nanostores'
 
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { AUTOMATION_HTTP_PORT, IS_BROWSER } from '@open-pencil/core/constants'
 
 const STORAGE_KEY = 'open-pencil:react-chat'
 
@@ -28,8 +28,8 @@ export type ChatProviderSettings = {
   activeModelId: 'auto' | string
   models: ChatModelEntry[]
   /**
-   * LangGraph Agent Server base URL. When reachable (`GET /ok`), the chat
-   * runtime badge shows Agent Server; turns still run via local fetch BYOK.
+   * Local companion base URL (MCP HTTP on :7600). When reachable (`GET /ok`),
+   * the chat runtime badge shows Agent Server; turns still run via local fetch BYOK.
    */
   agentServerUrl: string
 }
@@ -47,7 +47,27 @@ const DEFAULTS: ChatProviderSettings = {
   baseURL: 'https://api.openai.com/v1',
   activeModelId: 'auto',
   models: [structuredClone(DEFAULT_MODEL)],
-  agentServerUrl: 'http://127.0.0.1:2024'
+  agentServerUrl: `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`
+}
+
+/** Migrate the retired LangGraph :2024 URL onto the shared MCP companion port. */
+function normalizeAgentServerUrl(value: unknown): string {
+  const fallback = DEFAULTS.agentServerUrl
+  if (typeof value !== 'string' || !value.trim()) return fallback
+  const trimmed = value.trim().replace(/\/+$/, '')
+  try {
+    const url = new URL(trimmed)
+    if (
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost') &&
+      url.port === '2024'
+    ) {
+      url.port = String(AUTOMATION_HTTP_PORT)
+      return url.toString().replace(/\/$/, '')
+    }
+  } catch {
+    return fallback
+  }
+  return trimmed
 }
 
 function newModelEntryId(): string {
@@ -124,12 +144,13 @@ export function normalizeChatProviderSettings(value: unknown): ChatProviderSetti
   const activeModelId =
     activeRaw === 'auto' || models.some((model) => model.id === activeRaw) ? activeRaw : 'auto'
 
-  const agentServerUrl =
-    typeof stored?.agentServerUrl === 'string' && stored.agentServerUrl.trim()
-      ? stored.agentServerUrl.trim().replace(/\/+$/, '')
-      : DEFAULTS.agentServerUrl
-
-  return { apiKey, baseURL, activeModelId, models, agentServerUrl }
+  return {
+    apiKey,
+    baseURL,
+    activeModelId,
+    models,
+    agentServerUrl: normalizeAgentServerUrl(stored?.agentServerUrl)
+  }
 }
 
 function readSettings(): ChatProviderSettings {

@@ -32,6 +32,15 @@ describe('normalizeChatProviderSettings', () => {
     expect(settings.activeModelId).toBe('m2')
     expect(settings.models.map((model) => model.tier)).toEqual(['low', 'high'])
   })
+
+  test('migrates retired LangGraph :2024 companion url onto MCP :7600', () => {
+    const settings = normalizeChatProviderSettings({
+      apiKey: 'k',
+      baseURL: 'https://api.example.com/v1',
+      agentServerUrl: 'http://127.0.0.1:2024'
+    })
+    expect(settings.agentServerUrl).toBe('http://127.0.0.1:7600')
+  })
 })
 
 describe('resolveChatModel', () => {
@@ -44,7 +53,7 @@ describe('resolveChatModel', () => {
       { id: 'mid', name: 'M', modelId: 'mid-m', tier: 'medium', enabled: true },
       { id: 'high', name: 'H', modelId: 'high-m', tier: 'high', enabled: false }
     ],
-    agentServerUrl: 'http://127.0.0.1:2024'
+    agentServerUrl: 'http://127.0.0.1:7600'
   }
 
   test('Auto picks exact tier when available', () => {

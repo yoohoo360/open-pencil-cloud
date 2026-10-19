@@ -32,9 +32,6 @@ const INITIAL: ChatRuntimeState = {
 
 export const chatRuntimeState = atom<ChatRuntimeState>(INITIAL)
 
-const PROBE_INTERVAL_MS = 8_000
-
-let probeTimer: ReturnType<typeof setInterval> | null = null
 let probeGeneration = 0
 
 export function agentServerUrlFromSettings(
@@ -44,6 +41,7 @@ export function agentServerUrlFromSettings(
   return raw && raw.length > 0 ? raw.replace(/\/+$/, '') : DEFAULT_AGENT_SERVER_URL
 }
 
+/** Probe once (e.g. before sending a chat turn, or from Settings). No polling. */
 export async function refreshChatRuntimeMode(options?: {
   signal?: AbortSignal
   /** When true, ask rspack to lazy-start the local Agent Server before probing. */
@@ -72,31 +70,17 @@ export async function refreshChatRuntimeMode(options?: {
   return next
 }
 
-/** Start periodic probes when the page chat mounts. First call ensures Agent Server. */
-export function startChatRuntimeProbing() {
-  if (!IS_BROWSER) return
-  void refreshChatRuntimeMode({ ensure: true })
-  if (probeTimer) return
-  probeTimer = setInterval(() => {
-    const { mode } = chatRuntimeState.get()
-    // Retry ensure until the server is up; then only probe.
-    void refreshChatRuntimeMode({ ensure: mode !== 'agent-server' })
-  }, PROBE_INTERVAL_MS)
+/** Keep the settings URL on the atom; do not probe until the next send / manual check. */
+if (IS_BROWSER) {
+  chatProviderSettings.subscribe((settings) => {
+    const next = agentServerUrlFromSettings(settings)
+    const current = chatRuntimeState.get()
+    if (next === current.apiUrl) return
+    chatRuntimeState.set({
+      ...current,
+      apiUrl: next,
+      mode: 'fetch',
+      lastCheckedAt: null
+    })
+  })
 }
-
-export function stopChatRuntimeProbing() {
-  if (probeTimer) {
-    clearInterval(probeTimer)
-    probeTimer = null
-  }
-}
-
-let lastProbedUrl = ''
-chatProviderSettings.subscribe((settings) => {
-  if (!IS_BROWSER) return
-  const next = agentServerUrlFromSettings(settings)
-  if (next === lastProbedUrl) return
-  lastProbedUrl = next
-  // URL changes only re-probe; do not spawn LangGraph until chat mounts.
-  void refreshChatRuntimeMode({ ensure: false })
-})

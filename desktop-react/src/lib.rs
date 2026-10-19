@@ -90,6 +90,7 @@ const MCP_EXECUTABLE: &str = "openpencil-mcp-http";
 /// Bound on the directories reported back to the settings diagnostics.
 const MAX_REPORTED_SEARCH_DIRS: usize = 12;
 /// Local MCP HTTP port (same as `@open-pencil/core` `AUTOMATION_HTTP_PORT`).
+/// Also serves `GET /ok` for the React chat runtime badge (no separate :2024 process).
 const MCP_HTTP_PORT: u16 = 7600;
 
 /// Directories that commonly hold a globally installed Node/Bun CLI.
@@ -787,8 +788,8 @@ pub fn run() {
         .setup(|app| {
             queue_open_paths(app.handle(), startup_open_paths());
 
-            // Own the local MCP HTTP server in the native process. Packaged builds
-            // navigate to a remote frontend that may never invoke `mcp_start`.
+            // Own the local MCP HTTP server (also serves GET /ok for the chat badge).
+            // Packaged builds navigate to a remote frontend that may never invoke `mcp_start`.
             ensure_mcp_on_startup(app.handle());
 
             // Load the React app over HTTP (config default, or a non-prod override).

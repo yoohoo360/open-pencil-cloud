@@ -11,6 +11,7 @@ import {
   type AgentTaskState,
   type ParsedAgentTask
 } from '#react/app/ai/agent/parallel'
+import { refreshChatRuntimeMode } from '#react/app/ai/runtime/mode'
 import {
   chatProviderSettings,
   isChatConfigured,
@@ -350,6 +351,8 @@ export function useCodegenChat(options: {
       const trimmed = text.trim()
       if (!trimmed) return
       if (!configured) return
+      // One-shot companion probe for the runtime badge; no background polling.
+      await refreshChatRuntimeMode({ ensure: true })
       const operation = ++operationRef.current
       const userId = crypto.randomUUID()
       const assistantId = crypto.randomUUID()

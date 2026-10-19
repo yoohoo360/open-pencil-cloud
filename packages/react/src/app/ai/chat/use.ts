@@ -37,6 +37,7 @@ import {
 import { failureReasonFromError } from '#react/app/ai/chat/provider-error'
 import { streamChatCompletion } from '#react/app/ai/chat/stream'
 import { streamTextCompletion } from '#react/app/ai/chat/text-stream'
+import { refreshChatRuntimeMode } from '#react/app/ai/runtime/mode'
 import type {
   ChatFailure,
   ChatMessage,
@@ -169,6 +170,8 @@ export function useAIChat() {
       if (status === 'streaming' || status === 'submitted') return
       const trimmed = text.trim()
       if (!trimmed) return
+      // One-shot companion probe for the runtime badge; no background polling.
+      await refreshChatRuntimeMode({ ensure: true })
       const operation = ++operationRef.current
       const userId = crypto.randomUUID()
       const assistantId = crypto.randomUUID()

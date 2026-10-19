@@ -164,6 +164,10 @@ function createHonoApp(options: {
     })
   })
 
+  // Liveness alias used by the React chat runtime badge (formerly LangGraph GET /ok on :2024).
+  // Same Node process as MCP — no separate Agent Server port.
+  app.get('/ok', (c) => c.json({ ok: true }))
+
   app.use('/rpc', async (c, next) => {
     // When authToken is null (operator explicitly disabled auth), skip token check —
     // the Unix socket or localhost TCP already restricts access to local processes.

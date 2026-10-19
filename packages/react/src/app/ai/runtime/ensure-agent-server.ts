@@ -1,39 +1,13 @@
-import { IS_BROWSER } from '@open-pencil/core/constants'
-
-/** Rspack middleware path — lazy-starts LangGraph on first page chat probe. */
+/**
+ * Formerly asked rspack to probe a separate LangGraph process on :2024.
+ * Companion health is now the MCP HTTP server (same Node service on :7600),
+ * started by the rspack automation plugin / desktop shell — nothing to ensure here.
+ */
 export const AGENT_SERVER_ENSURE_PATH = '/__openpencil-agent-server/ensure'
 
-function isLocalAgentServerUrl(apiUrl: string): boolean {
-  try {
-    const url = new URL(apiUrl)
-    return url.hostname === '127.0.0.1' || url.hostname === 'localhost'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Probe whether a local Agent Server is already running (started with
- * `bun run start:agent-server`). Does not spawn one.
- * No-op outside DEV / browser, or when the configured URL is not local.
- */
 export async function ensureDevAgentServer(
-  apiUrl: string,
-  options?: { signal?: AbortSignal }
+  _apiUrl: string,
+  _options?: { signal?: AbortSignal }
 ): Promise<boolean> {
-  if (!IS_BROWSER || !import.meta.env.DEV) return false
-  if (!isLocalAgentServerUrl(apiUrl)) return false
-
-  try {
-    const response = await fetch(AGENT_SERVER_ENSURE_PATH, {
-      method: 'POST',
-      signal: options?.signal,
-      headers: { Accept: 'application/json' }
-    })
-    if (!response.ok) return false
-    const body = (await response.json().catch(() => null)) as { ok?: boolean } | null
-    return body?.ok === true
-  } catch {
-    return false
-  }
+  return false
 }
