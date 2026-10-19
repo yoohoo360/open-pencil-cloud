@@ -40,6 +40,8 @@ env:
   TAR_FILE: dist.tar.gz
   SSH_PORT: 22
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
+  OSS_ENDPOINT: oss-cn-shanghai.aliyuncs.com
+  OSS_BUCKET: yoohoo-oss
 
 jobs:
   build:
@@ -195,40 +197,23 @@ jobs:
 
           git tag "$CURRENT_TAG"
           git push origin "$CURRENT_TAG"
-
-      - name: Set up SSH and deploy
+      
+      - name: Upload dist to OSS
         env:
-          SERVER_IP: ${{ vars.SERVER_IP }}
-          TARGET_DIR: ${{ vars.TARGET_DIR }}
-          SSH_PORT: ${{ env.SSH_PORT }}
-          SSH_USERNAME: ${{ env.SSH_USERNAME }}
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_ENDPOINT: ${{ env.OSS_ENDPOINT }}
+          OSS_BUCKET: ${{ env.OSS_BUCKET }}
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
-
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/dev.key
-          chmod 600 ~/.ssh/dev.key
-
-          ssh-keyscan -p "$SSH_PORT" "$SERVER_IP" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-          tar -czf "$TAR_FILE" "$DIST_DIR"
-
-          scp -i ~/.ssh/dev.key -P "$SSH_PORT" "$TAR_FILE" "$SSH_USERNAME@$SERVER_IP:$REMOTE_TMP_TAR"
-
-          ssh -i ~/.ssh/dev.key -p "$SSH_PORT" "$SSH_USERNAME@$SERVER_IP" "
-            set -e
-            mkdir -p '$TARGET_DIR'
-            rm -rf '$TARGET_DIR'/*
-            tar -xzf '$REMOTE_TMP_TAR' -C '$TARGET_DIR' --strip-components=3
-            rm -f '$REMOTE_TMP_TAR'
-            echo '$NEW_VERSION' > '$TARGET_DIR/VERSION'
-            cd /data/docker-mnt && docker compose exec -T nginx nginx -s reload
-          "
-
-          rm -f "$TAR_FILE"
+      
+          curl -L -o ossutil64 https://gosspublic.alicdn.com/ossutil/1.7.19/ossutil64
+          chmod +x ossutil64
+      
+          ./ossutil64 config -e "$OSS_ENDPOINT" -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" -L CH
+      
+          ./ossutil64 cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev//dist/"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
