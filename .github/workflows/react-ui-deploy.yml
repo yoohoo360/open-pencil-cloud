@@ -208,12 +208,15 @@ jobs:
         run: |
           set -e
       
-          curl -L -o ossutil64 https://gosspublic.alicdn.com/ossutil/1.7.19/ossutil64
-          chmod +x ossutil64
+          curl -o ossutil-2.4.0-linux-amd64.zip https://gosspublic.alicdn.com/ossutil/v2/2.4.0/ossutil-2.4.0-linux-amd64.zip
+          unzip ossutil-2.4.0-linux-amd64.zip
+          cd ossutil-2.4.0-linux-amd64
+          chmod 755 ossutil-2.4.0-linux-amd64/ossutil
+        
       
-          ./ossutil64 config -e "$OSS_ENDPOINT" -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" -L CH
+          ./ossutil-2.4.0-linux-amd64/ossutil64 config -e "$OSS_ENDPOINT" -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" -L CH
       
-          ./ossutil64 cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
+          ./ossutil-2.4.0-linux-amd64/ossutil64 cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
