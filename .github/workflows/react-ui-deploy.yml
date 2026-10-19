@@ -205,6 +205,17 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           DIST_DIR: ${{ env.DIST_DIR }}
         run: |
+          set -euo pipefail
+
+          curl -L -o ossutil-2.4.0-linux-amd64.zip https://gosspublic.alicdn.com/ossutil/v2/2.4.0/ossutil-2.4.0-linux-amd64.zip
+          unzip -o ossutil-2.4.0-linux-amd64.zip
+          chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
+
+          echo "OSS_ENDPOINT=$OSS_ENDPOINT"
+          echo "OSS_REGION=$OSS_REGION"
+          echo "OSS_BUCKET=$OSS_BUCKET"
+
+        
           echo "hello" > test.txt
           ./ossutil-2.4.0-linux-amd64/ossutil cp test.txt "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/test.txt"
 
