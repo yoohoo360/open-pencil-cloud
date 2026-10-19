@@ -42,6 +42,7 @@ env:
   SSH_USERNAME: ${{ vars.SSH_USERNAME }}
   OSS_ENDPOINT: oss-cn-shanghai.aliyuncs.com
   OSS_BUCKET: yoohoo-oss
+  OSS_REGION: oss-cn-shanghai
 
 jobs:
   build:
@@ -203,15 +204,22 @@ jobs:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_ENDPOINT: ${{ env.OSS_ENDPOINT }}
+          OSS_REGION: ${{ env.OSS_REGION }}
           OSS_BUCKET: ${{ env.OSS_BUCKET }}
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
-        
+      
           curl -L -o ossutil-2.4.0-linux-amd64.zip https://gosspublic.alicdn.com/ossutil/v2/2.4.0/ossutil-2.4.0-linux-amd64.zip
           unzip -o ossutil-2.4.0-linux-amd64.zip
           chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
-        
+      
+          ./ossutil-2.4.0-linux-amd64/ossutil config \
+            --endpoint "$OSS_ENDPOINT" \
+            --access-key-id "$OSS_ACCESS_KEY_ID" \
+            --access-key-secret "$OSS_ACCESS_KEY_SECRET" \
+            --region "$OSS_REGION"
+      
           ./ossutil-2.4.0-linux-amd64/ossutil cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
 
       - name: Cleanup previous tag after successful deploy
