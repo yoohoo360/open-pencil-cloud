@@ -213,7 +213,7 @@ jobs:
       
           ./ossutil64 config -e "$OSS_ENDPOINT" -i "$OSS_ACCESS_KEY_ID" -k "$OSS_ACCESS_KEY_SECRET" -L CH
       
-          ./ossutil64 cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev//dist/"
+          ./ossutil64 cp -r "$DIST_DIR" "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
