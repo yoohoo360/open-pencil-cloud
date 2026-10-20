@@ -31,8 +31,8 @@ export const mcpRootDirectory = atom(
   readJSON(ROOT_DIRECTORY_STORAGE_KEY, '', (value) => (typeof value === 'string' ? value : ''))
 )
 export const mcpAuthenticationEnabled = atom(
-  readJSON(AUTHENTICATION_ENABLED_STORAGE_KEY, true, (value) =>
-    typeof value === 'boolean' ? value : true
+  readJSON(AUTHENTICATION_ENABLED_STORAGE_KEY, false, (value) =>
+    typeof value === 'boolean' ? value : false
   )
 )
 

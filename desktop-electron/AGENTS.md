@@ -33,6 +33,6 @@ Packaging stages a minimal app under `os.tmpdir()/open-pencil-electron-stage` so
 ## Notes
 
 - Main window loads the React app over HTTP (`src/frontend-url.ts`). Defaults match `packages/react` / Tauri `frontend.rs`: `OPENPENCIL_FRONTEND_URL`, else `OPENPENCIL_APP_ENV` → prod/dev hosts, else `http://localhost:8000`. Non-prod builds add a native **Frontend** menu (local / dev / custom); switching persists `frontend-url.txt` under `userData`, clears HTML/JS HTTP + code + Cache Storage / Service Worker caches (not localStorage/IDB), then reloads ignoring cache. Non-prod also handles **Developer Tools** (`CmdOrCtrl+Alt+I`) via `webContents.toggleDevTools()`; prod ignores that menu id.
-- Preload stubs `window.__TAURI_INTERNALS__` so core `IS_TAURI` is unchanged, and exposes `window.openPencilDesktop` for IPC. Bridge picks Electron vs real Tauri via `openPencilDesktop` first.
-- MVP IPC: `mcp_*`, `list_system_fonts` / `load_system_font`, `fs_*`, `dialog_openDirectory`, native `menu-event`. No credentials, deep link, updater, or `build_fig_file` yet.
+- Preload stubs `window.__TAURI_INTERNALS__` (`openPencilElectron` + `invoke` → IPC) so core `IS_TAURI` / `build_fig_file` paths stay unchanged, and exposes `window.openPencilDesktop`. Bridge prefers `openPencilDesktop`.
+- MVP IPC: `mcp_*`, `build_fig_file` (via `@open-pencil/fig` `compressFigDataSync`), `list_system_fonts` / `load_system_font`, `fs_*`, `dialog_openDirectory`, native `menu-event`. No credentials, deep link, or updater yet.
 - Companion Node processes stay owned by `desktop-react/` (`scripts/`, `agent-server/`); this package only forwards start scripts.

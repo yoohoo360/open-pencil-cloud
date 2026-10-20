@@ -26,6 +26,9 @@
     "start:agent-server": "bun --cwd ../desktop-react run start:agent-server",
     "start:services": "bun --cwd ../desktop-react run start:services"
   },
+  "dependencies": {
+    "@open-pencil/fig": "workspace:*"
+  },
   "devDependencies": {
     "electron": "^37.2.0",
     "electron-builder": "^26.0.12"

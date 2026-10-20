@@ -171,6 +171,9 @@
     "desktop-electron": {
       "name": "@open-pencil/desktop-electron",
       "version": "0.15.1",
+      "dependencies": {
+        "@open-pencil/fig": "workspace:*",
+      },
       "devDependencies": {
         "electron": "^37.2.0",
         "electron-builder": "^26.0.12",

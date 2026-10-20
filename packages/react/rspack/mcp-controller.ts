@@ -45,7 +45,7 @@ export function createAutomationController(
   /** Settings-generated Bearer; falls back to the Vite control token when null. */
   let serverAuthToken: string | null = null
   let configuration: DevMCPConfiguration = {
-    authenticationEnabled: true,
+    authenticationEnabled: false,
     rootDirectory: '',
     disabledTools: [],
     scope: 'document'

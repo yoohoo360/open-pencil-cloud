@@ -6,10 +6,12 @@ export type OpenPencilDesktop = {
   homeDir: () => Promise<string>
 }
 
+function desktopInvoke(command: string, args?: unknown): Promise<unknown> {
+  return ipcRenderer.invoke('desktop:invoke', { command, args })
+}
+
 const api: OpenPencilDesktop = {
-  invoke(command, args) {
-    return ipcRenderer.invoke('desktop:invoke', { command, args })
-  },
+  invoke: desktopInvoke,
   onMenuEvent(handler) {
     const listener = (_event: Electron.IpcRendererEvent, id: string) => {
       handler(id)
@@ -25,6 +27,12 @@ const api: OpenPencilDesktop = {
 }
 
 // Stub so `IS_TAURI` (`'__TAURI_INTERNALS__' in window`) is true in Electron too.
-// Not a real Tauri runtime — IPC goes through `openPencilDesktop`.
-contextBridge.exposeInMainWorld('__TAURI_INTERNALS__', { openPencilElectron: true })
+// `invoke` forwards to main-process IPC (same command names as Tauri, e.g. `build_fig_file`).
+// Prefer `openPencilDesktop` from app code; `@tauri-apps/api` still works via this stub.
+contextBridge.exposeInMainWorld('__TAURI_INTERNALS__', {
+  openPencilElectron: true,
+  invoke(command: string, args?: unknown) {
+    return desktopInvoke(command, args)
+  }
+})
 contextBridge.exposeInMainWorld('openPencilDesktop', api)

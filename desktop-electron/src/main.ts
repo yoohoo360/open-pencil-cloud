@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { openDirectory } from './ipc/dialog'
+import { buildFigFile } from './ipc/fig'
 import { listSystemFonts, loadSystemFont } from './ipc/fonts'
 import { fsMkdir, fsReadDir, fsReadFile, fsRemove, fsWriteFile } from './ipc/fs'
 import { mcpHealth, mcpLookup, mcpStart } from './ipc/mcp'
@@ -107,6 +108,8 @@ async function handleInvoke(command: string, args: unknown): Promise<unknown> {
           : undefined
       return openDirectory(mainWindow, title || undefined)
     }
+    case 'build_fig_file':
+      return buildFigFile(args)
     default:
       throw new Error(`Unknown desktop command: ${command}`)
   }
