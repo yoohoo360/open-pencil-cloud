@@ -1,5 +1,7 @@
 import { AUTOMATION_HTTP_PORT, IS_TAURI } from '@open-pencil/core/constants'
 
+import { desktopInvoke } from '#react/app/desktop/bridge'
+
 export interface MCPHealthProbe {
   ok: boolean
   version: string | null
@@ -17,14 +19,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Probe local MCP `/health`.
- * In Tauri, always use the native command — an https:// webview cannot fetch http://127.0.0.1
- * (mixed content). Outside Tauri, use fetch (or the rspack DEV proxy).
+ * On desktop (Tauri or Electron), always use the native command — an https:// webview
+ * cannot fetch http://127.0.0.1 (mixed content). In the browser, use fetch (or the rspack DEV proxy).
  */
 export async function probeMCPHealth(authToken: string | null = null): Promise<MCPHealthProbe> {
   if (IS_TAURI) {
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const result = await invoke<{
+      const result = await desktopInvoke<{
         ok: boolean
         version?: string | null
         serverStatus?: string | null

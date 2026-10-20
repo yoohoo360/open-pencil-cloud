@@ -147,6 +147,17 @@ body {
   -webkit-user-select: none;
 }
 
+/* Desktop / Electron: allow selecting and copying text in fields and rich text. */
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable=''],
+[data-allow-text-select='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 @keyframes page-loading-slide {
   0% {
     transform: translateX(-120%);

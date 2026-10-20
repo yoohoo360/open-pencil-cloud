@@ -1,6 +1,7 @@
 /**
- * desktop-react menu generator (separate from `tools/generate/tauri-menu`, which
- * stays on the Vue schema). Writes `desktop-react/generated/menu.json`.
+ * Desktop menu generator (separate from `tools/generate/tauri-menu`, which
+ * stays on the Vue schema). Writes `desktop-react/generated/` and
+ * `desktop-electron/generated/`.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -70,9 +71,13 @@ function renderAppMenu(): string {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const menu = renderMenu
+const appMenu = renderAppMenu
 const artifacts: Record<string, () => string> = {
-  [resolve(root, 'desktop-react/generated/menu.json')]: renderMenu,
-  [resolve(root, 'desktop-react/generated/app-menu.json')]: renderAppMenu
+  [resolve(root, 'desktop-react/generated/menu.json')]: menu,
+  [resolve(root, 'desktop-react/generated/app-menu.json')]: appMenu,
+  [resolve(root, 'desktop-electron/generated/menu.json')]: menu,
+  [resolve(root, 'desktop-electron/generated/app-menu.json')]: appMenu
 }
 
 for (const [path, render] of Object.entries(artifacts)) {

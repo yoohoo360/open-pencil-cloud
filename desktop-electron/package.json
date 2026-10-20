@@ -1,0 +1,26 @@
+{
+  "name": "@open-pencil/desktop-electron",
+  "productName": "OpenPencil",
+  "version": "0.15.1",
+  "private": true,
+  "description": "OpenPencil Electron desktop shell",
+  "author": "OpenPencil",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "generate:menu": "bun ../packages/react/scripts/generate-desktop-menu.ts",
+    "build:main": "bun ./scripts/build-main.ts",
+    "build": "bun ./scripts/build.ts",
+    "build:dir": "bun ./scripts/build.ts --dir",
+    "dev": "bun ./scripts/dev.ts",
+    "start": "bun run build:main && electron .",
+    "start:frontend": "bun --cwd ../packages/react run start",
+    "start:mcp": "bun --cwd ../desktop-react run start:mcp",
+    "start:agent-server": "bun --cwd ../desktop-react run start:agent-server",
+    "start:services": "bun --cwd ../desktop-react run start:services"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  }
+}

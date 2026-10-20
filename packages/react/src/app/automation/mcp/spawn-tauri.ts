@@ -7,20 +7,14 @@ import {
   mcpAuthenticationEnabled,
   mcpRootDirectory
 } from '#react/app/automation/mcp/preferences'
+import { desktopHomeDir, desktopInvoke } from '#react/app/desktop/bridge'
 
 export type TauriMCPSpawnResult =
   | { ok: true; authToken: string | null }
   | { ok: false; error: string }
 
-async function resolveHomeDir(): Promise<string> {
-  const { homeDir } = await import('@tauri-apps/api/path')
-  const home = await homeDir()
-  if (!home) throw new Error('Could not resolve the home directory')
-  return home
-}
-
 /**
- * Start (or attach to) the local MCP HTTP server from the React Tauri shell.
+ * Start (or attach to) the local MCP HTTP server from a desktop shell (Tauri or Electron).
  * Uses the Settings-generated bearer when authentication is on.
  * Health checks go through native `mcp_health` so https:// frontends are not
  * blocked by mixed-content rules when probing http://127.0.0.1:7600.
@@ -37,20 +31,19 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
   }
 
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const lookup = await invoke<{ available: boolean; path: string | null; searched: string[] }>(
+    const lookup = await desktopInvoke<{ available: boolean; path: string | null; searched: string[] }>(
       'mcp_lookup'
     )
     if (!lookup.available) {
       return {
         ok: false,
         error:
-          'MCP server was not found in the app bundle. Rebuild desktop-react (`bun run build`), or run `bun run start:mcp` from desktop-react.'
+          'MCP server was not found. Rebuild desktop-react, run `bun run start:mcp` from desktop-electron/desktop-react, or ensure packages/mcp is available.'
       }
     }
 
-    const mcpRoot = mcpRootDirectory.get().trim() || (await resolveHomeDir())
-    await invoke('mcp_start', {
+    const mcpRoot = mcpRootDirectory.get().trim() || (await desktopHomeDir())
+    await desktopInvoke('mcp_start', {
       env: {
         PORT: String(AUTOMATION_HTTP_PORT),
         OPENPENCIL_MCP_AUTH_TOKEN: authToken ?? '',

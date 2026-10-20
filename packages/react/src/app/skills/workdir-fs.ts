@@ -2,6 +2,13 @@ import { IS_TAURI } from '@open-pencil/core/constants'
 import { unzipSync, zipSync, type Zippable } from 'fflate'
 
 import {
+  desktopMkdir,
+  desktopReadDir,
+  desktopReadFile,
+  desktopRemove,
+  desktopWriteFile
+} from '#react/app/desktop/fs'
+import {
   SKILL_AGENT_ENVIRONMENTS,
   type SkillAgentEnvironmentId
 } from '#react/app/skills/agent-environments'
@@ -205,28 +212,26 @@ async function scanBrowserHandle(
   return [...byKey.values()]
 }
 
-async function tauriReadText(path: string): Promise<string | null> {
+async function desktopReadText(path: string): Promise<string | null> {
   try {
-    const { readFile } = await import('@tauri-apps/plugin-fs')
-    const bytes = await readFile(path)
+    const bytes = await desktopReadFile(path)
     return new TextDecoder().decode(bytes)
   } catch {
     return null
   }
 }
 
-async function scanTauriPath(
+async function scanDesktopPath(
   projectPath: string,
   envs: SkillAgentEnvironmentId[]
 ): Promise<ScannedSkill[]> {
-  const { readDir, readFile } = await import('@tauri-apps/plugin-fs')
   const byKey = new Map<string, ScannedSkill>()
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of envs) {
     const skillsPath = `${root}/${envRelativeDir(env)}`
-    let listing: Awaited<ReturnType<typeof readDir>>
+    let listing: Awaited<ReturnType<typeof desktopReadDir>>
     try {
-      listing = await readDir(skillsPath)
+      listing = await desktopReadDir(skillsPath)
     } catch {
       continue
     }
@@ -234,8 +239,8 @@ async function scanTauriPath(
       if (!entry.name) continue
       if (entry.isDirectory) {
         const key = entry.name
-        const skillMd = await tauriReadText(`${skillsPath}/${key}/SKILL.md`)
-        const text = skillMd ?? (await tauriReadText(`${skillsPath}/${key}/skill.md`))
+        const skillMd = await desktopReadText(`${skillsPath}/${key}/SKILL.md`)
+        const text = skillMd ?? (await desktopReadText(`${skillsPath}/${key}/skill.md`))
         if (text === null) continue
         const meta = metaFromSkillMd(text, key)
         addFolderEnv(ensureScanned(byKey, key, meta), env, meta)
@@ -245,7 +250,7 @@ async function scanTauriPath(
       const key = skillKeyFromArchiveName(entry.name)
       if (!key) continue
       try {
-        const bytes = await readFile(`${skillsPath}/${entry.name}`)
+        const bytes = await desktopReadFile(`${skillsPath}/${entry.name}`)
         const entries = zipToEntries(bytes)
         const meta = metaFromEntries(entries, key)
         addArchiveEnv(ensureScanned(byKey, key, meta), env, meta)
@@ -273,7 +278,7 @@ export async function scanWorkdirSkills(
       : SKILL_AGENT_ENVIRONMENTS.map((item) => item.id)
   // Desktop uses absolute paths; browser File System Access handles are separate.
   if (IS_TAURI && record.path.trim()) {
-    return scanTauriPath(record.path, envs)
+    return scanDesktopPath(record.path, envs)
   }
   if (record.directoryHandle) {
     return scanBrowserHandle(record.directoryHandle, envs)
@@ -314,18 +319,17 @@ async function readBrowserSkillEntries(
   return null
 }
 
-async function readTauriSkillEntries(
+async function readDesktopSkillEntries(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<Record<string, Uint8Array> | null> {
-  const { readDir, readFile } = await import('@tauri-apps/plugin-fs')
   const root = projectPath.replace(/[/\\]+$/, '')
 
   async function walk(dir: string, prefix: string, entries: Record<string, Uint8Array>) {
-    let listing: Awaited<ReturnType<typeof readDir>>
+    let listing: Awaited<ReturnType<typeof desktopReadDir>>
     try {
-      listing = await readDir(dir)
+      listing = await desktopReadDir(dir)
     } catch {
       return
     }
@@ -338,7 +342,7 @@ async function readTauriSkillEntries(
         continue
       }
       try {
-        entries[path] = await readFile(full)
+        entries[path] = await desktopReadFile(full)
       } catch {
         // skip unreadable files
       }
@@ -373,17 +377,16 @@ async function readBrowserArchive(
   return null
 }
 
-async function readTauriArchive(
+async function readDesktopArchive(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<Uint8Array | null> {
-  const { readFile } = await import('@tauri-apps/plugin-fs')
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of envs) {
     const archive = `${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`
     try {
-      return await readFile(archive)
+      return await desktopReadFile(archive)
     } catch {
       continue
     }
@@ -401,9 +404,9 @@ export async function readSkillEntriesFromWorkdir(
 ): Promise<Record<string, Uint8Array> | null> {
   const envs = allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    const fromFolder = await readTauriSkillEntries(record.path, envs, key)
+    const fromFolder = await readDesktopSkillEntries(record.path, envs, key)
     if (fromFolder) return fromFolder
-    const archive = await readTauriArchive(record.path, envs, key)
+    const archive = await readDesktopArchive(record.path, envs, key)
     return archive ? zipToEntries(archive) : null
   }
   if (record.directoryHandle) {
@@ -451,29 +454,28 @@ async function writeBrowserSkill(
   }
 }
 
-async function writeTauriSkill(
+async function writeDesktopSkill(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string,
   entries: Record<string, Uint8Array>
 ): Promise<void> {
-  const { mkdir, writeFile, remove } = await import('@tauri-apps/plugin-fs')
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of envs) {
     const skillDir = `${root}/${envRelativeDir(env)}/${key}`
     try {
-      await remove(skillDir, { recursive: true })
+      await desktopRemove(skillDir, { recursive: true })
     } catch {
       // first install
     }
-    await mkdir(skillDir, { recursive: true })
+    await desktopMkdir(skillDir)
     for (const [name, data] of Object.entries(entries)) {
       if (!name || name.endsWith('/')) continue
       if (name.includes('..')) throw new Error('Invalid path in skill package')
       const target = `${skillDir}/${name}`
       const parent = target.replace(/[/\\][^/\\]+$/, '')
-      await mkdir(parent, { recursive: true })
-      await writeFile(target, data)
+      await desktopMkdir(parent)
+      await desktopWriteFile(target, data)
     }
   }
 }
@@ -490,7 +492,7 @@ export async function writeSkillEntriesToWorkdir(
   }
   const targets = envs.length > 0 ? envs : record.agentEnvironments
   if (IS_TAURI && record.path.trim()) {
-    await writeTauriSkill(record.path, targets, key, entries)
+    await writeDesktopSkill(record.path, targets, key, entries)
     return
   }
   if (record.directoryHandle) {
@@ -537,23 +539,22 @@ async function removeBrowserSkill(
   }
 }
 
-async function removeTauriSkill(
+async function removeDesktopSkill(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<void> {
-  const { remove } = await import('@tauri-apps/plugin-fs')
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of envs) {
     const skillDir = `${root}/${envRelativeDir(env)}/${key}`
     const archive = `${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`
     try {
-      await remove(skillDir, { recursive: true })
+      await desktopRemove(skillDir, { recursive: true })
     } catch {
       // ignore
     }
     try {
-      await remove(archive)
+      await desktopRemove(archive)
     } catch {
       // ignore
     }
@@ -568,7 +569,7 @@ export async function removeSkillFromWorkdir(
 ): Promise<void> {
   const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    await removeTauriSkill(record.path, targets, key)
+    await removeDesktopSkill(record.path, targets, key)
     return
   }
   if (record.directoryHandle) {
@@ -586,11 +587,10 @@ export async function removeSkillArchivesFromWorkdir(
 ): Promise<void> {
   const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    const { remove } = await import('@tauri-apps/plugin-fs')
     const root = record.path.replace(/[/\\]+$/, '')
     for (const env of targets) {
       try {
-        await remove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
+        await desktopRemove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
       } catch {
         // ignore
       }
@@ -645,22 +645,21 @@ async function archiveBrowserSkill(
   }
 }
 
-async function archiveTauriSkill(
+async function archiveDesktopSkill(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<void> {
-  const { mkdir, writeFile, remove } = await import('@tauri-apps/plugin-fs')
-  const entries = await readTauriSkillEntries(projectPath, envs, key)
+  const entries = await readDesktopSkillEntries(projectPath, envs, key)
   if (!entries) throw new Error('Skill folder not found to archive')
   const zipBytes = entriesToZip(entries)
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of envs) {
     const skillsPath = `${root}/${envRelativeDir(env)}`
-    await mkdir(skillsPath, { recursive: true })
-    await writeFile(`${skillsPath}/${skillArchiveName(key)}`, zipBytes)
+    await desktopMkdir(skillsPath)
+    await desktopWriteFile(`${skillsPath}/${skillArchiveName(key)}`, zipBytes)
     try {
-      await remove(`${skillsPath}/${key}`, { recursive: true })
+      await desktopRemove(`${skillsPath}/${key}`, { recursive: true })
     } catch {
       // ignore
     }
@@ -675,7 +674,7 @@ export async function archiveSkillInWorkdir(
 ): Promise<void> {
   const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    await archiveTauriSkill(record.path, targets, key)
+    await archiveDesktopSkill(record.path, targets, key)
     return
   }
   if (record.directoryHandle) {
@@ -706,20 +705,19 @@ async function expandBrowserSkill(
   }
 }
 
-async function expandTauriSkill(
+async function expandDesktopSkill(
   projectPath: string,
   envs: SkillAgentEnvironmentId[],
   key: string
 ): Promise<void> {
-  const { remove } = await import('@tauri-apps/plugin-fs')
-  const zipBytes = await readTauriArchive(projectPath, allAgentEnvIds(), key)
+  const zipBytes = await readDesktopArchive(projectPath, allAgentEnvIds(), key)
   if (!zipBytes) throw new Error('Skill archive not found')
   const entries = zipToEntries(zipBytes)
-  await writeTauriSkill(projectPath, envs, key, entries)
+  await writeDesktopSkill(projectPath, envs, key, entries)
   const root = projectPath.replace(/[/\\]+$/, '')
   for (const env of allAgentEnvIds()) {
     try {
-      await remove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
+      await desktopRemove(`${root}/${envRelativeDir(env)}/${skillArchiveName(key)}`)
     } catch {
       // ignore
     }
@@ -734,7 +732,7 @@ export async function expandArchivedSkillInWorkdir(
 ): Promise<void> {
   const targets = envs.length > 0 ? envs : allAgentEnvIds()
   if (IS_TAURI && record.path.trim()) {
-    await expandTauriSkill(record.path, targets, key)
+    await expandDesktopSkill(record.path, targets, key)
     return
   }
   if (record.directoryHandle) {

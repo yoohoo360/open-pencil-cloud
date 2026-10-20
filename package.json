@@ -32,6 +32,7 @@
     "tools/ci/policy",
     "tools/ci/pr-review-guidance",
     "desktop-react",
+    "desktop-electron",
     "tools/dev/dev-server",
     "tools/dev/navigation-benchmark",
     "tools/dev/unit-tests",

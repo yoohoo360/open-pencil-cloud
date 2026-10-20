@@ -46,8 +46,16 @@ interface DirectoryPickerOptions {
   startIn?: FileSystemHandle | string
 }
 
+interface OpenPencilDesktopBridge {
+  invoke(command: string, args?: unknown): Promise<unknown>
+  onMenuEvent(handler: (id: string) => void): () => void
+  homeDir(): Promise<string>
+}
+
 interface Window {
   queryLocalFonts?(): Promise<FontData[]>
+  /** Electron preload bridge (`desktop-electron`). */
+  openPencilDesktop?: OpenPencilDesktopBridge
   showOpenFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle[]>
   showSaveFilePicker?(options?: FilePickerOptions): Promise<FileSystemFileHandle>
   showDirectoryPicker?(options?: DirectoryPickerOptions): Promise<FileSystemDirectoryHandle>

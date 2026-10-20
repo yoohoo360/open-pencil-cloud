@@ -1,5 +1,7 @@
 import { IS_TAURI } from '@open-pencil/core/constants'
 
+import { desktopInvoke, isElectronShell, isNativeTauriShell } from '#react/app/desktop/bridge'
+
 export type PickedSkillWorkspace = {
   path: string
   directoryHandle?: FileSystemDirectoryHandle
@@ -22,14 +24,23 @@ export async function pickSkillWorkspaceDirectory(
   options?: PickSkillWorkspaceDirectoryOptions
 ): Promise<PickedSkillWorkspace | null> {
   if (IS_TAURI) {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const directory = await open({
-      directory: true,
-      multiple: false,
-      title: options?.title ?? 'Choose skill workspace'
-    })
-    if (typeof directory !== 'string') return null
-    return { path: directory }
+    if (isElectronShell()) {
+      const directory = await desktopInvoke<string | null>('dialog_openDirectory', {
+        title: options?.title ?? 'Choose skill workspace'
+      })
+      if (typeof directory !== 'string') return null
+      return { path: directory }
+    }
+    if (isNativeTauriShell()) {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const directory = await open({
+        directory: true,
+        multiple: false,
+        title: options?.title ?? 'Choose skill workspace'
+      })
+      if (typeof directory !== 'string') return null
+      return { path: directory }
+    }
   }
 
   if (typeof window.showDirectoryPicker === 'function') {

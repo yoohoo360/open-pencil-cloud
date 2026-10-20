@@ -32,7 +32,7 @@ let tauriFontsPromise: Promise<TauriFontFamily[]> | null = null
 let hostFontLoaderConfigured = false
 let defaultFontSynced = false
 
-/** Runtime check — do not use the import-time `IS_TAURI` constant (can be false before inject). */
+/** Runtime desktop shell — prefer over import-time `IS_TAURI` when preload may race. */
 function isTauriShell(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
@@ -46,8 +46,8 @@ function configureHostFontLoader(): void {
 async function getTauriFonts(): Promise<TauriFontFamily[]> {
   if (tauriFontsCache) return tauriFontsCache
   if (!tauriFontsPromise) {
-    tauriFontsPromise = import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke<TauriFontFamily[]>('list_system_fonts'))
+    tauriFontsPromise = import('#react/app/desktop/bridge')
+      .then(({ desktopInvoke }) => desktopInvoke<TauriFontFamily[]>('list_system_fonts'))
       .then((fonts) => {
         tauriFontsCache = fonts
         return fonts
@@ -76,8 +76,11 @@ function asArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer | null {
 async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
   if (!isTauriShell()) return null
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const data = await invoke<ArrayBuffer | Uint8Array>('load_system_font', { family, style })
+    const { desktopInvoke } = await import('#react/app/desktop/bridge')
+    const data = await desktopInvoke<ArrayBuffer | Uint8Array>('load_system_font', {
+      family,
+      style
+    })
     return asArrayBuffer(data)
   } catch (error) {
     if ((error as NativeFontLoadError | null)?.code === 'unsupported-format') {
