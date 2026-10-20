@@ -1,42 +1,13 @@
+# Reference config. `bun run build` writes a self-contained copy into the
+# isolated stage under os.tmpdir() — edit scripts/build.ts to change packaging.
 appId: net.dannote.open-pencil.electron
 productName: OpenPencil
-copyright: Copyright © OpenPencil
-artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
+  app: .release-stage
   output: release
-  buildResources: build
 files:
   - dist/**/*
   - generated/**/*
   - package.json
 asar: true
-# Shell has no native/prod npm deps — skip monorepo node_modules packing.
 npmRebuild: false
-nodeGypRebuild: false
-# Shell loads the React app over HTTP; no local frontendDist bundle.
-extraMetadata:
-  main: dist/main.js
-mac:
-  category: public.app-category.graphics-design
-  icon: ../desktop-react/icons/icon.icns
-  target:
-    - dmg
-    - zip
-  hardenedRuntime: false
-dmg:
-  title: OpenPencil
-win:
-  icon: ../desktop-react/icons/icon.ico
-  target:
-    - nsis
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-linux:
-  icon: ../desktop-react/icons/128x128.png
-  category: Graphics
-  target:
-    - AppImage
-    - deb

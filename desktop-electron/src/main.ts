@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,12 +7,18 @@ import { openDirectory } from './ipc/dialog'
 import { listSystemFonts, loadSystemFont } from './ipc/fonts'
 import { fsMkdir, fsReadDir, fsReadFile, fsRemove, fsWriteFile } from './ipc/fs'
 import { mcpHealth, mcpLookup, mcpStart } from './ipc/mcp'
-import { applyResolvedFrontendUrl } from './frontend-url'
+import { applyUserDataPathForEnv, resolveAppEnv } from './app-env'
+import { applyResolvedFrontendUrl, buildChannelLabel } from './frontend-url'
 import { attachEditableContextMenu, installNativeMenu } from './menu'
+
+// Before ready: isolate userData per local/dev/prod so overrides do not mix.
+applyUserDataPathForEnv()
 
 let mainWindow: BrowserWindow | null = null
 
 function packageRoot(): string {
+  // Packaged: app.asar root. Dev: desktop-electron/.
+  if (app.isPackaged) return app.getAppPath()
   return join(dirname(fileURLToPath(import.meta.url)), '..')
 }
 
@@ -108,12 +114,14 @@ async function handleInvoke(command: string, args: unknown): Promise<unknown> {
 
 function createWindow(): void {
   const preload = join(packageRoot(), 'dist/preload.cjs')
+  const channel = buildChannelLabel()
+  const { frontendUrl } = resolveAppEnv()
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 960,
     minHeight: 640,
-    title: 'OpenPencil',
+    title: channel === 'prod' ? 'OpenPencil' : `OpenPencil [${channel}]`,
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -121,6 +129,23 @@ function createWindow(): void {
       sandbox: false
     }
   })
+  // Some hosts treat the Electron UA differently; use a normal Chrome UA for HTTP frontends.
+  const chromeUa = mainWindow.webContents
+    .getUserAgent()
+    .replace(/Electron\/[\d.]+ /, '')
+    .replace(/ open-pencil\/[\d.]+/i, '')
+  mainWindow.webContents.setUserAgent(chromeUa)
+
+  mainWindow.webContents.on('did-fail-load', (_event, code, description, validatedURL, isMainFrame) => {
+    if (!isMainFrame || code === -3) return // -3 = aborted
+    console.error('[desktop-electron] did-fail-load', { code, description, validatedURL })
+    dialog.showErrorBox(
+      'Frontend failed to load',
+      `Build channel: ${channel}\nDefault: ${frontendUrl}\nTried: ${validatedURL}\n\n${description} (${code})\n\nNon-prod: Frontend menu → Local / Dev / Prod.\nOr set OPENPENCIL_APP_ENV / OPENPENCIL_FRONTEND_URL.`
+    )
+  })
+
+  console.log(`[desktop-electron] channel=${channel} defaultFrontend=${frontendUrl}`)
   attachEditableContextMenu(mainWindow)
   void applyResolvedFrontendUrl(mainWindow)
   mainWindow.on('closed', () => {

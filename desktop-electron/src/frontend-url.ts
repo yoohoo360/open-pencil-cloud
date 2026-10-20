@@ -3,38 +3,32 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-export const PRESET_LOCAL = 'http://localhost:8000'
-export const PRESET_DEV = 'https://pencil.dev.yoohoo.cn'
-const PRESET_PROD = 'https://pencil.yoohoo.cn'
+import {
+  FRONTEND_URL_BY_ENV,
+  resolveAppEnv,
+  type AppEnv
+} from './app-env'
+
+export const PRESET_LOCAL = FRONTEND_URL_BY_ENV.local
+export const PRESET_DEV = FRONTEND_URL_BY_ENV.dev
+export const PRESET_PROD = FRONTEND_URL_BY_ENV.prod
+
 const OVERRIDE_FILE = 'frontend-url.txt'
 
-/** Match desktop-react `frontend.rs` / packages/react config tables. */
+/** Default URL for this binary's channel (local / dev / prod). */
 export function defaultFrontendUrl(): string {
-  const fromEnv = process.env.OPENPENCIL_FRONTEND_URL?.trim()
-  if (fromEnv) return fromEnv
-  const appEnv = process.env.OPENPENCIL_APP_ENV?.trim()
-  if (!appEnv && app.isPackaged) return PRESET_PROD
-  switch (appEnv) {
-    case 'prod':
-      return PRESET_PROD
-    case 'dev':
-    case 'test':
-      return PRESET_DEV
-    default:
-      return PRESET_LOCAL
-  }
+  const explicit = process.env.OPENPENCIL_FRONTEND_URL?.trim()
+  if (explicit) return explicit
+  return resolveAppEnv().frontendUrl
 }
 
-/**
- * Non-prod / unpackaged only — same idea as Tauri `allows_frontend_url_override`.
- * Packaged installers hide the Frontend menu unless APP_ENV is explicitly non-prod.
- */
+/** Frontend menu: non-prod channels only (matches Tauri / React). */
 export function allowsFrontendUrlOverride(): boolean {
-  if (app.isPackaged) {
-    const appEnv = process.env.OPENPENCIL_APP_ENV?.trim()
-    return appEnv === 'dev' || appEnv === 'test'
-  }
-  return process.env.OPENPENCIL_APP_ENV?.trim() !== 'prod'
+  return resolveAppEnv().appEnv !== 'prod'
+}
+
+export function buildChannelLabel(): string {
+  return resolveAppEnv().appEnv
 }
 
 export function validateFrontendUrl(raw: string): string {
@@ -88,20 +82,11 @@ function clearOverride(): void {
   if (existsSync(path)) unlinkSync(path)
 }
 
-/**
- * Drop HTML/JS network + code caches for the target origin, then navigate with
- * a no-cache document request (does not wipe localStorage / IndexedDB).
- */
-export async function loadFrontendUrl(window: BrowserWindow, url: string): Promise<void> {
-  const target = validateFrontendUrl(url)
-  const origin = new URL(target).origin
+async function clearHtmlJsCaches(window: BrowserWindow, origin: string): Promise<void> {
   const session = window.webContents.session
   try {
-    // HTTP disk/memory cache (HTML, JS, CSS, …).
     await session.clearCache()
-    // V8 generated code cache for scripts (empty list = all entries).
     await session.clearCodeCaches({ urls: [] })
-    // Cache Storage + Service Workers that may pin old HTML/JS shells.
     await session.clearData({
       origins: [origin],
       dataTypes: ['cache', 'serviceWorkers']
@@ -113,14 +98,50 @@ export async function loadFrontendUrl(window: BrowserWindow, url: string): Promi
   } catch (error) {
     console.warn('[desktop-electron] clear HTML/JS cache failed', error)
   }
-  await window.loadURL(target, {
-    extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
-  })
-  window.webContents.reloadIgnoringCache()
+}
+
+export type LoadFrontendOptions = {
+  /** Clear HTML/JS caches and force a no-cache navigation (Frontend menu switches). */
+  bustCache?: boolean
+}
+
+export async function loadFrontendUrl(
+  window: BrowserWindow,
+  url: string,
+  options: LoadFrontendOptions = {}
+): Promise<void> {
+  const target = validateFrontendUrl(url)
+  const origin = new URL(target).origin
+  if (options.bustCache) await clearHtmlJsCaches(window, origin)
+
+  const loadOptions = options.bustCache
+    ? { extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n' }
+    : undefined
+
+  try {
+    await window.loadURL(target, loadOptions)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    dialog.showErrorBox('Frontend failed to load', `${target}\n\n${message}`)
+    throw error
+  }
+
+  if (options.bustCache) {
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        window.webContents.off('did-finish-load', done)
+        window.webContents.off('did-fail-load', done)
+        resolve()
+      }
+      window.webContents.once('did-finish-load', done)
+      window.webContents.once('did-fail-load', done)
+    })
+    window.webContents.reloadIgnoringCache()
+  }
 }
 
 export async function applyResolvedFrontendUrl(window: BrowserWindow): Promise<void> {
-  await loadFrontendUrl(window, resolvedFrontendUrl())
+  await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: false })
 }
 
 function showError(message: string): void {
@@ -142,11 +163,9 @@ end try`
   }
   if (process.platform === 'win32') {
     const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::InputBox('Frontend URL:','OpenPencil',${JSON.stringify(current)})`
-    const output = spawnSync(
-      'powershell',
-      ['-NoProfile', '-Command', script],
-      { encoding: 'utf8' }
-    )
+    const output = spawnSync('powershell', ['-NoProfile', '-Command', script], {
+      encoding: 'utf8'
+    })
     if (output.status !== 0) return null
     const text = output.stdout.trim()
     return text || null
@@ -161,9 +180,13 @@ end try`
   return text || null
 }
 
+function presetForEnv(env: AppEnv): string {
+  return FRONTEND_URL_BY_ENV[env]
+}
+
 /**
  * Handle Frontend menu ids. Returns true when the event was consumed.
- * Clears HTML/HTTP cache and reloads after a successful switch.
+ * Clears HTML/JS cache and reloads after a successful switch.
  */
 export async function handleFrontendMenuEvent(
   window: BrowserWindow | null,
@@ -176,21 +199,25 @@ export async function handleFrontendMenuEvent(
     switch (eventId) {
       case 'frontend-url-default':
         clearOverride()
-        await applyResolvedFrontendUrl(window)
+        await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: true })
         return true
       case 'frontend-url-local':
-        persistOverride(PRESET_LOCAL)
-        await applyResolvedFrontendUrl(window)
+        persistOverride(presetForEnv('local'))
+        await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: true })
         return true
       case 'frontend-url-dev':
-        persistOverride(PRESET_DEV)
-        await applyResolvedFrontendUrl(window)
+        persistOverride(presetForEnv('dev'))
+        await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: true })
+        return true
+      case 'frontend-url-prod':
+        persistOverride(presetForEnv('prod'))
+        await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: true })
         return true
       case 'frontend-url-custom': {
         const next = promptCustomUrl(resolvedFrontendUrl())
         if (!next) return true
         persistOverride(next)
-        await applyResolvedFrontendUrl(window)
+        await loadFrontendUrl(window, resolvedFrontendUrl(), { bustCache: true })
         return true
       }
       default:

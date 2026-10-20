@@ -3,7 +3,21 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { allowsFrontendUrlOverride, handleFrontendMenuEvent } from './frontend-url'
+import {
+  allowsFrontendUrlOverride,
+  buildChannelLabel,
+  handleFrontendMenuEvent,
+  PRESET_DEV,
+  PRESET_LOCAL,
+  PRESET_PROD
+} from './frontend-url'
+
+/** Non-prod only: open Chromium DevTools (matches Tauri `dev-tools` menu id). */
+function toggleDevTools(window: BrowserWindow | null): void {
+  if (!window || window.isDestroyed()) return
+  if (!allowsFrontendUrlOverride()) return
+  window.webContents.toggleDevTools()
+}
 
 type MenuJsonItem = {
   id?: string
@@ -84,6 +98,10 @@ function toTemplate(
           ? () => {
               const window = getWindow()
               if (!window) return
+              if (id === 'dev-tools') {
+                toggleDevTools(window)
+                return
+              }
               if (NATIVE_EDIT_IDS.has(id)) {
                 void shouldUseNativeEdit(window).then((native) => {
                   if (native) runNativeEdit(window, id === 'selection.select-all' ? 'select-all' : id)
@@ -130,28 +148,37 @@ export function installNativeMenu(getWindow: () => BrowserWindow | null): void {
     })
   }
   if (allowsFrontendUrlOverride()) {
+    const channel = buildChannelLabel()
     template.push({
-      label: 'Frontend',
+      label: `Frontend (${channel})`,
       submenu: [
         {
           id: 'frontend-url-default',
-          label: 'Use Config Default',
+          label: `Use build default (${channel})`,
           click: () => {
             void handleFrontendMenuEvent(getWindow(), 'frontend-url-default')
           }
         },
+        { type: 'separator' },
         {
           id: 'frontend-url-local',
-          label: 'Local (http://localhost:8000)',
+          label: `Local — ${PRESET_LOCAL}`,
           click: () => {
             void handleFrontendMenuEvent(getWindow(), 'frontend-url-local')
           }
         },
         {
           id: 'frontend-url-dev',
-          label: 'Dev (https://pencil.dev.yoohoo.cn)',
+          label: `Dev — ${PRESET_DEV}`,
           click: () => {
             void handleFrontendMenuEvent(getWindow(), 'frontend-url-dev')
+          }
+        },
+        {
+          id: 'frontend-url-prod',
+          label: `Prod — ${PRESET_PROD}`,
+          click: () => {
+            void handleFrontendMenuEvent(getWindow(), 'frontend-url-prod')
           }
         },
         { type: 'separator' },
