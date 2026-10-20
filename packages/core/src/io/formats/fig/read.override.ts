@@ -8,14 +8,19 @@ import {
   registerFigPopulationWorker,
   registerOriginalArchiveRequest,
   retainOriginalArchive
-} from '#core/kiwi/fig/population/client'
-import { createFigSessionWorker } from '#core/kiwi/fig/session/client'
+} from '#core/kiwi/fig/population/client.override'
+import { scheduleFigAutoDrain } from '#core/kiwi/fig/session/auto-drain.override'
+import { createFigSessionWorker } from '#core/kiwi/fig/session/client.override'
 import {
   registerReaderRecovery,
   registerReaderSession
 } from '#core/kiwi/fig/session/document-state'
-import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol'
-import { openReaderSession } from '#core/kiwi/fig/session/reader'
+import type { FigSessionOpenRequest, FigSessionResponse } from '#core/kiwi/fig/session/protocol.override'
+import {
+  figAllDefersRemaining,
+  openReaderSession,
+  type OpenReaderSessionOptions
+} from '#core/kiwi/fig/session/reader.override'
 
 export interface ParseFigFileOptions {
   populate?: 'all' | 'first-page' | 'none'
@@ -27,15 +32,41 @@ export interface ParseFigFileOptions {
    * Pass false to keep context on the main graph for faster page switches.
    */
   useWorker?: boolean
+  /**
+   * With `populate: 'all'` + {@link deferRemainingPages}: load these page ids
+   * first (fig source id or graph page id). Cap is 3 inside the reader.
+   */
+  preferPageSourceIds?: readonly string[] | null
+  /**
+   * With `populate: 'all'`: materialize preferred pages only, then finish the
+   * rest via the population worker (or idle main-thread drain when sync).
+   */
+  deferRemainingPages?: boolean
 }
 
 class ReaderSemanticError extends Error {
   override name = 'ReaderSemanticError'
 }
 
+function readerOpenOptions(options: ParseFigFileOptions): OpenReaderSessionOptions {
+  return {
+    populate: options.populate,
+    preferPageSourceIds: options.preferPageSourceIds,
+    deferRemainingPages: options.deferRemainingPages
+  }
+}
+
+function keepsLazySession(options: ParseFigFileOptions): boolean {
+  return (
+    options.populate === 'first-page' ||
+    options.populate === 'none' ||
+    figAllDefersRemaining(options.populate, options.deferRemainingPages)
+  )
+}
+
 function parseFigFileSync(buffer: ArrayBuffer, options: ParseFigFileOptions = {}): SceneGraph {
   options.signal?.throwIfAborted()
-  const reader = openReaderSession(buffer, options.populate)
+  const reader = openReaderSession(buffer, readerOpenOptions(options))
   options.onPages?.(reader.pages)
   options.signal?.throwIfAborted()
   const bytes = buffer.slice(0)
@@ -43,6 +74,9 @@ function parseFigFileSync(buffer: ArrayBuffer, options: ParseFigFileOptions = {}
   const retained = new Uint8Array(bytes.slice(0))
   retainOriginalArchive(reader.graph, retained)
   registerOriginalArchiveRequest(reader.graph, async () => retained.slice())
+  if (figAllDefersRemaining(options.populate, options.deferRemainingPages)) {
+    scheduleFigAutoDrain(reader.graph)
+  }
   return reader.graph
 }
 
@@ -90,7 +124,7 @@ export function parseFigFileViaWorker(
       }
       try {
         const graph = deserializeSceneGraph(e.data.graph)
-        if (options.populate === 'first-page' || options.populate === 'none') {
+        if (keepsLazySession(options)) {
           cleanupAbort()
           if (!e.data.checkpoint) throw new Error('Missing reader checkpoint')
           registerReaderRecovery(graph, buffer.slice(0), e.data.checkpoint)
@@ -129,7 +163,11 @@ export function parseFigFileViaWorker(
     const request: FigSessionOpenRequest = {
       type: 'open',
       buffer: workerBuffer,
-      options: { populate: options.populate },
+      options: {
+        populate: options.populate,
+        preferPageSourceIds: options.preferPageSourceIds,
+        deferRemainingPages: options.deferRemainingPages
+      },
       port: channel.port2
     }
     worker.postMessage(request, [workerBuffer, channel.port2])

@@ -1,5 +1,6 @@
 import { readFigDocumentCached } from '#react/app/document/fig-parse-cache'
 import type { FigParseCacheIdentity } from '#react/app/document/fig-parse-cache/types'
+import { readPreferredPageIds } from '#react/app/document/page-frequency'
 import { loadFont } from '#react/app/editor/fonts'
 import type { EditorStore } from '#react/app/editor/store'
 
@@ -8,6 +9,8 @@ import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 import type { ParseFigFileOptions } from '#core/io/formats/fig/read.override'
+
+const preferPageSourceIdsByGraph = new WeakMap<SceneGraph, readonly string[]>()
 
 export function yieldToUI(): Promise<void> {
   if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
@@ -68,16 +71,36 @@ export function showFigPageManifest(
   store.replaceGraph(graph)
 }
 
-/** Worker decode + first-page populate; remaining pages warm via population worker. */
-function figReadOptions(
-  signal?: AbortSignal,
-  extras?: Pick<ParseFigFileOptions, 'useWorker'>
-): ParseFigFileOptions {
+/** `populate: 'all'` with optional IDB hot pages; rest drains off the open path. */
+async function figReadOptions(
+  signal: AbortSignal | undefined,
+  extras: Pick<ParseFigFileOptions, 'useWorker'> & { documentKey?: string } = {}
+): Promise<ParseFigFileOptions> {
+  const documentKey = extras.documentKey?.trim() ?? ''
+  const preferPageSourceIds = documentKey ? await readPreferredPageIds(documentKey) : []
   return {
     populate: 'all',
     signal,
-    useWorker: extras?.useWorker
+    useWorker: extras.useWorker,
+    // Always defer remaining under `all` so priority pages stay on the critical path.
+    deferRemainingPages: true,
+    preferPageSourceIds: preferPageSourceIds.length > 0 ? preferPageSourceIds : null
   }
+}
+
+function resolveOpenPageId(
+  graph: SceneGraph,
+  preferPageSourceIds: readonly string[] | null | undefined
+): string {
+  const pages = graph.getPages()
+  for (const prefer of preferPageSourceIds ?? []) {
+    const id = prefer.trim()
+    if (!id) continue
+    const bySource = pages.find((page) => page.source?.id === id)
+    if (bySource) return bySource.id
+    if (pages.some((page) => page.id === id)) return id
+  }
+  return pages[0]?.id ?? graph.rootId
 }
 
 export async function readFigDocument(
@@ -87,10 +110,15 @@ export async function readFigDocument(
   extras?: Pick<ParseFigFileOptions, 'useWorker'> & {
     /** When set, try IndexedDB hydrate for this cloud document (writes are deferred). */
     cache?: FigParseCacheIdentity
+    /** Cloud file key — loads top visit pages from IndexedDB into `preferPageSourceIds`. */
+    documentKey?: string
   }
 ): Promise<SceneGraph> {
-  const { cache, ...parseExtras } = extras ?? {}
-  return readFigDocumentCached(source, figReadOptions(signal, parseExtras), cache)
+  const { cache, documentKey, ...parseExtras } = extras ?? {}
+  const options = await figReadOptions(signal, { ...parseExtras, documentKey })
+  const graph = await readFigDocumentCached(source, options, cache)
+  preferPageSourceIdsByGraph.set(graph, options.preferPageSourceIds ?? [])
+  return graph
 }
 
 /**
@@ -99,12 +127,12 @@ export async function readFigDocument(
  */
 export async function applyImportedDocument(
   store: EditorStore,
-  imported: SceneGraph
+  imported: SceneGraph,
+  openPageId?: string
 ): Promise<void> {
-  const firstPage = imported.getPages()[0]
-  const pageId = firstPage?.id ?? imported.rootId
-  // Worker `first-page` parse already materializes page 1. Re-preparing it through
-  // the population worker can stall the open overlay for minutes on large files.
+  const pageId = openPageId ?? imported.getPages()[0]?.id ?? imported.rootId
+  // Preferred / first-page parse already materializes the open page. Re-preparing
+  // through the population worker can stall the open overlay on large files.
   const { isLazyFigImportRootPopulated } = await import('#core/kiwi/fig/lazy-import.override')
   if (!isLazyFigImportRootPopulated(imported, pageId)) {
     const stagingEditor = createEditor({
@@ -126,20 +154,20 @@ export async function applyImportedDocument(
 }
 
 /**
- * Full open path: apply → switch first page → fit → warm until 2 pages ready
+ * Full open path: apply → switch preferred/first page → fit → warm until ready
  * (dismiss overlay) → idle-prefetch the rest.
  */
 export async function finishFigImport(store: EditorStore, imported: SceneGraph): Promise<void> {
   const { setPageLoadingVisible, warmPagesUntilOpenReady } =
     await import('#react/app/document/page-loading/controller')
-  await applyImportedDocument(store, imported)
+  const prefer = preferPageSourceIdsByGraph.get(imported) ?? []
+  const pageId = resolveOpenPageId(imported, prefer)
+  await applyImportedDocument(store, imported, pageId)
 
-  const firstPage = store.graph.getPages()[0]
-  const pageId = firstPage?.id ?? store.graph.rootId
   const { pageLoadingLabels } = await import('#react/app/document/page-loading/labels')
   setPageLoadingVisible(store, true, pageLoadingLabels.preparingNodes)
 
-  // First page is already populated by worker/staging — switch stays warm.
+  // Preferred / first pages are already populated — switch stays warm.
   await store.switchPage(pageId)
   await fitCurrentPageToViewport(store)
   store.requestRender()

@@ -179,7 +179,15 @@ export function createEditorStore(initialGraph?: SceneGraph): EditorStore {
   // viewport, then requestRender — one React pass instead of three shell rebuilds.
   editor.onEditorEvent('selection:changed', scheduleNotify)
   editor.onEditorEvent('tool:changed', scheduleNotify)
-  editor.onEditorEvent('page:changed', scheduleNotify)
+  editor.onEditorEvent('page:changed', (pageId) => {
+    scheduleNotify()
+    const documentKey = state.documentKey?.trim()
+    if (!documentKey || !pageId) return
+    void import('#react/app/document/page-frequency').then(({ pageFrequencyIdForGraphPage, recordPageVisit }) => {
+      const visitId = pageFrequencyIdForGraphPage(editor.graph, pageId)
+      if (visitId) void recordPageVisit(documentKey, visitId)
+    })
+  })
   editor.onEditorEvent('viewport:changed', scheduleNotify)
 
   const baseSwitchPage = editor.switchPage.bind(editor)

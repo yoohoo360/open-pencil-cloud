@@ -1,7 +1,7 @@
 import type { FigSessionCheckpoint } from '@open-pencil/fig'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 
-import type { ParseFigFileOptions } from '#core/io/formats/fig/read'
+import type { ParseFigFileOptions } from '#core/io/formats/fig/read.override'
 import type { SerializedSceneGraph } from '#core/kiwi/fig/parse/transfer'
 import type { FigPopulationDelta } from '#core/kiwi/fig/population/delta'
 
@@ -9,7 +9,10 @@ export interface FigSessionOpenRequest {
   type: 'open'
   /** The file, transferred; the worker keeps its own copy as the original archive. */
   buffer: ArrayBuffer
-  options?: Pick<ParseFigFileOptions, 'populate'>
+  options?: Pick<
+    ParseFigFileOptions,
+    'populate' | 'preferPageSourceIds' | 'deferRemainingPages'
+  >
   port: MessagePort
 }
 

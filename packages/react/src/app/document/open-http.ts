@@ -45,15 +45,20 @@ async function applyFigBytes(
   bytes: Uint8Array | null | undefined,
   _fileName: string,
   signal?: AbortSignal,
-  cache?: FigParseCacheIdentity
+  cache?: FigParseCacheIdentity,
+  documentKey?: string
 ): Promise<void> {
   if (!bytes || bytes.byteLength === 0) {
     throw new Error('Document bytes are missing or empty')
   }
   signal?.throwIfAborted()
+  const key = documentKey?.trim() || store.state.documentKey?.trim() || undefined
   await finishFigImport(
     store,
-    await readFigDocument(figBytesToBuffer(bytes), store, signal, cache ? { cache } : undefined)
+    await readFigDocument(figBytesToBuffer(bytes), store, signal, {
+      ...(cache ? { cache } : {}),
+      ...(key ? { documentKey: key } : {})
+    })
   )
 }
 
@@ -129,7 +134,7 @@ export async function openHttpDocument(
       if (draft?.figBytes?.byteLength) {
         setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
         // Draft bytes may diverge from remote updatedAt — do not hydrate/write parse cache.
-        await applyFigBytes(store, draft.figBytes, `${name}.fig`, signal)
+        await applyFigBytes(store, draft.figBytes, `${name}.fig`, signal, undefined, documentKey)
         await waitForCanvasPaint(store)
         bindCloudDocumentState(store, documentMeta, documentUrl)
         const { acknowledgeDocumentSceneBaseline } = await import(
@@ -151,7 +156,7 @@ export async function openHttpDocument(
       documentKey && updatedAt !== undefined ? { documentKey, updatedAt } : undefined
 
     if (payload.byteLength > 0) {
-      await applyDocumentBytes(store, payload, `${name}.fig`, signal, cache)
+      await applyFigBytes(store, payload, `${name}.fig`, signal, cache, documentKey)
       await waitForCanvasPaint(store)
     } else {
       setPageLoadingVisible(store, false)
