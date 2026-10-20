@@ -43,14 +43,11 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 
 const LOCALE_STORAGE_KEY = 'open-pencil-locale'
 
-/** Prefer these installed families for Simplified Chinese UI (first match wins). */
-export const ZH_CN_FONT_CANDIDATES = [
-  'PingFang SC',
-  'Hiragino Sans GB',
-  'Heiti SC',
-  'Songti SC',
-  'STHeiti'
-] as const
+/**
+ * Optional CJK families shown in the picker. Defaults stay on Inter so CanvasKit
+ * only pulls Google `text=` glyph subsets for characters that actually appear.
+ */
+export const ZH_CN_FONT_CANDIDATES = ['PingFang SC'] as const
 
 export const localeSetting = atom<Locale | undefined>(undefined)
 
@@ -87,8 +84,9 @@ export function preferredFontFamiliesForLocale(code: Locale): readonly string[] 
   return []
 }
 
-export function defaultFontFamilyForLocale(code: Locale): string {
-  return preferredFontFamiliesForLocale(code)[0] ?? DEFAULT_FONT_FAMILY
+/** Always Inter — CJK is covered by unicode-range remote subsets, not a default CJK face. */
+export function defaultFontFamilyForLocale(_code: Locale): string {
+  return DEFAULT_FONT_FAMILY
 }
 
 function getLocalStorage(): Storage | null {

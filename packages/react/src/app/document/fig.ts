@@ -1,8 +1,9 @@
+import { readFigDocumentCached } from '#react/app/document/fig-parse-cache'
+import type { FigParseCacheIdentity } from '#react/app/document/fig-parse-cache/types'
 import { loadFont } from '#react/app/editor/fonts'
 import type { EditorStore } from '#react/app/editor/store'
 
 import { createEditor } from '@open-pencil/core/editor'
-import { parseFigFile, readFigFile } from '@open-pencil/core/io'
 import type { FigPageManifestEntry } from '@open-pencil/kiwi/fig'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -83,14 +84,13 @@ export async function readFigDocument(
   source: File | ArrayBuffer,
   _store?: EditorStore,
   signal?: AbortSignal,
-  extras?: Pick<ParseFigFileOptions, 'useWorker'>
+  extras?: Pick<ParseFigFileOptions, 'useWorker'> & {
+    /** When set, try IndexedDB hydrate for this cloud document (writes are deferred). */
+    cache?: FigParseCacheIdentity
+  }
 ): Promise<SceneGraph> {
-  const options = figReadOptions(signal, extras)
-  const graph =
-    source instanceof File
-      ? await readFigFile(source, options)
-      : await parseFigFile(source, options)
-  return graph
+  const { cache, ...parseExtras } = extras ?? {}
+  return readFigDocumentCached(source, figReadOptions(signal, parseExtras), cache)
 }
 
 /**

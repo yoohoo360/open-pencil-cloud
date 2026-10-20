@@ -162,7 +162,7 @@ export function syncDefaultFontFamilyForLocale(previous: Locale, next: Locale) {
     ...preferredFontFamiliesForLocale(previous)
   ])
   if (!managedDefaults.has(current)) return
-  // Prefer an installed host family (e.g. real PingFang SC) over a phantom locale name.
+  // Locale changes keep Inter; CJK glyphs load as Google `text=` subsets on demand.
   void import('#react/app/editor/fonts').then(async ({ matchDefaultFontForLocale }) => {
     updateDefaultFontFamily(await matchDefaultFontForLocale(next))
   })

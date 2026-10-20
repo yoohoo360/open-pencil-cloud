@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "family": "PingFang SC",
+  "styles": [
+    "Light",
+    "Medium",
+    "Regular",
+    "SemiBold",
+    "Thin",
+    "UltraLight"
+  ],
+  "basePath": "/pingfang-sc"
+}

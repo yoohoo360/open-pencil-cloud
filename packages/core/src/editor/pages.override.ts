@@ -29,7 +29,7 @@ import {
   recoverReaderPage
 } from '#core/kiwi/fig/session/document-state'
 import { computeAllLayouts } from '#core/layout'
-import { fontManager } from '#core/text/fonts'
+import { fontManager } from '#core/text/fonts.override'
 import { collectGraphFontRequirements } from '#core/text/requirements'
 import { missingGraphFontScripts } from '#core/text/resolved-requirements'
 

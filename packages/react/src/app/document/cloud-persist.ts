@@ -35,7 +35,7 @@ function cloudDocumentNeedsPersist(store: EditorStore): boolean {
 async function persistCloudFig(store: EditorStore): Promise<void> {
   const remoteURL = store.state.documentFigURL
   if (!remoteURL || store.state.historyPreviewId) return
-  const bytes = await persistCloudSceneGraph(store)
+  const { bytes } = await persistCloudSceneGraph(store)
   markCloudDocumentPersisted(store)
   void maybeRecordAutosave(store, bytes)
   // Cloud is authoritative — drop the local draft so open won't re-prompt.

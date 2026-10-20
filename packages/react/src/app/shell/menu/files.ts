@@ -6,6 +6,10 @@ import {
   waitForCanvasPaint,
   yieldToUI
 } from '#react/app/document/fig'
+import {
+  FIG_PARSE_CACHE_SAVE_WRITE_DELAY_MS,
+  scheduleFigParseCacheWrite
+} from '#react/app/document/fig-parse-cache/schedule'
 import { withDocumentBusy } from '#react/app/document/busy/store'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
@@ -462,10 +466,12 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
         slot.rerun = false
         const callbacks = slot.callbacks.splice(0)
         try {
+          let savedUpdatedAt: string | number | undefined
           await withDocumentBusy(dialogMessages.get().savingDocument, async () => {
             // Let the key/menu handler finish and paint before encode/upload.
             await yieldToUI()
-            const bytes = await persistCloudSceneGraph(store)
+            const { bytes, updatedAt } = await persistCloudSceneGraph(store)
+            savedUpdatedAt = updatedAt
             markCloudDocumentPersisted(store)
             void maybeRecordAutosave(store, bytes)
             void clearLocalDraftAfterCloudSave(store).catch((error) => {
@@ -477,6 +483,14 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
               console.warn('[Document] Cover save failed', error)
             }
           })
+          const documentKey = store.state.documentKey?.trim()
+          if (documentKey && savedUpdatedAt !== undefined) {
+            scheduleFigParseCacheWrite(
+              store,
+              { documentKey, updatedAt: savedUpdatedAt },
+              FIG_PARSE_CACHE_SAVE_WRITE_DELAY_MS
+            )
+          }
           for (const callback of callbacks) callback.onSuccess?.()
         } catch (error) {
           reportSaveFailure(store, error)

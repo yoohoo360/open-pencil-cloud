@@ -208,7 +208,7 @@ export function useVersionHistoryState() {
       setState((current) => ({ ...current, saving: true, error: null }))
       try {
         const bytes = store.state.documentFigURL
-          ? await persistCloudSceneGraph(store)
+          ? (await persistCloudSceneGraph(store)).bytes
           : await exportFigFile(
               store.graph,
               store.renderer?.ck,

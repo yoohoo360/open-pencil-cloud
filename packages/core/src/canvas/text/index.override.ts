@@ -14,7 +14,7 @@ import { resolveNodeTextDirection } from '@open-pencil/scene-graph/text-directio
 
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '#core/constants'
 import { transformTextCase } from '#core/text/case'
-import { fontManager, weightToStyle } from '#core/text/fonts'
+import { fontManager, weightToStyle } from '#core/text/fonts.override'
 import {
   fontCoverageDemand,
   fontFaceDemand,
@@ -23,9 +23,9 @@ import {
   missingGlyphOccurrences,
   missingGlyphsByScript,
   type FontResolutionSettled
-} from '#core/text/resolver'
+} from '#core/text/resolver/index.override'
 
-import { resolveParagraphFontFamilies } from './font-families'
+import { resolveParagraphFontFamilies } from './font-families.override'
 import { pushParagraphStyle, type ParagraphPaintStyle, type ParagraphBuildOptions } from './paint'
 import { withPreparedText } from './prepared'
 export { withTextParagraph } from './prepared'
@@ -54,8 +54,13 @@ function demandFace(
   family: string,
   style: string
 ): boolean {
-  if (fontManager.isStyleLoaded(family, style)) return true
+  const needsCoverage = fontManager.styleNeedsMoreCoverage(family, style, node.text)
+  if (fontManager.isStyleLoaded(family, style) && !needsCoverage) return true
   const demand = fontFaceDemand(family, style, node.text)
+  // Face keys omit characters; reset a prior base-only success so shards can load.
+  if (needsCoverage && fontResolver.state(demand).state === 'loaded') {
+    fontResolver.reset(demand)
+  }
   r.trackFontDemand?.(node, demand.key)
   void fontResolver.demandForNode(demand, node.id, r.onFontResolutionSettled)
   return false
@@ -100,7 +105,12 @@ function requiredFacesReadiness(r: FontReadinessRenderer, node: SceneNode): Node
   let pending = false
   let exhausted = false
   for (const { family, style } of requiredNodeFaces(node)) {
-    if (fontManager.isStyleLoaded(family, style)) continue
+    if (
+      fontManager.isStyleLoaded(family, style) &&
+      !fontManager.styleNeedsMoreCoverage(family, style, node.text)
+    ) {
+      continue
+    }
     const demand = fontFaceDemand(family, style, node.text)
     const state = fontResolver.state(demand).state
     demandFace(r, node, family, style)

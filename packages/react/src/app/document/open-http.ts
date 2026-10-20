@@ -5,6 +5,12 @@ import {
   yieldToUI
 } from '#react/app/document/fig'
 import {
+  cancelScheduledFigParseCacheWrite,
+  FIG_PARSE_CACHE_OPEN_WRITE_DELAY_MS,
+  scheduleFigParseCacheWrite
+} from '#react/app/document/fig-parse-cache/schedule'
+import type { FigParseCacheIdentity } from '#react/app/document/fig-parse-cache/types'
+import {
   setPageLoadingPhase,
   setPageLoadingVisible
 } from '#react/app/document/page-loading/controller'
@@ -38,22 +44,27 @@ async function applyFigBytes(
   store: EditorStore,
   bytes: Uint8Array | null | undefined,
   _fileName: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  cache?: FigParseCacheIdentity
 ): Promise<void> {
   if (!bytes || bytes.byteLength === 0) {
     throw new Error('Document bytes are missing or empty')
   }
   signal?.throwIfAborted()
-  await finishFigImport(store, await readFigDocument(figBytesToBuffer(bytes), store, signal))
+  await finishFigImport(
+    store,
+    await readFigDocument(figBytesToBuffer(bytes), store, signal, cache ? { cache } : undefined)
+  )
 }
 
 export async function applyDocumentBytes(
   store: EditorStore,
   bytes: Uint8Array,
   fileName: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  cache?: FigParseCacheIdentity
 ): Promise<void> {
-  await applyFigBytes(store, bytes, fileName, signal)
+  await applyFigBytes(store, bytes, fileName, signal, cache)
 }
 
 function bindCloudDocumentState(
@@ -80,6 +91,8 @@ export async function openHttpDocument(
   documentMeta: PencilDocument | undefined,
   signal?: AbortSignal
 ): Promise<void> {
+  cancelScheduledFigParseCacheWrite(store)
+
   const name = documentMeta?.name || 'Untitled'
   const documentKey = documentMeta?.key?.trim() ?? ''
   const documentUrl = documentMeta?.url?.trim()
@@ -115,6 +128,7 @@ export async function openHttpDocument(
       signal?.throwIfAborted()
       if (draft?.figBytes?.byteLength) {
         setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
+        // Draft bytes may diverge from remote updatedAt — do not hydrate/write parse cache.
         await applyFigBytes(store, draft.figBytes, `${name}.fig`, signal)
         await waitForCanvasPaint(store)
         bindCloudDocumentState(store, documentMeta, documentUrl)
@@ -133,8 +147,11 @@ export async function openHttpDocument(
     signal?.throwIfAborted()
     setPageLoadingPhase(store, pageLoadingLabels.loadingDocument)
 
+    const cache: FigParseCacheIdentity | undefined =
+      documentKey && updatedAt !== undefined ? { documentKey, updatedAt } : undefined
+
     if (payload.byteLength > 0) {
-      await applyDocumentBytes(store, payload, `${name}.fig`, signal)
+      await applyDocumentBytes(store, payload, `${name}.fig`, signal, cache)
       await waitForCanvasPaint(store)
     } else {
       setPageLoadingVisible(store, false)
@@ -144,6 +161,10 @@ export async function openHttpDocument(
       '#react/app/document/persist-baseline'
     )
     acknowledgeDocumentSceneBaseline(store)
+    // After the open overlay is gone, write the parse cache off the critical path.
+    if (cache) {
+      scheduleFigParseCacheWrite(store, cache, FIG_PARSE_CACHE_OPEN_WRITE_DELAY_MS)
+    }
     store.notify()
   } catch (error) {
     setPageLoadingVisible(store, false)

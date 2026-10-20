@@ -12,11 +12,14 @@ import { detectTextDirection } from '@open-pencil/scene-graph/text-direction'
 
 import { ResourceCache } from '#core/cache/resource.override'
 import { deleteSkiaObject } from '#core/canvas/skia-object.override'
-import { resolveParagraphFontFamilies } from '#core/canvas/text/font-families'
+import { resolveParagraphFontFamilies } from '#core/canvas/text/font-families.override'
 import { DEFAULT_FONT_FAMILY } from '#core/constants'
 import { textHasFallbackScript } from '#core/text/coverage'
-import { weightToStyle } from '#core/text/fonts'
-import { missingGlyphOccurrences, type MissingGlyphOccurrence } from '#core/text/resolver'
+import { weightToStyle } from '#core/text/fonts.override'
+import {
+  missingGlyphOccurrences,
+  type MissingGlyphOccurrence
+} from '#core/text/resolver/index.override'
 
 export type LabelParagraphMetrics = Readonly<Size>
 

@@ -4,7 +4,7 @@ import type { CanvasKit, TypefaceFontProvider } from 'canvaskit-wasm'
 
 import type { FontVariation, SceneGraph } from '@open-pencil/scene-graph'
 
-import { DEFAULT_FONT_FAMILY, IS_BROWSER } from '#core/constants'
+import { IS_BROWSER } from '#core/constants'
 import {
   chooseLocalFontMatch,
   normalizeFontFamily,
@@ -16,8 +16,8 @@ import { isVariableFont, namedInstanceVariations } from '#core/text/font/variati
 export * from '#core/text/font/sources'
 export * from '#core/text/font/style'
 export * from '#core/text/font/variation'
-import { fontFallbackEntry } from '#core/text/fallbacks'
-import type { FontFallbackScript } from '#core/text/fallbacks'
+import { fontFallbackEntry } from '#core/text/fallbacks.override'
+import type { FontFallbackScript } from '#core/text/fallbacks.override'
 import { UnsupportedFontFormatError } from '#core/text/font/sources'
 import type {
   DownloadedFontCache,
@@ -28,11 +28,44 @@ import type {
   HostFontLoader,
   LocalFontAccessState
 } from '#core/text/font/sources'
+import {
+  coverageFromPingFangRanges,
+  isPingFangScFamily,
+  parsePingFangStyleManifest,
+  PINGFANG_SC_FAMILY,
+  pingFangManifestUrl,
+  pingFangSliceRenderFamily,
+  pingFangSliceUrl,
+  resolvePingFangSliceStyle,
+  selectPingFangSliceIds,
+  usesPingFangSlices,
+  type PingFangSliceMeta,
+  type PingFangStyleManifest
+} from '#core/text/pingfang-slices'
 import { collectGraphFontKeys } from '#core/text/requirements'
-import { normalizedCoverageText, WebFontResolver } from '#core/text/web-fonts'
-import type { WebFontFetch, WebFontProviderId } from '#core/text/web-fonts'
+import {
+  charactersToUnicodeRange,
+  normalizedCoverageText,
+  WebFontResolver
+} from '#core/text/web-fonts.override'
+import type { WebFontFetch, WebFontProviderId } from '#core/text/web-fonts.override'
 
 type FindLocalFontOptions = { allowVariable?: boolean }
+
+/** Whole PingFang faces — used when `PINGFANG_LOAD_MODE === 'full'`. */
+const PINGFANG_FULL_FONTS: Record<string, string> = {
+  'PingFang SC|Thin': '/PingFangSC-Thin.ttf',
+  'PingFang SC|ExtraLight': '/PingFangSC-Ultralight.ttf',
+  'PingFang SC|UltraLight': '/PingFangSC-Ultralight.ttf',
+  'PingFang SC|Light': '/PingFangSC-Light.ttf',
+  'PingFang SC|Regular': '/PingFangSC-Regular.ttf',
+  'PingFang SC|Medium': '/PingFangSC-Medium.ttf',
+  'PingFang SC|SemiBold': '/PingFangSC-Semibold.ttf',
+  'PingFang SC|Semi Bold': '/PingFangSC-Semibold.ttf',
+  'PingFang SC|Bold': '/PingFangSC-Semibold.ttf',
+  'PingFang SC|ExtraBold': '/PingFangSC-Semibold.ttf',
+  'PingFang SC|Black': '/PingFangSC-Semibold.ttf'
+}
 
 const BUNDLED_FONTS: Record<string, string> = {
   'Inter|Regular': '/Inter-Regular.ttf',
@@ -40,7 +73,8 @@ const BUNDLED_FONTS: Record<string, string> = {
   'Inter|SemiBold': '/Inter-SemiBold.ttf',
   'Inter|Bold': '/Inter-Bold.ttf',
   'Inter|ExtraBold': '/Inter-ExtraBold.ttf',
-  'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf'
+  'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf',
+  ...(usesPingFangSlices() ? {} : PINGFANG_FULL_FONTS)
 }
 
 export class FontManager {
@@ -56,6 +90,26 @@ export class FontManager {
   private providerCanvasKits = new WeakMap<TypefaceFontProvider, CanvasKit>()
   private registrationGeneration = 0
   private providerRegistrations = new WeakMap<TypefaceFontProvider, Map<string, Set<ArrayBuffer>>>()
+  /** Bundled URL → shared bytes so style aliases (Bold/Black → Semibold) do not refetch. */
+  private bundledBuffersByUrl = new Map<string, ArrayBuffer>()
+  /** In-flight `family|style` loads — collapses concurrent callers to one fetch. */
+  private inflightLocalLoads = new Map<string, Promise<ArrayBuffer | null>>()
+  /** In-flight bundled URL fetches. */
+  private inflightBundledByUrl = new Map<string, Promise<ArrayBuffer | null>>()
+  /** Loaded PingFang slice ids per `family|style`. */
+  private loadedPingFangSlices = new Map<string, Set<string>>()
+  /** CanvasKit render-family names for loaded PingFang slices (`family|style`). */
+  private pingFangRenderNames = new Map<string, string[]>()
+  /** Slice buffers registered under distinct CanvasKit family names. */
+  private pingFangSliceEntries = new Map<
+    string,
+    Array<{ renderName: string; buffer: ArrayBuffer; slice: PingFangSliceMeta }>
+  >()
+  /** Serialized PingFang slice loads per `family|style`. */
+  private pingFangLoadChains = new Map<string, Promise<ArrayBuffer | null>>()
+  private pingFangManifests = new Map<string, Promise<PingFangStyleManifest | null>>()
+  /** Browser `FontFace` keys already added (`family|weight|slant`). */
+  private browserFontFaces = new Set<string>()
   private localFonts: FontInfo[] | null = null
   private localFontAccessState: LocalFontAccessState = IS_BROWSER ? 'prompt' : 'unsupported'
   private downloadedFontCache: DownloadedFontCache | null = null
@@ -76,6 +130,13 @@ export class FontManager {
     for (const [cacheKey, data] of this.loadedFamilies) {
       const separator = cacheKey.indexOf('|')
       const family = cacheKey.slice(0, separator)
+      const pingFangEntries = this.pingFangSliceEntries.get(cacheKey)
+      if (pingFangEntries && pingFangEntries.length > 0) {
+        for (const entry of pingFangEntries) {
+          this.registerFontInProvider(provider, entry.renderName, entry.buffer)
+        }
+        continue
+      }
       this.registerFontInProvider(provider, family, data)
       for (const supplemental of this.supplementalFamilyData.get(cacheKey) ?? []) {
         this.registerFontInProvider(provider, family, supplemental)
@@ -217,7 +278,11 @@ export class FontManager {
       }))
     )
     const byFamily = new Map<string, FontFamilyOption>()
-    byFamily.set(DEFAULT_FONT_FAMILY, { family: DEFAULT_FONT_FAMILY, source: 'bundled' })
+    for (const key of Object.keys(BUNDLED_FONTS)) {
+      const family = key.slice(0, key.indexOf('|'))
+      if (!byFamily.has(family)) byFamily.set(family, { family, source: 'bundled' })
+    }
+    byFamily.set(PINGFANG_SC_FAMILY, { family: PINGFANG_SC_FAMILY, source: 'bundled' })
     for (const { provider, families } of webFontFamilies) {
       for (const family of families) {
         if (!byFamily.has(family)) byFamily.set(family, { family, source: provider })
@@ -250,20 +315,64 @@ export class FontManager {
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
     if (loaded) {
-      this.registerFontInCanvasKit(family, loaded)
+      this.ensureCanvasRegistration(family, style, loaded)
       return loaded
     }
 
+    const inflight = this.inflightLocalLoads.get(cacheKey)
+    if (inflight) return inflight
+
+    const promise = this.loadLocalFontUncached(family, style).finally(() => {
+      this.inflightLocalLoads.delete(cacheKey)
+    })
+    this.inflightLocalLoads.set(cacheKey, promise)
+    return promise
+  }
+
+  private async loadLocalFontUncached(family: string, style: string): Promise<ArrayBuffer | null> {
+    const cacheKey = `${family}|${style}`
+    const loaded = this.loadedFamilies.get(cacheKey)
+    if (loaded) {
+      this.ensureCanvasRegistration(family, style, loaded)
+      return loaded
+    }
+
+    // Slice mode: base shard only until `loadFont` supplies characters.
+    if (usesPingFangSlices()) {
+      const pingFang = await this.loadPingFangSlices(family, style, '')
+      if (pingFang) return pingFang
+    }
+
+    // Bundled / public first (Inter, or full PingFang when mode is `full`).
+    // Only the requested style is fetched — other weights stay unloaded until used.
+    const bundled = await this.loadBundledFont(family, style)
+    if (bundled) return bundled
+
     const hostBuffer = await this.loadHostFont(family, style)
     if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
-    // System faces are often variable (PingFang, SF Pro); CanvasKit uses named instances.
-    const localBuffer = await this.findLocalFont(family, style, { allowVariable: true })
+    const localBuffer = await this.findLocalFont(family, style)
     if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    return null
+  }
 
-    const bundledURL = BUNDLED_FONTS[cacheKey]
+  private ensureCanvasRegistration(family: string, style: string, loaded: ArrayBuffer): void {
+    if (usesPingFangSlices() && isPingFangScFamily(family)) {
+      const entries = this.pingFangSliceEntries.get(`${family}|${style}`)
+      if (entries && entries.length > 0) {
+        for (const entry of entries) {
+          this.registerFontInCanvasKit(entry.renderName, entry.buffer)
+        }
+        return
+      }
+    }
+    this.registerFontInCanvasKit(family, loaded)
+  }
+
+  private async loadBundledFont(family: string, style: string): Promise<ArrayBuffer | null> {
+    const bundledURL = BUNDLED_FONTS[`${family}|${style}`]
     if (!bundledURL) return null
     try {
-      const buffer = await this.fetchBundledFont(bundledURL)
+      const buffer = await this.fetchBundledBuffer(bundledURL)
       return buffer && !isVariableFont(buffer)
         ? this.registerAndCache(family, style, buffer, 'bundled')
         : null
@@ -273,6 +382,138 @@ export class FontManager {
     }
   }
 
+  /** Load pre-cut PingFang SC slices covering `characters` (always includes `base`). */
+  private loadPingFangSlices(
+    family: string,
+    style: string,
+    characters: string
+  ): Promise<ArrayBuffer | null> {
+    if (!usesPingFangSlices() || !isPingFangScFamily(family)) return Promise.resolve(null)
+    const cacheKey = `${family}|${style}`
+    const previous = this.pingFangLoadChains.get(cacheKey) ?? Promise.resolve(null)
+    const next = previous
+      .catch(() => null)
+      .then(() => this.loadPingFangSlicesUncached(family, style, characters))
+    this.pingFangLoadChains.set(cacheKey, next)
+    return next
+  }
+
+  private async loadPingFangSlicesUncached(
+    family: string,
+    style: string,
+    characters: string
+  ): Promise<ArrayBuffer | null> {
+    const cacheKey = `${family}|${style}`
+    const manifest = await this.loadPingFangManifest(style)
+    if (!manifest) return null
+
+    const needed = selectPingFangSliceIds(manifest, characters)
+    const loadedIds = this.loadedPingFangSlices.get(cacheKey) ?? new Set<string>()
+    const missing = needed.filter((id) => !loadedIds.has(id))
+    if (missing.length === 0) {
+      return this.loadedFamilies.get(cacheKey) ?? null
+    }
+
+    for (const sliceId of missing) {
+      const slice = manifest.slices.find((entry) => entry.id === sliceId)
+      if (!slice) continue
+      try {
+        const buffer = await this.fetchBundledBuffer(pingFangSliceUrl(manifest.style, slice.file))
+        if (!buffer || isVariableFont(buffer)) continue
+        this.registerPingFangSlice(family, style, slice, buffer)
+        loadedIds.add(sliceId)
+      } catch (e) {
+        console.warn(`PingFang slice load failed for "${family}" ${style} ${sliceId}:`, e)
+      }
+    }
+    this.loadedPingFangSlices.set(cacheKey, loadedIds)
+    return this.loadedFamilies.get(cacheKey) ?? null
+  }
+
+  /**
+   * CanvasKit: unique family per slice (listed in paragraph `fontFamilies`).
+   * DOM: same logical family with per-slice `unicode-range`.
+   */
+  private registerPingFangSlice(
+    family: string,
+    style: string,
+    slice: PingFangSliceMeta,
+    buffer: ArrayBuffer
+  ): void {
+    const cacheKey = `${family}|${style}`
+    const renderName = pingFangSliceRenderFamily(style, slice.id)
+    const entries = this.pingFangSliceEntries.get(cacheKey) ?? []
+    if (entries.some((entry) => entry.renderName === renderName)) return
+
+    entries.push({ renderName, buffer, slice })
+    this.pingFangSliceEntries.set(cacheKey, entries)
+
+    const renderNames = this.pingFangRenderNames.get(cacheKey) ?? []
+    renderNames.push(renderName)
+    this.pingFangRenderNames.set(cacheKey, renderNames)
+
+    if (!this.loadedFamilies.has(cacheKey)) {
+      this.loadedFamilies.set(cacheKey, buffer)
+      this.loadedFamilySources.set(cacheKey, 'bundled')
+    }
+
+    const sliceCoverage = coverageFromPingFangRanges(slice.ranges)
+    const merged = this.remoteCoverage.get(cacheKey) ?? new Set<string>()
+    for (const character of sliceCoverage) merged.add(character)
+    // Per-slice unicode-range for the DOM FontFace, then restore cumulative coverage.
+    this.remoteCoverage.set(cacheKey, sliceCoverage)
+    this.registerFontInCanvasKit(renderName, buffer)
+    this.registerFontInBrowser(family, style, buffer)
+    this.remoteCoverage.set(cacheKey, merged)
+  }
+
+  private async loadPingFangManifest(style: string): Promise<PingFangStyleManifest | null> {
+    const preferred = resolvePingFangSliceStyle(style)
+    const candidates = preferred === 'Regular' ? ['Regular'] : [preferred, 'Regular']
+    for (const candidate of candidates) {
+      let pending = this.pingFangManifests.get(candidate)
+      if (!pending) {
+        pending = this.fetchPingFangManifest(candidate)
+        this.pingFangManifests.set(candidate, pending)
+      }
+      const manifest = await pending
+      if (manifest) return manifest
+    }
+    return null
+  }
+
+  private async fetchPingFangManifest(style: string): Promise<PingFangStyleManifest | null> {
+    try {
+      const buffer = await this.fetchBundledBuffer(pingFangManifestUrl(style))
+      if (!buffer) return null
+      const text = new TextDecoder().decode(buffer)
+      return parsePingFangStyleManifest(JSON.parse(text) as unknown)
+    } catch (e) {
+      console.warn(`PingFang manifest load failed for ${style}:`, e)
+      return null
+    }
+  }
+
+  /** One fetch per packaged URL; style aliases share the same ArrayBuffer. */
+  private async fetchBundledBuffer(url: string): Promise<ArrayBuffer | null> {
+    const cached = this.bundledBuffersByUrl.get(url)
+    if (cached) return cached
+
+    const inflight = this.inflightBundledByUrl.get(url)
+    if (inflight) return inflight
+
+    const promise = this.fetchBundledFont(url)
+      .then((buffer) => {
+        if (buffer) this.bundledBuffersByUrl.set(url, buffer)
+        return buffer
+      })
+      .finally(() => {
+        this.inflightBundledByUrl.delete(url)
+      })
+    this.inflightBundledByUrl.set(url, promise)
+    return promise
+  }
+
   async loadRemoteFont(
     family: string,
     style = 'Regular',
@@ -280,6 +521,9 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
+    if (usesPingFangSlices() && isPingFangScFamily(family)) {
+      return this.loadPingFangSlices(family, style, characters)
+    }
     if (typeof fetch === 'undefined') return null
     const coverage = this.remoteCoverage.get(`${family}|${style}`)
     if (
@@ -299,10 +543,11 @@ export class FontManager {
       if (!resolved || resolved.buffers.length === 0) return null
       const primary = resolved.buffers[0]
       await this.writeDownloadedFont(family, style, primary, requestedCharacters)
-      const registered = this.registerAndCache(family, style, primary, resolved.provider)
       const loadedCoverage = this.remoteCoverage.get(`${family}|${style}`) ?? new Set<string>()
       for (const character of requestedCharacters) loadedCoverage.add(character)
+      // Coverage before register so DOM FontFace can set unicode-range.
       this.remoteCoverage.set(`${family}|${style}`, loadedCoverage)
+      const registered = this.registerAndCache(family, style, primary, resolved.provider)
       for (const supplemental of resolved.buffers.slice(1)) {
         this.registerSupplemental(family, style, supplemental)
       }
@@ -321,9 +566,14 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
+    if (usesPingFangSlices() && isPingFangScFamily(family)) {
+      const sliced = await this.loadPingFangSlices(family, style, characters)
+      if (sliced) return sliced
+    }
+
     const loaded = this.loadedData(family, style)
     if (loaded) {
-      this.registerFontInCanvasKit(family, loaded)
+      this.ensureCanvasRegistration(family, style, loaded)
       const remoteCoverage = this.remoteCoverage.get(`${family}|${style}`)
       const missingRemoteCoverage = Boolean(
         characters &&
@@ -373,8 +623,25 @@ export class FontManager {
   }
 
   remoteStyleNeedsCoverage(family: string, style: string, characters: readonly string[]): boolean {
+    if (usesPingFangSlices() && isPingFangScFamily(family)) {
+      return this.styleNeedsMoreCoverage(family, style, characters.join(''))
+    }
     const coverage = this.remoteCoverage.get(`${family}|${style}`)
     return !!coverage && characters.some((character) => !coverage.has(character))
+  }
+
+  /**
+   * True when a face is loaded but still missing shard coverage for `characters`
+   * (PingFang slice mode: `loadLocalFont` only pulls `base` until characters are supplied).
+   */
+  styleNeedsMoreCoverage(family: string, style: string, characters: string): boolean {
+    if (!characters || !this.isStyleLoaded(family, style)) return false
+    if (usesPingFangSlices() && isPingFangScFamily(family)) {
+      const coverage = this.remoteCoverage.get(`${family}|${style}`)
+      if (!coverage || coverage.size === 0) return true
+      return Array.from(characters).some((character) => !coverage.has(character))
+    }
+    return false
   }
 
   loadedData(family: string, style: string): ArrayBuffer | null {
@@ -394,11 +661,15 @@ export class FontManager {
     return byStyle.get(style) ?? null
   }
 
-  renderFamily(family: string, _style: string): string {
-    // CanvasKit can shape metrics but paint no glyphs for some CJK/Arabic faces registered under a
-    // synthetic alias. Keep every shard under the font's source family; character-aware remote
-    // requests already fetch cumulative coverage before replacing the primary buffer.
-    return family
+  renderFamily(family: string, style: string): string {
+    const shards = this.renderFamilyShards(family, style)
+    return shards[0] ?? family
+  }
+
+  /** Extra CanvasKit family names for pre-cut PingFang slices (same logical UI family). */
+  renderFamilyShards(family: string, style: string): string[] {
+    if (!usesPingFangSlices()) return []
+    return this.pingFangRenderNames.get(`${family}|${style}`) ?? []
   }
 
   collectFontKeys(graph: SceneGraph, nodeIds: string[]): Array<[string, string]> {
@@ -484,6 +755,7 @@ export class FontManager {
   ): Promise<string[]> {
     signal?.throwIfAborted()
     const manifest = fontFallbackEntry(script, this.fallbackUserAgent)
+    const coverage = normalizedCoverageText(characters)
 
     for (const family of manifest.localFamilies) {
       signal?.throwIfAborted()
@@ -501,23 +773,20 @@ export class FontManager {
       }
     }
 
-    if (targetFamilies.length === 0 || characters) {
-      const results = await Promise.allSettled(
-        manifest.remoteFamilies.map(async (family) => {
-          signal?.throwIfAborted()
-          const data = await this.loadRemoteFont(family, 'Regular', characters, signal)
-          signal?.throwIfAborted()
-          return data ? family : null
-        })
-      )
-      for (const result of results) {
-        if (
-          result.status === 'fulfilled' &&
-          result.value &&
-          !targetFamilies.includes(result.value)
-        ) {
-          targetFamilies.push(result.value)
-        }
+    // Remote CJK/Arabic only via Google `text=` glyph subsets — never pull a full face.
+    if (!coverage) return targetFamilies
+
+    const results = await Promise.allSettled(
+      manifest.remoteFamilies.map(async (family) => {
+        signal?.throwIfAborted()
+        const data = await this.loadRemoteFont(family, 'Regular', coverage, signal)
+        signal?.throwIfAborted()
+        return data ? family : null
+      })
+    )
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value && !targetFamilies.includes(result.value)) {
+        targetFamilies.push(result.value)
       }
     }
 
@@ -655,14 +924,22 @@ export class FontManager {
     if (!IS_BROWSER) return
     const weight = styleToWeight(style)
     const italic = style.toLowerCase().includes('italic') ? 'italic' : 'normal'
+    const coverage = this.remoteCoverage.get(`${family}|${style}`)
+    const unicodeRange =
+      coverage && coverage.size > 0 ? charactersToUnicodeRange(coverage) : undefined
+    const faceKey = `${family}|${weight}|${italic}|${unicodeRange ?? '*'}`
+    if (this.browserFontFaces.has(faceKey)) return
+    this.browserFontFaces.add(faceKey)
     const face = new FontFace(family, data, {
       weight: String(weight),
-      style: italic
+      style: italic,
+      ...(unicodeRange ? { unicodeRange } : {})
     })
     face
       .load()
       .then(() => document.fonts.add(face))
       .catch(() => {
+        this.browserFontFaces.delete(faceKey)
         console.warn(`Failed to load font "${family}" (${style})`)
       })
   }

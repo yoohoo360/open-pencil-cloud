@@ -85,6 +85,7 @@ function workspaceSourceAliases() {
     '@open-pencil/core/canvas$': path.join(pkgSrc('core'), 'canvas/index.override.ts'),
     '@open-pencil/core/editor$': path.join(pkgSrc('core'), 'editor/index.override.ts'),
     '@open-pencil/core/io$': path.join(pkgSrc('core'), 'io/index.override.ts'),
+    '@open-pencil/core/text$': path.join(pkgSrc('core'), 'text/index.override.ts'),
     '@open-pencil/core': pkgSrc('core'),
     '@open-pencil/dom-css/browser$': path.join(pkgSrc('dom-css'), 'browser.ts'),
     '@open-pencil/dom-css/export$': path.join(pkgSrc('dom-css'), 'export/index.override.ts'),

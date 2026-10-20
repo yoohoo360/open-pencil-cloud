@@ -1,7 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect } from 'react'
 
-import { listLocalFamilies } from '#react/app/editor/fonts'
 import {
   appPreferences,
   updateDefaultFontFamily,
@@ -20,11 +18,6 @@ export function GeneralSettingsPanel() {
   const store = useEditorStore()
   const preferences = useStore(appPreferences)
   const snapping = store.state.snappingPreferences
-
-  // Enumerate system fonts and migrate the locale default (e.g. Inter → PingFang SC).
-  useEffect(() => {
-    void listLocalFamilies()
-  }, [])
 
   const languageOptions = availableLocales.map((value) => ({
     value,

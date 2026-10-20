@@ -1,10 +1,17 @@
 import { uploadOSSFig } from '#react/app/document/oss'
 import { asFigObjectPath } from '#react/app/document/oss-path'
+import { revisionFromDocumentMeta } from '#react/app/document/revision'
 import type { EditorStore } from '#react/app/editor/store'
 import { documentAPI } from '#react/lib/client'
 
 import { exportFigFile } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
+
+export type CloudPersistResult = {
+  bytes: Uint8Array
+  /** Server `updated_at` after touch, when available. */
+  updatedAt?: string | number
+}
 
 export async function persistSceneGraphToCloud(
   graph: SceneGraph,
@@ -29,7 +36,7 @@ export async function persistSceneGraphToCloud(
   return bytes
 }
 
-export async function persistCloudSceneGraph(store: EditorStore): Promise<Uint8Array> {
+export async function persistCloudSceneGraph(store: EditorStore): Promise<CloudPersistResult> {
   const remoteURL = store.state.documentFigURL?.trim()
   if (!remoteURL) throw new Error('No cloud document URL')
   const figURL = asFigObjectPath(remoteURL)
@@ -43,12 +50,14 @@ export async function persistCloudSceneGraph(store: EditorStore): Promise<Uint8A
     pageId: store.state.currentPageId
   })
   const key = store.state.documentKey?.trim()
+  let updatedAt: string | number | undefined
   if (key) {
     try {
-      await documentAPI.touch(key)
+      const { data } = await documentAPI.touch(key)
+      updatedAt = data?.updated_at ?? revisionFromDocumentMeta(data) ?? undefined
     } catch (error) {
       console.warn('[Document] Failed to bump updated_at after save', error)
     }
   }
-  return bytes
+  return { bytes, updatedAt }
 }

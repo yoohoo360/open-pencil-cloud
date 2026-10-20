@@ -13,7 +13,8 @@ const AI_REVIEW_VERSION_TITLE_PREFIX = 'AI review'
 
 export async function exportCurrentFig(store: EditorStore): Promise<Uint8Array> {
   if (store.state.documentFigURL) {
-    return persistCloudSceneGraph(store)
+    const { bytes } = await persistCloudSceneGraph(store)
+    return bytes
   }
   return exportFigFile(
     store.graph,
