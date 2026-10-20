@@ -63,6 +63,36 @@ export type DocumentPermissionRequest = {
 
 const emptyCaps: DocumentCapability[] = ['view']
 
+/** When the API omits or empties `capabilities`, honor `my_role` so editors keep import/export. */
+const CAPABILITIES_BY_ROLE: Record<string, DocumentCapability[]> = {
+  read: ['view', 'copy', 'export'],
+  view: ['view', 'copy', 'export'],
+  write: ['view', 'edit', 'comment', 'copy', 'duplicate', 'export', 'share'],
+  edit: ['view', 'edit', 'comment', 'copy', 'duplicate', 'export', 'share'],
+  admin: [
+    'view',
+    'edit',
+    'comment',
+    'copy',
+    'duplicate',
+    'export',
+    'share',
+    'manage_access',
+    'delete'
+  ],
+  manage: [
+    'view',
+    'edit',
+    'comment',
+    'copy',
+    'duplicate',
+    'export',
+    'share',
+    'manage_access',
+    'delete'
+  ]
+}
+
 export const documentAccessStore = atom<DocumentAccessSnapshot | null>(null)
 
 /** Opens the document Share dialog from menu / mobile HUD. */
@@ -88,18 +118,32 @@ export function useDocumentShareDialogOpen() {
   return useStore(documentShareDialogOpen)
 }
 
+export function capabilitiesForAccessRole(role: string | undefined): DocumentCapability[] {
+  if (!role) return emptyCaps
+  return CAPABILITIES_BY_ROLE[role] ?? emptyCaps
+}
+
+export function effectiveDocumentCapabilities(
+  snapshot: DocumentAccessSnapshot | null | undefined
+): DocumentCapability[] {
+  if (!snapshot) return emptyCaps
+  if (snapshot.capabilities.length > 0) return snapshot.capabilities
+  return capabilitiesForAccessRole(snapshot.my_role)
+}
+
 export function hasDocumentCapability(
   snapshot: DocumentAccessSnapshot | null | undefined,
   capability: DocumentCapability
 ): boolean {
   if (!snapshot) return true
-  return snapshot.capabilities.includes(capability)
+  return effectiveDocumentCapabilities(snapshot).includes(capability)
 }
 
 export function documentCapabilitiesOrDefault(
   snapshot: DocumentAccessSnapshot | null | undefined
 ): DocumentCapability[] {
-  return snapshot?.capabilities ?? emptyCaps
+  if (!snapshot) return emptyCaps
+  return effectiveDocumentCapabilities(snapshot)
 }
 
 export const DOCUMENT_RESOURCE_TYPE = 'document'

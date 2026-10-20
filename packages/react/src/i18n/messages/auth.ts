@@ -39,7 +39,9 @@ export const authMessageDefaults = {
   signingIn: 'Signing in',
   oauthWait: 'Finishing sign in…',
   oauthUnlinked:
-    'This GitHub or Google account is not linked yet. Register first, then click GitHub or Google again to link it.'
+    'This GitHub or Google account is not linked yet. Register first, then click GitHub or Google again to link it.',
+  logOut: 'Log out',
+  backToFileList: 'Back to files'
 } as const
 
 export const authMessages = i18n('auth', authMessageDefaults)

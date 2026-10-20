@@ -105,13 +105,21 @@ function ensurePreferredFamilies(
 
 function syncDefaultFontWithLocale(availableNames: readonly string[]): void {
   if (defaultFontSynced) return
-  defaultFontSynced = true
   const locale = readStoredOrBrowserLocale()
   const preferred = preferredFontFamiliesForLocale(locale)
-  if (preferred.length === 0) return
+  if (preferred.length === 0) {
+    defaultFontSynced = true
+    return
+  }
 
   const matchedPreferred = preferred.find((family) => availableNames.includes(family))
-  if (!matchedPreferred) return
+  // Empty enumeration can race shell IPC — retry on a later list. Non-empty without a
+  // locale candidate means the host truly lacks it; stop retrying.
+  if (!matchedPreferred) {
+    if (availableNames.length > 0) defaultFontSynced = true
+    return
+  }
+  defaultFontSynced = true
 
   void import('#react/app/settings/preferences').then(({ appPreferences, updateDefaultFontFamily }) => {
     const current = appPreferences.get().editing.defaultFontFamily

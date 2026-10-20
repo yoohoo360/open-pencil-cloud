@@ -16,6 +16,12 @@ export function isNativeTauriShell(): boolean {
   )
 }
 
+/** Electron or Tauri — prefer over import-time `IS_TAURI` (preload may race module init). */
+export function isDesktopShell(): boolean {
+  if (typeof window === 'undefined') return false
+  return Boolean(window.openPencilDesktop) || '__TAURI_INTERNALS__' in window
+}
+
 /**
  * Invoke a desktop command. Electron uses `openPencilDesktop`; Tauri uses `@tauri-apps/api`.
  * Command names match the Tauri `invoke` surface where possible (`mcp_*`, fonts).

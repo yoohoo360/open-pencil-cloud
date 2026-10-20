@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '@nanostores/react'
-import { Check, ChevronRight, Settings, Sidebar } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, LogOut, Settings, Sidebar } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
-import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
+import { IS_BROWSER } from '@open-pencil/core/constants'
 
+import { isDesktopShell } from '#react/app/desktop/bridge'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
 import { useAppMenu, type AppMenuGroup } from '#react/app/shell/menu/app-menu'
+import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
 import { SettingsDialog } from '#react/components/settings/SettingsDialog'
 import {
   hasMenuSubItems,
@@ -29,16 +32,19 @@ import { useMenuUI } from '#react/components/ui/menu'
 import { Tip } from '#react/components/ui/Tip'
 import type { MenuActionNode, MenuEntry } from '#react/editor/menu-model/types'
 import { useI18n } from '#react/i18n'
+import { authAPI } from '#react/lib/client'
 
 const MENU_VIEWPORT_PAD = 8
 
 export function AppMenu() {
   const store = useEditorStore()
-  const { dialogs, menu: t } = useI18n()
+  const navigate = useNavigate()
+  const { auth, dialogs, menu: t } = useI18n()
   const { topMenus } = useAppMenu()
   const { resolvedTheme } = useAppTheme()
   const settingsOpen = useStore(settingsDialogOpen)
   const [editingName, setEditingName] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -53,9 +59,31 @@ export function AppMenu() {
     input.select()
   }, [editingName])
 
+  async function logOut() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await authAPI.logout()
+      void navigate('/login')
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
   return (
     <div className="shrink-0 border-b border-border">
-      <div className="flex items-center gap-2 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        <Tip label={auth.backToFileList}>
+          <button
+            type="button"
+            data-test-id="app-back-to-list"
+            aria-label={auth.backToFileList}
+            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface"
+            onClick={() => openStorageWorkspace(navigate)}
+          >
+            <ArrowLeft className="size-3.5" />
+          </button>
+        </Tip>
         <img data-test-id="app-logo" src="/favicon-32.png" className="size-4" alt="OpenPencil" />
         {editingName ? (
           <input
@@ -105,8 +133,20 @@ export function AppMenu() {
             <Sidebar className="size-3.5" />
           </button>
         </Tip>
+        <Tip label={auth.logOut}>
+          <button
+            type="button"
+            data-test-id="app-log-out"
+            aria-label={auth.logOut}
+            disabled={loggingOut}
+            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface disabled:opacity-50"
+            onClick={() => void logOut()}
+          >
+            <LogOut className="size-3.5" />
+          </button>
+        </Tip>
       </div>
-      {IS_TAURI ? null : <AppMenubar menus={topMenus} />}
+      {isDesktopShell() ? null : <AppMenubar menus={topMenus} />}
       {settingsOpen ? <SettingsDialog /> : null}
     </div>
   )

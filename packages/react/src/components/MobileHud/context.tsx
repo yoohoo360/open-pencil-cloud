@@ -33,7 +33,7 @@ function useMobileHudState() {
       icon: ImageDown,
       label: 'Export…',
       action: () => {
-        if (store.state.selectedIds.size > 0) void exportSelection(store, 'png')
+        void exportSelection(store, 'png')
       }
     },
     { icon: ZoomIn, label: 'Zoom to fit', action: () => getCommand('view.zoomFit').run() }

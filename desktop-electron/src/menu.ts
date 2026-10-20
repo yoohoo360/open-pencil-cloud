@@ -1,4 +1,4 @@
-import { Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,11 +33,34 @@ type MenuJsonGroup = {
   items: MenuJsonItem[]
 }
 
+type AppMenuJson = {
+  about?: { label?: string; accelerator?: string }
+  'check-updates'?: { label?: string; accelerator?: string }
+  quit?: { label?: string; accelerator?: string }
+}
+
 /** Prefer native web copy/cut/paste when focus is in an editable or there is a text selection. */
-const NATIVE_EDIT_IDS = new Set(['copy', 'cut', 'paste', 'select-all', 'selection.select-all'])
+const NATIVE_EDIT_IDS = new Set([
+  'copy',
+  'cut',
+  'paste',
+  'select-all',
+  'selection.select-all',
+  'selection.selectAll'
+])
 
 function packageRoot(): string {
+  // Packaged: app.asar. Dev / `build:main`: desktop-electron/ (dist/main.js → ..).
   return join(dirname(fileURLToPath(import.meta.url)), '..')
+}
+
+function readJsonFile<T>(path: string): T | null {
+  if (!existsSync(path)) return null
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as T
+  } catch {
+    return null
+  }
 }
 
 function loadMenuJson(): MenuJsonGroup[] {
@@ -46,11 +69,22 @@ function loadMenuJson(): MenuJsonGroup[] {
     join(packageRoot(), '../desktop-react/generated/menu.json')
   ]
   for (const path of candidates) {
-    if (!existsSync(path)) continue
-    const raw = JSON.parse(readFileSync(path, 'utf8')) as unknown
+    const raw = readJsonFile<unknown>(path)
     if (Array.isArray(raw)) return raw as MenuJsonGroup[]
   }
   return []
+}
+
+function loadAppMenuJson(): AppMenuJson {
+  const candidates = [
+    join(packageRoot(), 'generated/app-menu.json'),
+    join(packageRoot(), '../desktop-react/generated/app-menu.json')
+  ]
+  for (const path of candidates) {
+    const raw = readJsonFile<AppMenuJson>(path)
+    if (raw && typeof raw === 'object') return raw
+  }
+  return {}
 }
 
 async function shouldUseNativeEdit(window: BrowserWindow): Promise<boolean> {
@@ -85,33 +119,60 @@ function toTemplate(
 ): MenuItemConstructorOptions[] {
   return items.map((item) => {
     if (item.type === 'separator') return { type: 'separator' }
-    const children = item.sub?.length ? toTemplate(item.sub, getWindow, send) : undefined
+
+    const label = item.label ?? ''
+    // Nested submenu (matches Tauri: parent id/accelerator are not clickable).
+    if (item.sub?.length) {
+      return {
+        label,
+        submenu: toTemplate(item.sub, getWindow, send)
+      }
+    }
+
     const id = item.id
+    if (!id) return { label }
+
+    // Placeholder recent-files submenu (populated when recent-files IPC exists).
+    if (id === 'open-recent') {
+      return {
+        id,
+        label,
+        submenu: [{ label: '(None)', enabled: false }]
+      }
+    }
+
     return {
       id,
-      label: item.label,
+      label,
       accelerator: item.accelerator,
-      type: item.checkbox ? 'checkbox' : children ? 'submenu' : 'normal',
-      submenu: children,
-      click:
-        id && !children
-          ? () => {
-              const window = getWindow()
-              if (!window) return
-              if (id === 'dev-tools') {
-                toggleDevTools(window)
-                return
-              }
-              if (NATIVE_EDIT_IDS.has(id)) {
-                void shouldUseNativeEdit(window).then((native) => {
-                  if (native) runNativeEdit(window, id === 'selection.select-all' ? 'select-all' : id)
-                  else send(id)
-                })
-                return
-              }
-              send(id)
-            }
-          : undefined
+      type: item.checkbox ? 'checkbox' : 'normal',
+      checked: item.checkbox ? false : undefined,
+      click: () => {
+        const window = getWindow()
+        if (!window || window.isDestroyed()) return
+        if (id === 'dev-tools') {
+          toggleDevTools(window)
+          return
+        }
+        if (id === 'quit') {
+          app.quit()
+          return
+        }
+        if (NATIVE_EDIT_IDS.has(id)) {
+          void shouldUseNativeEdit(window).then((native) => {
+            if (native) {
+              runNativeEdit(
+                window,
+                id === 'selection.select-all' || id === 'selection.selectAll' || id === 'select-all'
+                  ? 'select-all'
+                  : id
+              )
+            } else send(id)
+          })
+          return
+        }
+        send(id)
+      }
     }
   })
 }
@@ -119,9 +180,11 @@ function toTemplate(
 /** Install native menu; clicks emit `menu-event` with the action id (Tauri-compatible). */
 export function installNativeMenu(getWindow: () => BrowserWindow | null): void {
   const groups = loadMenuJson()
+  const appMenu = loadAppMenuJson()
   const send = (id: string) => {
     const window = getWindow()
-    window?.webContents.send('menu-event', id)
+    if (!window || window.isDestroyed()) return
+    window.webContents.send('menu-event', id)
   }
 
   const template: MenuItemConstructorOptions[] = []
@@ -129,7 +192,15 @@ export function installNativeMenu(getWindow: () => BrowserWindow | null): void {
     template.push({
       label: 'OpenPencil',
       submenu: [
-        { role: 'about' },
+        {
+          label: appMenu.about?.label ?? 'About OpenPencil',
+          role: 'about'
+        },
+        {
+          id: 'check-updates',
+          label: appMenu['check-updates']?.label ?? 'Check for Updates…',
+          click: () => send('check-updates')
+        },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -137,16 +208,23 @@ export function installNativeMenu(getWindow: () => BrowserWindow | null): void {
         { role: 'hideOthers' },
         { role: 'unhide' },
         { type: 'separator' },
-        { role: 'quit' }
+        {
+          id: 'quit',
+          label: appMenu.quit?.label ?? 'Quit OpenPencil',
+          accelerator: appMenu.quit?.accelerator ?? 'CmdOrCtrl+Q',
+          click: () => app.quit()
+        }
       ]
     })
   }
+
   for (const group of groups) {
     template.push({
       label: group.label,
       submenu: toTemplate(group.items, getWindow, send)
     })
   }
+
   if (allowsFrontendUrlOverride()) {
     const channel = buildChannelLabel()
     template.push({
@@ -192,16 +270,23 @@ export function installNativeMenu(getWindow: () => BrowserWindow | null): void {
       ]
     })
   }
+
   if (process.platform !== 'darwin') {
     const file = template.find((entry) => entry.label === 'File')
     if (file && Array.isArray(file.submenu)) {
       file.submenu = [
         ...(file.submenu as MenuItemConstructorOptions[]),
         { type: 'separator' },
-        { role: 'quit' }
+        {
+          id: 'quit',
+          label: appMenu.quit?.label ?? 'Quit',
+          accelerator: appMenu.quit?.accelerator ?? 'CmdOrCtrl+Q',
+          click: () => app.quit()
+        }
       ]
     }
   }
+
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 

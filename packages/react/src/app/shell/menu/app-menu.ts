@@ -1,8 +1,7 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { IS_TAURI } from '@open-pencil/core/constants'
-
+import { isDesktopShell } from '#react/app/desktop/bridge'
 import {
   hasDocumentCapability,
   openDocumentShareDialog,
@@ -146,7 +145,7 @@ export function useAppMenu() {
 
   function exportCurrentSelection(format: 'png' | 'svg' | 'pptx' | 'fig') {
     if (!canExportDoc) return
-    if (store.state.selectedIds.size > 0) void exportSelection(store, format)
+    void exportSelection(store, format)
   }
 
   const actions: Partial<Record<string, () => void>> = {
@@ -177,7 +176,7 @@ export function useAppMenu() {
 
   const onNativeMenuEvent = useCallback(
     (id: string) => {
-      if (!IS_TAURI) return
+      if (!isDesktopShell()) return
       if (COMMAND_MENU_IDS.has(id as EditorCommandId)) {
         runCommand(id as EditorCommandId)
         return
@@ -270,7 +269,8 @@ export function useAppMenu() {
       case 'export-svg':
       case 'export-pptx':
       case 'export-fig':
-        return !canExportDoc || store.state.selectedIds.size === 0
+        // No selection → export current page (getSelectionExportTarget).
+        return !canExportDoc
       case 'copy':
       case 'cut':
         return !canCopyDoc

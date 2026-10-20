@@ -570,7 +570,7 @@ export async function exportSelection(
   formatId: SelectionExportFormat,
   scale = 1
 ) {
-  if (store.state.selectedIds.size === 0) return
+  // Empty selection exports the current page (see getSelectionExportTarget).
   const target = getSelectionExportTarget(store)
   const result = await io.exportContent(
     formatId,
