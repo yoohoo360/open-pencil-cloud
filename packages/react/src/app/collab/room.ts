@@ -11,6 +11,8 @@ export type CollabRoomOptions = {
   awareness: awarenessProtocol.Awareness
   setConnected: () => void
   updatePeersList: () => void
+  /** Seed the local Y.Doc before the first peer sync (no-op when already seeded). */
+  onBeforePeerJoinSync?: () => void
   joinRoom?: JoinCollabRoom
 }
 
@@ -20,6 +22,7 @@ export function connectCollabRoom({
   awareness,
   setConnected,
   updatePeersList,
+  onBeforePeerJoinSync,
   joinRoom = joinCollabRoom
 }: CollabRoomOptions) {
   const room = joinRoom(roomId)
@@ -82,6 +85,8 @@ export function connectCollabRoom({
   room.onPeerJoin((peerId) => {
     setConnected()
     try {
+      // Alone rooms keep an empty Y.Doc until someone joins — seed before encode.
+      onBeforePeerJoinSync?.()
       sendYjsUpdate(Y.encodeStateAsUpdate(ydoc))
       sendSyncStep1(Y.encodeStateVector(ydoc), peerId)
     } catch (error) {

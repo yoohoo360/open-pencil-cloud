@@ -1,3 +1,4 @@
+import { hasRemoteCollaborators } from '#react/app/collab/awareness'
 import { connectCollabRoom } from '#react/app/collab/room'
 import type { CollabRoomTransport } from '#react/app/collab/transport/types'
 import { bindCollabGraphEvents, registerYjsObservers } from '#react/app/collab/yjs-sync'
@@ -14,6 +15,11 @@ export type CollabRuntime = {
   room: CollabRoomTransport | null
   suppressGraphSync: boolean
   suppressYjsEvents: boolean
+  /**
+   * When false, the room is presence-only: no graph↔Yjs sync.
+   * Enabled on the first remote collaborator; disabled again when alone.
+   */
+  documentSyncEnabled: boolean
   unbindGraphEvents: (() => void) | null
   stopZoomWatch: (() => void) | null
 }
@@ -28,9 +34,28 @@ export function createCollabRuntime(): CollabRuntime {
     room: null,
     suppressGraphSync: false,
     suppressYjsEvents: false,
+    documentSyncEnabled: false,
     unbindGraphEvents: null,
     stopZoomWatch: null
   }
+}
+
+/** Turn document sync on when peers are present (or forced by peer-join). */
+export function refreshCollabDocumentSync(
+  runtime: CollabRuntime,
+  syncAllNodesToYjs: () => void,
+  options?: { forceEnable?: boolean }
+): void {
+  const forceEnable = options?.forceEnable === true
+  const awareness = runtime.awareness
+  const hasPeers = awareness ? hasRemoteCollaborators(awareness) : false
+  if (!forceEnable && !hasPeers) {
+    runtime.documentSyncEnabled = false
+    return
+  }
+  if (runtime.documentSyncEnabled) return
+  runtime.documentSyncEnabled = true
+  syncAllNodesToYjs()
 }
 
 export function connectCollabSession({
@@ -40,7 +65,8 @@ export function connectCollabSession({
   setConnected,
   updatePeersList,
   applyYjsToGraph,
-  syncNodeToYjs
+  syncNodeToYjs,
+  syncAllNodesToYjs
 }: {
   roomId: string
   runtime: CollabRuntime
@@ -49,16 +75,19 @@ export function connectCollabSession({
   updatePeersList: () => void
   applyYjsToGraph: (events: Y.YEvent<Y.Map<unknown>>[]) => void
   syncNodeToYjs: (nodeId: string) => void
+  syncAllNodesToYjs: () => void
 }) {
   if (runtime.room && runtime.roomId === roomId) return
   if (runtime.room) disposeCollabSession(runtime, store)
   runtime.roomId = roomId
+  runtime.documentSyncEnabled = false
   runtime.ydoc = new Y.Doc()
   runtime.awareness = new awarenessProtocol.Awareness(runtime.ydoc)
   runtime.ynodes = runtime.ydoc.getMap('nodes')
   runtime.yimages = runtime.ydoc.getMap('images')
 
   runtime.awareness.on('change', () => {
+    refreshCollabDocumentSync(runtime, syncAllNodesToYjs)
     updatePeersList()
   })
 
@@ -78,7 +107,11 @@ export function connectCollabSession({
     ydoc: runtime.ydoc,
     awareness: runtime.awareness,
     setConnected,
-    updatePeersList
+    updatePeersList,
+    onBeforePeerJoinSync: () => {
+      // Transport peer-join can arrive before awareness lists the remote client.
+      refreshCollabDocumentSync(runtime, syncAllNodesToYjs, { forceEnable: true })
+    }
   })
 
   runtime.stopZoomWatch = store.onEditorEvent('viewport:changed', (viewport) => {
@@ -95,10 +128,12 @@ export function connectCollabSession({
     getYdoc: () => runtime.ydoc,
     getYnodes: () => runtime.ynodes,
     getSuppressGraphSync: () => runtime.suppressGraphSync,
+    getDocumentSyncEnabled: () => runtime.documentSyncEnabled,
     setSuppressYjsEvents: (value) => {
       runtime.suppressYjsEvents = value
     },
-    syncNodeToYjs
+    syncNodeToYjs,
+    syncAllNodesToYjs
   })
 }
 
@@ -118,4 +153,5 @@ export function disposeCollabSession(runtime: CollabRuntime, store: EditorStore)
   runtime.ydoc = null
   runtime.ynodes = null
   runtime.yimages = null
+  runtime.documentSyncEnabled = false
 }

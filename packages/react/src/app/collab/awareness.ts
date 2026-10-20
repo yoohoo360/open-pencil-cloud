@@ -11,6 +11,15 @@ type CursorState = {
   zoom?: number
 }
 
+/** True when awareness knows about at least one client other than the local one. */
+export function hasRemoteCollaborators(awareness: Awareness): boolean {
+  const localId = awareness.clientID
+  for (const clientId of awareness.getStates().keys()) {
+    if (clientId !== localId) return true
+  }
+  return false
+}
+
 export function buildRemotePeers(
   states: Map<number, Record<string, unknown>>,
   localClientId: number

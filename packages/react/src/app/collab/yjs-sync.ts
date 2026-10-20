@@ -10,8 +10,12 @@ type GraphBindingOptions = {
   getYdoc: () => Y.Doc | null
   getYnodes: () => YNodes | null
   getSuppressGraphSync: () => boolean
+  /** False while alone in the room — presence only, no graph↔Yjs traffic. */
+  getDocumentSyncEnabled: () => boolean
   setSuppressYjsEvents: (value: boolean) => void
   syncNodeToYjs: (nodeId: string) => void
+  /** One transaction for the whole document — required on graph:replaced. */
+  syncAllNodesToYjs: () => void
 }
 
 type YjsObserverOptions = {
@@ -40,17 +44,25 @@ export function bindCollabGraphEvents({
   getYdoc,
   getYnodes,
   getSuppressGraphSync,
+  getDocumentSyncEnabled,
   setSuppressYjsEvents,
-  syncNodeToYjs
+  syncNodeToYjs,
+  syncAllNodesToYjs
 }: GraphBindingOptions) {
   function onGraphMutation(nodeId: string) {
-    if (!getSuppressGraphSync() && getYdoc() && getYnodes()) {
+    if (
+      getDocumentSyncEnabled() &&
+      !getSuppressGraphSync() &&
+      getYdoc() &&
+      getYnodes()
+    ) {
       syncNodeToYjs(nodeId)
     }
   }
 
   const pendingPreview = new Set<string>()
   let previewTimer: number | null = null
+  let replaceSyncTimer: number | null = null
   function onPreviewMutation(nodeId: string) {
     pendingPreview.add(nodeId)
     if (previewTimer !== null) return
@@ -71,9 +83,33 @@ export function bindCollabGraphEvents({
       unbindPreview = store.graph.onNodeEvents({
         previewUpdated: (id) => onPreviewMutation(id)
       })
-      if (!getSuppressGraphSync()) {
-        for (const node of store.graph.getAllNodes()) onGraphMutation(node.id)
+      // Alone in the room: keep presence only — FIG open must not pay for a full seed.
+      // Never sync node-by-node: each call opens its own Y.Doc transaction.
+      if (
+        !getDocumentSyncEnabled() ||
+        getSuppressGraphSync() ||
+        !getYdoc() ||
+        !getYnodes()
+      ) {
+        return
       }
+      if (replaceSyncTimer !== null) window.clearTimeout(replaceSyncTimer)
+      replaceSyncTimer = window.setTimeout(() => {
+        replaceSyncTimer = null
+        if (
+          !getDocumentSyncEnabled() ||
+          getSuppressGraphSync() ||
+          !getYdoc() ||
+          !getYnodes()
+        ) {
+          return
+        }
+        const t0 = performance.now()
+        syncAllNodesToYjs()
+        console.info(
+          `[fig] ui.graph:replaced.yjsSyncAll: ${(performance.now() - t0).toFixed(1)} ms`
+        )
+      }, 0)
     }),
     store.onEditorEvent('node:updated', (id) => onGraphMutation(id)),
     store.onEditorEvent('node:created', (node) => {
@@ -92,7 +128,7 @@ export function bindCollabGraphEvents({
     store.onEditorEvent('node:deleted', (id) => {
       const ydoc = getYdoc()
       const ynodes = getYnodes()
-      if (!getSuppressGraphSync() && ydoc && ynodes) {
+      if (getDocumentSyncEnabled() && !getSuppressGraphSync() && ydoc && ynodes) {
         const parentId = ynodes.get(id)?.get('parentId')
         setSuppressYjsEvents(true)
         try {
@@ -111,6 +147,7 @@ export function bindCollabGraphEvents({
   ]
   return () => {
     if (previewTimer !== null) window.clearTimeout(previewTimer)
+    if (replaceSyncTimer !== null) window.clearTimeout(replaceSyncTimer)
     pendingPreview.clear()
     unbindPreview()
     for (const unbind of unbinds) unbind()
@@ -216,13 +253,19 @@ export function createYjsGraphSync({
     setSuppressYjsEvents(true)
     try {
       ydoc.transact(() => {
+        const liveIds = new Set<string>()
         for (const node of store.graph.getAllNodes()) {
+          liveIds.add(node.id)
           let ynode = ynodes.get(node.id)
           if (!ynode) {
             ynode = new Y.Map()
             ynodes.set(node.id, ynode)
           }
           syncEncodedNodeToYMap(node, ynode)
+        }
+        // Document replace must drop peers' stale ids from the previous graph.
+        for (const key of [...ynodes.keys()]) {
+          if (!liveIds.has(key)) ynodes.delete(key)
         }
       })
       if (localYimages) {

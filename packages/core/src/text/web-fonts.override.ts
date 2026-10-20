@@ -80,14 +80,11 @@ export function charactersToUnicodeRange(characters: Iterable<string>): string {
 }
 
 export function webFontSubsetsForText(text: string): string[] {
-  // Empty coverage → latin-only. Never request CJK script packs without glyphs.
-  if (!text) return [...DEFAULT_WEB_FONT_SUBSETS]
   const subsets = new Set(DEFAULT_WEB_FONT_SUBSETS)
   if (/\p{Script=Arabic}/u.test(text)) subsets.add('arabic')
   if (/\p{Script=Hangul}/u.test(text)) subsets.add('korean')
   if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)) subsets.add('japanese')
   if (/\p{Script=Han}/u.test(text)) {
-    // Paired with Google `text=` glyph subsets — unicode-range slices stay tiny.
     subsets.add('chinese-simplified')
     subsets.add('chinese-traditional')
     subsets.add('japanese')
@@ -349,20 +346,12 @@ export class WebFontResolver {
       signal?.throwIfAborted()
       const parsed = parseFontStyle(style)
       const unifont = await this.unifont(provider, signal)
-      // CJK / Arabic remotes must use Google `text=` glyph subsets — never a full face.
-      const requiresGlyphSubset =
-        /^Noto Sans (SC|TC|JP|KR)$/.test(family) ||
-        family === 'Noto Naskh Arabic' ||
-        family === 'Noto Sans Arabic'
-      const useGlyphSubset = provider === 'google' && Boolean(characters)
-      if (requiresGlyphSubset && !useGlyphSubset) return []
       const options = {
         weights: [String(parsed.weight)],
         styles: [parsed.italic ? 'italic' : 'normal'],
-        // Prefer TT/OT for CanvasKit FreeType; woff2 is fallback.
         formats: ['ttf', 'otf', 'woff2', 'woff'],
         subsets: webFontSubsetsForText(characters),
-        ...(useGlyphSubset
+        ...(provider === 'google' && characters
           ? { options: { google: { experimental: { glyphs: [characters] } } } }
           : {})
       } satisfies WebFontResolveOptions

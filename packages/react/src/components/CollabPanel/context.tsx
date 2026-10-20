@@ -42,7 +42,7 @@ export function useCollabPanelState(roomId: string | null) {
   const peers: RemotePeer[] = state.peers
   followingPeerRef.current = followingPeer
 
-  const { syncNodeToYjs, syncAllNodesToYjs, syncMissingNodesToYjs, applyYjsToGraph } = useMemo(
+  const { syncNodeToYjs, syncAllNodesToYjs, applyYjsToGraph } = useMemo(
     () =>
       createYjsGraphSync({
         getStore: () => store,
@@ -102,39 +102,32 @@ export function useCollabPanelState(roomId: string | null) {
     const generation = ++generationRef.current
     const name = collabDisplayName(state.localName)
     if (!runtime.room || runtime.roomId !== roomId) {
-    connectCollabSession({
-      roomId,
-      runtime,
-      store: editorStore,
-      setConnected: () => {
-        setState((current) => ({ ...current, connected: true, roomId }))
-      },
-      updatePeersList,
-      applyYjsToGraph,
-      syncNodeToYjs
-    })
-    runtime.awareness?.setLocalStateField('user', {
-      name,
-      color: state.localColor
-    })
-    syncAllNodesToYjs()
-    setState((current) => ({
-      ...current,
-      connected: true,
-      roomId,
-      localName: name
-    }))
+      connectCollabSession({
+        roomId,
+        runtime,
+        store: editorStore,
+        setConnected: () => {
+          setState((current) => ({ ...current, connected: true, roomId }))
+        },
+        updatePeersList,
+        applyYjsToGraph,
+        syncNodeToYjs,
+        syncAllNodesToYjs
+      })
+      runtime.awareness?.setLocalStateField('user', {
+        name,
+        color: state.localColor
+      })
+      // Presence-only until a remote collaborator joins — do not seed Yjs alone.
+      setState((current) => ({
+        ...current,
+        connected: true,
+        roomId,
+        localName: name
+      }))
     }
 
-    const seedTimer = window.setTimeout(() => {
-      if (generationRef.current !== generation) return
-      const ynodes = runtime.ynodes
-      if (ynodes && ynodes.size > 0) syncMissingNodesToYjs()
-      else syncAllNodesToYjs()
-    }, 800)
-
     return () => {
-      window.clearTimeout(seedTimer)
       disposeTimerRef.current = window.setTimeout(() => {
         disposeTimerRef.current = null
         if (generationRef.current !== generation) return
