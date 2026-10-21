@@ -1,17 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useStore } from '@nanostores/react'
-import { ArrowLeft, Check, ChevronRight, LogOut, Settings, Sidebar } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-
-import { IS_BROWSER } from '@open-pencil/core/constants'
-
 import { isNativeTauriShell } from '#react/app/desktop/bridge'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
 import { useAppMenu, type AppMenuGroup } from '#react/app/shell/menu/app-menu'
-import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
-import { SettingsDialog } from '#react/components/settings/SettingsDialog'
 import {
   hasMenuSubItems,
   isMenuAction,
@@ -25,16 +15,26 @@ import {
   runMenuAction,
   updateMenuChecked
 } from '#react/app/shell/menu/entry'
+import { openStorageWorkspace } from '#react/app/shell/menu/navigation'
 import { appMenuShortcutLabel } from '#react/app/shell/menu/shortcut'
 import { applyEditorRulerTheme, useAppTheme } from '#react/app/shell/theme'
+import { SettingsDialog } from '#react/components/settings/SettingsDialog'
 import { AppShortcutText } from '#react/components/ui/AppShortcutText'
 import { useMenuUI } from '#react/components/ui/menu'
 import { Tip } from '#react/components/ui/Tip'
+import { useInlineRename } from '#react/editor/inline-rename/use'
 import type { MenuActionNode, MenuEntry } from '#react/editor/menu-model/types'
 import { useI18n } from '#react/i18n'
-import { authAPI } from '#react/lib/client'
+import { useStore } from '@nanostores/react'
+import { ArrowLeft, Check, ChevronRight, Settings, Sidebar } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
+
+import { IS_BROWSER } from '@open-pencil/core/constants'
 
 const MENU_VIEWPORT_PAD = 8
+const DOCUMENT_NAME_ID = 'document-name'
 
 export function AppMenu() {
   const store = useEditorStore()
@@ -43,9 +43,12 @@ export function AppMenu() {
   const { topMenus } = useAppMenu()
   const { resolvedTheme } = useAppTheme()
   const settingsOpen = useStore(settingsDialogOpen)
-  const [editingName, setEditingName] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const rename = useInlineRename<'document-name'>((_id, name) => {
+    store.state.documentName = name
+    store.notify()
+  })
+  const editingName = rename.editingId === DOCUMENT_NAME_ID
 
   useEffect(() => {
     applyEditorRulerTheme(store)
@@ -59,16 +62,8 @@ export function AppMenu() {
     input.select()
   }, [editingName])
 
-  async function logOut() {
-    if (loggingOut) return
-    setLoggingOut(true)
-    try {
-      await authAPI.logout()
-      void navigate('/login')
-    } finally {
-      setLoggingOut(false)
-    }
-  }
+  // Tauri: OS menu only. Browser + Electron: File/Edit/… under the title row (no wrap into the title).
+  const showInPageMenu = !isNativeTauriShell()
 
   return (
     <div className="shrink-0 border-b border-border">
@@ -84,29 +79,20 @@ export function AppMenu() {
             <ArrowLeft className="size-3.5" />
           </button>
         </Tip>
-        <img data-test-id="app-logo" src="/favicon-32.png" className="size-4" alt="OpenPencil" />
         {editingName ? (
           <input
             ref={nameInputRef}
             data-test-id="app-document-name-input"
             className="min-w-0 flex-1 rounded border border-accent bg-input px-1 py-0.5 text-xs text-surface outline-none"
             defaultValue={store.state.documentName}
-            onBlur={(event) => {
-              store.state.documentName =
-                event.currentTarget.value.trim() || store.state.documentName
-              store.notify()
-              setEditingName(false)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur()
-              if (event.key === 'Escape') setEditingName(false)
-            }}
+            onBlur={(event) => rename.commit(DOCUMENT_NAME_ID, event)}
+            onKeyDown={rename.onKeydown}
           />
         ) : (
           <span
             data-test-id="app-document-name"
-            className="min-w-0 flex-1 cursor-default truncate rounded px-1 py-0.5 text-xs text-surface hover:bg-hover"
-            onDoubleClick={() => setEditingName(true)}
+            className="min-w-0 flex-1 cursor-text truncate rounded px-1 py-0.5 text-xs text-surface hover:bg-hover"
+            onDoubleClick={() => rename.start(DOCUMENT_NAME_ID, store.state.documentName)}
           >
             {store.state.documentName}
           </span>
@@ -133,21 +119,8 @@ export function AppMenu() {
             <Sidebar className="size-3.5" />
           </button>
         </Tip>
-        <Tip label={auth.logOut}>
-          <button
-            type="button"
-            data-test-id="app-log-out"
-            aria-label={auth.logOut}
-            disabled={loggingOut}
-            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-surface disabled:opacity-50"
-            onClick={() => void logOut()}
-          >
-            <LogOut className="size-3.5" />
-          </button>
-        </Tip>
       </div>
-      {/* Tauri owns the OS menu bar; Electron / browser use the in-page menubar. */}
-      {isNativeTauriShell() ? null : <AppMenubar menus={topMenus} />}
+      {showInPageMenu ? <AppMenubar menus={topMenus} /> : null}
       {settingsOpen ? <SettingsDialog /> : null}
     </div>
   )
