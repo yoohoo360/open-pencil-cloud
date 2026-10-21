@@ -16,5 +16,8 @@ public interface PencilSkillGroupRepository extends JpaRepository<PencilSkillGro
     Optional<PencilSkillGroup> findByOwnerIdAndGroupKeyAndIsDeleted(
             String ownerId, String groupKey, Integer isDeleted);
 
+    Optional<PencilSkillGroup> findByOrgIdAndGroupKeyAndIsDeleted(
+            String orgId, String groupKey, Integer isDeleted);
+
     List<PencilSkillGroup> findByIdInAndIsDeleted(Iterable<String> ids, Integer isDeleted);
 }

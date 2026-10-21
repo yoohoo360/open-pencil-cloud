@@ -1,4 +1,3 @@
-import { readStoredUser } from '#react/app/auth/storage'
 import type { DocumentPermissionRequest } from '#react/app/document/access'
 import { OssCoverImage } from '#react/app/document/oss-cover'
 import { normalizeOrgId, readActiveOrgId, writeActiveOrgId } from '#react/app/org/active'
@@ -26,7 +25,6 @@ import {
   FolderOpen,
   LoaderCircle,
   LogOut,
-  Pencil,
   Plus,
   Settings,
   Shield,
@@ -135,18 +133,6 @@ export default function DocumentListView() {
   const [fileBusy, setFileBusy] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
 
-  const [showCreateOrg, setShowCreateOrg] = useState(false)
-  const [editingOrg, setEditingOrg] = useState<OrganizationSummary | null>(null)
-  const [orgName, setOrgName] = useState('')
-  const [orgDescription, setOrgDescription] = useState('')
-  const [orgBusy, setOrgBusy] = useState(false)
-  const [orgError, setOrgError] = useState<string | null>(null)
-
-  const [showTransfer, setShowTransfer] = useState(false)
-  const [transferOwner, setTransferOwner] = useState('')
-  const [transferBusy, setTransferBusy] = useState(false)
-  const [transferError, setTransferError] = useState<string | null>(null)
-
   const [showCreateTeam, setShowCreateTeam] = useState(false)
   const [editingTeam, setEditingTeam] = useState<TeamSummary | null>(null)
   const [teamStep, setTeamStep] = useState<1 | 2 | 3>(1)
@@ -167,7 +153,6 @@ export default function DocumentListView() {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const currentUserId = readStoredUser()?.id?.trim() ?? ''
   const selectedOrg = orgs.find((org) => normalizeOrgId(org.id) === selectedOrgId) ?? null
   const inboxCount = invitations.length + accessRequests.length
 
@@ -341,104 +326,6 @@ export default function DocumentListView() {
     }
   }
 
-  function openCreateOrg() {
-    setEditingOrg(null)
-    setOrgName('')
-    setOrgDescription('')
-    setOrgError(null)
-    setShowCreateOrg(true)
-  }
-
-  function openEditOrg(org?: OrganizationSummary | null) {
-    const target = org ?? selectedOrg
-    if (!target) return
-    setEditingOrg(target)
-    setOrgName(target.name)
-    setOrgDescription(target.description ?? '')
-    setOrgError(null)
-    setShowCreateOrg(true)
-  }
-
-  async function submitOrgForm(event: FormEvent) {
-    event.preventDefault()
-    if (!orgName.trim()) {
-      setOrgError('Organization name is required')
-      return
-    }
-    setOrgBusy(true)
-    setOrgError(null)
-    try {
-      if (editingOrg) {
-        await orgAPI.update(editingOrg.id, {
-          name: orgName.trim(),
-          description: orgDescription.trim() || undefined
-        })
-        setShowCreateOrg(false)
-        await refreshOrgs()
-      } else {
-        const res = await orgAPI.create({
-          name: orgName.trim(),
-          description: orgDescription.trim() || undefined
-        })
-        setShowCreateOrg(false)
-        await refreshOrgs()
-        if (res.data?.id) selectOrg(res.data.id)
-      }
-    } catch (reason) {
-      setOrgError(
-        getAPIErrorMessage(
-          reason,
-          editingOrg ? 'Could not update organization' : 'Could not create organization'
-        )
-      )
-    } finally {
-      setOrgBusy(false)
-    }
-  }
-
-  async function submitTransfer(event: FormEvent) {
-    event.preventDefault()
-    if (!selectedOrgId || !transferOwner.trim()) {
-      setTransferError('Enter username or email')
-      return
-    }
-    setTransferBusy(true)
-    setTransferError(null)
-    try {
-      await orgAPI.transfer(selectedOrgId, transferOwner.trim())
-      setShowTransfer(false)
-      await refreshOrgs()
-    } catch (reason) {
-      setTransferError(getAPIErrorMessage(reason, 'Could not transfer ownership'))
-    } finally {
-      setTransferBusy(false)
-    }
-  }
-
-  function openCreateTeam() {
-    if (!selectedOrgId) {
-      alert('Create or select an organization first')
-      openCreateOrg()
-      return
-    }
-    setEditingTeam(null)
-    setTeamStep(1)
-    setTeamName('')
-    setTeamDescription('')
-    setMemberInput('')
-    setMembers([])
-    setTeamError(null)
-    setShowCreateTeam(true)
-  }
-
-  function openEditTeam(team: TeamSummary) {
-    setEditingTeam(team)
-    setTeamName(team.name)
-    setTeamDescription(team.description ?? '')
-    setTeamError(null)
-    setShowCreateTeam(false)
-  }
-
   function addMemberChip() {
     const value = memberInput.trim()
     if (!value) return
@@ -512,12 +399,6 @@ export default function DocumentListView() {
     }
   }
 
-  function openDeleteTeam(team: TeamSummary) {
-    setDeleteTeam(team)
-    setDeleteConfirmName('')
-    setDeleteError(null)
-  }
-
   async function submitDeleteTeam() {
     if (!deleteTeam) return
     if (deleteConfirmName.trim() !== deleteTeam.name) {
@@ -537,12 +418,6 @@ export default function DocumentListView() {
       setDeleteBusy(false)
     }
   }
-
-  const isOrgOwner =
-    Boolean(selectedOrg) &&
-    Boolean(currentUserId) &&
-    Boolean(selectedOrg?.owner_id) &&
-    currentUserId === selectedOrg?.owner_id?.trim()
 
   const navItemClass = (id: NavId) =>
     `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition ${
@@ -597,11 +472,11 @@ export default function DocumentListView() {
                   className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] text-accent hover:bg-accent/10"
                   onClick={() => {
                     setOrgMenuOpen(false)
-                    openCreateOrg()
+                    void navigate('/orgs')
                   }}
                 >
-                  <Plus className="size-3.5" />
-                  Create organization
+                  <Settings className="size-3.5" />
+                  Manage organizations
                 </button>
               </div>
             </div>
@@ -790,7 +665,7 @@ export default function DocumentListView() {
               type="button"
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted hover:bg-hover hover:text-surface"
               data-test-id="nav-skills"
-              onClick={() => void navigate('/skills')}
+              onClick={() => void navigate('/skill-workspace')}
             >
               <Sparkles className="size-3.5 opacity-70" />
               Skills
@@ -804,23 +679,23 @@ export default function DocumentListView() {
               <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">
                 Your teams
               </span>
-              <button
-                type="button"
-                className="rounded-md p-1 text-muted hover:bg-hover hover:text-surface"
-                title="Create team"
-                onClick={openCreateTeam}
-              >
-                <Plus className="size-3.5" />
-              </button>
+              {selectedOrgId ? (
+                <button
+                  type="button"
+                  className="rounded-md p-1 text-muted hover:bg-hover hover:text-surface"
+                  title="Open organization"
+                  onClick={() => void navigate(`/org/${selectedOrgId}`)}
+                >
+                  <Settings className="size-3.5" />
+                </button>
+              ) : null}
             </div>
 
             <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
               {!selectedOrgId ? (
-                <p className="px-2.5 py-3 text-[11px] leading-relaxed text-muted">
-                  Create an organization to start adding teams.
-                </p>
+                <p className="px-2.5 py-3 text-[11px] text-muted">No organization selected.</p>
               ) : teams.length === 0 ? (
-                <p className="px-2.5 py-3 text-[11px] text-muted">No teams in this organization yet.</p>
+                <p className="px-2.5 py-3 text-[11px] text-muted">No teams yet.</p>
               ) : (
                 teams.map((team) => (
                   <button
@@ -846,34 +721,6 @@ export default function DocumentListView() {
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 px-6">
             <h1 className="text-[15px] font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-2">
-              {nav !== 'trash' && nav !== 'all-teams' && nav !== 'recents' && nav !== 'drafts' ? (
-                (() => {
-                  const activeTeam = teams.find((team) => team.id === nav)
-                  const isOwner =
-                    activeTeam &&
-                    currentUserId &&
-                    activeTeam.owner_id &&
-                    currentUserId === activeTeam.owner_id.trim()
-                  return isOwner && activeTeam ? (
-                    <>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-hover hover:text-surface"
-                        onClick={() => openEditTeam(activeTeam)}
-                      >
-                        Edit team
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-                        onClick={() => openDeleteTeam(activeTeam)}
-                      >
-                        Delete team
-                      </button>
-                    </>
-                  ) : null
-                })()
-              ) : null}
               {nav !== 'trash' && nav !== 'all-teams' ? (
                 <button
                   type="button"
@@ -890,14 +737,14 @@ export default function DocumentListView() {
               ) : null}
               {nav === 'all-teams' ? (
                 <>
-                  {isOrgOwner ? (
+                  {selectedOrgId ? (
                     <button
                       type="button"
                       className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:bg-hover hover:text-surface"
-                      onClick={() => openEditOrg()}
+                      onClick={() => void navigate(`/org/${selectedOrgId}`)}
                     >
                       <Settings className="size-3.5" />
-                      Organization settings
+                      Open organization
                     </button>
                   ) : null}
                   {isAdmin ? (
@@ -910,14 +757,6 @@ export default function DocumentListView() {
                       <Shield className="size-4" />
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent/90"
-                    onClick={openCreateTeam}
-                  >
-                    <Plus className="size-3.5" />
-                    Create team
-                  </button>
                 </>
               ) : null}
             </div>
@@ -934,10 +773,11 @@ export default function DocumentListView() {
             <AllTeamsPanel
               teams={teams}
               orgName={selectedOrg?.name}
-              currentUserId={currentUserId}
               onOpenTeam={(id) => setNav(id)}
-              onEditTeam={openEditTeam}
-              onDeleteTeam={openDeleteTeam}
+              onManageOrg={
+                selectedOrgId ? () => void navigate(`/org/${selectedOrgId}`) : undefined
+              }
+              onManageOrgs={() => void navigate('/orgs')}
             />
             ) : null}
 
@@ -989,121 +829,6 @@ export default function DocumentListView() {
           </div>
         </section>
       </div>
-
-      {showCreateOrg ? (
-        <Modal
-          title={editingOrg ? 'Organization settings' : 'Create organization'}
-          onClose={() => setShowCreateOrg(false)}
-        >
-          <form className="space-y-4" onSubmit={(event) => void submitOrgForm(event)}>
-            <label className="block text-xs font-medium">
-              Name
-              <input
-                value={orgName}
-                autoFocus
-                placeholder="Organization display name"
-                className="mt-1.5 h-10 w-full rounded-lg border border-border bg-canvas px-3 text-sm focus:border-accent focus:outline-none"
-                onChange={(event) => setOrgName(event.target.value)}
-              />
-            </label>
-            {editingOrg ? (
-              <label className="block text-xs font-medium">
-                Org code
-                <input
-                  value={editingOrg.org_code ?? ''}
-                  disabled
-                  className="mt-1.5 h-10 w-full rounded-lg border border-border bg-hover/40 px-3 font-mono text-sm text-muted"
-                />
-              </label>
-            ) : null}
-            <label className="block text-xs font-medium">
-              Description
-              <textarea
-                value={orgDescription}
-                rows={3}
-                placeholder="Optional"
-                className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                onChange={(event) => setOrgDescription(event.target.value)}
-              />
-            </label>
-            <p className="text-[11px] leading-relaxed text-muted">
-              Display names can repeat. Org code is generated automatically and cannot be changed.
-            </p>
-            {editingOrg ? (
-              <button
-                type="button"
-                className="text-[12px] text-muted underline-offset-2 hover:text-surface hover:underline"
-                onClick={() => {
-                  setShowCreateOrg(false)
-                  setTransferOwner('')
-                  setTransferError(null)
-                  setShowTransfer(true)
-                }}
-              >
-                Transfer ownership…
-              </button>
-            ) : null}
-            {orgError ? <p className="text-xs text-danger">{orgError}</p> : null}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-hover"
-                onClick={() => setShowCreateOrg(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={orgBusy}
-                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-              >
-                {orgBusy ? 'Saving…' : editingOrg ? 'Save' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      ) : null}
-
-      {showTransfer ? (
-        <Modal title="Transfer ownership" onClose={() => setShowTransfer(false)}>
-          <form className="space-y-4" onSubmit={(event) => void submitTransfer(event)}>
-            <p className="text-[13px] leading-relaxed text-muted">
-              Transfer{' '}
-              <span className="font-medium text-surface">
-                {selectedOrg?.name}
-              </span>{' '}
-              to another user. You will remain an admin.
-            </p>
-            <label className="block text-xs font-medium">
-              New owner
-              <input
-                value={transferOwner}
-                autoFocus
-                placeholder="Username or email"
-                className="mt-1.5 h-10 w-full rounded-lg border border-border bg-canvas px-3 text-sm focus:border-accent focus:outline-none"
-                onChange={(event) => setTransferOwner(event.target.value)}
-              />
-            </label>
-            {transferError ? <p className="text-xs text-danger">{transferError}</p> : null}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-hover"
-                onClick={() => setShowTransfer(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={transferBusy}
-                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-              >
-                {transferBusy ? 'Transferring…' : 'Transfer'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      ) : null}
 
       {showCreateFile ? (
         <Modal title="New file" onClose={() => setShowCreateFile(false)}>
@@ -1408,17 +1133,15 @@ export default function DocumentListView() {
 function AllTeamsPanel({
   teams,
   orgName,
-  currentUserId,
   onOpenTeam,
-  onEditTeam,
-  onDeleteTeam
+  onManageOrg,
+  onManageOrgs
 }: {
   teams: TeamSummary[]
   orgName?: string
-  currentUserId: string
   onOpenTeam: (id: string) => void
-  onEditTeam: (team: TeamSummary) => void
-  onDeleteTeam: (team: TeamSummary) => void
+  onManageOrg?: () => void
+  onManageOrgs?: () => void
 }) {
   return (
     <div className="space-y-6">
@@ -1428,66 +1151,59 @@ function AllTeamsPanel({
         </h2>
         {teams.length === 0 ? (
           <p className="text-sm text-muted">
-            {orgName ? 'No teams in this organization yet.' : 'Select or create an organization first.'}
+            {orgName ? (
+              <>
+                No teams in this organization yet.{' '}
+                {onManageOrg ? (
+                  <button
+                    type="button"
+                    className="text-accent hover:underline"
+                    onClick={onManageOrg}
+                  >
+                    Open organization
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                Select an organization, or open{' '}
+                {onManageOrgs ? (
+                  <button
+                    type="button"
+                    className="text-accent hover:underline"
+                    onClick={onManageOrgs}
+                  >
+                    Organizations
+                  </button>
+                ) : (
+                  'Organizations'
+                )}
+                .
+              </>
+            )}
           </p>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
-            {teams.map((team) => {
-              const isOwner =
-                Boolean(currentUserId) &&
-                Boolean(team.owner_id) &&
-                currentUserId === team.owner_id?.trim()
-              return (
-                <div
-                  key={team.id}
-                  className="group relative flex items-start gap-3.5 rounded-2xl border border-border/50 bg-canvas px-4 py-4 transition hover:border-accent/35 hover:bg-hover/30"
+            {teams.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                className="flex items-start gap-3.5 rounded-2xl border border-border/50 bg-canvas px-4 py-4 text-left transition hover:border-accent/35 hover:bg-hover/30"
+                onClick={() => onOpenTeam(team.id)}
+              >
+                <span
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white ${teamColor(team.id)}`}
                 >
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-start gap-3.5 text-left"
-                    onClick={() => onOpenTeam(team.id)}
-                  >
-                    <span
-                      className={`flex size-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white ${teamColor(team.id)}`}
-                    >
-                      {teamInitial(team.name)}
-                    </span>
-                    <span className="min-w-0 pt-0.5">
-                      <span className="block truncate text-sm font-semibold">{team.name}</span>
-                      <span className="mt-1 block text-[12px] text-muted">
-                        {team.member_count != null ? `${team.member_count} members` : 'Team'}
-                      </span>
-                    </span>
-                  </button>
-                  {isOwner ? (
-                    <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 transition group-hover:opacity-100">
-                      <button
-                        type="button"
-                        className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-surface"
-                        title="Edit team"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onEditTeam(team)
-                        }}
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-danger"
-                        title="Delete team"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onDeleteTeam(team)
-                        }}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
+                  {teamInitial(team.name)}
+                </span>
+                <span className="min-w-0 pt-0.5">
+                  <span className="block truncate text-sm font-semibold">{team.name}</span>
+                  <span className="mt-1 block text-[12px] text-muted">
+                    {team.member_count != null ? `${team.member_count} members` : 'Team'}
+                  </span>
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>

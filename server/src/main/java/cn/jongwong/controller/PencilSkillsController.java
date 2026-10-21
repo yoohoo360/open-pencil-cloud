@@ -36,6 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,7 +69,6 @@ public class PencilSkillsController {
                 userId,
                 request.getName(),
                 request.getDescription(),
-                request.getGroupKey(),
                 request.getTeamIds(),
                 orgId);
         return ApiResponse.ok(toGroupResponse(userId, group, orgId));
@@ -83,7 +83,44 @@ public class PencilSkillsController {
         String userId = requireUserId();
         PencilSkillGroup group = pencilSkillService.requireGroup(id);
         pencilSkillService.updateGroup(
-                userId, group, request.getName(), request.getDescription(), request.getTeamIds(), orgId);
+                userId,
+                group,
+                request.getName(),
+                request.getDescription(),
+                request.getTeamIds(),
+                orgId);
+        return ApiResponse.ok(toGroupResponse(userId, group, orgId));
+    }
+
+    @GetMapping("/groups/{id}/managers")
+    public ApiResponse<List<String>> listGroupManagers(@PathVariable String id) {
+        String userId = requireUserId();
+        PencilSkillGroup group = pencilSkillService.requireGroup(id);
+        pencilSkillService.requireCanReadGroup(userId, group);
+        return ApiResponse.ok(pencilSkillService.listGroupManagerIds(group.getId()));
+    }
+
+    @PostMapping("/groups/{id}/managers")
+    public ApiResponse<SkillGroupResponse> addGroupManager(
+            @PathVariable String id,
+            @RequestParam(value = "org_id", required = false) String orgId,
+            @RequestBody Map<String, String> body
+    ) {
+        String userId = requireUserId();
+        PencilSkillGroup group = pencilSkillService.requireGroup(id);
+        pencilSkillService.addGroupManager(userId, group, body == null ? null : body.get("user_id"));
+        return ApiResponse.ok(toGroupResponse(userId, group, orgId));
+    }
+
+    @DeleteMapping("/groups/{id}/managers/{managerId}")
+    public ApiResponse<SkillGroupResponse> removeGroupManager(
+            @PathVariable String id,
+            @PathVariable String managerId,
+            @RequestParam(value = "org_id", required = false) String orgId
+    ) {
+        String userId = requireUserId();
+        PencilSkillGroup group = pencilSkillService.requireGroup(id);
+        pencilSkillService.removeGroupManager(userId, group, managerId);
         return ApiResponse.ok(toGroupResponse(userId, group, orgId));
     }
 
@@ -357,7 +394,13 @@ public class PencilSkillsController {
         }
         String key = PencilSkillService.sanitizeKey(request.getSkillKey());
         if (!key.equals(skill.getSkillKey())) {
-            throw ApiException.badRequest("Skill key cannot be changed after create");
+            if (skill.isTeamRemote()) {
+                pencilSkillService.assertTeamSkillKeyAvailable(orgId, skill.getTeamId(), key, skill.getId());
+            } else {
+                pencilSkillService.assertPersonalSkillKeyAvailable(orgId, userId, key, skill.getId());
+            }
+            skill.setSkillKey(key);
+            skill.setName(key);
         }
         skill.setOrgId(orgId);
         // Display name is immutable via this field; SKILL.md frontmatter sync updates name/desc.

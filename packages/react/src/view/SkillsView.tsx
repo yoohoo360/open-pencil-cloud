@@ -10,6 +10,7 @@ import { zipSkillFolder } from '#react/app/skills/package-zip'
 import { CodeEditor } from '#react/components/code-editor/CodeEditor'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppInput } from '#react/components/ui/AppInput'
+import { AppMultiSelect } from '#react/components/ui/AppMultiSelect'
 import { useDialogUI } from '#react/components/ui/dialog'
 import { useI18n } from '#react/i18n'
 import {
@@ -33,7 +34,6 @@ import {
   FilePlus,
   FileText,
   Folder,
-  FolderOpen,
   FolderPlus,
   GitPullRequest,
   Plus,
@@ -48,21 +48,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import {
-  groupIdFromSkillsTab,
-  readSkillsTab,
-  skillsTabFromGroupId,
-  skillsTabSearchEquals,
-  SKILLS_TAB_IDS,
-  writeSkillsTab
-} from '#react/app/skills/skills-url'
-
-import WorkdirView from './WorkdirView'
+import { readSkillsTab, SKILLS_TAB, SKILLS_TAB_IDS } from '#react/app/skills/skills-url'
 
 type ViewMode = 'list' | 'edit'
 
-const SKILL_WORKSPACE_ID = SKILLS_TAB_IDS.workspace
-const ALL_PERSONAL_ID = SKILLS_TAB_IDS.allPersonal
+const OWNER_SKILLS_ID = SKILLS_TAB_IDS.ownerSkills
 
 type Draft = {
   id?: string
@@ -132,11 +122,6 @@ function toDraft(skill: PencilSkill): Draft {
   }
 }
 
-function categoryLabel(category: SkillCatalogCategory, personalLabel: string): string {
-  if (category.kind === 'personal') return personalLabel
-  return category.team_name?.trim() || 'Team'
-}
-
 function findEntry(nodes: SkillEntry[], id: string): SkillEntry | null {
   for (const node of nodes) {
     if (node.id === id) return node
@@ -177,6 +162,15 @@ function isRemotesGroup(group: PencilSkillGroup): boolean {
   return Boolean(group.group_key?.startsWith('tr-') || group.id.startsWith('__team_remotes__:'))
 }
 
+/** Owned by me and not bound to any team. */
+function isOwnerGroup(group: PencilSkillGroup): boolean {
+  return (
+    Boolean(group.owned_by_me) &&
+    !isRemotesGroup(group) &&
+    (group.team_ids?.length ?? 0) === 0
+  )
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -188,7 +182,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function SkillsView() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { panels, dialogs } = useI18n()
   const newGroupDialog = useDialogUI(
     {
@@ -199,9 +193,7 @@ export default function SkillsView() {
   )
   const [categories, setCategories] = useState<SkillCatalogCategory[]>([])
   const [teams, setTeams] = useState<TeamSummary[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState(() =>
-    groupIdFromSkillsTab(readSkillsTab(searchParams))
-  )
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(OWNER_SKILLS_ID)
   const [mode, setMode] = useState<ViewMode>('list')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -209,8 +201,14 @@ export default function SkillsView() {
   const [error, setError] = useState('')
   const [newGroupOpen, setNewGroupOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupTeamId, setNewGroupTeamId] = useState<string | null>(null)
   const [addingGroup, setAddingGroup] = useState(false)
-  const [shareOpen, setShareOpen] = useState(false)
+  const [editGroupOpen, setEditGroupOpen] = useState(false)
+  const [editGroupName, setEditGroupName] = useState('')
+  const [savingGroup, setSavingGroup] = useState(false)
+  const [groupManagers, setGroupManagers] = useState<string[]>([])
+  const [managerUserId, setManagerUserId] = useState('')
+  const [managerBusy, setManagerBusy] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeRequests, setMergeRequests] = useState<SkillMergeRequest[]>([])
   const [shareSkillId, setShareSkillId] = useState<string | null>(null)
@@ -248,16 +246,37 @@ export default function SkillsView() {
   }, [categories, selectedGroupId])
 
   const skills = selectedGroup?.group.skills ?? []
-  const sharedTeamIds = new Set(selectedGroup?.group.team_ids ?? [])
   const remotesGroup = selectedGroup ? isRemotesGroup(selectedGroup.group) : false
-  const personalGroups = useMemo(
-    () =>
-      categories
-        .filter((category) => category.kind === 'personal')
-        .flatMap((category) => category.groups)
-        .filter((group) => group.owned_by_me && !isRemotesGroup(group)),
+  const skillGroupCategory = useMemo(
+    () => categories.find((category) => category.kind === 'personal') ?? null,
     [categories]
   )
+  const teamRemoteCategories = useMemo(
+    () => categories.filter((category) => category.kind === 'team'),
+    [categories]
+  )
+  const ownerGroups = useMemo(
+    () => (skillGroupCategory?.groups ?? []).filter(isOwnerGroup),
+    [skillGroupCategory]
+  )
+  /** Bound to one or more teams — listed flat, not nested under a team. */
+  const boundGroups = useMemo(
+    () =>
+      (skillGroupCategory?.groups ?? []).filter(
+        (group) => !isRemotesGroup(group) && !isOwnerGroup(group)
+      ),
+    [skillGroupCategory]
+  )
+  const ownerSkills = useMemo(() => {
+    const unique = new Map<string, PencilSkill>()
+    for (const group of ownerGroups) {
+      for (const skill of group.skills ?? []) {
+        if (!isTeamRemote(skill)) unique.set(skill.id, skill)
+      }
+    }
+    return [...unique.values()]
+  }, [ownerGroups])
+  const showingOwnerSkills = selectedGroupId === OWNER_SKILLS_ID
   const teamRemoteKeys = useMemo(() => {
     const keys = new Set<string>()
     for (const category of categories) {
@@ -270,15 +289,6 @@ export default function SkillsView() {
     }
     return keys
   }, [categories])
-  const allPersonalSkills = useMemo(() => {
-    const unique = new Map<string, PencilSkill>()
-    for (const group of personalGroups) {
-      for (const skill of group.skills ?? []) {
-        if (!isTeamRemote(skill)) unique.set(skill.id, skill)
-      }
-    }
-    return [...unique.values()]
-  }, [personalGroups])
   const editingRemote = useMemo(() => {
     if (!draft?.id) return false
     for (const category of categories) {
@@ -290,10 +300,9 @@ export default function SkillsView() {
     return remotesGroup
   }, [categories, draft?.id, remotesGroup])
   const listSkills = useMemo(() => {
-    if (selectedGroupId === ALL_PERSONAL_ID) return allPersonalSkills
+    if (showingOwnerSkills) return ownerSkills
     return skills
-  }, [ALL_PERSONAL_ID, allPersonalSkills, selectedGroupId, skills])
-  const showingPersonalAll = selectedGroupId === ALL_PERSONAL_ID
+  }, [showingOwnerSkills, ownerSkills, skills])
 
   async function reload(preferGroupId?: string) {
     const orgId = readActiveOrgId() || undefined
@@ -309,17 +318,18 @@ export default function SkillsView() {
     setTeams(teamRes.data ?? [])
     setMergeRequests(mrRes.data ?? [])
     const preferred = preferGroupId || selectedGroupId
+    const allGroups = next.flatMap((category) => category.groups)
     const exists =
-      preferred === ALL_PERSONAL_ID ||
-      preferred === SKILL_WORKSPACE_ID ||
-      next.some((category) => category.groups.some((group) => group.id === preferred))
-    const fallback =
-      ALL_PERSONAL_ID ||
-      next.find((category) => category.kind === 'personal')?.groups[0]?.id ||
-      next.flatMap((category) => category.groups)[0]?.id ||
-      ''
-    setSelectedGroupId(exists && preferred ? preferred : fallback)
+      preferred === OWNER_SKILLS_ID ||
+      (Boolean(preferred) && allGroups.some((group) => group.id === preferred))
+    setSelectedGroupId(exists && preferred ? preferred : OWNER_SKILLS_ID)
   }
+
+  useEffect(() => {
+    if (readSkillsTab(searchParams) === SKILLS_TAB.workspace) {
+      void navigate('/skill-workspace', { replace: true })
+    }
+  }, [navigate, searchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -337,17 +347,6 @@ export default function SkillsView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load
   }, [panels.skillsLoadFailed])
-
-  // One-shot: drop legacy group/skill/entry/workdir keys; keep only `tab`.
-  useEffect(() => {
-    setSearchParams(
-      (current) => {
-        const next = writeSkillsTab(current, readSkillsTab(current))
-        return skillsTabSearchEquals(current, next) ? current : next
-      },
-      { replace: true }
-    )
-  }, [setSearchParams])
 
   async function loadTree(skillId: string, preferEntryId?: string) {
     const response = await skillAPI.tree(skillId)
@@ -378,9 +377,9 @@ export default function SkillsView() {
 
   function openCreateSkill() {
     const groupId =
-      (showingPersonalAll ? personalGroups[0]?.id : null) ||
+      (showingOwnerSkills ? ownerGroups[0]?.id : null) ||
       (selectedGroup && !remotesGroup ? selectedGroup.group.id : null) ||
-      personalGroups[0]?.id
+      ownerGroups[0]?.id
     if (!groupId) return
     const next = emptyDraft(groupId)
     setDraft(next)
@@ -399,10 +398,6 @@ export default function SkillsView() {
   function updateDraftMeta(patch: Partial<Pick<Draft, 'description' | 'skill_key'>>) {
     setDraft((prev) => {
       if (!prev) return prev
-      if (prev.id && patch.skill_key !== undefined) {
-        const { skill_key: _ignored, ...rest } = patch
-        patch = rest
-      }
       const next = { ...prev, ...patch }
       if (patch.skill_key !== undefined) {
         next.name = next.skill_key
@@ -423,18 +418,6 @@ export default function SkillsView() {
     })
   }
 
-  /** Only `tab` in the URL: workspace vs all skills. Avoid rewrite when unchanged. */
-  function syncSkillsTab(groupId: string) {
-    const tab = skillsTabFromGroupId(groupId)
-    setSearchParams(
-      (current) => {
-        const next = writeSkillsTab(current, tab)
-        return skillsTabSearchEquals(current, next) ? current : next
-      },
-      { replace: true }
-    )
-  }
-
   function selectGroup(groupId: string) {
     setSelectedGroupId(groupId)
     setMode('list')
@@ -442,9 +425,7 @@ export default function SkillsView() {
     setTree([])
     setSelectedEntryId('')
     setFileDraft('')
-    setShareOpen(false)
     setError('')
-    syncSkillsTab(groupId)
   }
 
   function openEditSkill(skill: PencilSkill) {
@@ -467,7 +448,6 @@ export default function SkillsView() {
     setFileDraft('')
     setEntryDialog(null)
     setError('')
-    setShareOpen(false)
   }
 
   function selectEntry(entry: SkillEntry) {
@@ -649,8 +629,13 @@ export default function SkillsView() {
     }
   }
 
-  function openNewGroupDialog() {
+  function canManageSelectedGroup(): boolean {
+    return Boolean(selectedGroup?.group.managed_by_me || selectedGroup?.group.owned_by_me)
+  }
+
+  function openNewGroupDialog(teamId?: string | null) {
     setNewGroupName('')
+    setNewGroupTeamId(teamId ?? null)
     setError('')
     setNewGroupOpen(true)
   }
@@ -659,17 +644,88 @@ export default function SkillsView() {
     if (addingGroup) return
     setNewGroupOpen(false)
     setNewGroupName('')
+    setNewGroupTeamId(null)
   }
 
-  async function createGroup() {
-    if (!newGroupName.trim()) return
-    setAddingGroup(true)
+  async function loadGroupManagers(groupId: string) {
+    try {
+      const res = await skillAPI.listGroupManagers(groupId)
+      setGroupManagers(res.data ?? [])
+    } catch {
+      setGroupManagers([])
+    }
+  }
+
+  function openEditGroupDialog() {
+    if (!canManageSelectedGroup() || remotesGroup || !selectedGroup) return
+    setEditGroupName(selectedGroup.group.name)
+    setManagerUserId('')
+    setError('')
+    setEditGroupOpen(true)
+    void loadGroupManagers(selectedGroup.group.id)
+  }
+
+  function closeEditGroupDialog() {
+    if (savingGroup || managerBusy) return
+    setEditGroupOpen(false)
+    setManagerUserId('')
+  }
+
+  async function addGroupManager() {
+    if (!selectedGroup || !managerUserId.trim()) return
+    setManagerBusy(true)
     setError('')
     try {
       const orgId = readActiveOrgId() || undefined
-      const response = await skillAPI.createGroup({ name: newGroupName.trim() }, { org_id: orgId })
+      await skillAPI.addGroupManager(selectedGroup.group.id, managerUserId.trim(), {
+        org_id: orgId
+      })
+      setManagerUserId('')
+      await loadGroupManagers(selectedGroup.group.id)
+      await reload(selectedGroup.group.id)
+    } catch (reason) {
+      setError(getAPIErrorMessage(reason, panels.skillGroupManagerAddFailed))
+    } finally {
+      setManagerBusy(false)
+    }
+  }
+
+  async function removeGroupManager(managerId: string) {
+    if (!selectedGroup) return
+    setManagerBusy(true)
+    setError('')
+    try {
+      const orgId = readActiveOrgId() || undefined
+      await skillAPI.removeGroupManager(selectedGroup.group.id, managerId, { org_id: orgId })
+      await loadGroupManagers(selectedGroup.group.id)
+      await reload(selectedGroup.group.id)
+    } catch (reason) {
+      setError(getAPIErrorMessage(reason, panels.skillGroupManagerRemoveFailed))
+    } finally {
+      setManagerBusy(false)
+    }
+  }
+
+  async function createGroup() {
+    if (!newGroupName.trim()) {
+      setError(panels.skillGroupRequiredFields)
+      return
+    }
+    setAddingGroup(true)
+    setError('')
+    try {
+      const orgId = readActiveOrgId()
+      if (!orgId) throw new Error(panels.skillsOrgRequired)
+      const response = await skillAPI.createGroup(
+        {
+          name: newGroupName.trim(),
+          team_ids: newGroupTeamId ? [newGroupTeamId] : undefined
+        },
+        { org_id: orgId }
+      )
       setNewGroupOpen(false)
       setNewGroupName('')
+      setNewGroupTeamId(null)
       await reload(response.data?.id)
     } catch (reason) {
       setError(getAPIErrorMessage(reason, panels.skillGroupSaveFailed))
@@ -678,39 +734,67 @@ export default function SkillsView() {
     }
   }
 
+  async function saveGroup() {
+    if (!canManageSelectedGroup() || !selectedGroup) return
+    if (!editGroupName.trim()) {
+      setError(panels.skillGroupRequiredFields)
+      return
+    }
+    setSavingGroup(true)
+    setError('')
+    try {
+      const orgId = readActiveOrgId()
+      if (!orgId) throw new Error(panels.skillsOrgRequired)
+      await skillAPI.updateGroup(
+        selectedGroup.group.id,
+        {
+          name: editGroupName.trim(),
+          description: selectedGroup.group.description
+        },
+        { org_id: orgId }
+      )
+      setEditGroupOpen(false)
+      await reload(selectedGroup.group.id)
+    } catch (reason) {
+      setError(getAPIErrorMessage(reason, panels.skillGroupUpdateFailed))
+    } finally {
+      setSavingGroup(false)
+    }
+  }
+
   useEffect(() => {
-    if (!newGroupOpen) return
+    if (!newGroupOpen && !editGroupOpen) return
     function onKey(event: KeyboardEvent) {
       if (event.key !== 'Escape' && event.code !== 'Escape') return
-      if (addingGroup) return
-      setNewGroupOpen(false)
-      setNewGroupName('')
+      if (addingGroup || savingGroup) return
+      if (newGroupOpen) {
+        setNewGroupOpen(false)
+        setNewGroupName('')
+        setNewGroupTeamId(null)
+      }
+      if (editGroupOpen) setEditGroupOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [newGroupOpen, addingGroup])
+  }, [newGroupOpen, editGroupOpen, addingGroup, savingGroup])
 
   async function deleteGroup(group: PencilSkillGroup) {
-    if (!group.owned_by_me) return
+    if (!group.managed_by_me && !group.owned_by_me) return
     setError('')
     try {
       await skillAPI.removeGroup(group.id)
       await reload()
-      setShareOpen(false)
     } catch (reason) {
       setError(getAPIErrorMessage(reason, panels.skillGroupDeleteFailed))
     }
   }
 
-  async function toggleTeamShare(teamId: string) {
-    if (!selectedGroup?.group.owned_by_me || remotesGroup) return
-    const next = new Set(selectedGroup.group.team_ids ?? [])
-    if (next.has(teamId)) next.delete(teamId)
-    else next.add(teamId)
+  async function setBoundTeams(teamIds: string[]) {
+    if (!canManageSelectedGroup() || remotesGroup || !selectedGroup) return
     setError('')
     try {
       const orgId = readActiveOrgId() || undefined
-      await skillAPI.setGroupTeams(selectedGroup.group.id, [...next], { org_id: orgId })
+      await skillAPI.setGroupTeams(selectedGroup.group.id, teamIds, { org_id: orgId })
       await reload(selectedGroup.group.id)
     } catch (reason) {
       setError(getAPIErrorMessage(reason, panels.skillGroupShareFailed))
@@ -790,7 +874,7 @@ export default function SkillsView() {
   async function fetchRemote(skill: PencilSkill) {
     const orgId = readActiveOrgId()
     const teamId = skill.team_id || selectedGroup?.category.team_id
-    const targetGroupId = personalGroups[0]?.id || selectedGroupId
+    const targetGroupId = ownerGroups[0]?.id || selectedGroupId
     if (!orgId || !teamId || !targetGroupId) {
       setError(panels.skillsOrgRequired)
       return
@@ -838,96 +922,67 @@ export default function SkillsView() {
           aria-label="Back"
           onClick={() => {
             if (mode === 'edit') backToList()
-            else void navigate('/dashboard')
+            else void navigate('/skill-workspace')
           }}
         >
           <ArrowLeft className="size-4" />
         </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[17px] font-semibold tracking-tight">
-            {mode === 'edit'
-              ? draft?.id
-                ? panels.updateSkill
-                : panels.createSkill
-              : selectedGroupId === SKILL_WORKSPACE_ID
-                ? panels.workdirTitle
-                : panels.manageSkills}
-          </h1>
-          <p className="truncate text-[11px] text-muted">
-            {mode === 'edit'
-              ? panels.skillContent
-              : selectedGroupId === SKILL_WORKSPACE_ID
-                ? panels.workdirHelp
-                : panels.manageSkillsHelp}
-          </p>
-        </div>
+        <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold tracking-tight">
+          {mode === 'edit'
+            ? draft?.id
+              ? panels.updateSkill
+              : panels.createSkill
+            : panels.manageSkills}
+        </h1>
       </header>
 
       {mode === 'list' ? (
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-64 shrink-0 flex-col border-r border-border/60">
             <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-              <div className="mb-4">
-                <div className="mb-1 flex items-center gap-1.5 px-2.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
-                  <FolderOpen className="size-3 opacity-70" />
-                  {panels.workdirNavSection}
-                </div>
-                <button
-                  type="button"
-                  data-test-id="skill-workspace-nav"
-                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
-                    selectedGroupId === SKILL_WORKSPACE_ID
-                      ? 'bg-hover font-medium text-surface'
-                      : 'text-muted hover:bg-hover hover:text-surface'
-                  }`}
-                  onClick={() => selectGroup(SKILL_WORKSPACE_ID)}
-                >
-                  <span className="min-w-0 flex-1 truncate">{panels.workdirTitle}</span>
-                </button>
-              </div>
               {loading ? (
                 <p className="px-2 py-3 text-[11px] text-muted">{panels.loading}</p>
               ) : (
-                categories.map((category) => (
-                  <div key={`${category.kind}:${category.team_id ?? 'personal'}`} className="mb-4">
-                    <div className="mb-1 flex items-center gap-1.5 px-2.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
-                      {category.kind === 'personal' ? (
-                        <Sparkles className="size-3 opacity-70" />
-                      ) : (
-                        <Users className="size-3 opacity-70" />
-                      )}
-                      {categoryLabel(category, panels.skillsFilterPersonal)}
-                    </div>
-                    {category.kind === 'personal' ? (
-                      <div className="mb-0.5 space-y-0.5">
-                        <button
-                          type="button"
-                          data-test-id="skill-group-all-personal"
-                          className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
-                            selectedGroupId === ALL_PERSONAL_ID
-                              ? 'bg-hover font-medium text-surface'
-                              : 'text-muted hover:bg-hover hover:text-surface'
-                          }`}
-                          onClick={() => selectGroup(ALL_PERSONAL_ID)}
-                        >
-                          <span className="min-w-0 flex-1 truncate">{panels.allMySkills}</span>
-                          <span className="shrink-0 text-[10px] text-muted">
-                            {allPersonalSkills.length}
-                          </span>
-                        </button>
+                <>
+                  <div className="mb-4 space-y-0.5">
+                    <button
+                      type="button"
+                      data-test-id="skill-owner-skills"
+                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
+                        showingOwnerSkills
+                          ? 'bg-hover font-medium text-surface'
+                          : 'text-muted hover:bg-hover hover:text-surface'
+                      }`}
+                      onClick={() => selectGroup(OWNER_SKILLS_ID)}
+                    >
+                      <Sparkles className="size-3.5 shrink-0 opacity-70" />
+                      <span className="min-w-0 flex-1 truncate">{panels.ownerSkills}</span>
+                      <span className="shrink-0 text-[10px] text-muted">{ownerSkills.length}</span>
+                    </button>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="mb-1 flex items-center gap-1 px-2.5">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                        {panels.skillsNavGroups}
                       </div>
-                    ) : null}
-                    {category.groups.length === 0 && category.kind !== 'personal' ? (
+                      <button
+                        type="button"
+                        className="rounded p-0.5 text-muted hover:bg-hover hover:text-surface"
+                        title={panels.createSkillGroup}
+                        data-test-id="add-skill-group"
+                        onClick={() => openNewGroupDialog(null)}
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                    {ownerGroups.length === 0 ? (
                       <p className="px-2.5 py-1 text-[11px] text-muted">
-                        {panels.noSkillGroupsTeam}
-                      </p>
-                    ) : category.groups.length === 0 && category.kind === 'personal' ? (
-                      <p className="px-2.5 py-1 text-[11px] text-muted">
-                        {panels.noSkillGroupsPersonal}
+                        {panels.noOwnerSkillGroups}
                       </p>
                     ) : (
                       <div className="space-y-0.5">
-                        {category.groups.map((group) => (
+                        {ownerGroups.map((group) => (
                           <div key={group.id} className="group/row flex items-center gap-0.5">
                             <button
                               type="button"
@@ -944,7 +999,7 @@ export default function SkillsView() {
                                 {group.skill_count ?? group.skills?.length ?? 0}
                               </span>
                             </button>
-                            {group.owned_by_me && !isRemotesGroup(group) ? (
+                            {(group.managed_by_me || group.owned_by_me) ? (
                               <button
                                 type="button"
                                 className="rounded p-1 text-muted opacity-0 hover:bg-hover hover:text-danger group-hover/row:opacity-100"
@@ -959,35 +1014,124 @@ export default function SkillsView() {
                       </div>
                     )}
                   </div>
-                ))
+
+                  {boundGroups.length > 0 ? (
+                    <div className="mb-4">
+                      <div className="mb-1 flex items-center gap-1.5 px-2.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                        {panels.skillsNavBound}
+                      </div>
+                      <div className="space-y-0.5">
+                        {boundGroups.map((group) => (
+                          <div key={group.id} className="group/row flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              data-test-id={`skill-group-${group.id}`}
+                              className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
+                                selectedGroupId === group.id
+                                  ? 'bg-hover font-medium text-surface'
+                                  : 'text-muted hover:bg-hover hover:text-surface'
+                              }`}
+                              onClick={() => selectGroup(group.id)}
+                            >
+                              <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                              <span className="shrink-0 text-[10px] text-muted">
+                                {group.skill_count ?? group.skills?.length ?? 0}
+                              </span>
+                            </button>
+                            {(group.managed_by_me || group.owned_by_me) ? (
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted opacity-0 hover:bg-hover hover:text-danger group-hover/row:opacity-100"
+                                title={panels.deleteSkillGroup}
+                                onClick={() => void deleteGroup(group)}
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mb-2">
+                    <div className="mb-1 flex items-center gap-1 px-2.5">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                        <Users className="size-3 opacity-70" />
+                        {panels.skillsFilterTeam}
+                      </div>
+                    </div>
+                    {teams.length === 0 ? (
+                      <p className="px-2.5 py-1 text-[11px] text-muted">
+                        {panels.noTeamsToShareSkillGroup}
+                      </p>
+                    ) : (
+                      teams.map((team) => {
+                        const remotes = teamRemoteCategories.find(
+                          (category) => category.team_id === team.id
+                        )
+                        return (
+                          <div key={team.id} className="mb-2">
+                            <div className="flex items-center gap-1 px-2.5 py-0.5">
+                              <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-muted">
+                                {team.name}
+                              </span>
+                              <button
+                                type="button"
+                                className="rounded p-0.5 text-muted hover:bg-hover hover:text-surface"
+                                title={panels.createSkillGroup}
+                                data-test-id={`add-skill-group-team-${team.id}`}
+                                onClick={() => openNewGroupDialog(team.id)}
+                              >
+                                <Plus className="size-3.5" />
+                              </button>
+                            </div>
+                            {remotes?.groups.map((group) => (
+                              <button
+                                key={group.id}
+                                type="button"
+                                data-test-id={`skill-group-${group.id}`}
+                                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs ${
+                                  selectedGroupId === group.id
+                                    ? 'bg-hover font-medium text-surface'
+                                    : 'text-muted hover:bg-hover hover:text-surface'
+                                }`}
+                                onClick={() => selectGroup(group.id)}
+                              >
+                                <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                                <span className="shrink-0 text-[10px] text-muted">
+                                  {group.skill_count ?? group.skills?.length ?? 0}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </>
               )}
-            </div>
-            <div className="shrink-0 border-t border-border/60 p-2">
-              <AppButton
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                data-test-id="add-skill-group"
-                onClick={openNewGroupDialog}
-              >
-                <FolderPlus className="size-3.5" />
-                {panels.createSkillGroup}
-              </AppButton>
             </div>
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {selectedGroupId === SKILL_WORKSPACE_ID ? (
-              <WorkdirView />
-            ) : (
-              <>
             <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 px-5">
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold">
-                {showingPersonalAll
-                  ? panels.allMySkills
+                {showingOwnerSkills
+                  ? panels.ownerSkills
                   : (selectedGroup?.group.name ?? panels.manageSkills)}
               </h2>
+              {canManageSelectedGroup() && !remotesGroup ? (
+                <AppMultiSelect
+                  className="w-44"
+                  label={panels.bindSkillGroupTeams}
+                  placeholder={panels.bindSkillGroupTeams}
+                  data-test-id="skills-bind-teams"
+                  values={[...(selectedGroup?.group.team_ids ?? [])]}
+                  options={teams.map((team) => ({ value: team.id, label: team.name }))}
+                  onChange={(next) => void setBoundTeams(next)}
+                />
+              ) : null}
               <AppButton
                 color="neutral"
                 variant="ghost"
@@ -1001,25 +1145,24 @@ export default function SkillsView() {
                   <span className="text-[10px] text-muted">({mergeRequests.length})</span>
                 ) : null}
               </AppButton>
-              {selectedGroup?.group.owned_by_me && !remotesGroup ? (
+              {canManageSelectedGroup() && !remotesGroup ? (
                 <AppButton
                   color="neutral"
                   variant="ghost"
                   size="sm"
-                  data-test-id="skills-share-group"
-                  onClick={() => setShareOpen((open) => !open)}
+                  data-test-id="skills-edit-group"
+                  onClick={openEditGroupDialog}
                 >
-                  <Share2 className="size-3.5" />
-                  {panels.shareSkillGroup}
+                  {panels.editSkillGroup}
                 </AppButton>
               ) : null}
-              {!remotesGroup && (showingPersonalAll || selectedGroup) ? (
+              {!remotesGroup && (showingOwnerSkills || selectedGroup) ? (
                 <AppButton
                   color="primary"
                   variant="solid"
                   size="sm"
                   data-test-id="skills-add"
-                  disabled={showingPersonalAll ? personalGroups.length === 0 : !selectedGroup}
+                  disabled={showingOwnerSkills ? ownerGroups.length === 0 : !selectedGroup}
                   onClick={openCreateSkill}
                 >
                   <Plus className="size-3.5" />
@@ -1087,35 +1230,6 @@ export default function SkillsView() {
               </div>
             ) : null}
 
-            {shareOpen && selectedGroup?.group.owned_by_me && !remotesGroup ? (
-              <div className="shrink-0 border-b border-border/60 px-5 py-3">
-                <p className="mb-2 text-[11px] text-muted">{panels.shareSkillGroupHelp}</p>
-                {teams.length === 0 ? (
-                  <p className="text-[11px] text-muted">{panels.noTeamsToShareSkillGroup}</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {teams.map((team) => {
-                      const active = sharedTeamIds.has(team.id)
-                      return (
-                        <button
-                          key={team.id}
-                          type="button"
-                          className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                            active
-                              ? 'border-accent bg-accent/10 text-surface'
-                              : 'border-border text-muted hover:bg-hover'
-                          }`}
-                          onClick={() => void toggleTeamShare(team.id)}
-                        >
-                          {team.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
             {error ? (
               <p
                 role="alert"
@@ -1126,20 +1240,25 @@ export default function SkillsView() {
             ) : null}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              {!showingPersonalAll && !selectedGroup ? (
+              {!showingOwnerSkills && !selectedGroup ? (
                 <div className="flex flex-col items-start gap-3 py-10">
-                  <p className="text-[12px] text-muted">{panels.noSkillGroupsPersonal}</p>
-                  <p className="text-[11px] text-muted">{panels.createSkillGroupFirst}</p>
+                  <p className="text-[12px] text-muted">{panels.noOwnerSkillGroups}</p>
                 </div>
               ) : loading ? (
                 <p className="text-[11px] text-muted">{panels.loading}</p>
               ) : listSkills.length === 0 ? (
                 <div className="flex flex-col items-start gap-3 py-10">
                   <p className="text-[12px] text-muted">
-                    {showingPersonalAll ? panels.noSkills : panels.noSkillsInGroup}
+                    {showingOwnerSkills ? panels.noSkills : panels.noSkillsInGroup}
                   </p>
                   {!remotesGroup ? (
-                    <AppButton color="primary" variant="solid" size="sm" onClick={openCreateSkill}>
+                    <AppButton
+                      color="primary"
+                      variant="solid"
+                      size="sm"
+                      disabled={showingOwnerSkills && ownerGroups.length === 0}
+                      onClick={openCreateSkill}
+                    >
                       <Plus className="size-3.5" />
                       {panels.createSkill}
                     </AppButton>
@@ -1171,10 +1290,10 @@ export default function SkillsView() {
                                 <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
                                   {panels.skillFetchedBadge}
                                 </span>
-                              ) : showingPersonalAll ||
-                                selectedGroup?.category.kind === 'personal' ? (
+                              ) : showingOwnerSkills ||
+                                (selectedGroup && isOwnerGroup(selectedGroup.group)) ? (
                                 <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
-                                  {panels.skillOwnedBadge}
+                                  {panels.ownerSkills}
                                 </span>
                               ) : null}
                             </span>
@@ -1229,8 +1348,6 @@ export default function SkillsView() {
                 </ul>
               )}
             </div>
-              </>
-            )}
           </section>
         </div>
       ) : draft ? (
@@ -1241,11 +1358,11 @@ export default function SkillsView() {
               <AppInput
                 value={draft.skill_key}
                 data-test-id="skill-key"
-                disabled={Boolean(draft.id)}
-                title={draft.id ? panels.skillNameLocked : undefined}
                 onChange={(event) => updateDraftMeta({ skill_key: event.target.value })}
               />
-              <span className="text-[10px] text-muted">{panels.skillKeySyncHelp}</span>
+              <span className="text-[10px] text-muted">
+                {draft.id ? panels.skillKeyEditHelp : panels.skillKeySyncHelp}
+              </span>
             </label>
             <label className="block space-y-1">
               <span className="text-[11px] text-muted">{panels.skillDescription}</span>
@@ -1558,7 +1675,6 @@ export default function SkillsView() {
                   </button>
                 </header>
                 <div data-slot="dialog-body" className={`${newGroupDialog.body} flex flex-col gap-3`}>
-                  <p className="text-xs text-muted">{panels.newSkillGroupHelp}</p>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-[11px] text-muted">{panels.newSkillGroupName}</span>
                     <AppInput
@@ -1590,6 +1706,125 @@ export default function SkillsView() {
                     onClick={() => void createGroup()}
                   >
                     {addingGroup ? panels.savingSkill : panels.createSkillGroup}
+                  </AppButton>
+                </footer>
+              </div>
+            </>,
+            document.body
+          )
+        : null}
+
+      {IS_BROWSER && editGroupOpen
+        ? createPortal(
+            <>
+              <div
+                data-slot="dialog-overlay"
+                className={newGroupDialog.overlay}
+                onClick={closeEditGroupDialog}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="edit-skill-group-title"
+                data-slot="dialog-content"
+                data-test-id="edit-skill-group-dialog"
+                className={newGroupDialog.content}
+              >
+                <header data-slot="dialog-header" className={newGroupDialog.header}>
+                  <h2 id="edit-skill-group-title" className={newGroupDialog.title}>
+                    {panels.editSkillGroupTitle}
+                  </h2>
+                  <button
+                    type="button"
+                    className={newGroupDialog.close}
+                    aria-label={dialogs.close}
+                    disabled={savingGroup}
+                    onClick={closeEditGroupDialog}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </header>
+                <div data-slot="dialog-body" className={`${newGroupDialog.body} flex flex-col gap-3`}>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[11px] text-muted">{panels.newSkillGroupName}</span>
+                    <AppInput
+                      autoFocus
+                      value={editGroupName}
+                      data-test-id="edit-skill-group-name"
+                      onChange={(event) => setEditGroupName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') void saveGroup()
+                      }}
+                    />
+                  </label>
+                  <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                    <p className="text-[12px] font-medium">{panels.skillGroupManagers}</p>
+                    {groupManagers.length === 0 ? (
+                      <p className="text-[11px] text-muted">—</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {groupManagers.map((id) => (
+                          <li
+                            key={id}
+                            className="flex items-center gap-2 rounded-md bg-hover/40 px-2 py-1"
+                          >
+                            <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+                              {id}
+                            </span>
+                            <button
+                              type="button"
+                              className="shrink-0 text-[11px] text-muted hover:text-danger"
+                              disabled={managerBusy || groupManagers.length <= 1}
+                              data-test-id={`skill-group-remove-manager-${id}`}
+                              onClick={() => void removeGroupManager(id)}
+                            >
+                              {panels.skillGroupRemoveManager}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="flex gap-2">
+                      <AppInput
+                        className="min-w-0 flex-1"
+                        placeholder={panels.skillGroupManagerUserId}
+                        value={managerUserId}
+                        data-test-id="skill-group-manager-user-id"
+                        onChange={(event) => setManagerUserId(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') void addGroupManager()
+                        }}
+                      />
+                      <AppButton
+                        color="neutral"
+                        variant="ghost"
+                        size="sm"
+                        disabled={managerBusy || !managerUserId.trim()}
+                        data-test-id="skill-group-add-manager"
+                        onClick={() => void addGroupManager()}
+                      >
+                        {panels.skillGroupAddManager}
+                      </AppButton>
+                    </div>
+                  </div>
+                  {error && editGroupOpen ? (
+                    <p role="alert" className="text-[11px] text-danger">
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+                <footer data-slot="dialog-footer" className={newGroupDialog.footer}>
+                  <AppButton variant="ghost" disabled={savingGroup} onClick={closeEditGroupDialog}>
+                    {panels.cancel}
+                  </AppButton>
+                  <AppButton
+                    color="primary"
+                    variant="solid"
+                    disabled={savingGroup || !editGroupName.trim()}
+                    data-test-id="edit-skill-group-confirm"
+                    onClick={() => void saveGroup()}
+                  >
+                    {savingGroup ? panels.savingSkill : panels.updateSkill}
                   </AppButton>
                 </footer>
               </div>

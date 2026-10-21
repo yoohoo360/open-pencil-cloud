@@ -12,6 +12,8 @@ export type SkillsTab = (typeof SKILLS_TAB)[keyof typeof SKILLS_TAB]
 
 export const SKILLS_TAB_IDS = {
   allPersonal: '__all_personal__',
+  /** Owned skills with no team binding. */
+  ownerSkills: '__owner_skills__',
   workspace: '__skill_workspace__'
 } as const
 

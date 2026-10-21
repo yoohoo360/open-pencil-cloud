@@ -19,8 +19,6 @@ public class SkillGroupRO {
 
     private String description;
 
-    private String groupKey;
-
-    /** Teams this group is shared with (replaces previous set on update when present). */
+    /** Teams this group is bound to (replaces previous set on update when present). */
     private List<String> teamIds;
 }

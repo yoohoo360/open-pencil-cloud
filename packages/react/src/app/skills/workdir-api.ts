@@ -5,13 +5,19 @@ import {
 } from '#react/app/skills/agent-environments'
 import { loadPlatformSkillEntries } from '#react/app/skills/platform-package'
 import {
+  DEFAULT_WORKDIR_SKILL_CONFIG,
+  type WorkdirSkillConfig
+} from '#react/app/skills/workdir-config'
+import {
   archiveSkillInWorkdir,
   expandArchivedSkillInWorkdir,
   readSkillEntriesFromWorkdir,
+  readWorkdirSkillConfig,
   removeSkillArchivesFromWorkdir,
   removeSkillFromWorkdir,
   scanWorkdirSkills,
-  writeSkillEntriesToWorkdir
+  writeSkillEntriesToWorkdir,
+  writeWorkdirSkillConfig
 } from '#react/app/skills/workdir-fs'
 import {
   activateWorkdirRecord,
@@ -22,6 +28,7 @@ import {
   updateWorkdirRecord,
   type WorkdirRecord
 } from '#react/app/skills/workdir-idb'
+import type { PencilSkillGroup } from '#react/lib/client'
 
 export type WorkdirSkillSource = 'platform' | 'local'
 
@@ -48,6 +55,16 @@ export type WorkdirSkill = {
   agentEnvironments: SkillAgentEnvironmentId[]
   /** Platform catalog id when source is platform. */
   platformId?: string
+  /** Catalog group key when source is platform. */
+  groupKey?: string
+}
+
+export type WorkdirGroup = {
+  key: string
+  name: string
+  /** False when config lists the key but catalog has no match. */
+  matched: boolean
+  skills: WorkdirSkill[]
 }
 
 export type Workdir = {
@@ -56,8 +73,19 @@ export type Workdir = {
   path: string
   agentEnvironments: SkillAgentEnvironmentId[]
   createdAt: string
+  /** `.open-pencil/config.json` (defaults when missing). */
+  config: WorkdirSkillConfig
+  /** Config-matched groups (and a Local bucket for on-disk-only skills). */
+  groups: WorkdirGroup[]
+  /** Flat skill list (groups flattened) for toggles / menus. */
   skills: WorkdirSkill[]
   folderAccessible: boolean
+}
+
+export type PlatformGroupRef = {
+  id: string
+  name: string
+  skills: PlatformSkillRef[]
 }
 
 export type WorkdirIndex = {
@@ -86,30 +114,50 @@ function sortSkills(skills: WorkdirSkill[]): WorkdirSkill[] {
   })
 }
 
+function toPlatformGroups(catalogGroups: readonly PencilSkillGroup[]): PlatformGroupRef[] {
+  return catalogGroups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    skills: (group.skills ?? [])
+      .filter((skill) => !skill.team_id)
+      .map((skill) => ({
+        id: skill.id,
+        skill_key: skill.skill_key,
+        name: skill.name,
+        description: skill.description
+      }))
+  }))
+}
+
 function toWorkdir(
   record: WorkdirRecord,
-  skills: WorkdirSkill[],
+  config: WorkdirSkillConfig,
+  groups: WorkdirGroup[],
   folderAccessible: boolean
 ): Workdir {
+  const skills = sortSkills(groups.flatMap((group) => group.skills))
   return {
     id: record.id,
     name: record.name,
     path: record.path,
     agentEnvironments: record.agentEnvironments,
     createdAt: record.createdAt,
-    skills: sortSkills(skills),
+    config,
+    groups,
+    skills,
     folderAccessible
   }
 }
 
 /**
- * List = platform catalog + local disk (folder or zip).
+ * List = config skillGroups (matched to catalog) + local disk leftovers.
  * Checked = folder with SKILL.md only (zips never count).
  */
 async function hydrate(
   record: WorkdirRecord,
-  platformSkills: readonly PlatformSkillRef[]
+  catalogGroups: readonly PencilSkillGroup[] = []
 ): Promise<Workdir> {
+  const config = await readWorkdirSkillConfig(record)
   let scanned: Awaited<ReturnType<typeof scanWorkdirSkills>> = []
   let folderAccessible = Boolean(record.directoryHandle) || Boolean(record.path.trim())
   try {
@@ -120,27 +168,42 @@ async function hydrate(
   }
 
   const scannedByKey = new Map(scanned.map((skill) => [skill.key, skill]))
-  const platformByKey = new Map(platformSkills.map((skill) => [skill.skill_key, skill]))
-  const skills: WorkdirSkill[] = []
+  const catalogById = new Map(toPlatformGroups(catalogGroups).map((group) => [group.id, group]))
+  const claimedKeys = new Set<string>()
+  const groups: WorkdirGroup[] = []
 
-  for (const platform of platformSkills) {
-    const onDisk = scannedByKey.get(platform.skill_key)
-    // Platform checked only from SKILL.md folders; leftover zips do not count.
-    skills.push({
-      key: platform.skill_key,
-      name: platform.name || onDisk?.name || platform.skill_key,
-      description: (platform.description || onDisk?.description || '').trim(),
-      source: 'platform',
-      enabled: Boolean(onDisk?.enabled),
-      agentEnvironments: onDisk?.folderEnvironments ?? [],
-      platformId: platform.id
+  for (const groupId of config.skillGroups) {
+    const catalog = catalogById.get(groupId)
+    if (!catalog) {
+      groups.push({ key: groupId, name: groupId, matched: false, skills: [] })
+      continue
+    }
+    const skills: WorkdirSkill[] = catalog.skills.map((platform) => {
+      const onDisk = scannedByKey.get(platform.skill_key)
+      claimedKeys.add(platform.skill_key)
+      return {
+        key: platform.skill_key,
+        name: platform.name || onDisk?.name || platform.skill_key,
+        description: (platform.description || onDisk?.description || '').trim(),
+        source: 'platform' as const,
+        enabled: Boolean(onDisk?.enabled),
+        agentEnvironments: onDisk?.folderEnvironments ?? [],
+        platformId: platform.id,
+        groupKey: catalog.id
+      }
+    })
+    groups.push({
+      key: catalog.id,
+      name: catalog.name,
+      matched: true,
+      skills: sortSkills(skills)
     })
   }
 
+  const localSkills: WorkdirSkill[] = []
   for (const onDisk of scanned) {
-    if (platformByKey.has(onDisk.key)) continue
-    // Local stays in the list when folder or zip exists; checked only if folder+SKILL.md.
-    skills.push({
+    if (claimedKeys.has(onDisk.key)) continue
+    localSkills.push({
       key: onDisk.key,
       name: onDisk.name,
       description: onDisk.description,
@@ -151,8 +214,16 @@ async function hydrate(
         : onDisk.archiveEnvironments
     })
   }
+  if (localSkills.length > 0) {
+    groups.push({
+      key: '__local__',
+      name: 'Local',
+      matched: true,
+      skills: sortSkills(localSkills)
+    })
+  }
 
-  return toWorkdir(record, skills, folderAccessible)
+  return toWorkdir(record, config, groups, folderAccessible)
 }
 
 async function resolveSkillDiskEnvs(
@@ -177,15 +248,33 @@ async function resolveSkillDiskEnvs(
   }
 }
 
+function catalogOption(
+  options?: { catalogGroups?: readonly PencilSkillGroup[]; platformSkills?: readonly PlatformSkillRef[] }
+): readonly PencilSkillGroup[] {
+  return options?.catalogGroups ?? []
+}
+
+function platformIdFromCatalog(
+  catalogGroups: readonly PencilSkillGroup[],
+  key: string
+): string | undefined {
+  for (const group of catalogGroups) {
+    for (const skill of group.skills ?? []) {
+      if (skill.skill_key === key) return skill.id
+    }
+  }
+  return undefined
+}
+
 export const workdirAPI = {
   async list(options?: {
+    catalogGroups?: readonly PencilSkillGroup[]
+    /** @deprecated Prefer catalogGroups — flattened skills ignore group matching. */
     platformSkills?: readonly PlatformSkillRef[]
   }): Promise<{ index: WorkdirIndex; workdirs: Workdir[] }> {
-    const platformSkills = options?.platformSkills ?? []
+    const catalogGroups = catalogOption(options)
     const { index, workdirs: records } = await listWorkdirRecords()
-    const workdirs = await Promise.all(
-      records.map((record) => hydrate(record, platformSkills))
-    )
+    const workdirs = await Promise.all(records.map((record) => hydrate(record, catalogGroups)))
     return { index, workdirs }
   },
 
@@ -194,6 +283,7 @@ export const workdirAPI = {
     name?: string
     agentEnvironments: SkillAgentEnvironmentId[]
     directoryHandle?: FileSystemDirectoryHandle
+    config?: WorkdirSkillConfig
   }): Promise<Workdir> {
     const record = await createWorkdirRecord({
       path: input.path,
@@ -204,6 +294,13 @@ export const workdirAPI = {
           : [...DEFAULT_SKILL_AGENT_ENVIRONMENTS],
       directoryHandle: input.directoryHandle
     })
+    if (input.config) {
+      try {
+        await writeWorkdirSkillConfig(record, input.config)
+      } catch {
+        // Folder may be inaccessible until permission is granted.
+      }
+    }
     return hydrate(record, [])
   },
 
@@ -211,7 +308,7 @@ export const workdirAPI = {
     id: string,
     patch: { name?: string; agentEnvironments?: SkillAgentEnvironmentId[] },
     options?: {
-      platformSkills?: readonly PlatformSkillRef[]
+      catalogGroups?: readonly PencilSkillGroup[]
       syncEnabledSkills?: boolean
     }
   ): Promise<Workdir> {
@@ -219,7 +316,7 @@ export const workdirAPI = {
     if (!previous) throw new Error('Workdir not found')
     const previousEnvs = previous.agentEnvironments
     const record = await updateWorkdirRecord(id, patch)
-    const platformSkills = options?.platformSkills ?? []
+    const catalogGroups = catalogOption(options)
 
     if (options?.syncEnabledSkills && patch.agentEnvironments) {
       const nextEnvs = record.agentEnvironments
@@ -243,7 +340,47 @@ export const workdirAPI = {
       }
     }
 
-    return hydrate(record, platformSkills)
+    return hydrate(record, catalogGroups)
+  },
+
+  async writeConfig(
+    id: string,
+    config: WorkdirSkillConfig,
+    options?: { catalogGroups?: readonly PencilSkillGroup[] }
+  ): Promise<Workdir> {
+    const record = await getWorkdirRecord(id)
+    if (!record) throw new Error('Workdir not found')
+    await writeWorkdirSkillConfig(record, config)
+    return hydrate(record, catalogOption(options))
+  },
+
+  /**
+   * When config.pull is `auto`, download every platform skill in matched groups
+   * that is not already enabled on disk.
+   */
+  async pullAuto(
+    id: string,
+    options?: { catalogGroups?: readonly PencilSkillGroup[] }
+  ): Promise<Workdir> {
+    const catalogGroups = catalogOption(options)
+    const record = await getWorkdirRecord(id)
+    if (!record) throw new Error('Workdir not found')
+    let current = await hydrate(record, catalogGroups)
+    if (current.config.pull !== 'auto') return current
+
+    const targets = defaultInstallEnvs(record)
+    for (const group of current.groups) {
+      if (!group.matched || group.key === '__local__') continue
+      for (const skill of group.skills) {
+        if (skill.source !== 'platform' || skill.enabled || !skill.platformId) continue
+        const entries = await loadPlatformSkillEntries(skill.platformId)
+        await writeSkillEntriesToWorkdir(record, skill.key, entries, targets)
+      }
+    }
+
+    const next = await getWorkdirRecord(id)
+    if (!next) throw new Error('Workdir not found')
+    return hydrate(next, catalogGroups)
   },
 
   async remove(id: string): Promise<void> {
@@ -266,17 +403,16 @@ export const workdirAPI = {
     options?: {
       source?: WorkdirSkillSource
       platformId?: string
-      platformSkills?: readonly PlatformSkillRef[]
+      catalogGroups?: readonly PencilSkillGroup[]
       /** When enabling, write to these agent roots (defaults to workdir install targets). */
       agentEnvironments?: SkillAgentEnvironmentId[]
     }
   ): Promise<Workdir> {
     const record = await getWorkdirRecord(workdirId)
     if (!record) throw new Error('Workdir not found')
-    const platformSkills = options?.platformSkills ?? []
+    const catalogGroups = catalogOption(options)
     const platformId =
-      options?.platformId ||
-      platformSkills.find((item) => item.skill_key === key)?.id
+      options?.platformId || platformIdFromCatalog(catalogGroups, key)
     const source = options?.source ?? (platformId ? 'platform' : 'local')
     const disk = await resolveSkillDiskEnvs(record, key)
     const targets =
@@ -302,14 +438,12 @@ export const workdirAPI = {
         await writeSkillEntriesToWorkdir(record, key, entries, targets)
       }
     } else if (source === 'platform') {
-      // Platform off: delete everywhere the skill folder/zip exists.
       const removeEnvs =
         disk.folderEnvironments.length > 0 || disk.archiveEnvironments.length > 0
           ? [...new Set([...disk.folderEnvironments, ...disk.archiveEnvironments])]
           : allAgentEnvIds()
       await removeSkillFromWorkdir(record, key, removeEnvs)
     } else {
-      // Local off: zip every folder that currently has SKILL.md.
       const archiveEnvs =
         disk.folderEnvironments.length > 0 ? disk.folderEnvironments : targets
       if (disk.enabled) {
@@ -319,15 +453,11 @@ export const workdirAPI = {
 
     const next = await getWorkdirRecord(workdirId)
     if (!next) throw new Error('Workdir not found')
-    return hydrate(next, platformSkills)
+    return hydrate(next, catalogGroups)
   },
 
   /**
    * Per-skill agent roots (disk only).
-   * Add: write SKILL.md folder into that env.
-   * Remove (platform): delete folder/zip there.
-   * Remove (local, last folder): archive that env; otherwise delete folder only if others remain? 
-   * For local removing one env while others stay: archive that env's folder to zip in that env.
    */
   async setSkillAgentEnvironments(
     workdirId: string,
@@ -336,15 +466,14 @@ export const workdirAPI = {
     options?: {
       source?: WorkdirSkillSource
       platformId?: string
-      platformSkills?: readonly PlatformSkillRef[]
+      catalogGroups?: readonly PencilSkillGroup[]
     }
   ): Promise<Workdir> {
     const record = await getWorkdirRecord(workdirId)
     if (!record) throw new Error('Workdir not found')
-    const platformSkills = options?.platformSkills ?? []
+    const catalogGroups = catalogOption(options)
     const platformId =
-      options?.platformId ||
-      platformSkills.find((item) => item.skill_key === key)?.id
+      options?.platformId || platformIdFromCatalog(catalogGroups, key)
     const source = options?.source ?? (platformId ? 'platform' : 'local')
     const disk = await resolveSkillDiskEnvs(record, key)
     const current = disk.folderEnvironments
@@ -356,10 +485,8 @@ export const workdirAPI = {
       if (source === 'platform') {
         await removeSkillFromWorkdir(record, key, removed)
       } else if (next.length === 0) {
-        // Uncheck all agents for local = zip remaining folders.
         await archiveSkillInWorkdir(record, key, removed)
       } else {
-        // Keep skill on elsewhere: zip only the removed agent roots.
         await archiveSkillInWorkdir(record, key, removed)
       }
     }
@@ -379,6 +506,9 @@ export const workdirAPI = {
 
     const after = await getWorkdirRecord(workdirId)
     if (!after) throw new Error('Workdir not found')
-    return hydrate(after, platformSkills)
+    return hydrate(after, catalogGroups)
   }
 }
+
+/** Re-export for callers that only need the default config shape. */
+export { DEFAULT_WORKDIR_SKILL_CONFIG }

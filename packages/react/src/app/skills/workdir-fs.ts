@@ -1,6 +1,7 @@
 import { IS_TAURI } from '@open-pencil/core/constants'
 import { unzipSync, zipSync, type Zippable } from 'fflate'
 
+import { isDesktopShell } from '#react/app/desktop/bridge'
 import {
   desktopMkdir,
   desktopReadDir,
@@ -14,6 +15,15 @@ import {
 } from '#react/app/skills/agent-environments'
 import { parseSkillFrontmatter } from '#react/app/skills/frontmatter'
 import { normalizeSkillPackageEntries } from '#react/app/skills/platform-package'
+import {
+  DEFAULT_WORKDIR_SKILL_CONFIG,
+  OPEN_PENCIL_CONFIG_DIR,
+  OPEN_PENCIL_CONFIG_RELATIVE,
+  normalizeWorkdirSkillConfig,
+  parseWorkdirSkillConfigText,
+  serializeWorkdirSkillConfig,
+  type WorkdirSkillConfig
+} from '#react/app/skills/workdir-config'
 import type { WorkdirRecord } from '#react/app/skills/workdir-idb'
 
 export type ScannedSkill = {
@@ -738,6 +748,82 @@ export async function expandArchivedSkillInWorkdir(
   if (record.directoryHandle) {
     await expandBrowserSkill(record.directoryHandle, targets, key)
     return
+  }
+  throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
+}
+
+function usesDesktopPath(record: WorkdirRecord): boolean {
+  return Boolean(record.path.trim()) && (IS_TAURI || isDesktopShell())
+}
+
+async function readBrowserConfigText(
+  root: FileSystemDirectoryHandle
+): Promise<string | null> {
+  if (!(await ensurePermission(root, 'read'))) return null
+  try {
+    const dir = await getNestedDirectory(root, OPEN_PENCIL_CONFIG_DIR, false)
+    if (!dir) return null
+    const file = await dir.getFileHandle('config.json')
+    return (await file.getFile()).text()
+  } catch {
+    return null
+  }
+}
+
+async function writeBrowserConfigText(
+  root: FileSystemDirectoryHandle,
+  text: string
+): Promise<void> {
+  if (!(await ensurePermission(root, 'readwrite'))) {
+    throw new Error('Folder permission denied')
+  }
+  const dir = await getNestedDirectory(root, OPEN_PENCIL_CONFIG_DIR, true)
+  if (!dir) throw new Error('Could not create .open-pencil directory')
+  const handle = await dir.getFileHandle('config.json', { create: true })
+  const writable = await handle.createWritable()
+  await writable.write(text)
+  await writable.close()
+}
+
+/** Read `.open-pencil/config.json` from the workspace project root. */
+export async function readWorkdirSkillConfig(
+  record: WorkdirRecord
+): Promise<WorkdirSkillConfig> {
+  try {
+    if (usesDesktopPath(record)) {
+      const root = record.path.replace(/[/\\]+$/, '')
+      const text = await desktopReadText(`${root}/${OPEN_PENCIL_CONFIG_RELATIVE}`)
+      if (text === null) return structuredClone(DEFAULT_WORKDIR_SKILL_CONFIG)
+      return parseWorkdirSkillConfigText(text)
+    }
+    if (record.directoryHandle) {
+      const text = await readBrowserConfigText(record.directoryHandle)
+      if (text === null) return structuredClone(DEFAULT_WORKDIR_SKILL_CONFIG)
+      return parseWorkdirSkillConfigText(text)
+    }
+  } catch {
+    // missing or invalid → defaults
+  }
+  return structuredClone(DEFAULT_WORKDIR_SKILL_CONFIG)
+}
+
+/** Write `.open-pencil/config.json` (creates the directory when needed). */
+export async function writeWorkdirSkillConfig(
+  record: WorkdirRecord,
+  config: WorkdirSkillConfig
+): Promise<WorkdirSkillConfig> {
+  const normalized = normalizeWorkdirSkillConfig(config)
+  const text = serializeWorkdirSkillConfig(normalized)
+  const bytes = new TextEncoder().encode(text)
+  if (usesDesktopPath(record)) {
+    const root = record.path.replace(/[/\\]+$/, '')
+    await desktopMkdir(`${root}/${OPEN_PENCIL_CONFIG_DIR}`)
+    await desktopWriteFile(`${root}/${OPEN_PENCIL_CONFIG_RELATIVE}`, bytes)
+    return normalized
+  }
+  if (record.directoryHandle) {
+    await writeBrowserConfigText(record.directoryHandle, text)
+    return normalized
   }
   throw new Error('Workspace folder is not accessible. Re-add the workspace and grant folder access.')
 }

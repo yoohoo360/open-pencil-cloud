@@ -7,6 +7,7 @@ import cn.jongwong.domain.entity.id.TeamMemberId;
 import cn.jongwong.domain.repository.TeamMemberRepository;
 import cn.jongwong.domain.repository.TeamRepository;
 import cn.jongwong.domain.repository.UserRepository;
+import cn.jongwong.exception.ApiException;
 import cn.jongwong.web.dto.team.AddMemberRequest;
 import cn.jongwong.web.dto.team.CreateTeamRequest;
 import cn.jongwong.web.dto.team.TeamMemberResponse;
@@ -21,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -89,8 +92,13 @@ public class TeamService {
         }
 
         String name = request.getName().trim();
+        if (!StringUtils.hasText(name)) {
+            throw ApiException.badRequest("Team name is required");
+        }
+        // Team names must be unique within the organization (highest-level team).
         if (teamRepository.existsByNameIgnoreCaseAndParentId(name, org.getId())) {
-            throw new RuntimeException("Team with name '" + name + "' already exists in this organization");
+            throw ApiException.badRequest(
+                    "Team name '" + name + "' already exists in this organization");
         }
 
         Team team = Team.builder()
@@ -154,6 +162,75 @@ public class TeamService {
                 .orElseThrow(() -> new RuntimeException("User not found: " + trimmed));
     }
 
+    private static boolean isManagerRole(String roleId) {
+        return "owner".equals(roleId) || "admin".equals(roleId);
+    }
+
+    public boolean isOrgManager(String orgId, String userId) {
+        if (!StringUtils.hasText(orgId) || !StringUtils.hasText(userId)) return false;
+        Team org = teamRepository.findById(orgId.trim()).orElse(null);
+        if (org == null || org.getParentId() != null) return false;
+        return isTeamManager(org, userId.trim());
+    }
+
+    public void requireOrgManager(String orgId, String userId) {
+        if (!isOrgManager(orgId, userId)) {
+            throw ApiException.forbidden("Only an organization manager can perform this action");
+        }
+    }
+
+    public void requireOrgMember(String orgId, String userId) {
+        if (!StringUtils.hasText(orgId) || !StringUtils.hasText(userId)) {
+            throw ApiException.badRequest("org_id is required");
+        }
+        String oid = orgId.trim();
+        String uid = userId.trim();
+        Team org = teamRepository.findById(oid)
+                .orElseThrow(() -> ApiException.notFound("Organization not found"));
+        if (org.getParentId() != null) throw ApiException.badRequest("Not an organization");
+        if (org.getOwnerId() != null && org.getOwnerId().trim().equals(uid)) return;
+        if (!teamMemberRepository.existsByIdTeamIdAndIdUserId(oid, uid)) {
+            throw ApiException.forbidden("Not a member of this organization");
+        }
+    }
+
+    public Set<String> listTeamIdsUnderOrg(String orgId) {
+        if (!StringUtils.hasText(orgId)) return Set.of();
+        return teamRepository.findByParentId(orgId.trim()).stream()
+                .map(Team::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    public boolean isTeamManager(Team team, String userId) {
+        String uid = userId == null ? "" : userId.trim();
+        if (!StringUtils.hasText(uid) || team == null) return false;
+        if (team.getOwnerId() != null && team.getOwnerId().trim().equals(uid)) return true;
+        return teamMemberRepository.findById(new TeamMemberId(team.getId(), uid))
+                .map(member -> isManagerRole(member.getRoleId()))
+                .orElse(false);
+    }
+
+    /**
+     * Team managers, or managers of the parent organization, may manage the team.
+     */
+    public void requireTeamManager(Team team, String userId) {
+        String uid = userId == null ? "" : userId.trim();
+        if (isTeamManager(team, uid)) return;
+        if (StringUtils.hasText(team.getParentId()) && isOrgManager(team.getParentId(), uid)) return;
+        throw ApiException.forbidden("Only a team or organization manager can perform this action");
+    }
+
+    private void assertNotLastManager(String teamId, String targetUserId) {
+        List<TeamMember> managers = teamMemberRepository.findByIdTeamId(teamId).stream()
+                .filter(member -> isManagerRole(member.getRoleId()))
+                .toList();
+        boolean targetIsManager = managers.stream()
+                .anyMatch(member -> targetUserId.trim().equals(member.getUser().getId().trim()));
+        if (targetIsManager && managers.size() <= 1) {
+            throw ApiException.badRequest("A team or organization must keep at least one manager");
+        }
+    }
+
     /**
      * Update team information
      */
@@ -162,10 +239,7 @@ public class TeamService {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + id));
 
-        // Verify user is owner
-        if (!team.getOwnerId().equals(userId)) {
-            throw new RuntimeException("Only the team owner can update team information");
-        }
+        requireTeamManager(team, userId);
 
         // Update fields if provided
         if (request.getName() != null) {
@@ -174,12 +248,14 @@ public class TeamService {
                 throw new RuntimeException("Team name cannot be empty");
             }
             // Team names are unique only within the same organization (not globally)
-            if (team.getParentId() != null
-                    && !name.equalsIgnoreCase(team.getName())
+            if (team.getParentId() == null) {
+                throw ApiException.badRequest("Use organization APIs to rename an organization");
+            }
+            if (!name.equalsIgnoreCase(team.getName())
                     && teamRepository.existsByNameIgnoreCaseAndParentIdAndIdNot(
                             name, team.getParentId(), team.getId())) {
-                throw new RuntimeException(
-                        "Team with name '" + name + "' already exists in this organization");
+                throw ApiException.badRequest(
+                        "Team name '" + name + "' already exists in this organization");
             }
             team.setName(name);
         }
@@ -211,14 +287,13 @@ public class TeamService {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + id));
 
-        String ownerId = team.getOwnerId() == null ? "" : team.getOwnerId().trim();
-        String actorId = userId == null ? "" : userId.trim();
-        if (!ownerId.equals(actorId)) {
-            throw new RuntimeException("Only the team owner can delete the team");
+        requireTeamManager(team, userId);
+        if (team.getParentId() == null) {
+            throw ApiException.badRequest("Use organization APIs to delete an organization");
         }
 
         teamRepository.delete(team);
-        log.info("Deleted team: {} by owner: {}", id, userId);
+        log.info("Deleted team: {} by manager: {}", id, userId);
     }
 
     /**
@@ -229,17 +304,15 @@ public class TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
-        // Verify requester is owner
-        if (!team.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("Only the team owner can add members");
-        }
+        requireTeamManager(team, requesterId);
 
         // Check if member already exists
         if (teamMemberRepository.existsByIdTeamIdAndIdUserId(teamId, request.getUserId())) {
             throw new RuntimeException("User is already a member of this team");
         }
 
-        addTeamMember(team, request.getUserId(), request.getRoleId());
+        String role = StringUtils.hasText(request.getRoleId()) ? request.getRoleId().trim() : "member";
+        addTeamMember(team, request.getUserId(), role);
         log.info("Added member {} to team: {}", request.getUserId(), teamId);
 
         return toTeamResponseWithMembers(teamRepository.findById(teamId).orElseThrow());
@@ -253,14 +326,11 @@ public class TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
-        // Verify requester is owner
-        if (!team.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("Only the team owner can remove members");
-        }
+        requireTeamManager(team, requesterId);
 
-        // Cannot remove owner
+        // Cannot remove owner via member API — transfer ownership first.
         if (userId.equals(team.getOwnerId())) {
-            throw new RuntimeException("Cannot remove the team owner");
+            throw ApiException.badRequest("Cannot remove the owner; transfer ownership first");
         }
 
         // Check if member exists
@@ -268,6 +338,7 @@ public class TeamService {
             throw new RuntimeException("User is not a member of this team");
         }
 
+        assertNotLastManager(teamId, userId);
         teamMemberRepository.deleteByIdTeamIdAndIdUserId(teamId, userId);
         log.info("Removed member {} from team: {}", userId, teamId);
 
@@ -283,21 +354,26 @@ public class TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
-        // Verify requester is owner
-        if (!team.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("Only the team owner can update member roles");
-        }
+        requireTeamManager(team, requesterId);
 
-        // Cannot change owner's role
+        // Cannot change owner's role via this API — transfer ownership first.
         if (userId.equals(team.getOwnerId())) {
-            throw new RuntimeException("Cannot change the team owner's role");
+            throw ApiException.badRequest("Cannot change the owner's role; transfer ownership first");
         }
 
         TeamMemberId memberId = new TeamMemberId(teamId, userId);
         TeamMember member = teamMemberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Team member not found"));
 
-        member.setRoleId(request.getRoleId());
+        String nextRole = request.getRoleId() == null ? "" : request.getRoleId().trim();
+        if (!StringUtils.hasText(nextRole)) {
+            throw ApiException.badRequest("role_id is required");
+        }
+        if (isManagerRole(member.getRoleId()) && !isManagerRole(nextRole)) {
+            assertNotLastManager(teamId, userId);
+        }
+
+        member.setRoleId(nextRole);
         teamMemberRepository.save(member);
         log.info("Updated role for member {} in team: {}", userId, teamId);
 

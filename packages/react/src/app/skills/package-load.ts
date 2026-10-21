@@ -1,6 +1,12 @@
 import { isBuiltinMakeSkillId } from '#react/app/make/skills/default-make-skill'
 import { skillFileTextForPrompt } from '#react/app/skills/clipboard-xml-to-json'
-import { skillAPI, type PencilSkill, type SkillCatalogCategory, type SkillEntry } from '#react/lib/client'
+import {
+  skillAPI,
+  type PencilSkill,
+  type PencilSkillGroup,
+  type SkillCatalogCategory,
+  type SkillEntry
+} from '#react/lib/client'
 
 function flattenFiles(nodes: SkillEntry[]): SkillEntry[] {
   const out: SkillEntry[] = []
@@ -38,16 +44,36 @@ function isPersonalSkillGroup(group: { id: string; group_key?: string | null }):
   return !group.group_key?.startsWith('tr-') && !group.id.startsWith('__team_remotes__:')
 }
 
-export function collectPersonalSkills(categories: SkillCatalogCategory[]): PencilSkill[] {
-  const unique = new Map<string, PencilSkill>()
+export function collectPersonalGroups(categories: SkillCatalogCategory[]): PencilSkillGroup[] {
+  const out: PencilSkillGroup[] = []
   for (const category of categories) {
     if (category.kind !== 'personal') continue
     for (const group of category.groups) {
       if (!isPersonalSkillGroup(group)) continue
-      for (const skill of group.skills ?? []) {
-        if (skill.team_id) continue
-        unique.set(skill.id, skill)
-      }
+      out.push(group)
+    }
+  }
+  return out
+}
+
+/** All catalog groups (personal + team) except synthetic team-remotes buckets. */
+export function collectCatalogGroups(categories: SkillCatalogCategory[]): PencilSkillGroup[] {
+  const unique = new Map<string, PencilSkillGroup>()
+  for (const category of categories) {
+    for (const group of category.groups) {
+      if (!isPersonalSkillGroup(group)) continue
+      unique.set(group.id, group)
+    }
+  }
+  return [...unique.values()]
+}
+
+export function collectPersonalSkills(categories: SkillCatalogCategory[]): PencilSkill[] {
+  const unique = new Map<string, PencilSkill>()
+  for (const group of collectPersonalGroups(categories)) {
+    for (const skill of group.skills ?? []) {
+      if (skill.team_id) continue
+      unique.set(skill.id, skill)
     }
   }
   return [...unique.values()]

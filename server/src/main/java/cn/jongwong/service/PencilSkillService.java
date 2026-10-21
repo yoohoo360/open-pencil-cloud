@@ -3,8 +3,10 @@ package cn.jongwong.service;
 import cn.jongwong.common.ConvertUtils;
 import cn.jongwong.entity.PencilSkill;
 import cn.jongwong.entity.PencilSkillGroup;
+import cn.jongwong.entity.PencilSkillGroupManager;
 import cn.jongwong.entity.PencilSkillGroupTeam;
 import cn.jongwong.exception.ApiException;
+import cn.jongwong.repository.PencilSkillGroupManagerRepository;
 import cn.jongwong.repository.PencilSkillGroupRepository;
 import cn.jongwong.repository.PencilSkillGroupTeamRepository;
 import cn.jongwong.repository.PencilSkillRepository;
@@ -18,12 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +37,7 @@ public class PencilSkillService {
     private final PencilSkillRepository skillRepository;
     private final PencilSkillGroupRepository groupRepository;
     private final PencilSkillGroupTeamRepository groupTeamRepository;
+    private final PencilSkillGroupManagerRepository groupManagerRepository;
     private final TeamService teamService;
 
     @Transactional(readOnly = true)
@@ -67,7 +72,7 @@ public class PencilSkillService {
                 .map(PencilSkillGroupTeam::getGroupId)
                 .map(String::trim)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        // Exclude groups I already own from the shared lookup set for loading, but still show under teams.
+        // Shared (bound) groups appear in the flat skill-groups list, not under teams.
         List<PencilSkillGroup> sharedGroups = sharedGroupIds.isEmpty()
                 ? List.of()
                 : groupRepository.findByIdInAndIsDeleted(sharedGroupIds, 0);
@@ -79,42 +84,35 @@ public class PencilSkillService {
         Map<String, List<String>> teamsByGroup = new LinkedHashMap<>();
         for (PencilSkillGroupTeam share : groupTeamRepository.findByGroupIdIn(groupById.keySet())) {
             String teamId = share.getTeamId().trim();
-            // Only surface shares for teams in the current org filter.
-            if (!myTeamIds.contains(teamId)) continue;
             teamsByGroup
                     .computeIfAbsent(share.getGroupId().trim(), key -> new ArrayList<>())
                     .add(teamId);
         }
 
+        // Skill groups live in one flat list (owned + bound-to-my-teams).
+        // Teams never nest skill groups — only optional "Team remotes" under each team.
+        Map<String, PencilSkillGroup> skillGroups = new LinkedHashMap<>();
+        for (PencilSkillGroup group : owned) skillGroups.put(group.getId(), group);
+        for (PencilSkillGroup group : sharedGroups) {
+            if (group.getGroupKey() != null && group.getGroupKey().startsWith("tr-")) continue;
+            skillGroups.putIfAbsent(group.getId(), group);
+        }
+
         List<SkillCatalogCategoryResponse> categories = new ArrayList<>();
         categories.add(SkillCatalogCategoryResponse.builder()
                 .kind("personal")
-                .groups(owned.stream()
-                        .map(group -> toGroupResponse(group, uid, teamsByGroup.getOrDefault(group.getId(), List.of()), true))
+                .groups(skillGroups.values().stream()
+                        .map(group -> toGroupResponse(
+                                group,
+                                uid,
+                                teamsByGroup.getOrDefault(group.getId(), List.of()),
+                                true))
                         .toList())
                 .build());
 
-        Map<String, List<PencilSkillGroup>> groupsByTeam = new LinkedHashMap<>();
-        for (String teamId : myTeamIds) groupsByTeam.put(teamId, new ArrayList<>());
-        for (PencilSkillGroupTeam share : shares) {
-            PencilSkillGroup group = groupById.get(share.getGroupId().trim());
-            if (group == null) continue;
-            List<PencilSkillGroup> bucket = groupsByTeam.get(share.getTeamId().trim());
-            if (bucket != null) bucket.add(group);
-        }
-        for (Map.Entry<String, List<PencilSkillGroup>> entry : groupsByTeam.entrySet()) {
-            // Deduplicate while preserving order
-            Map<String, PencilSkillGroup> unique = new LinkedHashMap<>();
-            for (PencilSkillGroup group : entry.getValue()) unique.put(group.getId(), group);
-            String teamId = entry.getKey();
-            List<SkillGroupResponse> groupResponses = unique.values().stream()
-                    .map(group -> toGroupResponse(
-                            group,
-                            uid,
-                            teamsByGroup.getOrDefault(group.getId(), List.of()),
-                            true))
-                    .collect(Collectors.toCollection(ArrayList::new));
-            // Team remotes (git-like) appear as a dedicated group under the team.
+        for (String teamId : myTeamIds) {
+            List<SkillGroupResponse> groupResponses = new ArrayList<>();
+            // Team remotes only — bound skill groups are not listed under the team.
             if (org != null) {
                 List<SkillResponse> remotes = skillRepository
                         .findByOrgIdAndTeamIdAndIsDeletedOrderByUpdatedAtDesc(org, teamId, 0)
@@ -141,6 +139,7 @@ public class PencilSkillService {
                     }
                 }
             }
+            if (groupResponses.isEmpty()) continue;
             categories.add(SkillCatalogCategoryResponse.builder()
                     .kind("team")
                     .teamId(teamId)
@@ -163,14 +162,22 @@ public class PencilSkillService {
                     : actorUserId.trim();
             String key = teamRemoteGroupKey(teamId);
             return groupRepository.findByOwnerIdAndGroupKeyAndIsDeleted(ownerId, key, 0)
-                    .orElseGet(() -> groupRepository.save(PencilSkillGroup.builder()
-                            .groupKey(key)
-                            .name("Team remotes")
-                            .description("Skills shared to this team")
-                            .ownerId(ownerId)
-                            .sortOrder(1000)
-                            .isDeleted(0)
-                            .build()));
+                    .orElseGet(() -> {
+                        PencilSkillGroup created = groupRepository.save(PencilSkillGroup.builder()
+                                .groupKey(key)
+                                .name("Team remotes")
+                                .description("Skills shared to this team")
+                                .ownerId(ownerId)
+                                .orgId(StringUtils.hasText(orgId) ? orgId.trim() : null)
+                                .sortOrder(1000)
+                                .isDeleted(0)
+                                .build());
+                        groupManagerRepository.save(PencilSkillGroupManager.builder()
+                                .groupId(created.getId())
+                                .userId(ownerId)
+                                .build());
+                        return created;
+                    });
         });
     }
 
@@ -249,29 +256,45 @@ public class PencilSkillService {
         return orgId.trim();
     }
 
+    /** Internal opaque key (not user-facing). Team remotes keep the `tr-` prefix. */
+    private static String newInternalGroupKey() {
+        String compact = UUID.randomUUID().toString().replace("-", "").toLowerCase(Locale.ROOT);
+        return "g-" + compact;
+    }
+
     @Transactional
     public PencilSkillGroup createGroup(
             String userId,
             String name,
             String description,
-            String groupKey,
             List<String> teamIds,
             String orgId
     ) {
         String uid = userId.trim();
-        String key = sanitizeKey(StringUtils.hasText(groupKey) ? groupKey : name);
-        groupRepository.findByOwnerIdAndGroupKeyAndIsDeleted(uid, key, 0).ifPresent(existing -> {
-            throw ApiException.badRequest("Group key already exists");
-        });
+        if (!StringUtils.hasText(name)) {
+            throw ApiException.badRequest("Group name is required");
+        }
+        String org = StringUtils.hasText(orgId) ? orgId.trim() : null;
+        if (!StringUtils.hasText(org)) {
+            throw ApiException.badRequest("org_id is required");
+        }
+        teamService.requireOrgMember(org, uid);
+        // Internal key only — clients create groups by display name.
         PencilSkillGroup group = groupRepository.save(PencilSkillGroup.builder()
-                .groupKey(key)
+                .groupKey(newInternalGroupKey())
                 .name(name.trim())
                 .description(description)
                 .ownerId(uid)
+                .orgId(org)
                 .sortOrder(0)
                 .isDeleted(0)
                 .build());
-        replaceTeamShares(group, uid, teamIds, orgId);
+        // Creator is the first manager; at least one manager is always required.
+        groupManagerRepository.save(PencilSkillGroupManager.builder()
+                .groupId(group.getId())
+                .userId(uid)
+                .build());
+        if (teamIds != null) replaceTeamShares(group, uid, teamIds, org);
         return group;
     }
 
@@ -284,24 +307,74 @@ public class PencilSkillService {
             List<String> teamIds,
             String orgId
     ) {
-        requireOwner(userId, group);
-        if (StringUtils.hasText(name)) group.setName(name.trim());
-        group.setDescription(description);
+        requireManageGroup(userId, group);
+        if (group.getGroupKey() != null && group.getGroupKey().startsWith("tr-")) {
+            throw ApiException.badRequest("Cannot rename the team remotes group");
+        }
+        if (StringUtils.hasText(name)) {
+            String nextName = name.trim();
+            // Rename must stay unique under currently bound teams.
+            requireUniqueNameUnderTeams(nextName, teamIdsForGroup(group.getId()), group.getId());
+            group.setName(nextName);
+        }
+        if (description != null) group.setDescription(description);
+        String org = StringUtils.hasText(orgId)
+                ? orgId.trim()
+                : (StringUtils.hasText(group.getOrgId()) ? group.getOrgId().trim() : null);
+        if (org != null && !StringUtils.hasText(group.getOrgId())) {
+            group.setOrgId(org);
+        }
         groupRepository.save(group);
-        if (teamIds != null) replaceTeamShares(group, userId.trim(), teamIds, orgId);
+        if (teamIds != null) replaceTeamShares(group, userId.trim(), teamIds, org);
         return group;
     }
 
     @Transactional
     public void deleteGroup(String userId, PencilSkillGroup group) {
-        requireOwner(userId, group);
+        requireManageGroup(userId, group);
         for (PencilSkill skill : skillRepository.findByGroupIdAndIsDeletedOrderByUpdatedAtDesc(group.getId(), 0)) {
             skill.softDelete();
             skillRepository.save(skill);
         }
         groupTeamRepository.deleteByGroupId(group.getId());
+        groupManagerRepository.deleteByGroupId(group.getId());
         group.softDelete();
         groupRepository.save(group);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> listGroupManagerIds(String groupId) {
+        return groupManagerRepository.findByGroupId(groupId).stream()
+                .map(row -> row.getUserId().trim())
+                .toList();
+    }
+
+    @Transactional
+    public void addGroupManager(String actorId, PencilSkillGroup group, String userId) {
+        requireManageGroup(actorId, group);
+        String uid = userId == null ? "" : userId.trim();
+        if (!StringUtils.hasText(uid)) throw ApiException.badRequest("user_id is required");
+        if (groupManagerRepository.existsByGroupIdAndUserId(group.getId(), uid)) {
+            return;
+        }
+        groupManagerRepository.save(PencilSkillGroupManager.builder()
+                .groupId(group.getId())
+                .userId(uid)
+                .build());
+    }
+
+    @Transactional
+    public void removeGroupManager(String actorId, PencilSkillGroup group, String userId) {
+        requireManageGroup(actorId, group);
+        String uid = userId == null ? "" : userId.trim();
+        if (!StringUtils.hasText(uid)) throw ApiException.badRequest("user_id is required");
+        if (!groupManagerRepository.existsByGroupIdAndUserId(group.getId(), uid)) {
+            throw ApiException.notFound("Manager not found");
+        }
+        if (groupManagerRepository.countByGroupId(group.getId()) <= 1) {
+            throw ApiException.badRequest("A skill group must keep at least one manager");
+        }
+        groupManagerRepository.deleteByGroupIdAndUserId(group.getId(), uid);
     }
 
     @Transactional
@@ -320,12 +393,23 @@ public class PencilSkillService {
             List<String> teamIds,
             String orgId
     ) {
-        requireOwner(userId, group);
-        String org = StringUtils.hasText(orgId) ? orgId.trim() : null;
+        requireManageGroup(userId, group);
+        if (group.getGroupKey() != null && group.getGroupKey().startsWith("tr-")) {
+            throw ApiException.badRequest("Cannot bind teams to the team remotes group");
+        }
+        String org = StringUtils.hasText(orgId)
+                ? orgId.trim()
+                : (StringUtils.hasText(group.getOrgId()) ? group.getOrgId().trim() : null);
         Set<String> orgTeamIds = teamService.getUserTeams(userId.trim(), org).stream()
                 .map(TeamResponse::getId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> desired = normalizeTeamIds(userId, teamIds, org);
+        // Org managers may bind any team under the org, not only teams they personally joined.
+        if (StringUtils.hasText(org) && teamService.isOrgManager(org, userId.trim())) {
+            orgTeamIds = teamService.listTeamIdsUnderOrg(org);
+        }
+        Set<String> desired = normalizeTeamIds(userId, teamIds, org, orgTeamIds);
+        // Bound teams require a unique display name within each team.
+        requireUniqueNameUnderTeams(group.getName(), desired, group.getId());
         List<PencilSkillGroupTeam> existing = groupTeamRepository.findByGroupId(group.getId());
         Set<String> current = existing.stream()
                 .map(share -> share.getTeamId().trim())
@@ -381,14 +465,28 @@ public class PencilSkillService {
     }
 
     public void requireCanWriteGroup(String userId, PencilSkillGroup group) {
-        // Owner always; team members with a share can edit skills in the group.
+        // Managers / org admins, or members of a bound team.
+        if (canManageGroup(userId, group)) return;
         requireCanReadGroup(userId, group);
     }
 
-    public void requireOwner(String userId, PencilSkillGroup group) {
-        if (!userId.trim().equals(trim(group.getOwnerId()))) {
-            throw ApiException.forbidden("Only the group owner can manage this group");
+    public boolean canManageGroup(String userId, PencilSkillGroup group) {
+        String uid = userId.trim();
+        if (groupManagerRepository.existsByGroupIdAndUserId(group.getId(), uid)) return true;
+        if (uid.equals(trim(group.getOwnerId()))) return true;
+        String orgId = trim(group.getOrgId());
+        return StringUtils.hasText(orgId) && teamService.isOrgManager(orgId, uid);
+    }
+
+    public void requireManageGroup(String userId, PencilSkillGroup group) {
+        if (!canManageGroup(userId, group)) {
+            throw ApiException.forbidden("Only a group manager or organization manager can manage this group");
         }
+    }
+
+    /** @deprecated Use {@link #requireManageGroup} */
+    public void requireOwner(String userId, PencilSkillGroup group) {
+        requireManageGroup(userId, group);
     }
 
     public SkillResponse toSkillResponse(PencilSkill skill) {
@@ -415,18 +513,23 @@ public class PencilSkillService {
         } else if (includeSkills) {
             skills = skills.stream().filter(skill -> !skill.isTeamRemote()).toList();
         }
+        List<String> managerIds = listGroupManagerIds(group.getId());
+        boolean managedByMe = canManageGroup(userId, group);
         SkillGroupResponse response = SkillGroupResponse.builder()
                 .id(group.getId())
                 .groupKey(group.getGroupKey())
                 .name(group.getName())
                 .description(group.getDescription())
                 .ownerId(group.getOwnerId())
+                .orgId(group.getOrgId())
                 .ownedByMe(userId.trim().equals(trim(group.getOwnerId())))
+                .managedByMe(managedByMe)
                 .sortOrder(group.getSortOrder())
                 .createdAt(group.getCreatedAt())
                 .updatedAt(group.getUpdatedAt())
                 .skillCount((long) skills.size())
                 .teamIds(teamIds == null ? List.of() : teamIds)
+                .managerIds(managerIds)
                 .build();
         if (includeSkills) {
             response.setSkills(skills.stream().map(this::toSkillResponse).toList());
@@ -440,6 +543,36 @@ public class PencilSkillService {
                 .toList();
     }
 
+    /**
+     * When a group is bound to teams, its display name must be unique (case-insensitive)
+     * among non-deleted, non-remotes groups on each of those teams.
+     */
+    private void requireUniqueNameUnderTeams(
+            String name,
+            Collection<String> teamIds,
+            String excludeGroupId
+    ) {
+        if (!StringUtils.hasText(name) || teamIds == null || teamIds.isEmpty()) return;
+        String normalized = name.trim();
+        for (String rawTeamId : teamIds) {
+            if (!StringUtils.hasText(rawTeamId)) continue;
+            String teamId = rawTeamId.trim();
+            List<PencilSkillGroupTeam> shares = groupTeamRepository.findByTeamIdIn(List.of(teamId));
+            if (shares.isEmpty()) continue;
+            Set<String> groupIds = shares.stream()
+                    .map(share -> share.getGroupId().trim())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            for (PencilSkillGroup other : groupRepository.findByIdInAndIsDeleted(groupIds, 0)) {
+                if (excludeGroupId != null && excludeGroupId.equals(other.getId())) continue;
+                if (other.getGroupKey() != null && other.getGroupKey().startsWith("tr-")) continue;
+                if (normalized.equalsIgnoreCase(trim(other.getName()))) {
+                    throw ApiException.badRequest(
+                            "Skill group name must be unique within the team");
+                }
+            }
+        }
+    }
+
     public static String sanitizeKey(String raw) {
         String key = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9-]+", "-")
@@ -450,17 +583,24 @@ public class PencilSkillService {
         return key;
     }
 
-    private Set<String> normalizeTeamIds(String userId, List<String> teamIds, String orgId) {
+    private Set<String> normalizeTeamIds(
+            String userId,
+            List<String> teamIds,
+            String orgId,
+            Set<String> allowedTeamIds
+    ) {
         if (teamIds == null || teamIds.isEmpty()) return Set.of();
-        Set<String> mine = teamService.getUserTeams(userId, orgId).stream()
-                .map(TeamResponse::getId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> allowed = allowedTeamIds != null && !allowedTeamIds.isEmpty()
+                ? allowedTeamIds
+                : teamService.getUserTeams(userId, orgId).stream()
+                        .map(TeamResponse::getId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> desired = new LinkedHashSet<>();
         for (String teamId : teamIds) {
             if (!StringUtils.hasText(teamId)) continue;
             String trimmed = teamId.trim();
-            if (!mine.contains(trimmed)) {
-                throw ApiException.forbidden("Not a member of team " + trimmed);
+            if (!allowed.contains(trimmed)) {
+                throw ApiException.forbidden("Cannot bind team " + trimmed);
             }
             desired.add(trimmed);
         }

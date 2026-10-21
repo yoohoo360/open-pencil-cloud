@@ -37,6 +37,10 @@ public class PencilSkillGroup {
     @Column(name = "owner_id", length = 36, nullable = false)
     private String ownerId;
 
+    /** Organization scope for group_key uniqueness and workspace matching. */
+    @Column(name = "org_id", length = 36)
+    private String orgId;
+
     @Builder.Default
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
@@ -57,6 +61,7 @@ public class PencilSkillGroup {
         if (this.isDeleted == null) this.isDeleted = 0;
         if (this.sortOrder == null) this.sortOrder = 0;
         if (this.ownerId != null) this.ownerId = this.ownerId.trim();
+        if (this.orgId != null) this.orgId = this.orgId.trim();
         long now = System.currentTimeMillis();
         if (this.createdAt == null) this.createdAt = now;
         if (this.updatedAt == null) this.updatedAt = now;
@@ -66,6 +71,7 @@ public class PencilSkillGroup {
     public void preUpdate() {
         if (this.isDeleted == null) this.isDeleted = 0;
         if (this.ownerId != null) this.ownerId = this.ownerId.trim();
+        if (this.orgId != null) this.orgId = this.orgId.trim();
         this.updatedAt = System.currentTimeMillis();
     }
 

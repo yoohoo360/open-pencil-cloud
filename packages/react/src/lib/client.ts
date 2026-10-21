@@ -698,14 +698,18 @@ export type PencilSkill = {
 
 export type PencilSkillGroup = {
   id: string
-  group_key: string
+  /** Internal only (e.g. team-remotes `tr-…`); not shown in UI. */
+  group_key?: string
   name: string
   description?: string
   owner_id?: string
+  org_id?: string
   owned_by_me?: boolean
+  managed_by_me?: boolean
   sort_order?: number
   skill_count?: number
   team_ids?: string[]
+  manager_ids?: string[]
   skills?: PencilSkill[]
   created_at?: string | number
   updated_at?: string | number
@@ -750,7 +754,6 @@ export type SkillMergeRequest = {
 export type UpsertSkillGroupRequest = {
   name: string
   description?: string
-  group_key?: string
   team_ids?: string[]
 }
 
@@ -885,6 +888,29 @@ export const skillAPI = {
       { team_ids: teamIds },
       { params }
     )
+  },
+  listGroupManagers(id: string): Promise<APIResponse<string[]>> {
+    return apiClient.get<string[]>(`/api/skills/groups/${id}/managers`)
+  },
+  addGroupManager(
+    id: string,
+    userId: string,
+    params?: { org_id?: string }
+  ): Promise<APIResponse<PencilSkillGroup>> {
+    return apiClient.post<PencilSkillGroup>(
+      `/api/skills/groups/${id}/managers`,
+      { user_id: userId },
+      { params }
+    )
+  },
+  removeGroupManager(
+    id: string,
+    managerId: string,
+    params?: { org_id?: string }
+  ): Promise<APIResponse<PencilSkillGroup>> {
+    return apiClient.delete<PencilSkillGroup>(`/api/skills/groups/${id}/managers/${managerId}`, {
+      params
+    })
   },
   removeGroup(id: string): Promise<APIResponse<void>> {
     return apiClient.delete(`/api/skills/groups/${id}`)

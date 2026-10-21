@@ -11,8 +11,11 @@ import DocumentView from './view/DocumentView'
 import MakeView from './view/MakeView'
 import LoginView from './view/LoginView'
 import OauthCallbackView from './view/OauthCallbackView'
+import OrgsView from './view/OrgsView'
+import OrgView from './view/OrgView'
 import RegisterView from './view/RegisterView'
 import SkillsView from './view/SkillsView'
+import SkillWorkspaceView from './view/SkillWorkspaceView'
 import VerifyEmailView from './view/VerifyEmailView'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -73,6 +76,22 @@ export function App() {
         }
       />
       <Route
+        path="/orgs"
+        element={
+          <RequireAuth>
+            <OrgsView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/org/:orgId"
+        element={
+          <RequireAuth>
+            <OrgView/>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/admin/orgs"
         element={
           <RequireAuth>
@@ -85,6 +104,14 @@ export function App() {
         element={
           <RequireAuth>
             <SkillsView/>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/skill-workspace"
+        element={
+          <RequireAuth>
+            <SkillWorkspaceView/>
           </RequireAuth>
         }
       />
