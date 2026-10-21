@@ -210,17 +210,24 @@ jobs:
           unzip -o ossutil-2.4.0-linux-amd64.zip
           chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
       
-          echo "OSS_ENDPOINT=$OSS_ENDPOINT"
-          echo "OSS_REGION=$OSS_REGION"
-          echo "OSS_BUCKET=$OSS_BUCKET"
-          echo "DIST_DIR=$DIST_DIR"
+          OSSUTIL=./ossutil-2.4.0-linux-amd64/ossutil
+          OSS_DEST="oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
       
-          ./ossutil-2.4.0-linux-amd64/ossutil cp \
+          # 1. 先清空目标目录下的所有对象（不带 -r，避免删掉目录本身）
+          $OSSUTIL rm \
+            -e "$OSS_ENDPOINT" \
+            -i "$OSS_ACCESS_KEY_ID" \
+            -k "$OSS_ACCESS_KEY_SECRET" \
+            -r \
+            "$OSS_DEST" --force
+      
+          # 2. 再上传
+          $OSSUTIL cp \
             -e "$OSS_ENDPOINT" \
             -i "$OSS_ACCESS_KEY_ID" \
             -k "$OSS_ACCESS_KEY_SECRET" \
             -r "$DIST_DIR" \
-            "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
+            "$OSS_DEST"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
