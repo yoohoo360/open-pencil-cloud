@@ -13,7 +13,7 @@ import {
   hasStoredBackground,
   setDefaultPageBackground
 } from '#core/figma-api/page-backgrounds'
-import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
+import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client.override'
 import { releaseOriginalFigArchive } from '#core/kiwi/fig/session/original-archive'
 import { installTextMeasurer } from '#core/layout'
 import { createLayoutRunner } from '#core/layout/mutations.override'
@@ -296,6 +296,8 @@ export function createEditor(options?: EditorOptions) {
   }
 
   function replaceGraph(newGraph: SceneGraph) {
+    // Stop warm/populate and drop the old graph's worker + archive before swap.
+    releaseDocumentWork()
     nodes.cancelNodePreviews()
     undo.discardBatches()
     _graph = newGraph
@@ -320,23 +322,53 @@ export function createEditor(options?: EditorOptions) {
   }
 
   /**
-   * Drop fonts / resolution state from the previous document, then recreate
-   * CanvasKit providers so Skia no longer holds the old face registrations.
+   * Drop fonts / resolution state from the previous document.
+   * When `recreateProviders` is true (document switch), rebuild CanvasKit
+   * providers so Skia no longer holds old face registrations. When leaving the
+   * design page, pass false — the canvas is going away and reload is wasted work.
    */
-  async function unloadDocumentFonts(): Promise<void> {
+  async function unloadDocumentFonts(options?: { recreateProviders?: boolean }): Promise<void> {
+    const recreateProviders = options?.recreateProviders !== false
     fontManager.unloadDocumentFonts()
     fontResolver.reset()
+    for (const renderer of _renderers) {
+      if (renderer.isDestroyed()) continue
+      renderer.textPreparationCache.clear()
+      renderer.labelParagraphCache.clear()
+    }
+    if (!recreateProviders) {
+      registrationBumpOnly()
+      return
+    }
     await Promise.all(
       [..._renderers].map(async (renderer) => {
         if (renderer.isDestroyed()) return
-        renderer.textPreparationCache.clear()
-        renderer.labelParagraphCache.clear()
         await renderer.loadFonts()
       })
     )
   }
 
+  function registrationBumpOnly(): void {
+    // Font manager already bumped generation; sync renderer caches without loadFonts.
+    for (const renderer of _renderers) {
+      if (renderer.isDestroyed()) continue
+      renderer.fontGeneration = fontManager.generation()
+      renderer.invalidateAllPictures()
+    }
+  }
+
+  /**
+   * Stop background page warm / population workers and release retained .fig
+   * archives. Call when leaving the design page or before swapping documents.
+   */
+  function releaseDocumentWork(): void {
+    pages.cancelBackgroundPageWork?.()
+    releaseFigPopulationWorker(_graph)
+    releaseOriginalFigArchive(_graph)
+  }
+
   function dispose() {
+    releaseDocumentWork()
     releaseTextMeasurer()
     nodes.cancelNodePreviews()
     interactiveEdits.clear()
@@ -345,8 +377,7 @@ export function createEditor(options?: EditorOptions) {
   }
 
   function releaseGraphResources() {
-    releaseFigPopulationWorker(_graph)
-    releaseOriginalFigArchive(_graph)
+    releaseDocumentWork()
   }
 
   return {
@@ -382,6 +413,7 @@ export function createEditor(options?: EditorOptions) {
     removeCanvasRenderer,
     replaceGraph,
     unloadDocumentFonts,
+    releaseDocumentWork,
     subscribeToGraph,
     dispose,
     releaseGraphResources,

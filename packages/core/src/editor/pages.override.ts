@@ -120,6 +120,18 @@ export function createPageActions(ctx: EditorContext) {
     lazyPrefetchActive = false
   }
 
+  /**
+   * Stop idle page warm / in-flight populate when leaving the document or
+   * replacing the graph. Does not clear viewports (use {@link clearPageViewports}).
+   */
+  function cancelBackgroundPageWork(): void {
+    cancelLazyFigPrefetch()
+    pageSwitchGeneration++
+    populationWorkerGeneration++
+    populationWorkerInstance?.terminate()
+    populationWorkerInstance = undefined
+  }
+
   function enableRegionalTiledPaint(): void {
     if (!getLazyFigImportContext(ctx.graph)) return
     const renderer = ctx.getRenderer()
@@ -657,11 +669,7 @@ export function createPageActions(ctx: EditorContext) {
   }
 
   function clearPageViewports() {
-    cancelLazyFigPrefetch()
-    populationWorkerGeneration++
-    pageSwitchGeneration++
-    populationWorkerInstance?.terminate()
-    populationWorkerInstance = undefined
+    cancelBackgroundPageWork()
     pageViewportStore.clearPageViewports()
   }
 
@@ -732,6 +740,7 @@ export function createPageActions(ctx: EditorContext) {
     commitPageSwitch,
     switchPage,
     prefetchRemainingLazyFigPages,
+    cancelBackgroundPageWork,
     addPage,
     deletePage,
     movePage,

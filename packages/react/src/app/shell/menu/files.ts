@@ -1,3 +1,4 @@
+import { withDocumentBusy } from '#react/app/document/busy/store'
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { markCloudDocumentPersisted, saveCloudCover } from '#react/app/document/cloud-persist'
 import {
@@ -10,7 +11,6 @@ import {
   FIG_PARSE_CACHE_SAVE_WRITE_DELAY_MS,
   scheduleFigParseCacheWrite
 } from '#react/app/document/fig-parse-cache/schedule'
-import { withDocumentBusy } from '#react/app/document/busy/store'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
@@ -197,22 +197,20 @@ export async function importFigIntoStore(
     // applied directly on graph CANVAS / child x,y after those pages exist —
     // never by mutating kiwi changeMap.
     const graph = await readFigDocument(file, store, undefined, {
-      useWorker: false
+      useWorker: true
     })
     await applyOpenedDocument(store, graph)
     try {
-      const { normalizeImportedPageOrigins } = await import(
-        '#react/app/document/normalize-page-origin'
-      )
+      const { normalizeImportedPageOrigins } =
+        await import('#react/app/document/normalize-page-origin')
       normalizeImportedPageOrigins(store.graph)
     } catch (error) {
       console.warn('[FigImport] page origin normalize failed', error)
     }
     applyLocalDocumentIdentity(store, file.name.replace(/\.fig$/i, '') || 'Untitled')
     await waitForCanvasPaint(store)
-    const { acknowledgeDocumentSceneBaseline } = await import(
-      '#react/app/document/persist-baseline'
-    )
+    const { acknowledgeDocumentSceneBaseline } =
+      await import('#react/app/document/persist-baseline')
     acknowledgeDocumentSceneBaseline(store)
   } finally {
     if (ownLoading) {
@@ -479,7 +477,9 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
               console.warn('[LocalDraft] Clear after save failed', error)
             })
             try {
-              await withDocumentBusy(dialogMessages.get().savingThumbnail, () => saveCloudCover(store))
+              await withDocumentBusy(dialogMessages.get().savingThumbnail, () =>
+                saveCloudCover(store)
+              )
             } catch (error) {
               console.warn('[Document] Cover save failed', error)
             }
@@ -522,7 +522,11 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
           if (target.handle) {
             await writeFigHandle(target.handle, data)
           } else {
-            downloadBytes(data, target.downloadName ?? figFileName(store), 'application/octet-stream')
+            downloadBytes(
+              data,
+              target.downloadName ?? figFileName(store),
+              'application/octet-stream'
+            )
           }
           options?.onSuccess?.()
           return

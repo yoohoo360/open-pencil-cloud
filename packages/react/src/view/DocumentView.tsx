@@ -16,6 +16,7 @@ import {
   setPageLoadingVisible
 } from '#react/app/document/page-loading/controller'
 import { pageLoadingLabels } from '#react/app/document/page-loading/labels'
+import { teardownDocumentSession } from '#react/app/document/teardown'
 import { requestLocalFontAccess } from '#react/app/editor/fonts'
 import { createEditorStore, EditorStoreProvider } from '#react/app/editor/store'
 import { DocumentShareDialog } from '#react/components/DocumentShareDialog'
@@ -27,6 +28,9 @@ import { Check, Copy, Link2, Lock, Shield } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMakePrototypeHost } from '#react/app/make/use-prototype-host'
+
+/** Bumped per document-open effect so Strict Mode remounts do not tear down the live session. */
+let documentSessionGeneration = 0
 
 export default function DocumentView() {
   const { fileKey } = useParams<{ fileKey: string }>()
@@ -53,7 +57,9 @@ export default function DocumentView() {
 
   useEffect(() => {
     if (!fileKey) return
-    let cancelled = false
+    const abort = new AbortController()
+    // Strict Mode remounts effects; only the latest generation may tear down.
+    const sessionGeneration = ++documentSessionGeneration
     setLoading(true)
     setLoadError(null)
     setForbidden(false)
@@ -64,15 +70,16 @@ export default function DocumentView() {
     void (async () => {
       try {
         const { data: documentMeta } = await documentAPI.get(fileKey)
-        if (cancelled) return
+        if (abort.signal.aborted) return
         try {
           const access = await documentAPI.getAccess(fileKey)
-          if (!cancelled && access.data) setDocumentAccess(access.data)
+          if (!abort.signal.aborted && access.data) setDocumentAccess(access.data)
         } catch {
           // Access snapshot is optional if get already succeeded.
         }
         try {
           await requestLocalFontAccess()
+          if (abort.signal.aborted) return
           // Ensure Save targets OSS even if the remote .fig fails to open.
           if (documentMeta) {
             store.state.documentName = documentMeta.name || store.state.documentName || 'Untitled'
@@ -83,24 +90,26 @@ export default function DocumentView() {
               : ''
             store.notify()
           }
-          if (!cancelled) setLoading(false)
-          await openHttpDocument(store, documentMeta)
+          if (!abort.signal.aborted) setLoading(false)
+          await openHttpDocument(store, documentMeta, abort.signal)
+          if (abort.signal.aborted) return
           store.notify()
           const libraryService = getLibraryService()
           libraryService.bindEditor(store)
           void libraryService.refresh(store).then(() => {
-            if (!cancelled) store.notify()
+            if (!abort.signal.aborted) store.notify()
           })
           void loadDocumentLibraries(store, fileKey).then(() => {
-            if (!cancelled) store.notify()
+            if (!abort.signal.aborted) store.notify()
           })
         } catch (reason) {
+          if (abort.signal.aborted) return
           console.warn('[Document] Remote fig is unavailable, opening empty canvas', reason)
           setPageLoadingVisible(store, false)
-          if (!cancelled) setLoading(false)
+          setLoading(false)
         }
       } catch (reason) {
-        if (cancelled) return
+        if (abort.signal.aborted) return
         const message = getAPIErrorMessage(reason, 'Failed to open document')
         const status = (reason as { response?: { status?: number } })?.response?.status
         if (status === 403) {
@@ -114,9 +123,14 @@ export default function DocumentView() {
       }
     })()
     return () => {
-      cancelled = true
+      abort.abort()
       setDocumentAccess(null)
       closeDocumentShareDialog()
+      // Defer so React Strict Mode remount can supersede this generation.
+      void Promise.resolve().then(() => {
+        if (sessionGeneration !== documentSessionGeneration) return
+        void teardownDocumentSession(store)
+      })
     }
   }, [fileKey, store])
 

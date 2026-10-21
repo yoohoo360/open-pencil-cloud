@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 
 import {
+  clearStaleDocumentBusy,
   documentBusyLabels,
   documentBusyTasks,
   hasDocumentBusy
@@ -10,6 +11,8 @@ import { dialogMessages } from '#react/i18n/messages'
 
 /** In-app leave (links, programmatic nav, intercepted refresh). Lists active tasks. */
 export function confirmLeaveDespiteBusy(): boolean {
+  // Hung saves should not block leave forever — drop anything past the stale TTL first.
+  clearStaleDocumentBusy()
   const labels = documentBusyLabels()
   if (labels.length === 0) return true
   const dialogs = dialogMessages.get()
@@ -33,12 +36,14 @@ export function useDocumentBusyLeaveGuard(): void {
     let allowUnload = false
 
     function onBeforeUnload(event: BeforeUnloadEvent) {
+      clearStaleDocumentBusy()
       if (allowUnload || !hasDocumentBusy()) return
       event.preventDefault()
       event.returnValue = ''
     }
 
     function onKeyDown(event: KeyboardEvent) {
+      clearStaleDocumentBusy()
       if (!hasDocumentBusy()) return
       const key = event.key.toLowerCase()
       const refresh =
