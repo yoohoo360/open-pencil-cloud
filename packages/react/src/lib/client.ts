@@ -894,12 +894,12 @@ export const skillAPI = {
   },
   addGroupManager(
     id: string,
-    userId: string,
+    usernameOrUserId: string,
     params?: { org_id?: string }
   ): Promise<APIResponse<PencilSkillGroup>> {
     return apiClient.post<PencilSkillGroup>(
       `/api/skills/groups/${id}/managers`,
-      { user_id: userId },
+      { username: usernameOrUserId },
       { params }
     )
   },

@@ -108,7 +108,14 @@ public class PencilSkillsController {
     ) {
         String userId = requireUserId();
         PencilSkillGroup group = pencilSkillService.requireGroup(id);
-        pencilSkillService.addGroupManager(userId, group, body == null ? null : body.get("user_id"));
+        String managerRef = null;
+        if (body != null) {
+            // Prefer username; user_id kept for older clients.
+            managerRef = StringUtils.hasText(body.get("username"))
+                    ? body.get("username")
+                    : body.get("user_id");
+        }
+        pencilSkillService.addGroupManager(userId, group, managerRef);
         return ApiResponse.ok(toGroupResponse(userId, group, orgId));
     }
 
@@ -258,7 +265,7 @@ public class PencilSkillsController {
                 .orElseThrow(() -> ApiException.notFound("Skill not found"));
         requireSkillReadable(userId, skill);
         byte[] zip = pencilSkillPackageService.exportZip(userId, id);
-        String filename = skill.getSkillKey() + ".zip";
+        String filename = skill.getName() + ".zip";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("application/zip"))
@@ -343,11 +350,11 @@ public class PencilSkillsController {
         if (!StringUtils.hasText(orgId)) {
             throw ApiException.badRequest("org_id is required");
         }
-        String key = PencilSkillService.sanitizeKey(request.getSkillKey());
-        pencilSkillService.assertPersonalSkillKeyAvailable(orgId, userId, key, null);
+        String name = PencilSkillService.sanitizeSkillName(request.getName(), request.getSkillKey());
+        pencilSkillService.assertPersonalSkillKeyAvailable(orgId, userId, name, null);
         PencilSkill skill = PencilSkill.builder()
-                .skillKey(key)
-                .name(request.getName().trim())
+                .skillKey(name)
+                .name(name)
                 .description(request.getDescription())
                 .content(request.getContent() == null ? "" : request.getContent())
                 .ownerId(userId.trim())
@@ -392,18 +399,18 @@ public class PencilSkillsController {
         if (!StringUtils.hasText(orgId)) {
             throw ApiException.badRequest("org_id is required");
         }
-        String key = PencilSkillService.sanitizeKey(request.getSkillKey());
-        if (!key.equals(skill.getSkillKey())) {
+        String name = PencilSkillService.sanitizeSkillName(request.getName(), request.getSkillKey());
+        if (!name.equals(skill.getSkillKey()) || !name.equals(skill.getName())) {
             if (skill.isTeamRemote()) {
-                pencilSkillService.assertTeamSkillKeyAvailable(orgId, skill.getTeamId(), key, skill.getId());
+                pencilSkillService.assertTeamSkillKeyAvailable(orgId, skill.getTeamId(), name, skill.getId());
             } else {
-                pencilSkillService.assertPersonalSkillKeyAvailable(orgId, userId, key, skill.getId());
+                pencilSkillService.assertPersonalSkillKeyAvailable(orgId, userId, name, skill.getId());
             }
-            skill.setSkillKey(key);
-            skill.setName(key);
+            skill.setSkillKey(name);
+            skill.setName(name);
         }
         skill.setOrgId(orgId);
-        // Display name is immutable via this field; SKILL.md frontmatter sync updates name/desc.
+        // Name (= folder) is set above; SKILL.md frontmatter sync updates description.
         if (request.getContent() != null) {
             pencilSkillPackageService.writeSkillMd(userId, skill.getId(), request.getContent());
             skill = pencilSkillRepository.findByIdAndIsDeleted(skill.getId(), 0)

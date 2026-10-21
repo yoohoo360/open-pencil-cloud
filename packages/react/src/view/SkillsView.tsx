@@ -7,6 +7,11 @@ import {
 } from '#react/app/skills/frontmatter'
 import { pasteDesignClipboardAsMarkdown } from '#react/app/skills/clipboard-xml'
 import { zipSkillFolder } from '#react/app/skills/package-zip'
+import {
+  sanitizeSkillName,
+  validateSkillName,
+  type SkillNameIssue
+} from '#react/app/skills/skill-name'
 import { CodeEditor } from '#react/components/code-editor/CodeEditor'
 import { AppButton } from '#react/components/ui/AppButton'
 import { AppInput } from '#react/components/ui/AppInput'
@@ -17,6 +22,7 @@ import {
   getAPIErrorMessage,
   skillAPI,
   teamAPI,
+  userAPI,
   type PencilSkill,
   type PencilSkillGroup,
   type SkillCatalogCategory,
@@ -56,7 +62,6 @@ const OWNER_SKILLS_ID = SKILLS_TAB_IDS.ownerSkills
 
 type Draft = {
   id?: string
-  skill_key: string
   name: string
   description: string
   content: string
@@ -77,7 +82,6 @@ Describe when this skill should guide codegen.
 function emptyDraft(groupId: string): Draft {
   const content = upsertSkillFrontmatter(EMPTY_BODY, { name: '', description: '' })
   return {
-    skill_key: '',
     name: '',
     description: '',
     content,
@@ -88,25 +92,23 @@ function emptyDraft(groupId: string): Draft {
 function applyFrontmatterToDraft(draft: Draft, markdown: string): Draft {
   const meta = parseSkillFrontmatter(markdown)
   if (draft.id) {
-    // Key/name are locked after create; keep frontmatter name aligned with key.
+    // Keep SKILL.md frontmatter name aligned with the form name.
     const content = upsertSkillFrontmatter(markdown, {
-      name: draft.skill_key,
+      name: draft.name,
       description: meta.description
     })
     return {
       ...draft,
       content,
-      name: draft.skill_key,
       description: meta.description
     }
   }
-  // Create: SKILL.md frontmatter name ↔ form key.
-  const key = meta.name.trim() || draft.skill_key
+  // Create: form name ↔ SKILL.md frontmatter name.
+  const name = meta.name.trim() || draft.name
   return {
     ...draft,
     content: markdown,
-    skill_key: key,
-    name: key,
+    name,
     description: meta.description
   }
 }
@@ -114,12 +116,24 @@ function applyFrontmatterToDraft(draft: Draft, markdown: string): Draft {
 function toDraft(skill: PencilSkill): Draft {
   return {
     id: skill.id,
-    skill_key: skill.skill_key,
-    name: skill.name,
+    name: skill.name || skill.skill_key,
     description: skill.description ?? '',
     content: skill.content,
     group_id: skill.group_id
   }
+}
+
+function skillNameIssueMessage(
+  issue: SkillNameIssue,
+  panels: {
+    skillNameEmpty: string
+    skillNameInvalid: string
+    skillNameTooLong: string
+  }
+): string {
+  if (issue === 'empty') return panels.skillNameEmpty
+  if (issue === 'too_long') return panels.skillNameTooLong
+  return panels.skillNameInvalid
 }
 
 function findEntry(nodes: SkillEntry[], id: string): SkillEntry | null {
@@ -199,15 +213,19 @@ export default function SkillsView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [skillNameIssue, setSkillNameIssue] = useState<SkillNameIssue | null>(null)
   const [newGroupOpen, setNewGroupOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupNameIssue, setNewGroupNameIssue] = useState<SkillNameIssue | null>(null)
   const [newGroupTeamId, setNewGroupTeamId] = useState<string | null>(null)
   const [addingGroup, setAddingGroup] = useState(false)
   const [editGroupOpen, setEditGroupOpen] = useState(false)
   const [editGroupName, setEditGroupName] = useState('')
+  const [editGroupNameIssue, setEditGroupNameIssue] = useState<SkillNameIssue | null>(null)
   const [savingGroup, setSavingGroup] = useState(false)
   const [groupManagers, setGroupManagers] = useState<string[]>([])
-  const [managerUserId, setManagerUserId] = useState('')
+  const [managerUsername, setManagerUsername] = useState('')
+  const [managerError, setManagerError] = useState('')
   const [managerBusy, setManagerBusy] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeRequests, setMergeRequests] = useState<SkillMergeRequest[]>([])
@@ -215,6 +233,10 @@ export default function SkillsView() {
   const [shareTeamId, setShareTeamId] = useState('')
   const [shareMessage, setShareMessage] = useState('')
   const [shareBusy, setShareBusy] = useState(false)
+  const [deleteSkillTarget, setDeleteSkillTarget] = useState<{ id: string; name: string } | null>(
+    null
+  )
+  const [deletingSkill, setDeletingSkill] = useState(false)
   const [packageBusy, setPackageBusy] = useState(false)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -233,6 +255,10 @@ export default function SkillsView() {
     { size: 'sm' }
   )
   const shareSkillDialog = useDialogUI(
+    { overlay: 'z-[100]', content: 'z-[110]' },
+    { size: 'sm' }
+  )
+  const deleteSkillDialog = useDialogUI(
     { overlay: 'z-[100]', content: 'z-[110]' },
     { size: 'sm' }
   )
@@ -386,27 +412,33 @@ export default function SkillsView() {
     setTree([])
     setSelectedEntryId('')
     setFileDraft(next.content)
+    setSkillNameIssue('empty')
     setMode('edit')
     setError('')
   }
 
   function syncDraftFromSkillMd(markdown: string) {
     setFileDraft(markdown)
-    setDraft((prev) => (prev ? applyFrontmatterToDraft(prev, markdown) : prev))
+    setDraft((prev) => {
+      if (!prev) return prev
+      const next = applyFrontmatterToDraft(prev, markdown)
+      const checked = validateSkillName(next.name)
+      setSkillNameIssue(checked.ok ? null : checked.issue)
+      return next
+    })
   }
 
-  function updateDraftMeta(patch: Partial<Pick<Draft, 'description' | 'skill_key'>>) {
+  function updateDraftMeta(patch: Partial<Pick<Draft, 'description' | 'name'>>) {
     setDraft((prev) => {
       if (!prev) return prev
       const next = { ...prev, ...patch }
-      if (patch.skill_key !== undefined) {
-        next.name = next.skill_key
-      } else {
-        next.name = next.skill_key
+      if (patch.name !== undefined) {
+        const checked = validateSkillName(patch.name)
+        setSkillNameIssue(checked.ok ? null : checked.issue)
       }
-      if (patch.skill_key !== undefined || patch.description !== undefined) {
+      if (patch.name !== undefined || patch.description !== undefined) {
         const content = upsertSkillFrontmatter(next.content, {
-          name: next.skill_key,
+          name: next.name,
           description: next.description
         })
         next.content = content
@@ -433,6 +465,8 @@ export default function SkillsView() {
     const withMeta = applyFrontmatterToDraft(base, skill.content || base.content)
     setDraft(withMeta)
     setFileDraft(withMeta.content)
+    const checked = validateSkillName(withMeta.name)
+    setSkillNameIssue(checked.ok ? null : checked.issue)
     setMode('edit')
     setError('')
     void loadTree(skill.id).catch((reason) => {
@@ -448,6 +482,7 @@ export default function SkillsView() {
     setFileDraft('')
     setEntryDialog(null)
     setError('')
+    setSkillNameIssue(null)
   }
 
   function selectEntry(entry: SkillEntry) {
@@ -466,8 +501,15 @@ export default function SkillsView() {
 
   async function saveSkill() {
     if (!draft) return
+    const nameCheck = validateSkillName(draft.name)
+    if (!nameCheck.ok) {
+      setSkillNameIssue(nameCheck.issue)
+      setError(skillNameIssueMessage(nameCheck.issue, panels))
+      return
+    }
     setSaving(true)
     setError('')
+    setSkillNameIssue(null)
     try {
       const orgId = readActiveOrgId()
       if (!orgId) throw new Error(panels.skillsOrgRequired)
@@ -475,20 +517,21 @@ export default function SkillsView() {
         !draft.id || findEntry(tree, selectedEntryId)?.path === 'SKILL.md'
           ? fileDraft || draft.content
           : draft.content
-      const key = draft.skill_key.trim()
+      const name = nameCheck.name
       const syncedMd = upsertSkillFrontmatter(skillMd, {
-        name: key,
+        name,
         description: parseSkillFrontmatter(skillMd).description || draft.description
       })
       const payload: UpsertSkillRequest = {
-        skill_key: key,
-        name: key,
+        // API still stores uniqueness under skill_key; value is the display name.
+        skill_key: name,
+        name,
         description: parseSkillFrontmatter(syncedMd).description.trim() || undefined,
         content: draft.id ? undefined : syncedMd,
         group_id: draft.group_id,
         org_id: orgId
       }
-      if (!payload.skill_key || !payload.group_id) {
+      if (!payload.name || !payload.group_id) {
         throw new Error(panels.skillsRequiredFields)
       }
       if (!draft.id && !(payload.content ?? '').trim()) {
@@ -503,7 +546,7 @@ export default function SkillsView() {
           if (selected.path === 'SKILL.md') {
             setFileDraft(syncedMd)
             setDraft((prev) =>
-              prev ? { ...prev, content: syncedMd, name: key, description: payload.description ?? '' } : prev
+              prev ? { ...prev, content: syncedMd, name, description: payload.description ?? '' } : prev
             )
           }
         }
@@ -618,14 +661,25 @@ export default function SkillsView() {
     })
   }
 
-  async function deleteSkill(id: string) {
+  function requestDeleteSkill(id: string, name: string) {
+    setDeleteSkillTarget({ id, name: name.trim() || id })
+    setError('')
+  }
+
+  async function confirmDeleteSkill() {
+    if (!deleteSkillTarget) return
+    const { id } = deleteSkillTarget
+    setDeletingSkill(true)
     setError('')
     try {
       await skillAPI.remove(id)
+      setDeleteSkillTarget(null)
       await reload(selectedGroupId)
       if (draft?.id === id) backToList()
     } catch (reason) {
       setError(getAPIErrorMessage(reason, panels.skillsDeleteFailed))
+    } finally {
+      setDeletingSkill(false)
     }
   }
 
@@ -635,6 +689,7 @@ export default function SkillsView() {
 
   function openNewGroupDialog(teamId?: string | null) {
     setNewGroupName('')
+    setNewGroupNameIssue(null)
     setNewGroupTeamId(teamId ?? null)
     setError('')
     setNewGroupOpen(true)
@@ -644,6 +699,7 @@ export default function SkillsView() {
     if (addingGroup) return
     setNewGroupOpen(false)
     setNewGroupName('')
+    setNewGroupNameIssue(null)
     setNewGroupTeamId(null)
   }
 
@@ -659,7 +715,10 @@ export default function SkillsView() {
   function openEditGroupDialog() {
     if (!canManageSelectedGroup() || remotesGroup || !selectedGroup) return
     setEditGroupName(selectedGroup.group.name)
-    setManagerUserId('')
+    const checked = validateSkillName(selectedGroup.group.name)
+    setEditGroupNameIssue(checked.ok ? null : checked.issue)
+    setManagerUsername('')
+    setManagerError('')
     setError('')
     setEditGroupOpen(true)
     void loadGroupManagers(selectedGroup.group.id)
@@ -668,23 +727,37 @@ export default function SkillsView() {
   function closeEditGroupDialog() {
     if (savingGroup || managerBusy) return
     setEditGroupOpen(false)
-    setManagerUserId('')
+    setManagerUsername('')
+    setManagerError('')
+    setEditGroupNameIssue(null)
   }
 
   async function addGroupManager() {
-    if (!selectedGroup || !managerUserId.trim()) return
+    if (!selectedGroup) return
+    const username = managerUsername.trim()
+    if (!username) {
+      setManagerError(panels.skillGroupManagerUsernameEmpty)
+      return
+    }
     setManagerBusy(true)
+    setManagerError('')
     setError('')
     try {
       const orgId = readActiveOrgId() || undefined
-      await skillAPI.addGroupManager(selectedGroup.group.id, managerUserId.trim(), {
+      // Confirm the username exists before adding (clearer than a generic server error).
+      const lookedUp = await userAPI.lookup(username)
+      if (!lookedUp.data?.id?.trim()) throw new Error(panels.skillGroupManagerNotFound)
+      await skillAPI.addGroupManager(selectedGroup.group.id, username, {
         org_id: orgId
       })
-      setManagerUserId('')
+      setManagerUsername('')
       await loadGroupManagers(selectedGroup.group.id)
       await reload(selectedGroup.group.id)
     } catch (reason) {
-      setError(getAPIErrorMessage(reason, panels.skillGroupManagerAddFailed))
+      const message = getAPIErrorMessage(reason, panels.skillGroupManagerAddFailed)
+      setManagerError(
+        /not found|404/i.test(message) ? panels.skillGroupManagerNotFound : message
+      )
     } finally {
       setManagerBusy(false)
     }
@@ -707,18 +780,21 @@ export default function SkillsView() {
   }
 
   async function createGroup() {
-    if (!newGroupName.trim()) {
-      setError(panels.skillGroupRequiredFields)
+    const checked = validateSkillName(newGroupName)
+    if (!checked.ok) {
+      setNewGroupNameIssue(checked.issue)
+      setError(skillNameIssueMessage(checked.issue, panels))
       return
     }
     setAddingGroup(true)
     setError('')
+    setNewGroupNameIssue(null)
     try {
       const orgId = readActiveOrgId()
       if (!orgId) throw new Error(panels.skillsOrgRequired)
       const response = await skillAPI.createGroup(
         {
-          name: newGroupName.trim(),
+          name: checked.name,
           team_ids: newGroupTeamId ? [newGroupTeamId] : undefined
         },
         { org_id: orgId }
@@ -736,19 +812,22 @@ export default function SkillsView() {
 
   async function saveGroup() {
     if (!canManageSelectedGroup() || !selectedGroup) return
-    if (!editGroupName.trim()) {
-      setError(panels.skillGroupRequiredFields)
+    const checked = validateSkillName(editGroupName)
+    if (!checked.ok) {
+      setEditGroupNameIssue(checked.issue)
+      setError(skillNameIssueMessage(checked.issue, panels))
       return
     }
     setSavingGroup(true)
     setError('')
+    setEditGroupNameIssue(null)
     try {
       const orgId = readActiveOrgId()
       if (!orgId) throw new Error(panels.skillsOrgRequired)
       await skillAPI.updateGroup(
         selectedGroup.group.id,
         {
-          name: editGroupName.trim(),
+          name: checked.name,
           description: selectedGroup.group.description
         },
         { org_id: orgId }
@@ -807,7 +886,7 @@ export default function SkillsView() {
       const response = await skillAPI.download(skill.id)
       const blob = response.data
       if (!(blob instanceof Blob)) throw new Error(panels.skillDownloadFailed)
-      downloadBlob(blob, `${skill.skill_key}.zip`)
+      downloadBlob(blob, `${sanitizeSkillName(skill.name || skill.skill_key) || 'skill'}.zip`)
     } catch (reason) {
       setError(getAPIErrorMessage(reason, panels.skillDownloadFailed))
     }
@@ -1297,12 +1376,11 @@ export default function SkillsView() {
                                 </span>
                               ) : null}
                             </span>
-                            <span className="mt-0.5 block truncate text-[11px] text-muted">
-                              {skill.skill_key}
-                              {skill.description
-                                ? ` · ${skill.description.split(/\r?\n/).find((line) => line.trim()) ?? ''}`
-                                : ''}
-                            </span>
+                            {skill.description ? (
+                              <span className="mt-0.5 block truncate text-[11px] text-muted">
+                                {skill.description.split(/\r?\n/).find((line) => line.trim()) ?? ''}
+                              </span>
+                            ) : null}
                           </span>
                         </button>
                         <div className="flex shrink-0 items-center gap-0.5 pr-2">
@@ -1354,15 +1432,19 @@ export default function SkillsView() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="shrink-0 space-y-3 border-b border-border/60 px-5 py-4">
             <label className="block space-y-1">
-              <span className="text-[11px] text-muted">{panels.skillKey}</span>
+              <span className="text-[11px] text-muted">{panels.skillName}</span>
               <AppInput
-                value={draft.skill_key}
-                data-test-id="skill-key"
-                onChange={(event) => updateDraftMeta({ skill_key: event.target.value })}
+                value={draft.name}
+                data-test-id="skill-name"
+                aria-invalid={skillNameIssue ? true : undefined}
+                onChange={(event) => updateDraftMeta({ name: event.target.value })}
               />
-              <span className="text-[10px] text-muted">
-                {draft.id ? panels.skillKeyEditHelp : panels.skillKeySyncHelp}
-              </span>
+              <span className="text-[10px] text-muted">{panels.skillNameHelp}</span>
+              {skillNameIssue ? (
+                <span role="alert" className="text-[10px] text-danger">
+                  {skillNameIssueMessage(skillNameIssue, panels)}
+                </span>
+              ) : null}
             </label>
             <label className="block space-y-1">
               <span className="text-[11px] text-muted">{panels.skillDescription}</span>
@@ -1463,8 +1545,7 @@ export default function SkillsView() {
                     size="xs"
                     data-test-id="skill-delete"
                     onClick={() => {
-                      const id = draft.id
-                      if (id) void deleteSkill(id)
+                      if (draft.id) requestDeleteSkill(draft.id, draft.name)
                     }}
                   >
                     <Trash2 className="size-3" />
@@ -1481,7 +1562,7 @@ export default function SkillsView() {
                       else
                         void downloadSkill({
                           id: draft.id!,
-                          skill_key: draft.skill_key,
+                          skill_key: draft.name,
                           name: draft.name,
                           content: draft.content,
                           group_id: draft.group_id
@@ -1568,7 +1649,7 @@ export default function SkillsView() {
                   variant="solid"
                   size="sm"
                   data-test-id="skill-save"
-                  disabled={saving}
+                  disabled={saving || skillNameIssue !== null || !draft.name.trim()}
                   onClick={() => void saveSkill()}
                 >
                   {saving ? panels.savingSkill : draft.id ? panels.updateSkill : panels.createSkill}
@@ -1682,13 +1763,25 @@ export default function SkillsView() {
                       value={newGroupName}
                       placeholder={panels.newSkillGroupPlaceholder}
                       data-test-id="new-skill-group-name"
-                      onChange={(event) => setNewGroupName(event.target.value)}
+                      aria-invalid={newGroupNameIssue ? true : undefined}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setNewGroupName(value)
+                        const checked = validateSkillName(value)
+                        setNewGroupNameIssue(checked.ok ? null : checked.issue)
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') void createGroup()
                       }}
                     />
+                    <span className="text-[10px] text-muted">{panels.skillGroupNameHelp}</span>
+                    {newGroupNameIssue ? (
+                      <span role="alert" className="text-[10px] text-danger">
+                        {skillNameIssueMessage(newGroupNameIssue, panels)}
+                      </span>
+                    ) : null}
                   </label>
-                  {error && newGroupOpen ? (
+                  {error && newGroupOpen && !newGroupNameIssue ? (
                     <p role="alert" className="text-[11px] text-danger">
                       {error}
                     </p>
@@ -1701,7 +1794,7 @@ export default function SkillsView() {
                   <AppButton
                     color="primary"
                     variant="solid"
-                    disabled={addingGroup || !newGroupName.trim()}
+                    disabled={addingGroup || newGroupNameIssue !== null || !newGroupName.trim()}
                     data-test-id="new-skill-group-confirm"
                     onClick={() => void createGroup()}
                   >
@@ -1751,11 +1844,23 @@ export default function SkillsView() {
                       autoFocus
                       value={editGroupName}
                       data-test-id="edit-skill-group-name"
-                      onChange={(event) => setEditGroupName(event.target.value)}
+                      aria-invalid={editGroupNameIssue ? true : undefined}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setEditGroupName(value)
+                        const checked = validateSkillName(value)
+                        setEditGroupNameIssue(checked.ok ? null : checked.issue)
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') void saveGroup()
                       }}
                     />
+                    <span className="text-[10px] text-muted">{panels.skillGroupNameHelp}</span>
+                    {editGroupNameIssue ? (
+                      <span role="alert" className="text-[10px] text-danger">
+                        {skillNameIssueMessage(editGroupNameIssue, panels)}
+                      </span>
+                    ) : null}
                   </label>
                   <div className="space-y-2 rounded-lg border border-border/60 p-3">
                     <p className="text-[12px] font-medium">{panels.skillGroupManagers}</p>
@@ -1784,30 +1889,44 @@ export default function SkillsView() {
                         ))}
                       </ul>
                     )}
-                    <div className="flex gap-2">
-                      <AppInput
-                        className="min-w-0 flex-1"
-                        placeholder={panels.skillGroupManagerUserId}
-                        value={managerUserId}
-                        data-test-id="skill-group-manager-user-id"
-                        onChange={(event) => setManagerUserId(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') void addGroupManager()
-                        }}
-                      />
-                      <AppButton
-                        color="neutral"
-                        variant="ghost"
-                        size="sm"
-                        disabled={managerBusy || !managerUserId.trim()}
-                        data-test-id="skill-group-add-manager"
-                        onClick={() => void addGroupManager()}
-                      >
-                        {panels.skillGroupAddManager}
-                      </AppButton>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex gap-2">
+                        <AppInput
+                          className="min-w-0 flex-1"
+                          placeholder={panels.skillGroupManagerUsername}
+                          value={managerUsername}
+                          data-test-id="skill-group-manager-username"
+                          aria-invalid={managerError ? true : undefined}
+                          onChange={(event) => {
+                            setManagerUsername(event.target.value)
+                            if (managerError) setManagerError('')
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') void addGroupManager()
+                          }}
+                        />
+                        <AppButton
+                          color="neutral"
+                          variant="ghost"
+                          size="sm"
+                          disabled={managerBusy || !managerUsername.trim()}
+                          data-test-id="skill-group-add-manager"
+                          onClick={() => void addGroupManager()}
+                        >
+                          {panels.skillGroupAddManager}
+                        </AppButton>
+                      </div>
+                      <span className="text-[10px] text-muted">
+                        {panels.skillGroupManagerUsernameHelp}
+                      </span>
+                      {managerError ? (
+                        <span role="alert" className="text-[10px] text-danger">
+                          {managerError}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                  {error && editGroupOpen ? (
+                  {error && editGroupOpen && !editGroupNameIssue && !managerError ? (
                     <p role="alert" className="text-[11px] text-danger">
                       {error}
                     </p>
@@ -1820,11 +1939,77 @@ export default function SkillsView() {
                   <AppButton
                     color="primary"
                     variant="solid"
-                    disabled={savingGroup || !editGroupName.trim()}
+                    disabled={savingGroup || editGroupNameIssue !== null || !editGroupName.trim()}
                     data-test-id="edit-skill-group-confirm"
                     onClick={() => void saveGroup()}
                   >
                     {savingGroup ? panels.savingSkill : panels.updateSkill}
+                  </AppButton>
+                </footer>
+              </div>
+            </>,
+            document.body
+          )
+        : null}
+
+      {IS_BROWSER && deleteSkillTarget
+        ? createPortal(
+            <>
+              <div
+                data-slot="dialog-overlay"
+                className={deleteSkillDialog.overlay}
+                onClick={() => {
+                  if (!deletingSkill) setDeleteSkillTarget(null)
+                }}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-skill-title"
+                data-slot="dialog-content"
+                data-test-id="delete-skill-dialog"
+                className={deleteSkillDialog.content}
+              >
+                <header data-slot="dialog-header" className={deleteSkillDialog.header}>
+                  <h2 id="delete-skill-title" className={deleteSkillDialog.title}>
+                    {panels.deleteSkillConfirmTitle}
+                  </h2>
+                  <button
+                    type="button"
+                    className={deleteSkillDialog.close}
+                    aria-label={dialogs.close}
+                    disabled={deletingSkill}
+                    onClick={() => setDeleteSkillTarget(null)}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </header>
+                <div data-slot="dialog-body" className={deleteSkillDialog.body}>
+                  <p className="text-xs leading-relaxed text-surface">
+                    {panels.deleteSkillConfirm({ name: deleteSkillTarget.name })}
+                  </p>
+                  {error ? (
+                    <p role="alert" className="mt-2 text-[11px] text-danger">
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+                <footer data-slot="dialog-footer" className={deleteSkillDialog.footer}>
+                  <AppButton
+                    variant="ghost"
+                    disabled={deletingSkill}
+                    onClick={() => setDeleteSkillTarget(null)}
+                  >
+                    {panels.cancel}
+                  </AppButton>
+                  <AppButton
+                    color="error"
+                    variant="solid"
+                    disabled={deletingSkill}
+                    data-test-id="delete-skill-confirm"
+                    onClick={() => void confirmDeleteSkill()}
+                  >
+                    {deletingSkill ? panels.savingSkill : panels.deleteSkillConfirmAction}
                   </AppButton>
                 </footer>
               </div>

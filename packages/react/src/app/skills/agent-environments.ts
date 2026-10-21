@@ -26,11 +26,9 @@ export const SKILL_AGENT_ENVIRONMENTS = [
   { id: 'qoder', label: '.qoder', relativeSkillsDir: '.qoder/skills' }
 ] as const
 
-/** Most common project skill roots — used when creating a workspace. */
+/** Default when creating a workspace — only `.agents`. */
 export const DEFAULT_SKILL_AGENT_ENVIRONMENTS = [
-  'claude',
-  'agents',
-  'github'
+  'agents'
 ] as const satisfies readonly SkillAgentEnvironmentId[]
 
 export type SkillAgentEnvironmentId = (typeof SKILL_AGENT_ENVIRONMENTS)[number]['id']

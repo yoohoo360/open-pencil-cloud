@@ -4,6 +4,7 @@ import {
   type SkillAgentEnvironmentId
 } from '#react/app/skills/agent-environments'
 import { loadPlatformSkillEntries } from '#react/app/skills/platform-package'
+import { skillFolderName } from '#react/app/skills/skill-name'
 import {
   DEFAULT_WORKDIR_SKILL_CONFIG,
   type WorkdirSkillConfig
@@ -179,11 +180,15 @@ async function hydrate(
       continue
     }
     const skills: WorkdirSkill[] = catalog.skills.map((platform) => {
-      const onDisk = scannedByKey.get(platform.skill_key)
+      const displayName = platform.name || platform.skill_key
+      const folder = skillFolderName({ name: displayName, skill_key: platform.skill_key })
+      // Folder = name; also match legacy skill_key folders from older installs.
+      const onDisk = scannedByKey.get(folder) ?? scannedByKey.get(platform.skill_key)
+      claimedKeys.add(folder)
       claimedKeys.add(platform.skill_key)
       return {
-        key: platform.skill_key,
-        name: platform.name || onDisk?.name || platform.skill_key,
+        key: folder,
+        name: displayName || onDisk?.name || folder,
         description: (platform.description || onDisk?.description || '').trim(),
         source: 'platform' as const,
         enabled: Boolean(onDisk?.enabled),
@@ -228,11 +233,14 @@ async function hydrate(
 
 async function resolveSkillDiskEnvs(
   record: WorkdirRecord,
-  key: string
+  key: string,
+  aliases: string[] = []
 ): Promise<{
   folderEnvironments: SkillAgentEnvironmentId[]
   archiveEnvironments: SkillAgentEnvironmentId[]
   enabled: boolean
+  /** Folder/archive name actually present on disk (may differ from skill_key). */
+  diskKey: string
 }> {
   let scanned: Awaited<ReturnType<typeof scanWorkdirSkills>> = []
   try {
@@ -240,11 +248,13 @@ async function resolveSkillDiskEnvs(
   } catch {
     scanned = []
   }
-  const onDisk = scanned.find((skill) => skill.key === key)
+  const candidates = [key, ...aliases]
+  const onDisk = scanned.find((skill) => candidates.includes(skill.key))
   return {
     folderEnvironments: onDisk?.folderEnvironments ?? [],
     archiveEnvironments: onDisk?.archiveEnvironments ?? [],
-    enabled: Boolean(onDisk?.enabled)
+    enabled: Boolean(onDisk?.enabled),
+    diskKey: onDisk?.key ?? aliases[0] ?? key
   }
 }
 
@@ -256,14 +266,47 @@ function catalogOption(
 
 function platformIdFromCatalog(
   catalogGroups: readonly PencilSkillGroup[],
-  key: string
+  folderOrKey: string
 ): string | undefined {
   for (const group of catalogGroups) {
     for (const skill of group.skills ?? []) {
-      if (skill.skill_key === key) return skill.id
+      const folder = skillFolderName({ name: skill.name || skill.skill_key, skill_key: skill.skill_key })
+      if (folder === folderOrKey || skill.skill_key === folderOrKey) return skill.id
     }
   }
   return undefined
+}
+
+function platformRefFromCatalog(
+  catalogGroups: readonly PencilSkillGroup[],
+  folderOrKey: string
+): { id: string; skill_key: string; name: string; folder: string } | undefined {
+  for (const group of catalogGroups) {
+    for (const skill of group.skills ?? []) {
+      const folder = skillFolderName({ name: skill.name || skill.skill_key, skill_key: skill.skill_key })
+      if (folder === folderOrKey || skill.skill_key === folderOrKey) {
+        return {
+          id: skill.id,
+          skill_key: skill.skill_key,
+          name: skill.name || skill.skill_key,
+          folder
+        }
+      }
+    }
+  }
+  return undefined
+}
+
+/** Disk folder: platform skills use sanitized name; local skills keep their folder key. */
+function diskKeyForSkill(
+  key: string,
+  source: WorkdirSkillSource,
+  catalogGroups: readonly PencilSkillGroup[]
+): string {
+  if (source !== 'platform') return key
+  const ref = platformRefFromCatalog(catalogGroups, key)
+  if (ref) return ref.folder
+  return skillFolderName({ name: key, skill_key: key })
 }
 
 export const workdirAPI = {
@@ -374,7 +417,8 @@ export const workdirAPI = {
       for (const skill of group.skills) {
         if (skill.source !== 'platform' || skill.enabled || !skill.platformId) continue
         const entries = await loadPlatformSkillEntries(skill.platformId)
-        await writeSkillEntriesToWorkdir(record, skill.key, entries, targets)
+        const folder = skillFolderName({ name: skill.name, key: skill.key })
+        await writeSkillEntriesToWorkdir(record, folder, entries, targets)
       }
     }
 
@@ -414,7 +458,9 @@ export const workdirAPI = {
     const platformId =
       options?.platformId || platformIdFromCatalog(catalogGroups, key)
     const source = options?.source ?? (platformId ? 'platform' : 'local')
-    const disk = await resolveSkillDiskEnvs(record, key)
+    const folderKey = diskKeyForSkill(key, source, catalogGroups)
+    const disk = await resolveSkillDiskEnvs(record, key, [folderKey])
+    const activeKey = disk.diskKey
     const targets =
       options?.agentEnvironments && options.agentEnvironments.length > 0
         ? options.agentEnvironments
@@ -426,28 +472,40 @@ export const workdirAPI = {
       if (source === 'platform') {
         if (!platformId) throw new Error('Platform skill id is required to enable')
         const entries = await loadPlatformSkillEntries(platformId)
-        await writeSkillEntriesToWorkdir(record, key, entries, targets)
+        // Prefer the readable folder key; remove a leftover digit-named folder if present.
+        await writeSkillEntriesToWorkdir(record, folderKey, entries, targets)
+        if (activeKey !== folderKey) {
+          await removeSkillFromWorkdir(record, activeKey, targets).catch(() => undefined)
+        }
         if (disk.archiveEnvironments.length > 0) {
-          await removeSkillArchivesFromWorkdir(record, key, disk.archiveEnvironments)
+          await removeSkillArchivesFromWorkdir(record, activeKey, disk.archiveEnvironments)
+          if (activeKey !== folderKey) {
+            await removeSkillArchivesFromWorkdir(record, folderKey, disk.archiveEnvironments).catch(
+              () => undefined
+            )
+          }
         }
       } else if (disk.archiveEnvironments.length > 0 && !disk.enabled) {
-        await expandArchivedSkillInWorkdir(record, key, targets)
+        await expandArchivedSkillInWorkdir(record, activeKey, targets)
       } else {
-        const entries = await readSkillEntriesFromWorkdir(record, key)
+        const entries = await readSkillEntriesFromWorkdir(record, activeKey)
         if (!entries) throw new Error('Local skill folder or archive not found')
-        await writeSkillEntriesToWorkdir(record, key, entries, targets)
+        await writeSkillEntriesToWorkdir(record, activeKey, entries, targets)
       }
     } else if (source === 'platform') {
       const removeEnvs =
         disk.folderEnvironments.length > 0 || disk.archiveEnvironments.length > 0
           ? [...new Set([...disk.folderEnvironments, ...disk.archiveEnvironments])]
           : allAgentEnvIds()
-      await removeSkillFromWorkdir(record, key, removeEnvs)
+      await removeSkillFromWorkdir(record, activeKey, removeEnvs)
+      if (activeKey !== folderKey) {
+        await removeSkillFromWorkdir(record, folderKey, removeEnvs).catch(() => undefined)
+      }
     } else {
       const archiveEnvs =
         disk.folderEnvironments.length > 0 ? disk.folderEnvironments : targets
       if (disk.enabled) {
-        await archiveSkillInWorkdir(record, key, archiveEnvs)
+        await archiveSkillInWorkdir(record, activeKey, archiveEnvs)
       }
     }
 
@@ -475,7 +533,9 @@ export const workdirAPI = {
     const platformId =
       options?.platformId || platformIdFromCatalog(catalogGroups, key)
     const source = options?.source ?? (platformId ? 'platform' : 'local')
-    const disk = await resolveSkillDiskEnvs(record, key)
+    const folderKey = diskKeyForSkill(key, source, catalogGroups)
+    const disk = await resolveSkillDiskEnvs(record, key, [folderKey])
+    const activeKey = disk.diskKey
     const current = disk.folderEnvironments
     const next = [...new Set(nextEnvs)]
     const removed = current.filter((env) => !next.includes(env))
@@ -483,24 +543,25 @@ export const workdirAPI = {
 
     if (removed.length > 0) {
       if (source === 'platform') {
-        await removeSkillFromWorkdir(record, key, removed)
+        await removeSkillFromWorkdir(record, activeKey, removed)
       } else if (next.length === 0) {
-        await archiveSkillInWorkdir(record, key, removed)
+        await archiveSkillInWorkdir(record, activeKey, removed)
       } else {
-        await archiveSkillInWorkdir(record, key, removed)
+        await archiveSkillInWorkdir(record, activeKey, removed)
       }
     }
 
     if (added.length > 0) {
-      let entries = await readSkillEntriesFromWorkdir(record, key)
+      let entries = await readSkillEntriesFromWorkdir(record, activeKey)
       if (!entries && source === 'platform') {
         if (!platformId) throw new Error('Platform skill id is required')
         entries = await loadPlatformSkillEntries(platformId)
       }
       if (!entries) throw new Error('Skill package not found to install into agent folders')
-      await writeSkillEntriesToWorkdir(record, key, entries, added)
+      const writeKey = source === 'platform' ? folderKey : activeKey
+      await writeSkillEntriesToWorkdir(record, writeKey, entries, added)
       if (disk.archiveEnvironments.length > 0) {
-        await removeSkillArchivesFromWorkdir(record, key, disk.archiveEnvironments)
+        await removeSkillArchivesFromWorkdir(record, activeKey, disk.archiveEnvironments)
       }
     }
 

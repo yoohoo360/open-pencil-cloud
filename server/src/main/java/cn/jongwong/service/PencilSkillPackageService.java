@@ -219,7 +219,7 @@ public class PencilSkillPackageService {
         }
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(bos)) {
-            String root = skill.getSkillKey() + "/";
+            String root = skill.getName() + "/";
             for (PencilSkillEntry entry : entries) {
                 if (entry.isDirectory()) {
                     ZipEntry zipEntry = new ZipEntry(root + entry.getPath() + "/");

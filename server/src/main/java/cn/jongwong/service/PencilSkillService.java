@@ -39,6 +39,7 @@ public class PencilSkillService {
     private final PencilSkillGroupTeamRepository groupTeamRepository;
     private final PencilSkillGroupManagerRepository groupManagerRepository;
     private final TeamService teamService;
+    private final UserService userService;
 
     @Transactional(readOnly = true)
     public List<SkillCatalogCategoryResponse> catalog(String userId) {
@@ -271,9 +272,8 @@ public class PencilSkillService {
             String orgId
     ) {
         String uid = userId.trim();
-        if (!StringUtils.hasText(name)) {
-            throw ApiException.badRequest("Group name is required");
-        }
+        // Same rules as skill names: letters / digits / `-` only.
+        String groupName = sanitizeKey(name);
         String org = StringUtils.hasText(orgId) ? orgId.trim() : null;
         if (!StringUtils.hasText(org)) {
             throw ApiException.badRequest("org_id is required");
@@ -282,7 +282,7 @@ public class PencilSkillService {
         // Internal key only — clients create groups by display name.
         PencilSkillGroup group = groupRepository.save(PencilSkillGroup.builder()
                 .groupKey(newInternalGroupKey())
-                .name(name.trim())
+                .name(groupName)
                 .description(description)
                 .ownerId(uid)
                 .orgId(org)
@@ -312,7 +312,7 @@ public class PencilSkillService {
             throw ApiException.badRequest("Cannot rename the team remotes group");
         }
         if (StringUtils.hasText(name)) {
-            String nextName = name.trim();
+            String nextName = sanitizeKey(name);
             // Rename must stay unique under currently bound teams.
             requireUniqueNameUnderTeams(nextName, teamIdsForGroup(group.getId()), group.getId());
             group.setName(nextName);
@@ -350,16 +350,19 @@ public class PencilSkillService {
     }
 
     @Transactional
-    public void addGroupManager(String actorId, PencilSkillGroup group, String userId) {
+    public void addGroupManager(String actorId, PencilSkillGroup group, String userIdOrUsername) {
         requireManageGroup(actorId, group);
-        String uid = userId == null ? "" : userId.trim();
-        if (!StringUtils.hasText(uid)) throw ApiException.badRequest("user_id is required");
+        String raw = userIdOrUsername == null ? "" : userIdOrUsername.trim();
+        if (!StringUtils.hasText(raw)) throw ApiException.badRequest("username is required");
+        // Accept username, email, or user id.
+        String uid = userService.resolveByUsernameOrEmail(raw).getId();
+        if (!StringUtils.hasText(uid)) throw ApiException.badRequest("User not found");
         if (groupManagerRepository.existsByGroupIdAndUserId(group.getId(), uid)) {
             return;
         }
         groupManagerRepository.save(PencilSkillGroupManager.builder()
                 .groupId(group.getId())
-                .userId(uid)
+                .userId(uid.trim())
                 .build());
     }
 
@@ -573,14 +576,25 @@ public class PencilSkillService {
         }
     }
 
+    /**
+     * Skill name (= local folder under {@code .claude/skills/<name>/}, etc.).
+     * Letters (any script), digits, and {@code -}; no whitespace or other symbols.
+     * Stored as both {@code name} and {@code skill_key} for uniqueness.
+     */
     public static String sanitizeKey(String raw) {
-        String key = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9-]+", "-")
+        String key = raw == null ? "" : raw.trim()
+                .replaceAll("[^\\p{L}\\p{N}-]+", "-")
                 .replaceAll("-+", "-")
                 .replaceAll("^-|-$", "");
-        if (!StringUtils.hasText(key)) throw ApiException.badRequest("key is required");
-        if (key.length() > 64) throw ApiException.badRequest("key is too long");
+        if (!StringUtils.hasText(key)) throw ApiException.badRequest("name is required");
+        if (key.length() > 64) throw ApiException.badRequest("name is too long");
         return key;
+    }
+
+    /** Prefer request name; fall back to skill_key for older clients. */
+    public static String sanitizeSkillName(String name, String skillKey) {
+        if (StringUtils.hasText(name)) return sanitizeKey(name);
+        return sanitizeKey(skillKey);
     }
 
     private Set<String> normalizeTeamIds(
