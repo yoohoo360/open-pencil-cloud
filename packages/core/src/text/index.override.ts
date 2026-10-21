@@ -14,6 +14,10 @@ export * from './prepare.override'
 export {
   PINGFANG_LOAD_MODE,
   PINGFANG_SC_FAMILY,
+  pingFangConfigUrl,
+  pingFangSliceIdForCharacter,
+  pingFangSliceIdForCodePoint,
   usesPingFangSlices,
+  type PingFangCoverageConfig,
   type PingFangLoadMode
 } from './pingfang-slices'

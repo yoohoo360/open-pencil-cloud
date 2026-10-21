@@ -25,6 +25,8 @@ import {
   type FontResolutionSettled
 } from '#core/text/resolver/index.override'
 
+import { isPingFangScFamily, usesPingFangSlices } from '#core/text/pingfang-slices'
+
 import { resolveParagraphFontFamilies } from './font-families.override'
 import { pushParagraphStyle, type ParagraphPaintStyle, type ParagraphBuildOptions } from './paint'
 import { withPreparedText } from './prepared'
@@ -418,6 +420,13 @@ function styleRunLanguage(
   return style.textLanguage ?? node.textLanguage ?? undefined
 }
 
+type FontFamiliesFn = (
+  primary: string,
+  weight: number,
+  italic?: boolean,
+  characters?: string
+) => string[]
+
 function pushStyleRun(
   r: TextRenderer,
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
@@ -425,8 +434,10 @@ function pushStyleRun(
   run: SceneNode['styleRuns'][number],
   baseColor: Float32Array,
   baseFontSize: number,
-  fontFamilies: (primary: string, weight: number, italic?: boolean) => string[],
+  fontFamilies: FontFamiliesFn,
   halfLeading: boolean,
+  /** Characters in this style span — drives PingFang shard selection. */
+  characters: string,
   paintStyle?: ParagraphPaintStyle
 ): void {
   const ck = r.ck
@@ -439,7 +450,7 @@ function pushStyleRun(
 
   const textStyle = new ck.TextStyle({
     color: styleRunColor(ck, style, baseColor),
-    fontFamilies: fontFamilies(runFamily, runWeight, runItalic),
+    fontFamilies: fontFamilies(runFamily, runWeight, runItalic, characters),
     fontSize: runFontSize,
     locale: styleRunLanguage(style, node),
     fontStyle: {
@@ -469,6 +480,44 @@ function pushStyleRun(
   pushParagraphStyle(builder, textStyle, paintStyle)
 }
 
+function pushBaseTextStyle(
+  r: TextRenderer,
+  builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
+  node: ParagraphNode,
+  baseColor: Float32Array,
+  baseFontSize: number,
+  fontFamilies: FontFamiliesFn,
+  halfLeading: boolean,
+  characters: string,
+  paintStyle?: ParagraphPaintStyle
+): void {
+  const ck = r.ck
+  const family = node.fontFamily || DEFAULT_FONT_FAMILY
+  const textStyle = new ck.TextStyle({
+    color: baseColor,
+    fontFamilies: fontFamilies(family, node.fontWeight, node.italic, characters),
+    fontSize: baseFontSize,
+    locale: node.textLanguage ?? undefined,
+    fontStyle: {
+      weight: { value: node.fontWeight } as FontWeight,
+      slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
+    },
+    fontVariations: textFontVariations(
+      node.fontVariations,
+      fontManager.namedInstanceVariations(family, weightToStyle(node.fontWeight, node.italic))
+    ),
+    fontFeatures: textFontFeatures(node.fontFeatures),
+    letterSpacing: node.letterSpacing || 0,
+    decoration: textDecorationValue(ck, node.textDecoration),
+    decorationStyle: textDecorationStyleValue(ck, node.textDecorationStyle),
+    decorationThickness: node.textDecorationThickness ?? undefined,
+    decorationColor: textDecorationColor(ck, node.textDecorationFills, baseColor),
+    heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
+    halfLeading
+  })
+  pushParagraphStyle(builder, textStyle, paintStyle)
+}
+
 function addParagraphText(
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
   node: Pick<ParagraphNode, 'textCase'>,
@@ -477,13 +526,69 @@ function addParagraphText(
   builder.addText(transformTextCase(text, node.textCase))
 }
 
+/** Split `segment` onto styles that each list at most one PingFang covering shard. */
+function addSegmentWithPingFangSlices(
+  r: TextRenderer,
+  builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
+  node: ParagraphNode,
+  segment: string,
+  baseColor: Float32Array,
+  baseFontSize: number,
+  fontFamilies: FontFamiliesFn,
+  halfLeading: boolean,
+  paintStyle: ParagraphPaintStyle | undefined,
+  styleRun: SceneNode['styleRuns'][number] | null
+): void {
+  if (!segment) return
+  const primary =
+    styleRun?.style.fontFamily ?? (node.fontFamily || DEFAULT_FONT_FAMILY)
+  const weight = styleRun?.style.fontWeight ?? node.fontWeight
+  const italic = styleRun?.style.italic ?? node.italic
+  const sliceRuns =
+    usesPingFangSlices() && isPingFangScFamily(primary)
+      ? fontManager.pingFangSliceRuns(primary, weightToStyle(weight, italic), segment)
+      : [{ start: 0, length: segment.length }]
+
+  for (const slice of sliceRuns) {
+    const sliceText = segment.slice(slice.start, slice.start + slice.length)
+    if (styleRun) {
+      pushStyleRun(
+        r,
+        builder,
+        node,
+        styleRun,
+        baseColor,
+        baseFontSize,
+        fontFamilies,
+        halfLeading,
+        sliceText,
+        paintStyle
+      )
+    } else {
+      pushBaseTextStyle(
+        r,
+        builder,
+        node,
+        baseColor,
+        baseFontSize,
+        fontFamilies,
+        halfLeading,
+        sliceText,
+        paintStyle
+      )
+    }
+    addParagraphText(builder, node, sliceText)
+    builder.pop()
+  }
+}
+
 function addStyledRuns(
   r: TextRenderer,
   builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>,
   node: ParagraphNode,
   baseColor: Float32Array,
   baseFontSize: number,
-  fontFamilies: (primary: string, weight: number, italic?: boolean) => string[],
+  fontFamilies: FontFamiliesFn,
   halfLeading: boolean,
   paintStyle?: ParagraphPaintStyle
 ): void {
@@ -491,24 +596,49 @@ function addStyledRuns(
   let pos = 0
 
   for (const run of node.styleRuns) {
-    if (pos < run.start) addParagraphText(builder, node, text.slice(pos, run.start))
-    pushStyleRun(
+    if (pos < run.start) {
+      addSegmentWithPingFangSlices(
+        r,
+        builder,
+        node,
+        text.slice(pos, run.start),
+        baseColor,
+        baseFontSize,
+        fontFamilies,
+        halfLeading,
+        paintStyle,
+        null
+      )
+    }
+    addSegmentWithPingFangSlices(
       r,
       builder,
       node,
-      run,
+      text.slice(run.start, run.start + run.length),
       baseColor,
       baseFontSize,
       fontFamilies,
       halfLeading,
-      paintStyle
+      paintStyle,
+      run
     )
-    addParagraphText(builder, node, text.slice(run.start, run.start + run.length))
-    builder.pop()
     pos = run.start + run.length
   }
 
-  if (pos < text.length) addParagraphText(builder, node, text.slice(pos))
+  if (pos < text.length) {
+    addSegmentWithPingFangSlices(
+      r,
+      builder,
+      node,
+      text.slice(pos),
+      baseColor,
+      baseFontSize,
+      fontFamilies,
+      halfLeading,
+      paintStyle,
+      null
+    )
+  }
 }
 
 export function buildParagraph(
@@ -526,20 +656,24 @@ export function buildParagraph(
 
   const truncateOpts = buildTruncateOpts(node, baseFontSize)
 
-  const fontFamilies = (primary: string, weight: number, italic = false) =>
+  const fontFamilies: FontFamiliesFn = (primary, weight, italic = false, characters = '') =>
     resolveParagraphFontFamilies(
       primary,
       weightToStyle(weight, italic),
       arabicFallbacks,
-      cjkFallbacks
+      cjkFallbacks,
+      // One covering shard for this span only — Skia keeps `.notdef` from a prior shard.
+      characters
     )
 
   const baseTextStyle = {
     color: baseColor,
+    // Default style uses the hot `common` shard; unpackaged CJK uses network fallbacks.
     fontFamilies: fontFamilies(
       node.fontFamily || DEFAULT_FONT_FAMILY,
       node.fontWeight,
-      node.italic
+      node.italic,
+      ''
     ),
     fontSize: baseFontSize,
     locale: node.textLanguage ?? undefined,
@@ -584,7 +718,18 @@ export function buildParagraph(
       builder.pushPaintStyle(new ck.TextStyle(baseTextStyle), foregroundPaint, background)
     }
     if (node.styleRuns.length === 0) {
-      addParagraphText(builder, node, node.text)
+      addSegmentWithPingFangSlices(
+        r,
+        builder,
+        node,
+        node.text,
+        baseColor,
+        baseFontSize,
+        fontFamilies,
+        halfLeading,
+        paintStyle,
+        null
+      )
     } else {
       addStyledRuns(
         r,

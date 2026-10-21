@@ -251,7 +251,8 @@ export async function openDesignFileBatch<T>(
   }
 }
 
-export function newDocument(store: EditorStore) {
+export async function newDocument(store: EditorStore): Promise<void> {
+  await store.unloadDocumentFonts()
   const graph = new SceneGraph()
   store.replaceGraph(graph)
   store.undo.clear()
@@ -260,7 +261,7 @@ export function newDocument(store: EditorStore) {
   clearRemoteDocument(store)
   clearSaveTarget(store)
   const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
-  void store.switchPage(pageId)
+  await store.switchPage(pageId)
   store.zoomToFit()
   store.notify()
 }

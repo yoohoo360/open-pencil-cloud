@@ -130,6 +130,9 @@ export async function applyImportedDocument(
   imported: SceneGraph,
   openPageId?: string
 ): Promise<void> {
+  // Drop PingFang slices / network fallbacks / Skia registrations from the prior file.
+  await store.unloadDocumentFonts()
+
   const pageId = openPageId ?? imported.getPages()[0]?.id ?? imported.rootId
   // Preferred / first-page parse already materializes the open page. Re-preparing
   // through the population worker can stall the open overlay on large files.

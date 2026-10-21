@@ -46,14 +46,9 @@ function resolveMcpLaunch(): McpLaunch | null {
   }
 
   const binaryName = `${MCP_EXECUTABLE}-${hostTargetTriple()}${process.platform === 'win32' ? '.exe' : ''}`
-  const candidates = [
-    join(packageRoot(), 'binaries', binaryName),
-    join(root, 'desktop-react', 'binaries', binaryName)
-  ]
-  for (const path of candidates) {
-    if (existsSync(path)) {
-      return { display: path, program: path, args: [] }
-    }
+  const path = join(packageRoot(), 'binaries', binaryName)
+  if (existsSync(path)) {
+    return { display: path, program: path, args: [] }
   }
   return null
 }
@@ -64,11 +59,7 @@ export function mcpLookup(): {
   searched: string[]
 } {
   const launch = resolveMcpLaunch()
-  const searched = [
-    join(repoRoot(), 'packages/mcp/src'),
-    join(repoRoot(), 'desktop-react/binaries'),
-    join(packageRoot(), 'binaries')
-  ]
+  const searched = [join(repoRoot(), 'packages/mcp/src'), join(packageRoot(), 'binaries')]
   return {
     available: launch !== null,
     path: launch?.display ?? null,
@@ -123,7 +114,7 @@ export function mcpStart(env: Record<string, string>): void {
   const launch = resolveMcpLaunch()
   if (!launch) {
     throw new Error(
-      'MCP server was not found. Run `bun run start:mcp` from desktop-electron (forwards to desktop-react), or ensure packages/mcp is available.'
+      'MCP server was not found. Run `bun run start:mcp` from desktop-electron, or ensure packages/mcp is available.'
     )
   }
   if (mcpChild && !mcpChild.killed) {

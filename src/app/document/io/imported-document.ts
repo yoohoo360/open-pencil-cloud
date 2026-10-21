@@ -9,6 +9,9 @@ export async function applyImportedDocument(
   imported: SceneGraph,
   load?: DocumentLoadSession
 ) {
+  // Drop PingFang slices / network fallbacks / Skia registrations from the prior file.
+  await editor.unloadDocumentFonts()
+
   const firstPage = imported.getPages()[0] as SceneNode | undefined
   const pageId = firstPage?.id ?? imported.rootId
   const stagingEditor = createEditor({

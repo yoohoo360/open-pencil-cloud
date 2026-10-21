@@ -67,6 +67,72 @@ function yieldExportSlice(): Promise<void> {
   })
 }
 
+type ElectronDesktopBridge = {
+  invoke(command: string, args?: unknown): Promise<unknown>
+}
+
+/**
+ * Electron stubs `__TAURI_INTERNALS__` so `IS_TAURI` is true. Going through
+ * `@tauri-apps/api` still runs Tauri's Uint8Array → `Array.from` JSON path and
+ * freezes the renderer on multi-MB saves (common when the shell loads the
+ * deployed https:// frontend). Call `openPencilDesktop.invoke` with raw bytes.
+ */
+function isElectronDesktopStub(): boolean {
+  if (typeof window === 'undefined') return false
+  const internals = (
+    window as Window & { __TAURI_INTERNALS__?: { openPencilElectron?: unknown } }
+  ).__TAURI_INTERNALS__
+  return Boolean(internals?.openPencilElectron)
+}
+
+function electronDesktopBridge(): ElectronDesktopBridge | null {
+  if (typeof window === 'undefined') return null
+  const bridge = (window as Window & { openPencilDesktop?: ElectronDesktopBridge })
+    .openPencilDesktop
+  return bridge ?? null
+}
+
+/** Convert bytes for Tauri JSON IPC without holding the main thread for the whole buffer. */
+async function bytesToJsonNumberArray(bytes: Uint8Array): Promise<number[]> {
+  const out = new Array<number>(bytes.byteLength)
+  const chunk = 64 * 1024
+  for (let offset = 0; offset < bytes.byteLength; offset++) {
+    out[offset] = bytes[offset] ?? 0
+    if ((offset + 1) % chunk === 0) await yieldExportSlice()
+  }
+  return out
+}
+
+function copyBytesForTransfer(bytes: Uint8Array): Uint8Array {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy
+}
+
+async function buildFigArchiveViaElectron(
+  schemaDeflated: Uint8Array,
+  kiwiData: Uint8Array,
+  thumbnailPNG: Uint8Array,
+  metaJSON: string,
+  imageEntries: Array<{ name: string; data: Uint8Array }>,
+  figKiwiVersion: number | undefined
+): Promise<Uint8Array | null> {
+  const bridge = electronDesktopBridge()
+  if (!bridge) return null
+  await yieldExportSlice()
+  const result = await bridge.invoke('build_fig_file', {
+    schemaDeflated,
+    kiwiData,
+    thumbnailPng: thumbnailPNG,
+    metaJson: metaJSON,
+    images: imageEntries.map((entry) => ({ name: entry.name, data: entry.data })),
+    figKiwiVersion
+  })
+  if (result instanceof ArrayBuffer) return new Uint8Array(result)
+  if (result instanceof Uint8Array) return result
+  throw new Error('build_fig_file returned an unexpected payload')
+}
+
 type KiwiNodeChange = NodeChange & Record<string, unknown>
 type FigExportPage = ReturnType<SceneGraph['getPages']>[number]
 
@@ -591,7 +657,9 @@ async function writeFigFile(
     msg.blobs = blobs.map((bytes) => ({ bytes }))
   }
 
+  await yieldExportSlice()
   const kiwiData = compiled.encodeMessage(msg)
+  await yieldExportSlice()
 
   const currentPageId = pageId ?? findFigThumbnailPageId(pages)
   const thumbnailPNG = await renderFigThumbnail(
@@ -612,15 +680,33 @@ async function writeFigFile(
 
   const version = graph.figKiwiVersion ?? undefined
 
-  if (IS_TAURI) {
+  // Electron + remote https:// frontend: bypass Tauri JS Array.from IPC.
+  if (isElectronDesktopStub()) {
+    const viaElectron = await buildFigArchiveViaElectron(
+      schemaDeflated,
+      kiwiData,
+      thumbnailPNG,
+      metaJSON,
+      imageEntries,
+      version
+    )
+    if (viaElectron) return viaElectron
+  }
+
+  // Real Tauri uses native zip (chunked number arrays keep the UI breathing).
+  if (IS_TAURI && !isElectronDesktopStub()) {
     const { invoke } = await import('@tauri-apps/api/core')
+    const images = []
+    for (const entry of imageEntries) {
+      images.push({ name: entry.name, data: await bytesToJsonNumberArray(entry.data) })
+    }
     return new Uint8Array(
       await invoke<ArrayBuffer>('build_fig_file', {
-        schemaDeflated: Array.from(schemaDeflated),
-        kiwiData: Array.from(kiwiData),
-        thumbnailPng: Array.from(thumbnailPNG),
+        schemaDeflated: await bytesToJsonNumberArray(schemaDeflated),
+        kiwiData: await bytesToJsonNumberArray(kiwiData),
+        thumbnailPng: await bytesToJsonNumberArray(thumbnailPNG),
         metaJson: metaJSON,
-        images: imageEntries.map((e) => ({ name: e.name, data: Array.from(e.data) })),
+        images,
         figKiwiVersion: version
       })
     )
@@ -635,7 +721,7 @@ function canUseWorker(): boolean {
   return typeof Worker !== 'undefined' && IS_BROWSER
 }
 
-function compressViaWorker(
+async function compressViaWorker(
   schemaDeflated: Uint8Array,
   kiwiData: Uint8Array,
   thumbnailPNG: Uint8Array,
@@ -643,7 +729,18 @@ function compressViaWorker(
   imageEntries: Array<{ name: string; data: Uint8Array }>,
   figKiwiVersion?: number
 ): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
+  // Own copies so transferables cannot detach live ByteBuffer / image views.
+  await yieldExportSlice()
+  const schemaCopy = copyBytesForTransfer(schemaDeflated)
+  const kiwiCopy = copyBytesForTransfer(kiwiData)
+  const thumbCopy = copyBytesForTransfer(thumbnailPNG)
+  const imageCopies = imageEntries.map((entry) => ({
+    name: entry.name,
+    data: copyBytesForTransfer(entry.data)
+  }))
+  await yieldExportSlice()
+
+  return await new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./export-worker.ts', import.meta.url), {
       type: 'module'
     })
@@ -657,22 +754,27 @@ function compressViaWorker(
       worker.terminate()
     }
 
-    // Do NOT use transferables here. toUint8Array() in ByteBuffer returns a view of the
-    // internal buffer, so transferring kiwiData.buffer or schemaDeflated.buffer detaches
-    // buffers that may be shared with other views, causing "already detached" errors on
-    // subsequent saves. Structured clone (the default) copies the data safely.
-    worker.postMessage({
-      schemaDeflated,
-      kiwiData,
-      thumbnailPNG,
-      metaJSON,
-      images: imageEntries,
-      figKiwiVersion
-    })
+    const transfer: Transferable[] = [
+      schemaCopy.buffer,
+      kiwiCopy.buffer,
+      thumbCopy.buffer,
+      ...imageCopies.map((entry) => entry.data.buffer)
+    ]
+    worker.postMessage(
+      {
+        schemaDeflated: schemaCopy,
+        kiwiData: kiwiCopy,
+        thumbnailPNG: thumbCopy,
+        metaJSON,
+        images: imageCopies,
+        figKiwiVersion
+      },
+      transfer
+    )
   })
 }
 
-export function compressFigData(
+export async function compressFigData(
   schemaDeflated: Uint8Array,
   kiwiData: Uint8Array,
   thumbnailPNG: Uint8Array,
@@ -681,23 +783,26 @@ export function compressFigData(
   figKiwiVersion?: number
 ): Promise<Uint8Array> {
   if (canUseWorker()) {
-    return compressViaWorker(
-      schemaDeflated,
-      kiwiData,
-      thumbnailPNG,
-      metaJSON,
-      imageEntries,
-      figKiwiVersion
-    )
+    try {
+      return await compressViaWorker(
+        schemaDeflated,
+        kiwiData,
+        thumbnailPNG,
+        metaJSON,
+        imageEntries,
+        figKiwiVersion
+      )
+    } catch (error) {
+      console.warn('[fig] Export worker failed; compressing on the main thread', error)
+    }
   }
-  return Promise.resolve(
-    compressFigDataSync(
-      schemaDeflated,
-      kiwiData,
-      thumbnailPNG,
-      metaJSON,
-      imageEntries,
-      figKiwiVersion
-    )
+  await yieldExportSlice()
+  return compressFigDataSync(
+    schemaDeflated,
+    kiwiData,
+    thumbnailPNG,
+    metaJSON,
+    imageEntries,
+    figKiwiVersion
   )
 }

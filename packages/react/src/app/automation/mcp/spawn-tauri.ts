@@ -38,7 +38,7 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
       return {
         ok: false,
         error:
-          'MCP server was not found. Rebuild desktop-react, run `bun run start:mcp` from desktop-electron/desktop-react, or ensure packages/mcp is available.'
+          'MCP server was not found. Run `bun run start:mcp` from desktop-electron (or desktop-react for Tauri), or ensure packages/mcp is available.'
       }
     }
 

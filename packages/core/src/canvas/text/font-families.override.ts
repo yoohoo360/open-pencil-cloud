@@ -3,7 +3,7 @@ import { uniq } from 'es-toolkit/array'
 import { ResourceCache } from '#core/cache/resource'
 import { DEFAULT_FONT_FAMILY } from '#core/constants'
 import { fontManager } from '#core/text/fonts.override'
-import { usesPingFangSlices } from '#core/text/pingfang-slices'
+import { isPingFangScFamily, usesPingFangSlices } from '#core/text/pingfang-slices'
 
 const familiesCache = new ResourceCache<string, string[]>({ maxEntries: 256 })
 
@@ -11,9 +11,17 @@ export function resolveParagraphFontFamilies(
   primary: string,
   style: string,
   arabicFallbacks: readonly string[] = fontManager.getArabicFallbackFamilies(),
-  cjkFallbacks: readonly string[] = fontManager.getCJKFallbackFamilies()
+  cjkFallbacks: readonly string[] = fontManager.getCJKFallbackFamilies(),
+  /**
+   * Characters for this Paragraph style span only (one covering shard).
+   * Mixed-coverage strings must be split with `pingFangSliceRuns` first.
+   */
+  characters = ''
 ): string[] {
-  const shards = usesPingFangSlices() ? fontManager.renderFamilyShards(primary, style) : []
+  const shards =
+    usesPingFangSlices() && isPingFangScFamily(primary)
+      ? fontManager.renderFamilyShardsForText(primary, style, characters)
+      : []
   const renderPrimary = shards[0] ?? fontManager.renderFamily(primary, style)
   const renderArabicFallbacks = arabicFallbacks.map((family) =>
     fontManager.renderFamily(family, 'Regular')

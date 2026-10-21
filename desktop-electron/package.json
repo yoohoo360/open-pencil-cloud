@@ -22,9 +22,9 @@
     "dev:dev": "OPENPENCIL_APP_ENV=dev bun ./scripts/dev.ts",
     "start": "OPENPENCIL_APP_ENV=local bun run build:main && OPENPENCIL_APP_ENV=local electron .",
     "start:frontend": "bun --cwd ../packages/react run start",
-    "start:mcp": "bun --cwd ../desktop-react run start:mcp",
+    "start:mcp": "bun ./scripts/start-mcp.ts",
     "start:agent-server": "bun --cwd ../desktop-react run start:agent-server",
-    "start:services": "bun --cwd ../desktop-react run start:services"
+    "start:services": "bun ./scripts/start-services.ts"
   },
   "dependencies": {
     "@open-pencil/fig": "workspace:*"

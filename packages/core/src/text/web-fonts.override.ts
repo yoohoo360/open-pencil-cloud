@@ -192,6 +192,12 @@ export class WebFontResolver {
     }
   }
 
+  /** Drop in-flight / sticky fetch state when switching documents (keep family catalogs). */
+  clearDocumentFetches(): void {
+    this.failedFonts.clear()
+    this.fontPromises.clear()
+  }
+
   enabledProviders(): WebFontProviderId[] {
     return WEB_FONT_PROVIDER_IDS.filter((provider) => this.enabled.has(provider))
   }

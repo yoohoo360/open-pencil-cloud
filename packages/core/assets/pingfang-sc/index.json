@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 5,
   "family": "PingFang SC",
   "styles": [
     "Light",
@@ -9,5 +9,6 @@
     "Thin",
     "UltraLight"
   ],
-  "basePath": "/pingfang-sc"
+  "basePath": "/pingfang-sc",
+  "config": "config.json"
 }

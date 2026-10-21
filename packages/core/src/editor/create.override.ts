@@ -319,6 +319,23 @@ export function createEditor(options?: EditorOptions) {
     requestRender()
   }
 
+  /**
+   * Drop fonts / resolution state from the previous document, then recreate
+   * CanvasKit providers so Skia no longer holds the old face registrations.
+   */
+  async function unloadDocumentFonts(): Promise<void> {
+    fontManager.unloadDocumentFonts()
+    fontResolver.reset()
+    await Promise.all(
+      [..._renderers].map(async (renderer) => {
+        if (renderer.isDestroyed()) return
+        renderer.textPreparationCache.clear()
+        renderer.labelParagraphCache.clear()
+        await renderer.loadFonts()
+      })
+    )
+  }
+
   function dispose() {
     releaseTextMeasurer()
     nodes.cancelNodePreviews()
@@ -364,6 +381,7 @@ export function createEditor(options?: EditorOptions) {
     setNavigationPhase,
     removeCanvasRenderer,
     replaceGraph,
+    unloadDocumentFonts,
     subscribeToGraph,
     dispose,
     releaseGraphResources,

@@ -29,16 +29,22 @@ import type {
   LocalFontAccessState
 } from '#core/text/font/sources'
 import {
+  codePointInRanges,
   coverageFromPingFangRanges,
+  hydratePingFangStyleManifest,
   isPingFangScFamily,
+  parsePingFangCoverageConfig,
   parsePingFangStyleManifest,
   PINGFANG_SC_FAMILY,
+  pingFangConfigUrl,
   pingFangManifestUrl,
+  pingFangSliceIdForCodePoint,
   pingFangSliceRenderFamily,
   pingFangSliceUrl,
   resolvePingFangSliceStyle,
   selectPingFangSliceIds,
   usesPingFangSlices,
+  type PingFangCoverageConfig,
   type PingFangSliceMeta,
   type PingFangStyleManifest
 } from '#core/text/pingfang-slices'
@@ -52,29 +58,14 @@ import type { WebFontFetch, WebFontProviderId } from '#core/text/web-fonts.overr
 
 type FindLocalFontOptions = { allowVariable?: boolean }
 
-/** Whole PingFang faces — used when `PINGFANG_LOAD_MODE === 'full'`. */
-const PINGFANG_FULL_FONTS: Record<string, string> = {
-  'PingFang SC|Thin': '/PingFangSC-Thin.ttf',
-  'PingFang SC|ExtraLight': '/PingFangSC-Ultralight.ttf',
-  'PingFang SC|UltraLight': '/PingFangSC-Ultralight.ttf',
-  'PingFang SC|Light': '/PingFangSC-Light.ttf',
-  'PingFang SC|Regular': '/PingFangSC-Regular.ttf',
-  'PingFang SC|Medium': '/PingFangSC-Medium.ttf',
-  'PingFang SC|SemiBold': '/PingFangSC-Semibold.ttf',
-  'PingFang SC|Semi Bold': '/PingFangSC-Semibold.ttf',
-  'PingFang SC|Bold': '/PingFangSC-Semibold.ttf',
-  'PingFang SC|ExtraBold': '/PingFangSC-Semibold.ttf',
-  'PingFang SC|Black': '/PingFangSC-Semibold.ttf'
-}
-
+/** Bundled static faces under `packages/react/public`. PingFang SC is slices-only (`/pingfang-sc`). */
 const BUNDLED_FONTS: Record<string, string> = {
   'Inter|Regular': '/Inter-Regular.ttf',
   'Inter|Medium': '/Inter-Medium.ttf',
   'Inter|SemiBold': '/Inter-SemiBold.ttf',
   'Inter|Bold': '/Inter-Bold.ttf',
   'Inter|ExtraBold': '/Inter-ExtraBold.ttf',
-  'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf',
-  ...(usesPingFangSlices() ? {} : PINGFANG_FULL_FONTS)
+  'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf'
 }
 
 export class FontManager {
@@ -108,8 +99,13 @@ export class FontManager {
   /** Serialized PingFang slice loads per `family|style`. */
   private pingFangLoadChains = new Map<string, Promise<ArrayBuffer | null>>()
   private pingFangManifests = new Map<string, Promise<PingFangStyleManifest | null>>()
-  /** Browser `FontFace` keys already added (`family|weight|slant`). */
-  private browserFontFaces = new Set<string>()
+  private pingFangCoverageConfig: Promise<PingFangCoverageConfig | null> | null = null
+  /** Resolved shared coverage config (sync lookups for unpackaged → network fallback). */
+  private pingFangCoverageConfigValue: PingFangCoverageConfig | null = null
+  /** Browser `FontFace` instances already added (`family|weight|slant|range`). */
+  private browserFontFaces = new Map<string, FontFace>()
+  /** Bumped on document unload so late async loads do not re-register stale bytes. */
+  private unloadEpoch = 0
   private localFonts: FontInfo[] | null = null
   private localFontAccessState: LocalFontAccessState = IS_BROWSER ? 'prompt' : 'unsupported'
   private downloadedFontCache: DownloadedFontCache | null = null
@@ -120,6 +116,58 @@ export class FontManager {
   private cjkFallbackPromise: Promise<string[]> | null = null
   private arabicFallbackFamilies: string[] = []
   private arabicFallbackPromise: Promise<string[]> | null = null
+
+  /**
+   * Drop fonts loaded for the previous document (PingFang slices, network CJK
+   * fallbacks, remote faces). Keeps local-font discovery, bundled URL bytes, and
+   * PingFang coverage config. Callers must recreate CanvasKit providers afterward
+   * (e.g. `renderer.loadFonts()`).
+   */
+  unloadDocumentFonts(): void {
+    this.unloadEpoch++
+    this.loadedFamilies.clear()
+    this.loadedFamilySources.clear()
+    this.unavailableFaces.clear()
+    this.supplementalFamilyData.clear()
+    this.remoteCoverage.clear()
+    this.blockedNodeIds.clear()
+    this.inflightLocalLoads.clear()
+    this.loadedPingFangSlices.clear()
+    this.pingFangRenderNames.clear()
+    this.pingFangSliceEntries.clear()
+    this.pingFangLoadChains.clear()
+    this.pingFangManifests.clear()
+    // Keep small Inter / Noto bundled faces; drop PingFang slice URL caches.
+    const keepBundled = new Set(Object.values(BUNDLED_FONTS))
+    for (const url of [...this.bundledBuffersByUrl.keys()]) {
+      if (!keepBundled.has(url)) this.bundledBuffersByUrl.delete(url)
+    }
+    for (const url of [...this.inflightBundledByUrl.keys()]) {
+      if (!keepBundled.has(url)) this.inflightBundledByUrl.delete(url)
+    }
+    // Coverage config is shared metadata — keep for the next document.
+    this.clearBrowserFontFaces()
+    this.webFonts.clearDocumentFetches()
+    this.providerRegistrations = new WeakMap()
+    this.registrationGeneration++
+  }
+
+  private clearBrowserFontFaces(): void {
+    if (IS_BROWSER && typeof document !== 'undefined') {
+      for (const face of this.browserFontFaces.values()) {
+        try {
+          document.fonts.delete(face)
+        } catch {
+          // Ignore faces the browser already dropped.
+        }
+      }
+    }
+    this.browserFontFaces.clear()
+  }
+
+  private isCurrentUnloadEpoch(epoch: number): boolean {
+    return epoch === this.unloadEpoch
+  }
 
   attachProvider(canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
     this.fontProviders.add(provider)
@@ -330,6 +378,7 @@ export class FontManager {
   }
 
   private async loadLocalFontUncached(family: string, style: string): Promise<ArrayBuffer | null> {
+    const epoch = this.unloadEpoch
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
     if (loaded) {
@@ -337,21 +386,25 @@ export class FontManager {
       return loaded
     }
 
-    // Slice mode: base shard only until `loadFont` supplies characters.
+    // Slice mode: hot `common` shard only until `loadFont` supplies characters.
     if (usesPingFangSlices()) {
       const pingFang = await this.loadPingFangSlices(family, style, '')
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
       if (pingFang) return pingFang
     }
 
-    // Bundled / public first (Inter, or full PingFang when mode is `full`).
+    // Bundled / public first (Inter, Noto Naskh). PingFang SC loads via `/pingfang-sc` slices.
     // Only the requested style is fetched — other weights stay unloaded until used.
-    const bundled = await this.loadBundledFont(family, style)
+    const bundled = await this.loadBundledFont(family, style, epoch)
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
     if (bundled) return bundled
 
     const hostBuffer = await this.loadHostFont(family, style)
-    if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
+    if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local', epoch)
     const localBuffer = await this.findLocalFont(family, style)
-    if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
+    if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local', epoch)
     return null
   }
 
@@ -368,13 +421,18 @@ export class FontManager {
     this.registerFontInCanvasKit(family, loaded)
   }
 
-  private async loadBundledFont(family: string, style: string): Promise<ArrayBuffer | null> {
+  private async loadBundledFont(
+    family: string,
+    style: string,
+    epoch = this.unloadEpoch
+  ): Promise<ArrayBuffer | null> {
     const bundledURL = BUNDLED_FONTS[`${family}|${style}`]
     if (!bundledURL) return null
     try {
       const buffer = await this.fetchBundledBuffer(bundledURL)
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
       return buffer && !isVariableFont(buffer)
-        ? this.registerAndCache(family, style, buffer, 'bundled')
+        ? this.registerAndCache(family, style, buffer, 'bundled', epoch)
         : null
     } catch (e) {
       console.warn(`Bundled font load failed for "${family}" ${style}:`, e)
@@ -382,7 +440,7 @@ export class FontManager {
     }
   }
 
-  /** Load pre-cut PingFang SC slices covering `characters` (always includes `base`). */
+  /** Load pre-cut PingFang SC slices covering `characters` (always includes `common`). */
   private loadPingFangSlices(
     family: string,
     style: string,
@@ -403,9 +461,10 @@ export class FontManager {
     style: string,
     characters: string
   ): Promise<ArrayBuffer | null> {
+    const epoch = this.unloadEpoch
     const cacheKey = `${family}|${style}`
     const manifest = await this.loadPingFangManifest(style)
-    if (!manifest) return null
+    if (!this.isCurrentUnloadEpoch(epoch) || !manifest) return null
 
     const needed = selectPingFangSliceIds(manifest, characters)
     const loadedIds = this.loadedPingFangSlices.get(cacheKey) ?? new Set<string>()
@@ -419,13 +478,15 @@ export class FontManager {
       if (!slice) continue
       try {
         const buffer = await this.fetchBundledBuffer(pingFangSliceUrl(manifest.style, slice.file))
+        if (!this.isCurrentUnloadEpoch(epoch)) return null
         if (!buffer || isVariableFont(buffer)) continue
-        this.registerPingFangSlice(family, style, slice, buffer)
+        this.registerPingFangSlice(family, style, slice, buffer, epoch)
         loadedIds.add(sliceId)
       } catch (e) {
         console.warn(`PingFang slice load failed for "${family}" ${style} ${sliceId}:`, e)
       }
     }
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
     this.loadedPingFangSlices.set(cacheKey, loadedIds)
     return this.loadedFamilies.get(cacheKey) ?? null
   }
@@ -438,8 +499,10 @@ export class FontManager {
     family: string,
     style: string,
     slice: PingFangSliceMeta,
-    buffer: ArrayBuffer
+    buffer: ArrayBuffer,
+    epoch = this.unloadEpoch
   ): void {
+    if (!this.isCurrentUnloadEpoch(epoch)) return
     const cacheKey = `${family}|${style}`
     const renderName = pingFangSliceRenderFamily(style, slice.id)
     const entries = this.pingFangSliceEntries.get(cacheKey) ?? []
@@ -467,9 +530,38 @@ export class FontManager {
     this.remoteCoverage.set(cacheKey, merged)
   }
 
+  private async loadPingFangCoverageConfig(): Promise<PingFangCoverageConfig | null> {
+    if (!this.pingFangCoverageConfig) {
+      this.pingFangCoverageConfig = this.fetchPingFangCoverageConfig()
+    }
+    return this.pingFangCoverageConfig
+  }
+
+  private async fetchPingFangCoverageConfig(): Promise<PingFangCoverageConfig | null> {
+    try {
+      const buffer = await this.fetchBundledBuffer(pingFangConfigUrl())
+      if (!buffer) return null
+      const text = new TextDecoder().decode(buffer)
+      const config = parsePingFangCoverageConfig(JSON.parse(text) as unknown)
+      this.pingFangCoverageConfigValue = config
+      return config
+    } catch (e) {
+      console.warn('PingFang coverage config load failed:', e)
+      return null
+    }
+  }
+
+  /** True when a packaged PingFang shard claims this code point (`common` only now). */
+  private pingFangCodePointIsPackaged(codePoint: number): boolean {
+    const config = this.pingFangCoverageConfigValue
+    if (!config) return true
+    return pingFangSliceIdForCodePoint(config, codePoint) !== null
+  }
+
   private async loadPingFangManifest(style: string): Promise<PingFangStyleManifest | null> {
     const preferred = resolvePingFangSliceStyle(style)
     const candidates = preferred === 'Regular' ? ['Regular'] : [preferred, 'Regular']
+    const config = await this.loadPingFangCoverageConfig()
     for (const candidate of candidates) {
       let pending = this.pingFangManifests.get(candidate)
       if (!pending) {
@@ -477,7 +569,9 @@ export class FontManager {
         this.pingFangManifests.set(candidate, pending)
       }
       const manifest = await pending
-      if (manifest) return manifest
+      if (!manifest) continue
+      // Shared config owns unicode ranges; per-style manifest owns file sizes.
+      return config ? hydratePingFangStyleManifest(manifest, config) : manifest
     }
     return null
   }
@@ -521,6 +615,7 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
+    const epoch = this.unloadEpoch
     if (usesPingFangSlices() && isPingFangScFamily(family)) {
       return this.loadPingFangSlices(family, style, characters)
     }
@@ -540,16 +635,18 @@ export class FontManager {
       const normalized = normalizeFontFamily(family)
       const families = normalized === family ? [family] : [family, normalized]
       const resolved = await this.webFonts.fetchFont(families, style, requestedCharacters, signal)
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
       if (!resolved || resolved.buffers.length === 0) return null
       const primary = resolved.buffers[0]
       await this.writeDownloadedFont(family, style, primary, requestedCharacters)
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
       const loadedCoverage = this.remoteCoverage.get(`${family}|${style}`) ?? new Set<string>()
       for (const character of requestedCharacters) loadedCoverage.add(character)
       // Coverage before register so DOM FontFace can set unicode-range.
       this.remoteCoverage.set(`${family}|${style}`, loadedCoverage)
-      const registered = this.registerAndCache(family, style, primary, resolved.provider)
+      const registered = this.registerAndCache(family, style, primary, resolved.provider, epoch)
       for (const supplemental of resolved.buffers.slice(1)) {
-        this.registerSupplemental(family, style, supplemental)
+        this.registerSupplemental(family, style, supplemental, epoch)
       }
       return registered
     } catch (e) {
@@ -566,8 +663,10 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
+    const epoch = this.unloadEpoch
     if (usesPingFangSlices() && isPingFangScFamily(family)) {
       const sliced = await this.loadPingFangSlices(family, style, characters)
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
       if (sliced) return sliced
     }
 
@@ -580,16 +679,19 @@ export class FontManager {
         remoteCoverage &&
         Array.from(characters).some((character) => !remoteCoverage.has(character))
       )
-      return missingRemoteCoverage
-        ? ((await this.loadRemoteFont(family, style, characters, signal)) ?? loaded)
-        : loaded
+      if (!missingRemoteCoverage) return loaded
+      const remote = await this.loadRemoteFont(family, style, characters, signal)
+      if (!this.isCurrentUnloadEpoch(epoch)) return null
+      return remote ?? loaded
     }
 
-    return (
-      (await this.loadLocalFont(family, style)) ??
-      (await this.loadCachedFont(family, style, characters)) ??
-      (await this.loadRemoteFont(family, style, characters, signal))
-    )
+    const local = await this.loadLocalFont(family, style)
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
+    if (local) return local
+    const cached = await this.loadCachedFont(family, style, characters)
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
+    if (cached) return cached
+    return this.loadRemoteFont(family, style, characters, signal)
   }
 
   async ensureNodeFont(family: string, weight: number): Promise<void> {
@@ -631,15 +733,21 @@ export class FontManager {
   }
 
   /**
-   * True when a face is loaded but still missing shard coverage for `characters`
-   * (PingFang slice mode: `loadLocalFont` only pulls `base` until characters are supplied).
+   * True when a face is loaded but still missing packaged shard coverage for `characters`.
+   * Code points outside `common` are not demanded from PingFang — they use network CJK
+   * `text=` fallbacks after `.notdef` observation.
    */
   styleNeedsMoreCoverage(family: string, style: string, characters: string): boolean {
     if (!characters || !this.isStyleLoaded(family, style)) return false
     if (usesPingFangSlices() && isPingFangScFamily(family)) {
       const coverage = this.remoteCoverage.get(`${family}|${style}`)
       if (!coverage || coverage.size === 0) return true
-      return Array.from(characters).some((character) => !coverage.has(character))
+      return Array.from(characters).some((character) => {
+        const codePoint = character.codePointAt(0)
+        if (codePoint === undefined) return false
+        if (!this.pingFangCodePointIsPackaged(codePoint)) return false
+        return !coverage.has(character)
+      })
     }
     return false
   }
@@ -670,6 +778,85 @@ export class FontManager {
   renderFamilyShards(family: string, style: string): string[] {
     if (!usesPingFangSlices()) return []
     return this.pingFangRenderNames.get(`${family}|${style}`) ?? []
+  }
+
+  /** Hot shard render name (`common`, or legacy `base`). */
+  private pingFangHotRenderName(family: string, style: string): string | null {
+    const entries = this.pingFangSliceEntries.get(`${family}|${style}`) ?? []
+    return (
+      entries.find((entry) => entry.slice.id === 'common')?.renderName ??
+      entries.find((entry) => entry.slice.id === 'base')?.renderName ??
+      null
+    )
+  }
+
+  /**
+   * Shards for a homogeneous `text` span in Paragraph `fontFamilies`: the covering
+   * shard, then the hot `common` shard as fallback. Skia treats glyph 0 as present,
+   * so listing both covering Han shards in one style still sticks on `.notdef`.
+   */
+  renderFamilyShardsForText(family: string, style: string, text: string): string[] {
+    if (!usesPingFangSlices() || !isPingFangScFamily(family)) return []
+    const entries = this.pingFangSliceEntries.get(`${family}|${style}`) ?? []
+    if (entries.length === 0) return []
+
+    const hot = this.pingFangHotRenderName(family, style)
+    let covering: string | null = null
+    for (const character of text) {
+      const codePoint = character.codePointAt(0)
+      if (codePoint === undefined) continue
+      const match = entries.find((entry) => codePointInRanges(codePoint, entry.slice.ranges))
+      if (!match) continue
+      if (covering === null) covering = match.renderName
+      else if (covering !== match.renderName) {
+        // Mixed coverage — caller should split via `pingFangSliceRuns`.
+        break
+      }
+    }
+    if (covering && hot && covering !== hot) return [covering, hot]
+    if (covering) return [covering]
+    return hot ? [hot] : []
+  }
+
+  /**
+   * Contiguous UTF-16 spans that share one covering PingFang shard.
+   * Use one Paragraph style per span so Skia never sees a prior shard's `.notdef`.
+   */
+  pingFangSliceRuns(
+    family: string,
+    style: string,
+    text: string
+  ): Array<{ start: number; length: number }> {
+    if (!text || !usesPingFangSlices() || !isPingFangScFamily(family)) {
+      return text ? [{ start: 0, length: text.length }] : []
+    }
+    const entries = this.pingFangSliceEntries.get(`${family}|${style}`) ?? []
+    if (entries.length === 0) return [{ start: 0, length: text.length }]
+
+    const coveringName = (codePoint: number): string => {
+      for (const entry of entries) {
+        if (codePointInRanges(codePoint, entry.slice.ranges)) return entry.renderName
+      }
+      return ''
+    }
+
+    const runs: Array<{ start: number; length: number }> = []
+    let utf16 = 0
+    let runStart = 0
+    let runKey: string | null = null
+    for (const character of text) {
+      const codePoint = character.codePointAt(0)
+      const key = codePoint === undefined ? '' : coveringName(codePoint)
+      if (runKey === null) runKey = key
+      else if (key !== runKey) {
+        runs.push({ start: runStart, length: utf16 - runStart })
+        runStart = utf16
+        runKey = key
+      }
+      utf16 += character.length
+    }
+    if (runKey !== null) runs.push({ start: runStart, length: utf16 - runStart })
+    return runs
   }
 
   collectFontKeys(graph: SceneGraph, nodeIds: string[]): Array<[string, string]> {
@@ -859,7 +1046,13 @@ export class FontManager {
     }
   }
 
-  private registerSupplemental(family: string, style: string, buffer: ArrayBuffer): void {
+  private registerSupplemental(
+    family: string,
+    style: string,
+    buffer: ArrayBuffer,
+    epoch = this.unloadEpoch
+  ): void {
+    if (!this.isCurrentUnloadEpoch(epoch)) return
     const key = `${family}|${style}`
     const supplemental = this.supplementalFamilyData.get(key) ?? []
     if (supplemental.includes(buffer)) return
@@ -873,8 +1066,10 @@ export class FontManager {
     family: string,
     style: string,
     buffer: ArrayBuffer,
-    source?: FontLoadedSource
+    source?: FontLoadedSource,
+    epoch = this.unloadEpoch
   ): ArrayBuffer | null {
+    if (!this.isCurrentUnloadEpoch(epoch)) return null
     const key = `${family}|${style}`
     const existing = this.loadedFamilies.get(key)
     if (existing === buffer) {
@@ -882,7 +1077,7 @@ export class FontManager {
       this.registerFontInCanvasKit(family, buffer)
       return buffer
     }
-    if (existing) this.registerSupplemental(family, style, existing)
+    if (existing) this.registerSupplemental(family, style, existing, epoch)
     this.loadedFamilies.set(key, buffer)
     if (source) this.loadedFamilySources.set(key, source)
     this.registerFontInCanvasKit(family, buffer)
@@ -929,12 +1124,12 @@ export class FontManager {
       coverage && coverage.size > 0 ? charactersToUnicodeRange(coverage) : undefined
     const faceKey = `${family}|${weight}|${italic}|${unicodeRange ?? '*'}`
     if (this.browserFontFaces.has(faceKey)) return
-    this.browserFontFaces.add(faceKey)
     const face = new FontFace(family, data, {
       weight: String(weight),
       style: italic,
       ...(unicodeRange ? { unicodeRange } : {})
     })
+    this.browserFontFaces.set(faceKey, face)
     face
       .load()
       .then(() => document.fonts.add(face))
