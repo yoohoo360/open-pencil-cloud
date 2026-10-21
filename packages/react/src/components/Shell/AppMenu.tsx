@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { IS_BROWSER } from '@open-pencil/core/constants'
 
-import { isDesktopShell } from '#react/app/desktop/bridge'
+import { isNativeTauriShell } from '#react/app/desktop/bridge'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
 import { useAppMenu, type AppMenuGroup } from '#react/app/shell/menu/app-menu'
@@ -146,7 +146,8 @@ export function AppMenu() {
           </button>
         </Tip>
       </div>
-      {isDesktopShell() ? null : <AppMenubar menus={topMenus} />}
+      {/* Tauri owns the OS menu bar; Electron / browser use the in-page menubar. */}
+      {isNativeTauriShell() ? null : <AppMenubar menus={topMenus} />}
       {settingsOpen ? <SettingsDialog /> : null}
     </div>
   )

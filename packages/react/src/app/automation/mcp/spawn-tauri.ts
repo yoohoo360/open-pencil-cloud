@@ -43,6 +43,7 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
     }
 
     const mcpRoot = mcpRootDirectory.get().trim() || (await desktopHomeDir())
+    const disabled = disabledMCPTools.get()
     await desktopInvoke('mcp_start', {
       env: {
         PORT: String(AUTOMATION_HTTP_PORT),
@@ -52,8 +53,10 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
         OPENPENCIL_MCP_ROOT: mcpRoot,
         // Omit APP_TIMEOUT: a packaged desktop may load a remote frontend that
         // attaches after the old 30s orphan watchdog would have killed the server.
-        OPENPENCIL_MCP_DISABLED_TOOLS: disabledMCPTools.get().join(','),
-        OPENPENCIL_MCP_SCOPE: 'document'
+        OPENPENCIL_MCP_DISABLED_TOOLS: disabled.join(','),
+        OPENPENCIL_MCP_SCOPE: 'document',
+        // `eval` is availability:"eval" — must opt in or it never appears in tools/list.
+        OPENPENCIL_MCP_EVAL: disabled.includes('eval') ? '' : '1'
       }
     })
 

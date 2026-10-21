@@ -29,7 +29,9 @@ export function createAutomationEnvironment(
     OPENPENCIL_MCP_CORS_ORIGIN: corsOrigin,
     OPENPENCIL_MCP_ROOT: configuration.rootDirectory.trim() || process.cwd(),
     OPENPENCIL_MCP_DISABLED_TOOLS: configuration.disabledTools.join(','),
-    OPENPENCIL_MCP_SCOPE: configuration.scope
+    OPENPENCIL_MCP_SCOPE: configuration.scope,
+    // Register `eval` unless Settings disabled it (availability:"eval" needs this flag).
+    OPENPENCIL_MCP_EVAL: configuration.disabledTools.includes('eval') ? '' : '1'
   }
   if (socketPath) environment.OPENPENCIL_MCP_SOCKET = socketPath
   if (discoveryPath) environment.OPENPENCIL_MCP_DISCOVERY_PATH = discoveryPath
