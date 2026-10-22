@@ -1,6 +1,8 @@
+import { noteAutosaveAfterSave } from '#react/app/document/autosave-gate'
 import { withDocumentBusy } from '#react/app/document/busy/store'
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { markCloudDocumentPersisted, saveCloudCover } from '#react/app/document/cloud-persist'
+import { ensureDocumentFullyLoaded } from '#react/app/document/ensure-loaded'
 import {
   readFigDocument,
   finishFigImport,
@@ -467,11 +469,14 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
         try {
           let savedUpdatedAt: string | number | undefined
           await withDocumentBusy(dialogMessages.get().savingDocument, async () => {
+            // Manual save needs every page populated before encode/upload.
+            await ensureDocumentFullyLoaded(store)
             // Let the key/menu handler finish and paint before encode/upload.
             await yieldToUI()
             const { bytes, updatedAt } = await persistCloudSceneGraph(store)
             savedUpdatedAt = updatedAt
             markCloudDocumentPersisted(store)
+            noteAutosaveAfterSave(store)
             void maybeRecordAutosave(store, bytes)
             void clearLocalDraftAfterCloudSave(store).catch((error) => {
               console.warn('[LocalDraft] Clear after save failed', error)
@@ -513,6 +518,7 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
   return (async () => {
     try {
       await withDocumentBusy(dialogMessages.get().savingDocument, async () => {
+        await ensureDocumentFullyLoaded(store)
         const target = getSaveTarget(store)
         if (target.handle || target.downloadName) {
           const data = await buildFigFile(store)
@@ -525,10 +531,12 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
               'application/octet-stream'
             )
           }
+          noteAutosaveAfterSave(store)
           options?.onSuccess?.()
           return
         }
         if (!(await saveFigFileAs(store))) return
+        noteAutosaveAfterSave(store)
         options?.onSuccess?.()
       })
     } catch (error) {
