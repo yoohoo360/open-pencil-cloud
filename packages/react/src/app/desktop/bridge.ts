@@ -1,3 +1,14 @@
+type TauriInternals = {
+  openPencilElectron?: boolean
+  invoke?: (command: string, args?: unknown) => Promise<unknown>
+}
+
+function tauriInternals(): TauriInternals | undefined {
+  if (typeof window === 'undefined') return undefined
+  if (!('__TAURI_INTERNALS__' in window)) return undefined
+  return (window as Window & { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__
+}
+
 function electronBridge(): NonNullable<Window['openPencilDesktop']> {
   const bridge = window.openPencilDesktop
   if (!bridge) throw new Error('Electron desktop bridge is unavailable')
@@ -6,7 +17,9 @@ function electronBridge(): NonNullable<Window['openPencilDesktop']> {
 
 /** Electron preload — IPC via `openPencilDesktop` (not `@tauri-apps/*`). */
 export function isElectronShell(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.openPencilDesktop)
+  if (typeof window === 'undefined') return false
+  if (window.openPencilDesktop) return true
+  return Boolean(tauriInternals()?.openPencilElectron)
 }
 
 /** Real Tauri inject — Electron stubs `__TAURI_INTERNALS__`, so exclude Electron bridge. */
@@ -39,18 +52,30 @@ export async function desktopInvoke<T>(command: string, args?: unknown): Promise
 
 export function listenDesktopMenuEvent(handler: (id: string) => void): () => void {
   if (isElectronShell()) {
-    return electronBridge().onMenuEvent(handler)
+    const bridge = window.openPencilDesktop
+    if (!bridge) {
+      console.warn(
+        '[desktop] Electron shell detected but openPencilDesktop is missing; menu events ignored'
+      )
+      return () => undefined
+    }
+    return bridge.onMenuEvent(handler)
   }
   let disposed = false
   let unlisten: (() => void) | undefined
-  void import('@tauri-apps/api/event').then(({ listen }) =>
-    listen<string>('menu-event', (event) => {
-      handler(event.payload)
-    }).then((fn) => {
+  void import('@tauri-apps/api/event')
+    .then(({ listen }) =>
+      listen<string>('menu-event', (event) => {
+        handler(event.payload)
+      })
+    )
+    .then((fn) => {
       if (disposed) fn()
       else unlisten = fn
     })
-  )
+    .catch((error: unknown) => {
+      console.warn('[desktop] Failed to listen for Tauri menu-event', error)
+    })
   return () => {
     disposed = true
     unlisten?.()

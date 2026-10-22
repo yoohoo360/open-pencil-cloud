@@ -110,7 +110,13 @@ const COMMAND_MENU_IDS = new Set<EditorCommandId>(
   APP_MENU_SCHEMA.flatMap((group) => commandMenuIds(group.items))
 )
 
-export function useAppMenu() {
+/**
+ * App menu model + optional native `menu-event` bridge.
+ * Pass `bindNative: false` when a parent (e.g. EditorWorkspace) already binds
+ * the desktop listener so hiding the layers panel does not drop menu actions.
+ */
+export function useAppMenu(options?: { bindNative?: boolean }) {
+  const bindNative = options?.bindNative !== false
   const store = useEditorStore()
   const navigate = useNavigate()
   const {
@@ -181,13 +187,18 @@ export function useAppMenu() {
         runCommand(id as EditorCommandId)
         return
       }
-      actions[id]?.()
+      const action = actions[id]
+      if (action) {
+        action()
+        return
+      }
+      console.warn(`[AppMenu] Unhandled native menu id: ${id}`)
     },
-    // actions closes over store/navigate each render; listen once per identity of runCommand/store.
+    // actions closes over store/navigate each render; native-events keeps a ref to latest handler.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- native handler rebinds when store/theme/nav change
-    [runCommand, store, navigate, theme, setTheme, canExportDoc]
+    [runCommand, store, navigate, theme, setTheme, canExportDoc, canEditDoc, canCopyDoc]
   )
-  useNativeMenuEvents(onNativeMenuEvent)
+  useNativeMenuEvents(onNativeMenuEvent, bindNative)
 
   function itemAction(item: AppMenuActionItem): (() => void) | undefined {
     return actions[item.id]

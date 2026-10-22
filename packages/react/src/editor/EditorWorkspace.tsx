@@ -1,6 +1,8 @@
+import { isNativeTauriShell } from '#react/app/desktop/bridge'
 import { useEditorStore } from '#react/app/editor/store'
 import { useKeyboard } from '#react/app/shell/keyboard/use'
 import { loadEditorLayout, saveEditorLayout } from '#react/app/shell/layout-storage'
+import { useAppMenu } from '#react/app/shell/menu/app-menu'
 import { appMenuShortcut } from '#react/app/shell/menu/shortcut'
 import { useActiveTab } from '#react/app/tabs'
 import { CanvasSplitRoot } from '#react/components/canvas/CanvasSplitRoot'
@@ -61,6 +63,8 @@ function EditorWorkspaceLayout() {
   const initialEditorLayout = useMemo(() => loadEditorLayout(), [])
   const horizontalSplitterStyles = useMemo(() => tv(splitterTheme)({ direction: 'horizontal' }), [])
   useKeyboard()
+  // Tauri OS File/Edit menu must stay bound when layers chrome / AppMenu unmounts.
+  useAppMenu({ bindNative: isNativeTauriShell() })
 
   if (!isMobile && showChrome && store.state.showUI) {
     return (
@@ -70,58 +74,58 @@ function EditorWorkspaceLayout() {
         className="flex-1 overflow-hidden"
         onLayout={saveEditorLayout}
       >
-        <SplitterPanel
-          id="layers"
-          defaultSize={initialEditorLayout[0]}
-          minSize={10}
-          maxSize={30}
-          className="flex"
-        >
-          <LayersPanel />
-        </SplitterPanel>
-        <SplitterResizeHandle
-          data-test-id="left-splitter-handle"
-          className={horizontalSplitterStyles.handle()}
-        >
-          <div className={horizontalSplitterStyles.divider()} />
-        </SplitterResizeHandle>
-        <SplitterPanel
-          id="canvas"
-          defaultSize={initialEditorLayout[1]}
-          minSize={30}
-          className="flex"
-        >
-          <div className="relative flex min-w-0 flex-1">
-            <CanvasSplitRoot />
-            <Toolbar />
-            <DocumentBusyBar />
-            <PageLoadingOverlay />
-          </div>
-        </SplitterPanel>
-        <SplitterResizeHandle className={horizontalSplitterStyles.handle()}>
-          <div className={horizontalSplitterStyles.divider()} />
-        </SplitterResizeHandle>
-        <SplitterPanel
-          id="properties"
-          defaultSize={initialEditorLayout[2]}
-          minSize={10}
-          maxSize={30}
-          className="flex flex-col"
-        >
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
-            <CollabPanel />
-          </div>
-          {comments.open ? (
-            <CommentsPanel />
-          ) : versionHistory.open ? (
-            <VersionHistoryPanel />
-          ) : aiReview.open ? (
-            <AiReviewPanel />
-          ) : (
-            <PropertiesPanel />
-          )}
-        </SplitterPanel>
-      </SplitterGroup>
+          <SplitterPanel
+            id="layers"
+            defaultSize={initialEditorLayout[0]}
+            minSize={10}
+            maxSize={30}
+            className="flex"
+          >
+            <LayersPanel />
+          </SplitterPanel>
+          <SplitterResizeHandle
+            data-test-id="left-splitter-handle"
+            className={horizontalSplitterStyles.handle()}
+          >
+            <div className={horizontalSplitterStyles.divider()} />
+          </SplitterResizeHandle>
+          <SplitterPanel
+            id="canvas"
+            defaultSize={initialEditorLayout[1]}
+            minSize={30}
+            className="flex"
+          >
+            <div className="relative flex min-w-0 flex-1">
+              <CanvasSplitRoot />
+              <Toolbar />
+              <DocumentBusyBar />
+              <PageLoadingOverlay />
+            </div>
+          </SplitterPanel>
+          <SplitterResizeHandle className={horizontalSplitterStyles.handle()}>
+            <div className={horizontalSplitterStyles.divider()} />
+          </SplitterResizeHandle>
+          <SplitterPanel
+            id="properties"
+            defaultSize={initialEditorLayout[2]}
+            minSize={10}
+            maxSize={30}
+            className="flex flex-col"
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-1.5 py-1.5">
+              <CollabPanel />
+            </div>
+            {comments.open ? (
+              <CommentsPanel />
+            ) : versionHistory.open ? (
+              <VersionHistoryPanel />
+            ) : aiReview.open ? (
+              <AiReviewPanel />
+            ) : (
+              <PropertiesPanel />
+            )}
+          </SplitterPanel>
+        </SplitterGroup>
     )
   }
 

@@ -110,21 +110,6 @@ export function AISettingsPanel() {
       </div>
 
       <div className="flex flex-col gap-3 rounded border border-border p-3">
-        <SettingsField label={dialogs.apiKey} htmlFor="settings-ai-api-key">
-          <AppInput
-            id="settings-ai-api-key"
-            type="password"
-            autoComplete="off"
-            tone="default"
-            size="sm"
-            className="w-full"
-            value={chatSettings.apiKey}
-            onChange={(event) => {
-              setChatProviderSettings({ apiKey: event.target.value })
-              for (const model of chatSettings.models) resetModelTest(model.id)
-            }}
-          />
-        </SettingsField>
         <SettingsField label={dialogs.baseURL} htmlFor="settings-ai-base-url">
           <AppInput
             id="settings-ai-base-url"
@@ -140,50 +125,45 @@ export function AISettingsPanel() {
             }}
           />
         </SettingsField>
-
-        <SettingsField label={dialogs.agentServerUrl} htmlFor="settings-ai-agent-server-url">
-          <div className="flex flex-col gap-1.5">
-            <AppInput
-              id="settings-ai-agent-server-url"
-              type="url"
-              tone="default"
-              size="sm"
-              className="w-full"
-              placeholder={dialogs.agentServerUrlPlaceholder}
-              value={chatSettings.agentServerUrl}
-              onChange={(event) => {
-                setChatProviderSettings({ agentServerUrl: event.target.value })
-              }}
-            />
-            <p className="text-[10px] text-muted">{dialogs.agentServerUrlHint}</p>
-            <div className="flex items-center gap-2">
-              <AppButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                disabled={runtime.probing}
-                onClick={() => void refreshChatRuntimeMode({ ensure: true })}
-              >
-                {dialogs.agentServerProbe}
-              </AppButton>
-              <span
-                data-test-id="settings-ai-agent-runtime"
-                className="text-[10px] text-muted"
-              >
-                {runtime.mode === 'agent-server'
-                  ? dialogs.agentServerOnline
-                  : dialogs.agentServerOffline}
-              </span>
-            </div>
-          </div>
+        <SettingsField label={dialogs.apiKey} htmlFor="settings-ai-api-key">
+          <AppInput
+            id="settings-ai-api-key"
+            type="password"
+            autoComplete="off"
+            tone="default"
+            size="sm"
+            className="w-full"
+            value={chatSettings.apiKey}
+            onChange={(event) => {
+              setChatProviderSettings({ apiKey: event.target.value })
+              for (const model of chatSettings.models) resetModelTest(model.id)
+            }}
+          />
         </SettingsField>
+
+        <div className="flex items-center gap-2">
+          <AppButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            disabled={runtime.probing}
+            onClick={() => void refreshChatRuntimeMode({ ensure: true })}
+          >
+            {dialogs.agentServerProbe}
+          </AppButton>
+          <span data-test-id="settings-ai-agent-runtime" className="text-[10px] text-muted">
+            {runtime.mode === 'agent-server'
+              ? dialogs.agentServerOnline
+              : dialogs.agentServerOffline}
+          </span>
+        </div>
 
         <SettingsField label={dialogs.modelDefaultSelection} htmlFor="settings-ai-active-model">
           <AppSelect
             value={chatSettings.activeModelId}
             label={dialogs.modelDefaultSelection}
             data-test-id="settings-ai-active-model"
-            className="h-7 rounded-md border-border bg-input px-2.5 text-xs hover:border-muted/60 hover:bg-input"
+            className="w-full"
             options={selectionOptions}
             onChange={(value) => setActiveChatModelId(value === 'auto' ? 'auto' : value)}
           />
@@ -270,7 +250,7 @@ export function AISettingsPanel() {
                       value={model.tier}
                       label={dialogs.modelTier}
                       data-test-id={`settings-ai-model-tier-${model.id}`}
-                      className="h-7 rounded-md border-border bg-input px-2.5 text-xs hover:border-muted/60 hover:bg-input"
+                      className="w-full"
                       options={tierOptions}
                       onChange={(tier) => patchModel(model.id, { tier })}
                     />

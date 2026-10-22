@@ -1,4 +1,4 @@
-import { isNativeTauriShell } from '#react/app/desktop/bridge'
+import { isDesktopShell, isNativeTauriShell } from '#react/app/desktop/bridge'
 import { useEditorStore } from '#react/app/editor/store'
 import { openSettingsDialog, settingsDialogOpen } from '#react/app/settings/dialog'
 import { useAppMenu, type AppMenuGroup } from '#react/app/shell/menu/app-menu'
@@ -40,7 +40,9 @@ export function AppMenu() {
   const store = useEditorStore()
   const navigate = useNavigate()
   const { auth, dialogs, menu: t } = useI18n()
-  const { topMenus } = useAppMenu()
+  // Tauri owns the OS File/Edit menu. Electron Help menu is shell-only (no editor ids).
+  // Browser: in-page File/Edit/… under the title row.
+  const { topMenus } = useAppMenu({ bindNative: isNativeTauriShell() })
   const { resolvedTheme } = useAppTheme()
   const settingsOpen = useStore(settingsDialogOpen)
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -62,8 +64,8 @@ export function AppMenu() {
     input.select()
   }, [editingName])
 
-  // Tauri: OS menu only. Browser + Electron: File/Edit/… under the title row (no wrap into the title).
-  const showInPageMenu = !isNativeTauriShell()
+  // Electron / Tauri: no in-page menubar. Browser only.
+  const showInPageMenu = !isDesktopShell()
 
   return (
     <div className="shrink-0 border-b border-border">
