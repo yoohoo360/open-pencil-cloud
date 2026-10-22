@@ -1,3 +1,4 @@
+import { yieldWhenIdle } from '#react/app/document/fig'
 import { writeFigParseCache } from '#react/app/document/fig-parse-cache/idb'
 import { snapshotFigParseGraph } from '#react/app/document/fig-parse-cache/snapshot'
 import {
@@ -5,13 +6,6 @@ import {
   type FigParseCacheIdentity
 } from '#react/app/document/fig-parse-cache/types'
 import type { EditorStore } from '#react/app/editor/store'
-
-function yieldToUI(): Promise<void> {
-  if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve())
-  })
-}
 
 /** After open overlay settles, wait this long before writing the parse cache. */
 export const FIG_PARSE_CACHE_OPEN_WRITE_DELAY_MS = 20_000
@@ -96,8 +90,8 @@ async function flushFigParseCacheWrite(
   }
 
   try {
-    // Yield so snapshot/IDB work does not contend with input/paint.
-    await yieldToUI()
+    // Snapshot + IDB are background-only — wait for idle, never steal input frames.
+    await yieldWhenIdle()
     // A newer schedule replaced this flush while we yielded.
     if (pendingByStore.has(store)) return
     if (store.state.documentKey.trim() !== documentKey) return
@@ -108,6 +102,14 @@ async function flushFigParseCacheWrite(
     }
 
     const payload = snapshotFigParseGraph(store.graph)
+    await yieldWhenIdle(500)
+    if (pendingByStore.has(store)) return
+    if (store.state.documentKey.trim() !== documentKey) return
+    if (store.state.sceneVersion !== sceneVersion) return
+    if (isEditorBusy(store)) {
+      armTimer(store, documentKey, updatedAt, sceneVersion, BUSY_RETRY_MS)
+      return
+    }
     const name = store.state.documentName?.trim()
     await writeFigParseCache(payload, {
       identity: { documentKey, updatedAt },

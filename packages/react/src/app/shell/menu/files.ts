@@ -476,13 +476,10 @@ export function saveFigFile(store: EditorStore, options?: SaveFigFileOptions): P
             void clearLocalDraftAfterCloudSave(store).catch((error) => {
               console.warn('[LocalDraft] Clear after save failed', error)
             })
-            try {
-              await withDocumentBusy(dialogMessages.get().savingThumbnail, () =>
-                saveCloudCover(store)
-              )
-            } catch (error) {
-              console.warn('[Document] Cover save failed', error)
-            }
+          })
+          // Cover + parse-cache are background — do not hold the busy bar / leave guard.
+          void saveCloudCover(store).catch((error) => {
+            console.warn('[Document] Cover save failed', error)
           })
           const documentKey = store.state.documentKey?.trim()
           if (documentKey && savedUpdatedAt !== undefined) {

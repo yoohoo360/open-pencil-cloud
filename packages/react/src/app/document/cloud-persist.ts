@@ -1,11 +1,9 @@
 import { persistCloudSceneGraph } from '#react/app/document/cloud-document'
 import { hasDocumentCapability, documentAccessStore } from '#react/app/document/access'
-import { withDocumentBusy } from '#react/app/document/busy/store'
-import { yieldToUI } from '#react/app/document/fig'
+import { yieldToUI, yieldWhenIdle } from '#react/app/document/fig'
 import { clearLocalDraftAfterCloudSave } from '#react/app/document/local-draft/persist'
 import { maybeRecordAutosave } from '#react/app/document/version-history/record'
 import type { EditorStore } from '#react/app/editor/store'
-import { dialogMessages } from '#react/i18n/messages'
 import { documentAPI } from '#react/lib/client'
 import { useEffect } from 'react'
 
@@ -46,13 +44,17 @@ async function persistCloudFig(store: EditorStore): Promise<void> {
 
 export async function saveCloudCover(store: EditorStore): Promise<boolean> {
   const key = store.state.documentKey
+  if (!key || store.state.historyPreviewId || !store.renderer) return false
+  // Cover encode is sync CanvasKit work — only start once the tab is idle.
+  await yieldWhenIdle()
   const renderer = store.renderer
-  if (!key || store.state.historyPreviewId || !renderer) return false
+  if (!key || !renderer || store.state.historyPreviewId) return false
   const pageId = store.graph.getPages()[0]?.id ?? store.state.currentPageId ?? store.graph.rootId
   const bytes = renderCoverThumbnail(renderer.ck, renderer, store.graph, pageId)
   if (!bytes) return false
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
+  await yieldToUI()
   await documentAPI.updateThumbnail(key, new File([copy], 'thumbnail.png', { type: 'image/png' }))
   return true
 }
@@ -61,6 +63,8 @@ export async function saveCloudCover(store: EditorStore): Promise<boolean> {
  * Timed cloud API persist only. Scene edits debounce to IndexedDB via
  * `useLocalDraftPersist`; field changes never trigger this hook.
  * Manual Save still persists immediately through `saveFigFile`.
+ *
+ * Background only: no document-busy bar (must not block leave / input).
  */
 export function useCloudDocumentPersist(store: EditorStore, enabled: boolean): void {
   useEffect(() => {
@@ -82,17 +86,18 @@ export function useCloudDocumentPersist(store: EditorStore, enabled: boolean): v
       if (!cloudDocumentNeedsPersist(store)) return
 
       running = (async () => {
-        await withDocumentBusy(dialogMessages.get().autosavingDocument, async () => {
-          await yieldToUI()
-          await persistCloudFig(store)
-          if (Date.now() - lastCoverAt >= COVER_SAVE_INTERVAL_MS) {
-            if (
-              await withDocumentBusy(dialogMessages.get().savingThumbnail, () => saveCloudCover(store))
-            ) {
-              lastCoverAt = Date.now()
-            }
+        await yieldWhenIdle()
+        if (disposed || store.state.loading || store.state.pageLoading.visible) return
+        if (!cloudDocumentNeedsPersist(store)) return
+        await persistCloudFig(store)
+        if (disposed) return
+        if (Date.now() - lastCoverAt >= COVER_SAVE_INTERVAL_MS) {
+          try {
+            if (await saveCloudCover(store)) lastCoverAt = Date.now()
+          } catch (error) {
+            console.warn('[Document] Timed cover save failed', error)
           }
-        })
+        }
       })()
         .catch((error) => {
           console.warn('[Document] Timed cloud save failed', error)

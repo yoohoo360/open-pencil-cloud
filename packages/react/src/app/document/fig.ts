@@ -20,6 +20,24 @@ export function yieldToUI(): Promise<void> {
 }
 
 /**
+ * Wait until the browser is idle (or `timeoutMs` elapses) before starting heavy
+ * background work — autosave encode, IndexedDB snapshots, cover thumbnails.
+ * Prefer this over {@link yieldToUI} when the work must not contend with input/paint.
+ */
+export function yieldWhenIdle(timeoutMs = 3_000): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  const ric = window.requestIdleCallback?.bind(window)
+  if (ric) {
+    return new Promise((resolve) => {
+      ric(() => resolve(), { timeout: timeoutMs })
+    })
+  }
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
+}
+
+/**
  * After the page graph is ready, request one paint frame.
  * Matches Vue openFigFile's `requestRender` + yield — do not wait for tiled coverage.
  */

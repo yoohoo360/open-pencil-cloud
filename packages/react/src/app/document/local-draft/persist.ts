@@ -1,3 +1,4 @@
+import { yieldWhenIdle } from '#react/app/document/fig'
 import { removeLocalDraft, writeLocalDraft } from '#react/app/document/local-draft/idb'
 import type { EditorStore } from '#react/app/editor/store'
 
@@ -7,6 +8,10 @@ import { exportFigFile } from '@open-pencil/core/io'
 export async function persistLocalDraft(store: EditorStore): Promise<void> {
   const key = store.state.documentKey?.trim()
   if (!key || store.state.historyPreviewId) return
+  // Debounced draft writes must not steal frames from pan/zoom — wait for idle.
+  await yieldWhenIdle()
+  if (store.state.historyPreviewId || store.state.documentKey?.trim() !== key) return
+  if (store.state.loading || store.state.pageLoading.visible) return
   const figBytes = await exportFigFile(
     store.graph,
     store.renderer?.ck,
@@ -16,6 +21,8 @@ export async function persistLocalDraft(store: EditorStore): Promise<void> {
     { reuseOriginalArchive: false }
   )
   if (figBytes.byteLength === 0) return
+  await yieldWhenIdle(500)
+  if (store.state.documentKey?.trim() !== key) return
   await writeLocalDraft({
     key,
     documentName: store.state.documentName?.trim() || 'Untitled',
