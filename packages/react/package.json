@@ -23,6 +23,7 @@
   },
   "scripts": {
     "start": "cross-env NODE_ENV=development APP_ENV=local rspack server",
+    "start:test": "cross-env NODE_ENV=development APP_ENV=test rspack server",
     "build:test": "cross-env NODE_ENV=production APP_ENV=test rspack --mode production ",
     "build:prod": "cross-env NODE_ENV=production APP_ENV=prod rspack --mode production ",
     "build:dts": "bunx tsc --emitDeclarationOnly -p tsconfig.build.json",
@@ -69,6 +70,7 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
+    "@open-pencil/desktop-react": "workspace:*",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.3.3",
@@ -89,8 +91,7 @@
     "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^31.1.0",
     "vite": "8.1.4",
-    "workbox-build": "^7.4.1",
-    "@open-pencil/desktop-react": "workspace:*"
+    "workbox-build": "^7.4.1"
   },
   "peerDependencies": {
     "@open-pencil/core": "workspace:*",

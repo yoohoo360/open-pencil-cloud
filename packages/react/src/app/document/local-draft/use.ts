@@ -1,5 +1,10 @@
 import { hasDocumentCapability, documentAccessStore } from '#react/app/document/access'
 import {
+  isAutosaveAllowed,
+  noteAutosaveAfterSave,
+  noteAutosaveOpenOrFocus
+} from '#react/app/document/autosave-gate'
+import {
   isLocalDraftAtBaseline,
   markLocalDraftBaseline
 } from '#react/app/document/local-draft/baseline'
@@ -7,9 +12,7 @@ import { persistLocalDraft } from '#react/app/document/local-draft/persist'
 import type { EditorStore } from '#react/app/editor/store'
 import { useEffect } from 'react'
 
-const LOCAL_DRAFT_DEBOUNCE_MS = 2_000
-
-/** Debounced IndexedDB .fig drafts — only after local scene edits (not open/import). */
+/** IndexedDB drafts on scene edits — gated by the shared autosave not-before timestamp. */
 export function useLocalDraftPersist(store: EditorStore, enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return
@@ -17,15 +20,16 @@ export function useLocalDraftPersist(store: EditorStore, enabled: boolean): void
 
     // Snapshot after open settles so import/open scene bumps do not write a draft.
     markLocalDraftBaseline(store)
+    noteAutosaveOpenOrFocus(store)
     let lastSeenScene = store.state.sceneVersion
     let lastSavedScene = store.state.sceneVersion
-    let timer: ReturnType<typeof setTimeout> | undefined
     let running: Promise<void> | null = null
     let disposed = false
 
-    const flush = () => {
+    const tryPersist = () => {
       if (disposed || running) return
       if (store.state.loading || store.state.pageLoading.visible || store.state.historyPreviewId) return
+      if (!isAutosaveAllowed(store)) return
       if (isLocalDraftAtBaseline(store)) {
         lastSavedScene = store.state.sceneVersion
         lastSeenScene = lastSavedScene
@@ -38,19 +42,15 @@ export function useLocalDraftPersist(store: EditorStore, enabled: boolean): void
         .then(() => {
           lastSavedScene = scene
           markLocalDraftBaseline(store)
+          noteAutosaveAfterSave(store)
         })
         .catch((error) => {
           console.warn('[LocalDraft] Persist failed', error)
         })
         .finally(() => {
           running = null
-          if (!disposed && store.state.sceneVersion !== lastSavedScene) schedule()
+          if (!disposed && store.state.sceneVersion !== lastSavedScene) tryPersist()
         })
-    }
-
-    const schedule = () => {
-      if (timer !== undefined) clearTimeout(timer)
-      timer = setTimeout(flush, LOCAL_DRAFT_DEBOUNCE_MS)
     }
 
     const unsubscribe = store.subscribe(() => {
@@ -60,10 +60,6 @@ export function useLocalDraftPersist(store: EditorStore, enabled: boolean): void
         lastSeenScene = store.state.sceneVersion
         lastSavedScene = lastSeenScene
         markLocalDraftBaseline(store)
-        if (timer !== undefined) {
-          clearTimeout(timer)
-          timer = undefined
-        }
         return
       }
       const scene = store.state.sceneVersion
@@ -73,13 +69,19 @@ export function useLocalDraftPersist(store: EditorStore, enabled: boolean): void
         lastSavedScene = scene
         return
       }
-      schedule()
+      tryPersist()
     })
+
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      noteAutosaveOpenOrFocus(store)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
 
     return () => {
       disposed = true
       unsubscribe()
-      if (timer !== undefined) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [enabled, store])
 }
