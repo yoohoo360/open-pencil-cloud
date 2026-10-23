@@ -1,5 +1,5 @@
 /**
- * Dev: generate menu → build main/preload → start React frontend → launch Electron
+ * Dev: build main/preload → start React frontend → launch Electron
  * once http://localhost:8000 responds.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -61,9 +61,6 @@ process.once('SIGTERM', () => {
   stopAll()
   process.exit(143)
 })
-
-const menuCode = await run('bun', ['run', 'generate:menu'])
-if (menuCode !== 0) process.exit(menuCode)
 
 const buildCode = await run('bun', ['run', 'build:main'])
 if (buildCode !== 0) process.exit(buildCode)

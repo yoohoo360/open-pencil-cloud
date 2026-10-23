@@ -46,9 +46,6 @@ const packEnv = (() => {
   return 'prod'
 })()
 
-const menuCode = await run('bun', ['run', 'generate:menu'], packageRoot)
-if (menuCode !== 0) process.exit(menuCode)
-
 const mainCode = await run('bun', ['run', 'build:main'], packageRoot, {
   OPENPENCIL_PACKAGING: '1',
   OPENPENCIL_APP_ENV: packEnv
@@ -90,7 +87,6 @@ writeFileSync(
   )}\n`
 )
 cpSync(join(packageRoot, 'dist'), join(stageRoot, 'dist'), { recursive: true })
-cpSync(join(packageRoot, 'generated'), join(stageRoot, 'generated'), { recursive: true })
 
 const icons = join(packageRoot, '../desktop-react/icons')
 mkdirSync(join(stageRoot, 'build'), { recursive: true })
@@ -116,7 +112,6 @@ directories:
   buildResources: build
 files:
   - dist/**/*
-  - generated/**/*
   - package.json
 asar: true
 npmRebuild: false

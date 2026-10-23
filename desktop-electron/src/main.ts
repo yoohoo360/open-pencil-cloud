@@ -144,7 +144,7 @@ function createWindow(): void {
     console.error('[desktop-electron] did-fail-load', { code, description, validatedURL })
     dialog.showErrorBox(
       'Frontend failed to load',
-      `Build channel: ${channel}\nDefault: ${frontendUrl}\nTried: ${validatedURL}\n\n${description} (${code})\n\nNon-prod: Frontend menu → Local / Dev / Prod.\nOr set OPENPENCIL_APP_ENV / OPENPENCIL_FRONTEND_URL.`
+      `Build channel: ${channel}\nDefault: ${frontendUrl}\nTried: ${validatedURL}\n\n${description} (${code})\n\nNon-prod: Help → Environment → Local / Dev / Prod.\nOr set OPENPENCIL_APP_ENV / OPENPENCIL_FRONTEND_URL.`
     )
   })
 

@@ -8,7 +8,6 @@
   "type": "module",
   "main": "./dist/main.js",
   "scripts": {
-    "generate:menu": "bun ../packages/react/scripts/generate-desktop-menu.ts",
     "build:main": "bun ./scripts/build-main.ts",
     "build": "OPENPENCIL_APP_ENV=prod bun ./scripts/build.ts",
     "build:local": "OPENPENCIL_APP_ENV=local bun ./scripts/build.ts",

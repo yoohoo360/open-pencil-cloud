@@ -7,7 +7,6 @@ directories:
   output: release
 files:
   - dist/**/*
-  - generated/**/*
   - package.json
 asar: true
 npmRebuild: false

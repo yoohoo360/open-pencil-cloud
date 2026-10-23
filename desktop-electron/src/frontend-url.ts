@@ -22,7 +22,7 @@ export function defaultFrontendUrl(): string {
   return resolveAppEnv().frontendUrl
 }
 
-/** Frontend menu: non-prod channels only (matches Tauri / React). */
+/** Environment selection: non-prod channels only (matches Tauri / React). */
 export function allowsFrontendUrlOverride(): boolean {
   return resolveAppEnv().appEnv !== 'prod'
 }
@@ -89,19 +89,29 @@ async function clearHtmlJsCaches(window: BrowserWindow, origin: string): Promise
     await session.clearCodeCaches({ urls: [] })
     await session.clearData({
       origins: [origin],
-      dataTypes: ['cache', 'serviceWorkers']
+      dataTypes: ['serviceWorkers']
     })
     await session.clearStorageData({
       origin,
-      storages: ['cachestorage', 'serviceworkers']
+      storages: ['serviceworkers']
     })
   } catch (error) {
     console.warn('[desktop-electron] clear HTML/JS cache failed', error)
   }
 }
 
+export async function reloadFrontendIgnoringCache(
+  window: BrowserWindow | null
+): Promise<void> {
+  if (!window || window.isDestroyed()) return
+  const currentUrl = window.webContents.getURL()
+  const target = validateFrontendUrl(currentUrl || resolvedFrontendUrl())
+  await clearHtmlJsCaches(window, new URL(target).origin)
+  window.webContents.reloadIgnoringCache()
+}
+
 export type LoadFrontendOptions = {
-  /** Clear HTML/JS caches and force a no-cache navigation (Frontend menu switches). */
+  /** Clear HTML/JS caches and force a no-cache navigation (environment switches). */
   bustCache?: boolean
 }
 
@@ -124,19 +134,6 @@ export async function loadFrontendUrl(
     const message = error instanceof Error ? error.message : String(error)
     dialog.showErrorBox('Frontend failed to load', `${target}\n\n${message}`)
     throw error
-  }
-
-  if (options.bustCache) {
-    await new Promise<void>((resolve) => {
-      const done = () => {
-        window.webContents.off('did-finish-load', done)
-        window.webContents.off('did-fail-load', done)
-        resolve()
-      }
-      window.webContents.once('did-finish-load', done)
-      window.webContents.once('did-fail-load', done)
-    })
-    window.webContents.reloadIgnoringCache()
   }
 }
 
@@ -185,7 +182,7 @@ function presetForEnv(env: AppEnv): string {
 }
 
 /**
- * Handle Frontend menu ids. Returns true when the event was consumed.
+ * Handle environment menu ids. Returns true when the event was consumed.
  * Clears HTML/JS cache and reloads after a successful switch.
  */
 export async function handleFrontendMenuEvent(
