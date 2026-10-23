@@ -209,7 +209,7 @@ jobs:
           unzip -o ossutil-2.4.0-linux-amd64.zip
           chmod +x ./ossutil-2.4.0-linux-amd64/ossutil
       
-          OSSUTIL="./ossutil-2.4.0-linux-amd64/ossutil"
+         
       
           echo "OSS_ENDPOINT=$OSS_ENDPOINT"
           echo "OSS_REGION=$OSS_REGION"
@@ -218,14 +218,14 @@ jobs:
       
           OSS_DIST_PREFIX="oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
           
-          ossutil rm \
+          ./ossutil-2.4.0-linux-amd64/ossutil rm \
             -e "$OSS_ENDPOINT" \
             -i "$OSS_ACCESS_KEY_ID" \
             -k "$OSS_ACCESS_KEY_SECRET" \
             -r -f \
             "$OSS_DIST_PREFIX"
           
-          ossutil cp \
+          ./ossutil-2.4.0-linux-amd64/ossutil cp \
             -e "$OSS_ENDPOINT" \
             -i "$OSS_ACCESS_KEY_ID" \
             -k "$OSS_ACCESS_KEY_SECRET" \
