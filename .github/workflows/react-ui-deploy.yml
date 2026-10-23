@@ -216,14 +216,22 @@ jobs:
           echo "OSS_BUCKET=$OSS_BUCKET"
           echo "DIST_DIR=$DIST_DIR"
       
-          $OSSUTIL sync \
+          OSS_DIST_PREFIX="oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
+          
+          ossutil rm \
             -e "$OSS_ENDPOINT" \
             -i "$OSS_ACCESS_KEY_ID" \
             -k "$OSS_ACCESS_KEY_SECRET" \
-            -f \
-            --delete \
-            "$DIST_DIR" \
-            "oss://$OSS_BUCKET/pencil-dev/static/pencil-wepapp/dist/"
+            -r -f \
+            "$OSS_DIST_PREFIX"
+          
+          ossutil cp \
+            -e "$OSS_ENDPOINT" \
+            -i "$OSS_ACCESS_KEY_ID" \
+            -k "$OSS_ACCESS_KEY_SECRET" \
+            -r -f \
+            "$DIST_DIR/" \
+            "$OSS_DIST_PREFIX"
 
       - name: Cleanup previous tag after successful deploy
         if: success() && steps.prev_tag.outputs.previous_tag != ''
