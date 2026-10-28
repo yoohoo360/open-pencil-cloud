@@ -8,10 +8,7 @@ export interface MCPHealthProbe {
   serverStatus: string | null
 }
 
-const BROWSER_HEALTH_URL =
-  IS_TAURI || !import.meta.env.DEV
-    ? `http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`
-    : '/__openpencil-mcp/health'
+const BROWSER_HEALTH_URL = `http://127.0.0.1:${AUTOMATION_HTTP_PORT}/health`
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -20,16 +17,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Probe local MCP `/health`.
  * On desktop (Tauri or Electron), always use the native command — an https:// webview
- * cannot fetch http://127.0.0.1 (mixed content). In the browser, use fetch (or the rspack DEV proxy).
+ * cannot fetch http://127.0.0.1 (mixed content). In the browser, fetch the local server directly.
  */
-export async function probeMCPHealth(authToken: string | null = null): Promise<MCPHealthProbe> {
+export async function probeMCPHealth(): Promise<MCPHealthProbe> {
   if (IS_TAURI) {
     try {
       const result = await desktopInvoke<{
         ok: boolean
         version?: string | null
         serverStatus?: string | null
-      }>('mcp_health', { authToken })
+      }>('mcp_health')
       return {
         ok: result.ok,
         version: result.version ?? null,
@@ -41,9 +38,7 @@ export async function probeMCPHealth(authToken: string | null = null): Promise<M
   }
 
   try {
-    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined
     const response = await fetch(BROWSER_HEALTH_URL, {
-      headers,
       signal: AbortSignal.timeout(1000)
     })
     if (!response.ok) return { ok: false, version: null, serverStatus: null }

@@ -17,8 +17,7 @@ import { platformHasUnixSockets } from '../../mcp/src/transport/paths'
 import {
   createAutomationEnvironment,
   devMCPConfigurationErrorStatus,
-  readDevMCPConfiguration,
-  readRestartAuthToken
+  readDevMCPConfiguration
 } from './automation-env'
 
 const CHILD_EXIT_TIMEOUT_MS = 2_000
@@ -42,8 +41,6 @@ export function createAutomationController(
 ) {
   let child: ReturnType<typeof spawn> | null = null
   let lifecycle = Promise.resolve()
-  /** Settings-generated Bearer; falls back to the Vite control token when null. */
-  let serverAuthToken: string | null = null
   let configuration: DevMCPConfiguration = {
     authenticationEnabled: false,
     rootDirectory: '',
@@ -94,7 +91,6 @@ export function createAutomationController(
       stdio: ['ignore', 'inherit', 'pipe'],
       env: {
         ...createAutomationEnvironment({
-          authToken: serverAuthToken ?? authToken,
           baseEnv: process.env,
           configuration,
           corsOrigin: options.corsOrigin,
@@ -191,13 +187,7 @@ export function createAutomationController(
           response.end('Invalid MCP configuration')
           return
         }
-        if (nextConfiguration.authenticationEnabled) {
-          const nextToken = readRestartAuthToken(rawConfiguration)
-          if (nextToken) serverAuthToken = nextToken
-        } else {
-          serverAuthToken = null
-        }
-        await enqueue(() => restartChild(nextConfiguration))
+        await enqueue(() => restartChild({ ...nextConfiguration, authenticationEnabled: false }))
         response.statusCode = 204
         response.end()
       } catch (error) {

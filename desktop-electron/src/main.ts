@@ -27,13 +27,8 @@ async function handleInvoke(command: string, args: unknown): Promise<unknown> {
   switch (command) {
     case 'mcp_lookup':
       return mcpLookup()
-    case 'mcp_health': {
-      const authToken =
-        args && typeof args === 'object' && 'authToken' in args
-          ? ((args as { authToken?: string | null }).authToken ?? null)
-          : null
-      return mcpHealth(authToken)
-    }
+    case 'mcp_health':
+      return mcpHealth()
     case 'mcp_start': {
       const env =
         args && typeof args === 'object' && 'env' in args

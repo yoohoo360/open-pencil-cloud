@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import http from 'node:http'
+import { app } from 'electron'
 
 const MCP_HTTP_PORT = 7600
 const MCP_EXECUTABLE = 'openpencil-mcp-http'
@@ -17,6 +18,10 @@ function packageRoot(): string {
 
 function repoRoot(): string {
   return join(packageRoot(), '..')
+}
+
+function binariesRoot(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'binaries') : join(packageRoot(), 'binaries')
 }
 
 function hostTargetTriple(): string {
@@ -46,7 +51,7 @@ function resolveMcpLaunch(): McpLaunch | null {
   }
 
   const binaryName = `${MCP_EXECUTABLE}-${hostTargetTriple()}${process.platform === 'win32' ? '.exe' : ''}`
-  const path = join(packageRoot(), 'binaries', binaryName)
+  const path = join(binariesRoot(), binaryName)
   if (existsSync(path)) {
     return { display: path, program: path, args: [] }
   }
@@ -59,7 +64,7 @@ export function mcpLookup(): {
   searched: string[]
 } {
   const launch = resolveMcpLaunch()
-  const searched = [join(repoRoot(), 'packages/mcp/src'), join(packageRoot(), 'binaries')]
+  const searched = [join(repoRoot(), 'packages/mcp/src'), binariesRoot()]
   return {
     available: launch !== null,
     path: launch?.display ?? null,
@@ -67,21 +72,17 @@ export function mcpLookup(): {
   }
 }
 
-export async function mcpHealth(authToken: string | null | undefined): Promise<{
+export async function mcpHealth(): Promise<{
   ok: boolean
   version: string | null
   serverStatus: string | null
 }> {
   return await new Promise((resolve) => {
-    const headers: Record<string, string> = {}
-    const token = authToken?.trim()
-    if (token) headers.Authorization = `Bearer ${token}`
     const request = http.get(
       {
         hostname: '127.0.0.1',
         port: MCP_HTTP_PORT,
         path: '/health',
-        headers,
         timeout: 1000
       },
       (response) => {

@@ -7,7 +7,6 @@ import { configurableMCPTools } from '#react/app/automation/mcp/tools'
 
 const DISABLED_TOOLS_STORAGE_KEY = 'open-pencil:mcp:disabled-tools'
 const ROOT_DIRECTORY_STORAGE_KEY = 'open-pencil:mcp:root-directory'
-const AUTHENTICATION_ENABLED_STORAGE_KEY = 'open-pencil:mcp:authentication-enabled'
 
 function readJSON<T>(key: string, fallback: T, parse: (value: unknown) => T): T {
   if (!IS_BROWSER) return fallback
@@ -30,11 +29,6 @@ export const disabledMCPTools = atom<string[]>(
 export const mcpRootDirectory = atom(
   readJSON(ROOT_DIRECTORY_STORAGE_KEY, '', (value) => (typeof value === 'string' ? value : ''))
 )
-export const mcpAuthenticationEnabled = atom(
-  readJSON(AUTHENTICATION_ENABLED_STORAGE_KEY, false, (value) =>
-    typeof value === 'boolean' ? value : false
-  )
-)
 
 disabledMCPTools.subscribe((value) => {
   if (!IS_BROWSER) return
@@ -44,11 +38,6 @@ disabledMCPTools.subscribe((value) => {
 mcpRootDirectory.subscribe((value) => {
   if (!IS_BROWSER) return
   localStorage.setItem(ROOT_DIRECTORY_STORAGE_KEY, JSON.stringify(value))
-})
-
-mcpAuthenticationEnabled.subscribe((value) => {
-  if (!IS_BROWSER) return
-  localStorage.setItem(AUTHENTICATION_ENABLED_STORAGE_KEY, JSON.stringify(value))
 })
 
 export function setMCPToolEnabled(name: string, enabled: boolean) {

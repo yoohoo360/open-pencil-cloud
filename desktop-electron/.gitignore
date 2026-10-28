@@ -1,4 +1,5 @@
 /dist/
 /release/
 /.release-stage/
+/binaries/
 /node_modules/

@@ -89,10 +89,6 @@ const handle = await startServer({
   disabledTools: toolPolicy.disabledTools,
   scope: toolPolicy.scope,
   mcpRoot: resolveMCPRoot(process.env.OPENPENCIL_MCP_ROOT),
-  // Auth token: undefined → auto-generate, empty string → disable auth,
-  // non-empty → use trimmed value. Whitespace-only is rejected to prevent a
-  // silent fallback to an auto-generated token when the operator intended to
-  // set an explicit one.
   authToken: (() => {
     const raw = process.env.OPENPENCIL_MCP_AUTH_TOKEN
     if (raw === undefined) return undefined

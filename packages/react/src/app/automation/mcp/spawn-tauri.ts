@@ -1,33 +1,23 @@
 import { AUTOMATION_HTTP_PORT, IS_TAURI } from '@open-pencil/core/constants'
 
-import { resolveLocalMCPAuthToken } from '#react/app/automation/mcp/auth-token'
 import { probeMCPHealth } from '#react/app/automation/mcp/health'
-import {
-  disabledMCPTools,
-  mcpAuthenticationEnabled,
-  mcpRootDirectory
-} from '#react/app/automation/mcp/preferences'
+import { disabledMCPTools, mcpRootDirectory } from '#react/app/automation/mcp/preferences'
 import { desktopHomeDir, desktopInvoke } from '#react/app/desktop/bridge'
 
 export type TauriMCPSpawnResult =
-  | { ok: true; authToken: string | null }
+  | { ok: true }
   | { ok: false; error: string }
 
 /**
  * Start (or attach to) the local MCP HTTP server from a desktop shell (Tauri or Electron).
- * Uses the Settings-generated bearer when authentication is on.
  * Health checks go through native `mcp_health` so https:// frontends are not
  * blocked by mixed-content rules when probing http://127.0.0.1:7600.
  */
 export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
   if (!IS_TAURI) return { ok: false, error: 'Not running in the desktop shell' }
 
-  const storedToken = resolveLocalMCPAuthToken()
-  const authenticationEnabled = mcpAuthenticationEnabled.get() && Boolean(storedToken)
-  const authToken = authenticationEnabled ? storedToken : null
-
-  if ((await probeMCPHealth(authToken)).ok) {
-    return { ok: true, authToken }
+  if ((await probeMCPHealth()).ok) {
+    return { ok: true }
   }
 
   try {
@@ -47,7 +37,7 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
     await desktopInvoke('mcp_start', {
       env: {
         PORT: String(AUTOMATION_HTTP_PORT),
-        OPENPENCIL_MCP_AUTH_TOKEN: authToken ?? '',
+        OPENPENCIL_MCP_AUTH_TOKEN: '',
         OPENPENCIL_MCP_CORS_ORIGIN: window.location.origin,
         OPENPENCIL_MCP_TCP: '1',
         OPENPENCIL_MCP_ROOT: mcpRoot,
@@ -64,7 +54,7 @@ export async function spawnTauriMCP(): Promise<TauriMCPSpawnResult> {
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 400)
       })
-      if ((await probeMCPHealth(authToken)).ok) return { ok: true, authToken }
+      if ((await probeMCPHealth()).ok) return { ok: true }
     }
     return { ok: false, error: 'MCP server started but did not become healthy in time' }
   } catch (reason) {

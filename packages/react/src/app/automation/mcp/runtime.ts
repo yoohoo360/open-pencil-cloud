@@ -2,13 +2,8 @@ import { atom } from 'nanostores'
 
 import { AUTOMATION_HTTP_PORT, IS_TAURI } from '@open-pencil/core/constants'
 
-import { resolveLocalMCPAuthToken } from '#react/app/automation/mcp/auth-token'
 import { probeMCPHealth } from '#react/app/automation/mcp/health'
-import {
-  disabledMCPTools,
-  mcpAuthenticationEnabled,
-  mcpRootDirectory
-} from '#react/app/automation/mcp/preferences'
+import { disabledMCPTools, mcpRootDirectory } from '#react/app/automation/mcp/preferences'
 import { spawnTauriMCP } from '#react/app/automation/mcp/spawn-tauri'
 
 export type MCPRuntimeStatus = 'idle' | 'starting' | 'running' | 'stopped' | 'error'
@@ -60,10 +55,7 @@ function isLocalDevFrontend(): boolean {
 export async function refreshMCPRuntime(): Promise<void> {
   const current = mcpRuntime.get()
   mcpRuntime.set({ ...current, checking: true })
-  const storedToken = resolveLocalMCPAuthToken()
-  const authenticationEnabled = mcpAuthenticationEnabled.get() && Boolean(storedToken)
-  const authToken = authenticationEnabled ? storedToken : null
-  const health = await probeMCPHealth(authToken)
+  const health = await probeMCPHealth()
   if (!health.ok) {
     mcpRuntime.set({
       ...mcpRuntime.get(),
@@ -97,8 +89,6 @@ async function waitUntilRunning(): Promise<boolean> {
 async function restartViaRspackDev(): Promise<boolean> {
   const control = controlToken()
   if (!control) return false
-  const storedToken = resolveLocalMCPAuthToken()
-  const authenticationEnabled = mcpAuthenticationEnabled.get() && Boolean(storedToken)
   const response = await fetch(DEV_MCP_RESTART_PATH, {
     method: 'POST',
     headers: {
@@ -106,8 +96,7 @@ async function restartViaRspackDev(): Promise<boolean> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      authenticationEnabled,
-      authToken: storedToken,
+      authenticationEnabled: false,
       rootDirectory: mcpRootDirectory.get(),
       disabledTools: disabledMCPTools.get(),
       scope: 'document'

@@ -8,5 +8,8 @@ directories:
 files:
   - dist/**/*
   - package.json
+extraResources:
+  - from: binaries
+    to: binaries
 asar: true
 npmRebuild: false

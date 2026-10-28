@@ -354,16 +354,6 @@ export default defineConfig({
       directory: path.resolve(__dirname, 'public')
     },
     setupMiddlewares: (middlewares) =>
-      automationPlugin.setupMiddlewares(agentServerPlugin.setupMiddlewares(middlewares)),
-    proxy: [
-      {
-        context: ['/__openpencil-mcp'],
-        target: `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`,
-        changeOrigin: true,
-        pathRewrite: {
-          '^/__openpencil-mcp': ''
-        }
-      }
-    ]
+      automationPlugin.setupMiddlewares(agentServerPlugin.setupMiddlewares(middlewares))
   }
 })

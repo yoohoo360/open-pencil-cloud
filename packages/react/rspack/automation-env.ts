@@ -3,8 +3,6 @@ import type { IncomingMessage } from 'node:http'
 import type { DevMCPConfiguration } from '../../../src/app/automation/mcp/dev-control'
 
 interface AutomationEnvironmentOptions {
-  /** Bearer for the MCP child (Settings token, or Vite control token fallback). */
-  authToken: string | null
   baseEnv: NodeJS.ProcessEnv
   configuration: DevMCPConfiguration
   corsOrigin: string
@@ -16,8 +14,7 @@ interface AutomationEnvironmentOptions {
 export function createAutomationEnvironment(
   options: AutomationEnvironmentOptions
 ): NodeJS.ProcessEnv {
-  const { authToken, baseEnv, configuration, corsOrigin, discoveryPath, httpPort, socketPath } =
-    options
+  const { baseEnv, configuration, corsOrigin, discoveryPath, httpPort, socketPath } = options
   const childEnv = { ...baseEnv }
   delete childEnv.OPENPENCIL_MCP_SOCKET
   delete childEnv.OPENPENCIL_MCP_AUTH_TOKEN
@@ -25,7 +22,7 @@ export function createAutomationEnvironment(
     ...childEnv,
     PORT: String(httpPort),
     OPENPENCIL_MCP_TCP: '1',
-    OPENPENCIL_MCP_AUTH_TOKEN: configuration.authenticationEnabled ? (authToken ?? '') : '',
+    OPENPENCIL_MCP_AUTH_TOKEN: '',
     OPENPENCIL_MCP_CORS_ORIGIN: corsOrigin,
     OPENPENCIL_MCP_ROOT: configuration.rootDirectory.trim() || process.cwd(),
     OPENPENCIL_MCP_DISABLED_TOOLS: configuration.disabledTools.join(','),
@@ -39,8 +36,6 @@ export function createAutomationEnvironment(
 }
 
 const MAX_CONFIGURATION_BYTES = 70_000
-const MAX_AUTH_TOKEN_LENGTH = 256
-
 type DevMCPConfigurationErrorStatus = 400 | 413
 
 class DevMCPConfigurationRequestError extends Error {
@@ -88,13 +83,3 @@ export async function readDevMCPConfiguration(request: IncomingMessage): Promise
   }
 }
 
-/** React-only: optional `authToken` on the restart body (not part of shared DevMCPConfiguration). */
-export function readRestartAuthToken(raw: unknown): string | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const value = Reflect.get(raw, 'authToken')
-  if (value === undefined || value === null) return null
-  if (typeof value !== 'string') return null
-  const token = value.trim()
-  if (!token || token.length > MAX_AUTH_TOKEN_LENGTH) return null
-  return token
-}

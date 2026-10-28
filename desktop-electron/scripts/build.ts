@@ -46,6 +46,9 @@ const packEnv = (() => {
   return 'prod'
 })()
 
+const mcpCode = await run('bun', ['run', 'ensure:mcp-binary'], packageRoot)
+if (mcpCode !== 0) process.exit(mcpCode)
+
 const mainCode = await run('bun', ['run', 'build:main'], packageRoot, {
   OPENPENCIL_PACKAGING: '1',
   OPENPENCIL_APP_ENV: packEnv
@@ -87,6 +90,7 @@ writeFileSync(
   )}\n`
 )
 cpSync(join(packageRoot, 'dist'), join(stageRoot, 'dist'), { recursive: true })
+cpSync(join(packageRoot, 'binaries'), join(stageRoot, 'binaries'), { recursive: true })
 
 const icons = join(packageRoot, '../desktop-react/icons')
 mkdirSync(join(stageRoot, 'build'), { recursive: true })
@@ -113,6 +117,9 @@ directories:
 files:
   - dist/**/*
   - package.json
+extraResources:
+  - from: binaries
+    to: binaries
 asar: true
 npmRebuild: false
 nodeGypRebuild: false

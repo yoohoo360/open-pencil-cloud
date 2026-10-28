@@ -330,18 +330,6 @@ function buildServerContext(options: ServerOptions) {
   const corsOrigin = options.corsOrigin ?? null
   const withTcp = options.withTcp ?? false
 
-  // Warn if auth is disabled while TCP is active — any local process can
-  // interact with the server without authentication. Socket-only transport
-  // (PORT=0) is safer because 0o600 permissions restrict access to the
-  // same OS user.
-  if (authToken === null && withTcp) {
-    process.stderr.write(
-      `WARNING: MCP server is running without authentication on TCP port ${httpPort}. ` +
-        'Any local process can interact with the server. ' +
-        'Set OPENPENCIL_MCP_AUTH_TOKEN to enable auth, or use PORT=0 for socket-only transport.\n'
-    )
-  }
-
   const mcpSessions = createMCPSessionManager({
     serverVersion: MCP_VERSION,
     registerTools: (mcpServer: McpServer, agentSession: MCPAgentSession) =>
