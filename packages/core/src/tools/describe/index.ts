@@ -5,10 +5,12 @@ import { defineTool } from '#core/tools/schema'
 
 import { autoDepth, describeOneNode } from './tree'
 
+export { describeSelectionForCode } from './selection-for-code'
+
 export const describe = defineTool({
   name: 'describe',
   description:
-    'Semantic description of one or more nodes. Pass `id` for a single node, or `ids` for multiple nodes in one call. Omit depth for auto — adapts to subtree size (small block → deeper, large page → shallower).',
+    'Semantic description of one or more nodes. Pass `id` for a single node or `ids` for multiple nodes; omit both to describe the current selection. Omit depth for auto — adapts to subtree size (small block → deeper, large page → shallower).',
   execution: { kind: 'sync', mutation: 'none' },
   exposure: { webmcp: false },
   input: v.object({
@@ -39,7 +41,21 @@ export const describe = defineTool({
       }
     }
 
-    if (!args.id) return { error: 'Provide id (string) or ids (string[])' }
+    if (!args.id) {
+      const selectedIds = figma.currentPage.selection.map((node) => node.id)
+      const selectedId = selectedIds[0]
+      if (!selectedId) return { error: 'No nodes selected' }
+      if (selectedIds.length > 1) {
+        return {
+          nodes: selectedIds.map((nodeId) => {
+            const depth = Math.min(args.depth ?? autoDepth(figma.graph, nodeId), 5)
+            return describeOneNode(figma, nodeId, depth, gridSize)
+          })
+        }
+      }
+      const depth = Math.min(args.depth ?? autoDepth(figma.graph, selectedId), 5)
+      return describeOneNode(figma, selectedId, depth, gridSize)
+    }
     const depth = Math.min(args.depth ?? autoDepth(figma.graph, args.id), 5)
     return describeOneNode(figma, args.id, depth, gridSize)
   }

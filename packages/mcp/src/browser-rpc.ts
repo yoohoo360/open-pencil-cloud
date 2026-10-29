@@ -31,7 +31,27 @@ const BrowserEnvelopeJSON = v.pipe(
   )
 )
 
-const HandshakeMessage = v.looseObject({ token: v.optional(v.nullable(v.string())) })
+const BrowserSessionSchema = v.object({
+  id: v.string(),
+  url: v.string(),
+  title: v.string(),
+  documentId: v.string(),
+  documentName: v.string(),
+  pageId: v.string(),
+  pageName: v.string()
+})
+
+type BrowserSession = v.InferOutput<typeof BrowserSessionSchema>
+
+const HandshakeMessage = v.looseObject({
+  token: v.optional(v.nullable(v.string())),
+  session: v.optional(v.nullable(BrowserSessionSchema))
+})
+
+const SessionMessage = v.object({
+  type: v.literal('session'),
+  session: BrowserSessionSchema
+})
 
 const RequestMessage = v.looseObject({
   type: v.literal('request'),
@@ -95,10 +115,15 @@ export function createBrowserRPCBridge({
   const connectionListeners = new Set<ConnectionListener>()
   let browserWs: WebSocket | null = null
   let browserRegistered = false
+  let browserSession: BrowserSession | null = null
   let bridgeClosed = false
 
   function isConnected(): boolean {
     return Boolean(browserWs && browserRegistered)
+  }
+
+  function getSession(): BrowserSession | null {
+    return browserSession
   }
 
   function notifyConnectionChange() {
@@ -236,7 +261,11 @@ export function createBrowserRPCBridge({
     }
   }
 
-  function registerBrowser(ws: WebSocket, token: string | null) {
+  function registerBrowser(
+    ws: WebSocket,
+    token: string | null,
+    session: BrowserSession | null
+  ) {
     if (bridgeClosed) return
     if (!isAuthorized(token, authToken)) {
       ws.close()
@@ -247,6 +276,7 @@ export function createBrowserRPCBridge({
     const previousBrowserWs = browserWs
     browserWs = ws
     browserRegistered = true
+    browserSession = session
     if (previousBrowserWs && previousBrowserWs !== ws) {
       // Reject in-flight requests to the old browser. Without this, pending
       // requests sit in the pending map until RPC_TIMEOUT (20s), because
@@ -300,10 +330,10 @@ export function createBrowserRPCBridge({
         ws.close()
         return
       }
-      const { token } = handshake.output
+      const { token, session } = handshake.output
       if (token === undefined) return
       if (msg.type === 'register') {
-        registerBrowser(ws, token)
+        registerBrowser(ws, token, session ?? null)
       } else if (isAuthorized(token, authToken)) {
         authenticatedClients.add(ws)
       } else {
@@ -317,6 +347,11 @@ export function createBrowserRPCBridge({
     // sending request messages over the WebSocket directly.
     if (!authenticatedClients.has(ws)) {
       ws.close()
+      return
+    }
+    const session = v.safeParse(SessionMessage, msg)
+    if (session.success) {
+      if (browserRegistered && browserWs === ws) browserSession = session.output.session
       return
     }
     const request = v.safeParse(RequestMessage, msg)
@@ -334,6 +369,7 @@ export function createBrowserRPCBridge({
     if (browserWs !== ws) return
     browserWs = null
     browserRegistered = false
+    browserSession = null
     rejectAllPending('Browser disconnected')
     // Intentionally NOT rejecting connectionWaiters here. If a request
     // entered waitForConnection() before the close event (e.g. during a
@@ -362,6 +398,7 @@ export function createBrowserRPCBridge({
     rejectConnectionWaiters('Server shutting down')
     browserWs = null
     browserRegistered = false
+    browserSession = null
     clients.clear()
     authenticatedClients.clear()
     connectionListeners.clear()
@@ -369,6 +406,7 @@ export function createBrowserRPCBridge({
 
   return {
     close,
+    getSession,
     isConnected,
     subscribeConnectionChange,
     sendRPC,

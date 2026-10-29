@@ -7,7 +7,7 @@ import { openDirectory } from './ipc/dialog'
 import { buildFigFile } from './ipc/fig'
 import { listSystemFonts, loadSystemFont } from './ipc/fonts'
 import { fsMkdir, fsReadDir, fsReadFile, fsRemove, fsWriteFile } from './ipc/fs'
-import { mcpHealth, mcpLookup, mcpStart } from './ipc/mcp'
+import { mcpHealth, mcpLookup, mcpStart, mcpStop } from './ipc/mcp'
 import { applyUserDataPathForEnv, resolveAppEnv } from './app-env'
 import { applyResolvedFrontendUrl, buildChannelLabel } from './frontend-url'
 import { attachEditableContextMenu, installNativeMenu } from './menu'
@@ -151,6 +151,21 @@ function createWindow(): void {
   })
 }
 
+async function ensureMcpCompanion(): Promise<void> {
+  if ((await mcpHealth()).ok) return
+
+  const { frontendUrl } = resolveAppEnv()
+  mcpStart({
+    PORT: '7600',
+    OPENPENCIL_MCP_AUTH_TOKEN: '',
+    OPENPENCIL_MCP_CORS_ORIGIN: new URL(frontendUrl).origin,
+    OPENPENCIL_MCP_TCP: '1',
+    OPENPENCIL_MCP_ROOT: homedir(),
+    OPENPENCIL_MCP_SCOPE: 'document',
+    OPENPENCIL_MCP_EVAL: '1'
+  })
+}
+
 app.whenReady().then(() => {
   ipcMain.handle('desktop:invoke', async (_event, payload: { command: string; args?: unknown }) => {
     return handleInvoke(payload.command, payload.args)
@@ -159,6 +174,9 @@ app.whenReady().then(() => {
 
   installNativeMenu(() => mainWindow)
   createWindow()
+  void ensureMcpCompanion().catch((reason) => {
+    console.error('[desktop-electron] failed to start MCP companion', reason)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -168,4 +186,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  mcpStop()
 })

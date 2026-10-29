@@ -4,8 +4,6 @@ import type { Server as HttpServer } from 'node:http'
 import type { McpServer } from '@modelcontextprotocol/server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { resolveCommand } from 'package-manager-detector/commands'
-import { detect, getUserAgent } from 'package-manager-detector/detect'
 import { WebSocketServer, type WebSocket } from 'ws'
 
 import { MCP_AGENT_HEADER } from '@open-pencil/core/constants'
@@ -42,27 +40,6 @@ import {
 export const MCP_VERSION: string = packageJSON.version
 
 const HEARTBEAT_INTERVAL_MS = 5_000
-
-let installCommandPromise: Promise<string> | null = null
-
-async function resolveMCPInstallCommand(): Promise<string> {
-  const agent =
-    getUserAgent() ??
-    (
-      await detect({
-        strategies: ['install-metadata', 'lockfile', 'packageManager-field', 'devEngines-field']
-      })
-    )?.agent ??
-    'npm'
-  const resolved = resolveCommand(agent, 'global', [`@open-pencil/mcp@${MCP_VERSION}`])
-  if (!resolved) return `npm install -g @open-pencil/mcp@${MCP_VERSION}`
-  return [resolved.command, ...resolved.args].join(' ')
-}
-
-function mcpInstallCommand(): Promise<string> {
-  installCommandPromise ??= resolveMCPInstallCommand()
-  return installCommandPromise
-}
 
 export { fail, ok, type MCPContent, type MCPResult } from '#mcp/result'
 
@@ -127,7 +104,7 @@ export interface ServerHandle {
   close: () => Promise<void>
 }
 
-/** Set up Hono routes: /health, /rpc, /mcp */
+/** Set up Hono routes: /, /health, /rpc, /mcp */
 function createHonoApp(options: {
   authToken: string | null
   corsOrigin: string | readonly string[] | null
@@ -152,17 +129,25 @@ function createHonoApp(options: {
     )
   }
 
-  app.get('/health', async (c) => {
-    const provided = bearerToken(c.req.header('authorization'))
+  const healthPayload = (authorization: string | undefined) => {
+    const provided = bearerToken(authorization)
     const canInspectConfiguration = authToken === null || isAuthorized(provided, authToken)
-    return c.json({
+    const session = browserRPC.getSession()
+    return {
       status: browserRPC.isConnected() ? 'ok' : 'no_app',
       version: MCP_VERSION,
-      installCommand: await mcpInstallCommand(),
       authRequired: authToken !== null,
-      ...(canInspectConfiguration ? { tools: toolDescriptors } : {})
-    })
-  })
+      ...(canInspectConfiguration
+        ? {
+            sessions: session ? [session] : [],
+            tools: toolDescriptors
+          }
+        : {})
+    }
+  }
+
+  app.get('/', (c) => c.json(healthPayload(c.req.header('authorization'))))
+  app.get('/health', (c) => c.json(healthPayload(c.req.header('authorization'))))
 
   // Liveness alias used by the React chat runtime badge (formerly LangGraph GET /ok on :2024).
   // Same Node process as MCP — no separate Agent Server port.

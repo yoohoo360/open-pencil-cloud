@@ -10,6 +10,7 @@ import {
   lintFix
 } from './analyze'
 import { designToComponentMap, designToTokens } from './codegen'
+import { describeSelectionForCode } from './describe'
 import {
   createComponent,
   createInstance,
@@ -198,6 +199,7 @@ export const EXTENDED_TOOLS: ToolDef[] = [
   exportPDF,
   exportImage,
   // Analyze & diff
+  describeSelectionForCode,
   analyzeColors,
   analyzeTypography,
   lint,

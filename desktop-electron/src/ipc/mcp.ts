@@ -118,10 +118,7 @@ export function mcpStart(env: Record<string, string>): void {
       'MCP server was not found. Run `bun run start:mcp` from desktop-electron, or ensure packages/mcp is available.'
     )
   }
-  if (mcpChild && !mcpChild.killed) {
-    mcpChild.kill('SIGTERM')
-    mcpChild = null
-  }
+  mcpStop()
   const merged: Record<string, string | undefined> = {
     ...process.env,
     HOME: process.env.HOME ?? homedir(),
@@ -135,4 +132,10 @@ export function mcpStart(env: Record<string, string>): void {
     detached: true
   })
   mcpChild.unref()
+}
+
+export function mcpStop(): void {
+  if (!mcpChild) return
+  if (!mcpChild.killed) mcpChild.kill('SIGTERM')
+  mcpChild = null
 }

@@ -28,8 +28,36 @@ export function connectAutomation(
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
   let intentionalDisconnect = false
+  const sessionId = randomHex(16)
+  let lastSession = ''
 
   const { handleRequest } = createAutomationCommandHandlers()
+
+  function currentSession() {
+    const store = getStore()
+    const pageId = store?.state.currentPageId ?? ''
+    return {
+      id: sessionId,
+      url: window.location.href,
+      title: document.title,
+      documentId: store?.state.documentKey || 'active',
+      documentName: store?.state.documentName || 'Untitled',
+      pageId,
+      pageName: (pageId && store?.graph.getNode(pageId)?.name) || 'Untitled'
+    }
+  }
+
+  function sendSessionUpdate() {
+    const socket = ws
+    if (!socket || socket.readyState !== WebSocket.OPEN) return
+    const session = currentSession()
+    const serialized = JSON.stringify(session)
+    if (serialized === lastSession) return
+    lastSession = serialized
+    socket.send(JSON.stringify({ type: 'session', session }))
+  }
+
+  const unsubscribeStore = getStore()?.subscribe(sendSessionUpdate)
 
   function connect() {
     let socket: WebSocket
@@ -47,7 +75,9 @@ export function connectAutomation(
 
     socket.onopen = () => {
       console.debug('[Automation] WebSocket connected to MCP server')
-      socket.send(JSON.stringify({ type: 'register', token }))
+      const session = currentSession()
+      lastSession = JSON.stringify(session)
+      socket.send(JSON.stringify({ type: 'register', token, session }))
     }
 
     socket.onmessage = async (event) => {
@@ -115,6 +145,7 @@ export function connectAutomation(
   function disconnect() {
     intentionalDisconnect = true
     clearTimeout(reconnectTimer)
+    unsubscribeStore?.()
     ws?.close()
     ws = null
   }

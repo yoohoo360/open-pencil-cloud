@@ -1,4 +1,11 @@
-import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import {
+  componentPropertyDefinitions,
+  instanceMainComponent,
+  resolveComponentPropertyValue,
+  type ComponentPropertyDefinition,
+  type SceneGraph,
+  type SceneNode
+} from '@open-pencil/scene-graph'
 
 import { detectIssues } from './issues'
 import type { DescribeIssue } from './issues'
@@ -10,8 +17,71 @@ interface ChildDescription {
   name: string
   summary: string
   id: string
+  component?: InstanceComponentDescription
   issues?: DescribeIssue[]
   children?: ChildDescription[]
+}
+
+export interface InstanceComponentPropertyDescription {
+  id: string
+  name: string
+  type: ComponentPropertyDefinition['type']
+  value: string | boolean
+  defaultValue: string | boolean
+  overridden: boolean
+  options?: string[]
+  description?: string
+  resolvedValue?: { id: string; name: string; type: string }
+}
+
+export interface InstanceComponentDescription {
+  mainComponent: { id: string; name: string } | null
+  properties: InstanceComponentPropertyDescription[]
+}
+
+function componentPropertyValue(
+  definition: ComponentPropertyDefinition,
+  value: string
+): string | boolean {
+  return definition.type === 'BOOLEAN' ? value === 'true' : value
+}
+
+export function describeInstanceComponent(
+  node: SceneNode,
+  graph: SceneGraph
+): InstanceComponentDescription | undefined {
+  if (node.type !== 'INSTANCE') return undefined
+  const mainComponent = instanceMainComponent(graph, node)
+  const properties = componentPropertyDefinitions(graph, node).map((definition) => {
+    const assigned = node.componentPropertyAssignments[definition.id]
+    const variantValue =
+      definition.type === 'VARIANT'
+        ? mainComponent?.componentPropertyValues[definition.name]
+        : undefined
+    const rawValue = assigned ?? variantValue ?? definition.defaultValue
+    const result: InstanceComponentPropertyDescription = {
+      id: definition.id,
+      name: definition.name,
+      type: definition.type,
+      value: componentPropertyValue(definition, rawValue),
+      defaultValue: componentPropertyValue(definition, definition.defaultValue),
+      overridden: assigned !== undefined || rawValue !== definition.defaultValue
+    }
+    const options = definition.variantOptions ?? definition.preferredValues
+    if (options) result.options = [...options]
+    if (definition.description) result.description = definition.description
+    if (definition.type === 'INSTANCE_SWAP') {
+      const resolved = resolveComponentPropertyValue(graph, rawValue)
+      if (resolved) {
+        result.resolvedValue = { id: resolved.id, name: resolved.name, type: resolved.type }
+      }
+    }
+    return result
+  })
+  return {
+    mainComponent: mainComponent ? { id: mainComponent.id, name: mainComponent.name } : null,
+    properties
+  }
 }
 
 function describeChild(
@@ -24,6 +94,9 @@ function describeChild(
   const summary =
     node.type === 'TEXT' ? summarizeText(node, graph) : summarizeContainer(node, graph)
   const result: ChildDescription = { role, name: node.name, summary, id: node.id }
+
+  const component = describeInstanceComponent(node, graph)
+  if (component) result.component = component
 
   const issues = detectIssues(node, gridSize, graph)
   if (issues.length > 0) result.issues = issues
@@ -69,6 +142,8 @@ export function describeOneNode(
     size: `${raw.width}×${raw.height}`,
     visual
   }
+  const component = describeInstanceComponent(raw, figma.graph)
+  if (component) result.component = component
   if (layout) result.layout = layout
   if (children.length > 0) result.children = children
   if (issues.length > 0) result.issues = issues

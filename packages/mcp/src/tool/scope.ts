@@ -14,6 +14,7 @@ export const SELECTION_SCOPE_TOOLS: Readonly<Record<string, readonly string[]>> 
   get_node: ['id'],
   get_page_tree: ['root_id'],
   describe: ['id', 'ids'],
+  describe_selection_for_code: [],
   export_image: ['ids']
 }
 
